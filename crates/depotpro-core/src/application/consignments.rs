@@ -132,7 +132,7 @@ pub async fn get_overview(db: &DepotDb) -> CoreResult<ConsignmentsOverviewDto> {
     .await?;
 
     let client_balances = sqlx::query_as::<_, ClientPackagingBalanceDto>(
-        "SELECT cpa.id, cpa.client_id, c.name AS client_name, c.code AS client_code,
+        "SELECT cpa.rowid AS id, cpa.client_id, c.name AS client_name, c.code AS client_code,
                 cpa.returnable_id, rpt.name AS packaging_name, rpt.code AS packaging_code, rpt.deposit_value,
                 cpa.balance_pieces, cpa.deposit_held_amount
          FROM customer_packaging_accounts cpa

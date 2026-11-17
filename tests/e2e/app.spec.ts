@@ -21,7 +21,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Parcours E2E Interface & Métier', () => 
     await page.getByRole('button', { name: 'Enregistrer et accéder' }).click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByText(/Tableau de bord/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
 
     // 2. Bascule thème Clair / Sombre
     await page.getByRole('button', { name: /thème/i }).click();

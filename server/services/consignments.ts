@@ -14,7 +14,7 @@ export function getConsignmentsOverview() {
 
   const clientBalances = db
     .prepare(
-      `SELECT cpa.*, c.name AS client_name, c.code AS client_code, rpt.name AS packaging_name, rpt.code AS packaging_code, rpt.deposit_value
+      `SELECT cpa.rowid AS id, cpa.*, c.name AS client_name, c.code AS client_code, rpt.name AS packaging_name, rpt.code AS packaging_code, rpt.deposit_value
        FROM customer_packaging_accounts cpa
        JOIN clients c ON c.id = cpa.client_id
        JOIN returnable_packaging_types rpt ON rpt.id = cpa.returnable_id
