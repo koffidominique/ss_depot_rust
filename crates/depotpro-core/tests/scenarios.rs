@@ -845,7 +845,7 @@ async fn scenario_t_company_logo_and_wave_refund() {
 
     let cancelled = sales::cancel_sale(
         &db,
-        sale.id,
+        sale.sale.id,
         sales::CancelSaleInput {
             reason: "Remboursement Wave".to_string(),
             refund_method_code: Some("wave".to_string()),
@@ -854,14 +854,14 @@ async fn scenario_t_company_logo_and_wave_refund() {
     )
     .await
     .unwrap();
-    assert_eq!(cancelled.status, "cancelled");
+    assert_eq!(cancelled.sale.status, "cancelled");
 
     let status = cash::get_cash_status(&db).await.unwrap();
     let summary = status.summary.unwrap();
     let mov = summary
         .movements
         .iter()
-        .find(|m| m.reference_document.as_deref() == Some(sale.reference.as_str()) && m.direction == "out")
+        .find(|m| m.reference_document.as_deref() == Some(sale.sale.reference.as_str()) && m.direction == "out")
         .unwrap();
     assert_eq!(mov.method_code, "wave");
     assert_eq!(mov.amount, 1200);

@@ -88,7 +88,7 @@ jobs:
           CARGO_TERM_COLOR=never cargo clippy -p depotpro-core -p depotpro-server --all-targets -- -D warnings 2>&1 | tee /tmp/clippy.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
-            MSG=$(grep -v -E '^\s*(Compiling|Checking|Downloading|Downloaded|Updating|Locking) ' /tmp/clippy.log | tail -n 35 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
+            MSG=$(grep -E '^error(\[|:)|   -->' /tmp/clippy.log | head -n 60 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
             echo "::error title=clippy::$MSG"
             exit "$rc"
           fi
@@ -98,10 +98,12 @@ jobs:
           set +e
           CARGO_TERM_COLOR=never cargo test -p depotpro-core -p depotpro-server 2>&1 | tee /tmp/rust_test.log
           rc=${PIPESTATUS[0]}
+          MSG=$(grep -v -E '^\s*(Compiling|Checking|Downloading|Downloaded|Updating|Locking) ' /tmp/rust_test.log | tail -n 60 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
           if [ "$rc" -ne 0 ]; then
-            MSG=$(grep -v -E '^\s*(Compiling|Checking|Downloading|Downloaded|Updating|Locking) ' /tmp/rust_test.log | tail -n 45 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
             echo "::error title=cargo-test::$MSG"
             exit "$rc"
+          else
+            echo "::notice title=cargo-test::$MSG"
           fi
 
   desktop-tauri-bundle:
