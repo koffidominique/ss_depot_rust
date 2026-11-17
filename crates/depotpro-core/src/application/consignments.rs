@@ -147,7 +147,7 @@ pub async fn get_overview(db: &DepotDb) -> CoreResult<ConsignmentsOverviewDto> {
     let recent_movements = sqlx::query_as::<_, ReturnableMovementDto>(
         "SELECT rsm.id, rsm.packaging_id, rpt.name AS packaging_name, rpt.code AS packaging_code,
                 rsm.movement_type, rsm.quantity, rsm.stock_before, rsm.stock_after,
-                rsm.reason, rsm.reference_document, rsm.created_at
+                rsm.reason, rsm.reference_document, rsm.date AS created_at
          FROM returnable_stock_movements rsm
          JOIN returnable_packaging_types rpt ON rpt.id = rsm.packaging_id
          ORDER BY rsm.id DESC LIMIT 50",

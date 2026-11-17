@@ -25,7 +25,7 @@ export function getConsignmentsOverview() {
 
   const recentMovements = db
     .prepare(
-      `SELECT rsm.*, rpt.name AS packaging_name, rpt.code AS packaging_code
+      `SELECT rsm.*, rsm.date AS created_at, rpt.name AS packaging_name, rpt.code AS packaging_code
        FROM returnable_stock_movements rsm
        JOIN returnable_packaging_types rpt ON rpt.id = rsm.packaging_id
        ORDER BY rsm.id DESC LIMIT 50`

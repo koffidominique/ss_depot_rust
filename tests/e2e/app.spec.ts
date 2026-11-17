@@ -30,7 +30,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Parcours E2E Interface & Métier', () => 
 
     // 3. Ouverture d'une session de caisse (50 000 FCFA)
     await page.goto('/cash');
-    await page.getByRole('button', { name: /Ouvrir la caisse/i }).click();
+    await page.getByRole('button', { name: /Ouvrir une session de caisse/i }).click();
     const cashDialog = page.getByRole('dialog');
     await cashDialog.locator('input').first().fill('50000');
     await cashDialog.getByRole('button', { name: /Confirmer l'ouverture/i }).click();
