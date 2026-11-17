@@ -1,7 +1,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BusinessError } from './domain.ts';
+import {
+  BusinessError,
+  checkedAddMoney,
+  checkedSubMoney,
+  fcfa,
+} from './domain.ts';
 
 export const DB_PATH = process.env.DEPOTPRO_DB_PATH
   ? path.resolve(process.env.DEPOTPRO_DB_PATH)
@@ -154,13 +159,15 @@ export function getTheoreticalCash(db: DatabaseSync, sessionId: number, openingC
   const row = db
     .prepare(
       `SELECT
-        COALESCE(SUM(CASE WHEN direction = 'in' THEN amount ELSE 0 END), 0) AS total_in,
-        COALESCE(SUM(CASE WHEN direction = 'out' THEN amount ELSE 0 END), 0) AS total_out
+        CAST(COALESCE(SUM(CASE WHEN direction = 'in' THEN amount ELSE 0 END), 0) AS TEXT) AS total_in,
+        CAST(COALESCE(SUM(CASE WHEN direction = 'out' THEN amount ELSE 0 END), 0) AS TEXT) AS total_out
        FROM cash_movements
        WHERE session_id = ? AND method_code = 'cash'`
     )
-    .get(sessionId) as { total_in: number; total_out: number };
-  return openingCash + row.total_in - row.total_out;
+    .get(sessionId) as { total_in: string; total_out: string };
+  const netIn = fcfa(row.total_in, 'Entrées espèces');
+  const netOut = fcfa(row.total_out, 'Sorties espèces');
+  return checkedSubMoney(checkedAddMoney(openingCash, netIn, 'Solde théorique'), netOut, 'Solde théorique');
 }
 
 function seedIfEmpty(db: DatabaseSync): void {

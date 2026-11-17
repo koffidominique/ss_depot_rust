@@ -1,5 +1,12 @@
 import { getDb, withWriteTx, nextSequence, requireOpenSession, getTheoreticalCash, auditLog } from '../db.ts';
-import { BusinessError, nonNegativeFcfa } from '../domain.ts';
+import {
+  BusinessError,
+  checkedAddMoney,
+  checkedMulMoney,
+  checkedSubMoney,
+  checkedSubNonNegativeMoney,
+  nonNegativeFcfa,
+} from '../domain.ts';
 
 export function getConsignmentsOverview() {
   const db = getDb();
@@ -130,7 +137,9 @@ export async function adjustReturnableStock(input: {
       .get(input.packaging_id) as { quantity: number } | undefined;
     const before = bal ? bal.quantity : 0;
     const isOut = ['exit', 'breakage', 'loss', 'correction_out'].includes(input.movement_type);
-    const after = isOut ? before - input.quantity : before + input.quantity;
+    const after = isOut
+      ? checkedSubMoney(before, input.quantity, 'Stock de vides')
+      : checkedAddMoney(before, input.quantity, 'Stock de vides');
     if (after < 0) {
       throw new BusinessError('INSUFFICIENT_STOCK', 'Stock de vides insuffisant pour ce mouvement.');
     }
@@ -199,15 +208,25 @@ export async function returnClientEmpties(input: {
         }
       | undefined;
     if (!issue) throw new BusinessError('VALIDATION_ERROR', 'Consigne client introuvable.');
-    if (issue.returned_pieces + input.pieces > issue.pieces) {
+    const totalReturned = checkedAddMoney(
+      issue.returned_pieces,
+      input.pieces,
+      'Pièces retournées'
+    );
+    if (totalReturned > issue.pieces) {
       throw new BusinessError('VALIDATION_ERROR', 'Nombre de vides retournés supérieur au solde sorti sur cette vente.');
     }
 
-    const maxValue = input.pieces * issue.unit_value;
-    if (refundAmount + creditReduction > maxValue) {
+    const maxValue = checkedMulMoney(input.pieces, issue.unit_value, 'Valeur consignée retournée');
+    const totalCounterpart = checkedAddMoney(
+      refundAmount,
+      creditReduction,
+      'Contrepartie retour vides'
+    );
+    if (totalCounterpart > maxValue) {
       throw new BusinessError(
         'INVALID_PAYMENT',
-        `La contrepartie (${refundAmount + creditReduction} FCFA) dépasse la valeur consignée (${maxValue} FCFA).`
+        `La contrepartie (${totalCounterpart} FCFA) dépasse la valeur consignée (${maxValue} FCFA).`
       );
     }
 
@@ -218,7 +237,11 @@ export async function returnClientEmpties(input: {
       if (!rec || creditReduction > rec.remaining_amount) {
         throw new BusinessError('INVALID_PAYMENT', 'Réduction de créance supérieure au solde restant de la vente.');
       }
-      const nextRem = rec.remaining_amount - creditReduction;
+      const nextRem = checkedSubNonNegativeMoney(
+        rec.remaining_amount,
+        creditReduction,
+        'Solde restant créance'
+      );
       db.prepare("UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?").run(
         nextRem,
         nextRem === 0 ? 'paid' : 'partial',
@@ -278,7 +301,11 @@ export async function returnClientEmpties(input: {
     );
 
     if (issue.client_id) {
-      const releasedDeposit = input.pieces * issue.unit_value;
+      const releasedDeposit = checkedMulMoney(
+        input.pieces,
+        issue.unit_value,
+        'Libération consigne client'
+      );
       db.prepare(
         `UPDATE customer_packaging_accounts
          SET balance_pieces = MAX(0, balance_pieces - ?),

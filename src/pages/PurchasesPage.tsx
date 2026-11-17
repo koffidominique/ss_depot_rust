@@ -20,6 +20,11 @@ import { ErrorState, LoadingState } from '../components/common/States.tsx';
 import type { PurchaseOrder } from '../types/erp.ts';
 import { exportPurchasesCsv } from '../utils/csv.ts';
 import { formatDate, formatDateTime, formatFcfa, formatQty, newRequestKey } from '../utils/format.ts';
+import {
+  computeExactLineGrossFcfa,
+  parseQtyInputToMilliBigInt,
+  toNonNegativeIntFcfaBigInt,
+} from '../features/sales/utils/saleCalculations.ts';
 
 function parseQtyMilliInput(raw: string): number | null {
   const cleaned = raw.trim().replace(',', '.');
@@ -76,12 +81,21 @@ export function PurchasesPage() {
   const products = productsRes?.items || [];
 
   const createPoMutation = useMutation({
-    mutationFn: () =>
-      apiClient.createPurchaseOrder({
+    mutationFn: () => {
+      for (const line of poLines) {
+        const parsedQty = parseQtyInputToMilliBigInt(line.quantity, 'Quantité commandée');
+        if (!parsedQty.ok) throw new Error(parsedQty.error);
+        const parsedPrice = toNonNegativeIntFcfaBigInt(line.unit_price, 'Prix unitaire achat');
+        if (!parsedPrice.ok) throw new Error(parsedPrice.error);
+        const lineExact = computeExactLineGrossFcfa(parsedQty.milli, parsedPrice.fcfa, 'Ligne commande');
+        if (!lineExact.ok) throw new Error(lineExact.error);
+      }
+      return apiClient.createPurchaseOrder({
         request_key: newRequestKey('po'),
         supplier_id: supplierId,
         lines: poLines,
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchases'] });
       setCreateOpen(false);
@@ -230,7 +244,7 @@ export function PurchasesPage() {
                 partyDetails: `Code ${row.original.supplier_code} · Commande ${row.original.reference}`,
                 lines: row.original.lines.map((l) => ({
                   label: l.product_name,
-                  sublabel: `${l.packaging_name} (×${l.coefficient_milli / 1000} ${l.base_unit}) · Reçu : ${formatQty(l.received_quantity_milli)} / ${formatQty(l.ordered_quantity_milli)}`,
+                  sublabel: `${l.packaging_name} (×${formatQty(l.coefficient_milli, l.base_unit)}) · Reçu : ${formatQty(l.received_quantity_milli)} / ${formatQty(l.ordered_quantity_milli)}`,
                   quantity: formatQty(l.ordered_quantity_milli),
                   unitPrice: l.unit_price,
                   total: l.line_total,
@@ -457,7 +471,7 @@ export function PurchasesPage() {
                       >
                         {(prod?.packagings || []).map((pk) => (
                           <option key={pk.id} value={pk.id}>
-                            {pk.name} (×{pk.coefficient_milli / 1000})
+                            {pk.name} (×{formatQty(pk.coefficient_milli)})
                           </option>
                         ))}
                       </select>
@@ -533,8 +547,8 @@ export function PurchasesPage() {
             )}
             <div className="mt-4 space-y-3">
               {receiveTarget?.lines.map((l) => {
-                const rem = (l.ordered_quantity_milli - l.received_quantity_milli) / 1000;
-                if (rem <= 0) return null;
+                const remMilli = l.ordered_quantity_milli - l.received_quantity_milli;
+                if (remMilli <= 0) return null;
                 return (
                   <div
                     key={l.id}
@@ -543,7 +557,7 @@ export function PurchasesPage() {
                     <div className="flex justify-between">
                       <span className="font-semibold">{l.product_name}</span>
                       <span className="font-mono-num text-[#667085]">
-                        Restant : {rem} {l.packaging_name} (×{l.coefficient_milli / 1000} {l.base_unit})
+                        Restant : {formatQty(remMilli, l.packaging_name)} (×{formatQty(l.coefficient_milli, l.base_unit)})
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-3">

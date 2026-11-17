@@ -328,10 +328,11 @@ pub async fn adjust_returnable_stock(
         "exit" | "breakage" | "loss" | "correction_out"
     );
     let after = if is_out {
-        before - input.quantity
+        before.checked_sub(input.quantity)
     } else {
-        before + input.quantity
-    };
+        before.checked_add(input.quantity)
+    }
+    .ok_or_else(|| CoreError::Validation("Débordement sur le stock de vides.".to_string()))?;
     if after < 0 {
         return Err(CoreError::InsufficientStock(
             "Stock de vides insuffisant pour ce mouvement.".to_string(),
@@ -418,16 +419,22 @@ pub async fn return_client_empties(
     let (issue_id, sale_id, client_id, returnable_id, pieces, returned_pieces, unit_value) =
         issue.ok_or_else(|| CoreError::Validation("Consigne client introuvable.".to_string()))?;
 
-    if returned_pieces + input.pieces > pieces {
+    let total_returned_pieces = returned_pieces
+        .checked_add(input.pieces)
+        .ok_or_else(|| CoreError::Validation("Débordement du nombre de pièces.".to_string()))?;
+    if total_returned_pieces > pieces {
         return Err(CoreError::Validation(
             "Nombre de vides retournés supérieur au solde sorti sur cette vente.".to_string(),
         ));
     }
-    let max_val = input.pieces * unit_value;
-    if refund_amount.value() + credit_reduction.value() > max_val {
+    let max_val = Money::from_non_negative(unit_value, "Tarif consigne")?
+        .checked_mul(input.pieces, "Valeur consignée retournée")?;
+    let total_counterpart = refund_amount.checked_add(credit_reduction, "Contrepartie retour vides")?;
+    if total_counterpart > max_val {
         return Err(CoreError::InvalidPayment(format!(
-            "La contrepartie ({}) dépasse la valeur consignée ({max_val}).",
-            refund_amount.value() + credit_reduction.value()
+            "La contrepartie ({}) dépasse la valeur consignée ({}).",
+            total_counterpart.value(),
+            max_val.value()
         )));
     }
 
@@ -445,7 +452,9 @@ pub async fn return_client_empties(
                 "Réduction de créance supérieure au solde restant.".to_string(),
             ));
         }
-        let next_rem = rem - credit_reduction.value();
+        let next_rem = Money(rem)
+            .checked_sub_non_negative(credit_reduction, "Solde créance")?
+            .value();
         sqlx::query("UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?")
             .bind(next_rem)
             .bind(if next_rem == 0 { "paid" } else { "partial" })
@@ -470,7 +479,9 @@ pub async fn return_client_empties(
             .await?;
     let before = bal.map(|b| b.0).unwrap_or(0);
     let after = if input.condition_state == "good" {
-        before + input.pieces
+        before
+            .checked_add(input.pieces)
+            .ok_or_else(|| CoreError::Validation("Débordement du stock de vides.".to_string()))?
     } else {
         before
     };
@@ -519,7 +530,9 @@ pub async fn return_client_empties(
         .await?;
 
     if let Some(cid) = client_id {
-        let released_deposit = input.pieces * unit_value;
+        let released_deposit = Money::from_non_negative(unit_value, "Tarif consigne")?
+            .checked_mul(input.pieces, "Libération consigne client")?
+            .value();
         sqlx::query(
             "UPDATE customer_packaging_accounts
              SET balance_pieces = MAX(0, balance_pieces - ?),

@@ -8,7 +8,10 @@ import {
 } from '../db.ts';
 import {
   BusinessError,
+  checkedAddMilli,
   checkedAddMoney,
+  checkedSubMoney,
+  checkedSubNonNegativeMoney,
   formatMilli,
   nonNegativeFcfa,
   nonNegativeMilli,
@@ -97,7 +100,7 @@ export async function closeCashSession(input: {
     if (!session) throw new BusinessError('SESSION_NOT_OPEN', 'Session ouverte introuvable.');
 
     const theoretical = getTheoreticalCash(db, session.id, session.opening_cash);
-    const difference = physicalCash - theoretical;
+    const difference = checkedSubMoney(physicalCash, theoretical, 'Écart de clôture');
     if (difference !== 0 && !notes) {
       throw new BusinessError(
         'VALIDATION_ERROR',
@@ -217,7 +220,11 @@ export async function payReceivable(
       );
     });
 
-    const nextRem = rec.remaining_amount - totalPaid;
+    const nextRem = checkedSubNonNegativeMoney(
+      rec.remaining_amount,
+      totalPaid,
+      'Solde restant créance'
+    );
     db.prepare('UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?').run(
       nextRem,
       nextRem === 0 ? 'paid' : 'partial',
@@ -321,10 +328,21 @@ export function getStockOverview() {
     .all() as Array<Record<string, unknown>>;
 
   const enriched = products.map((p) => {
-    const hasKnownCost = Boolean(p.average_cost_num && p.average_cost_den && Number(p.average_cost_den) > 0);
-    const avgCost = hasKnownCost ? Math.round(Number(p.average_cost_num) / Number(p.average_cost_den)) : null;
-    const valuation =
-      hasKnownCost && avgCost !== null ? Math.round((Number(p.stock_milli) * avgCost) / 1000) : null;
+    const hasKnownCost = Boolean(
+      p.average_cost_num && p.average_cost_den && BigInt(String(p.average_cost_den)) > 0n
+    );
+    let avgCost: number | null = null;
+    let valuation: number | null = null;
+    if (hasKnownCost) {
+      const num = BigInt(String(p.average_cost_num));
+      const den = BigInt(String(p.average_cost_den));
+      const avgBig = (num + den / 2n) / den;
+      const valBig = (BigInt(Number(p.stock_milli)) * avgBig + 500n) / 1000n;
+      const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
+      avgCost = avgBig <= maxSafe && avgBig >= -maxSafe ? Number(avgBig) : null;
+      valuation =
+        avgCost !== null && valBig <= maxSafe && valBig >= -maxSafe ? Number(valBig) : null;
+    }
     return {
       ...p,
       average_cost_fcfa: avgCost,
@@ -417,7 +435,7 @@ export async function adjustStock(input: {
     }
 
     const delta = input.direction === 'out' ? -qtyMilli : qtyMilli;
-    const stockAfter = prod.stock_milli + delta;
+    const stockAfter = checkedAddMilli(prod.stock_milli, delta, 'Stock après ajustement');
     const settings = db
       .prepare('SELECT allow_negative_stock FROM app_settings WHERE id = 1')
       .get() as { allow_negative_stock: number } | undefined;

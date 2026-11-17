@@ -16,6 +16,7 @@ import {
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
 import { exportConsignmentBalancesCsv, exportConsignmentMovementsCsv } from '../utils/csv.ts';
 import { formatDateTime, formatFcfa, formatNumber, newRequestKey } from '../utils/format.ts';
+import { toNonNegativeIntFcfaBigInt } from '../features/sales/utils/saleCalculations.ts';
 
 interface ReturnableType {
   id: number;
@@ -166,6 +167,22 @@ export function ConsignmentsPage() {
   const returnMut = useMutation({
     mutationFn: () => {
       if (!returnTarget) throw new Error('Consigne non sélectionnée');
+      const remPieces = Math.max(0, returnTarget.pieces - returnTarget.returned_pieces);
+      if (!Number.isSafeInteger(retPieces) || retPieces <= 0 || retPieces > remPieces) {
+        throw new Error(`Nombre de pièces retournées invalide (max ${remPieces}).`);
+      }
+      const refundCheck = toNonNegativeIntFcfaBigInt(retRefund, 'Remboursement client');
+      if (!refundCheck.ok) throw new Error(refundCheck.error);
+      const creditCheck = toNonNegativeIntFcfaBigInt(retCreditRed, 'Déduction créance');
+      if (!creditCheck.ok) throw new Error(creditCheck.error);
+      const unitCheck = toNonNegativeIntFcfaBigInt(returnTarget.unit_value, 'Tarif consigne');
+      if (!unitCheck.ok) throw new Error(unitCheck.error);
+      const maxValBig = BigInt(retPieces) * unitCheck.fcfa;
+      if (refundCheck.fcfa + creditCheck.fcfa > maxValBig) {
+        throw new Error(
+          `La contrepartie (${formatFcfa(Number(refundCheck.fcfa + creditCheck.fcfa))}) dépasse la valeur consignée (${maxValBig <= BigInt(Number.MAX_SAFE_INTEGER) ? formatFcfa(Number(maxValBig)) : String(maxValBig)}).`
+        );
+      }
       return apiClient.returnClientEmpties({
         issue_id: returnTarget.id,
         pieces: retPieces,
@@ -844,7 +861,12 @@ export function ConsignmentsPage() {
                     onChange={(e) => {
                       const val = Math.max(1, Math.trunc(Number(e.target.value) || 1));
                       setRetPieces(val);
-                      if (returnTarget) setRetRefund(val * returnTarget.unit_value);
+                      if (returnTarget) {
+                        const maxValBig = BigInt(val) * BigInt(Math.max(0, returnTarget.unit_value));
+                        setRetRefund(
+                          maxValBig <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(maxValBig) : 0
+                        );
+                      }
                     }}
                     className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 font-mono-num"
                   />

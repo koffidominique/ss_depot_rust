@@ -128,7 +128,9 @@ pub async fn get_cash_status(db: &DepotDb) -> CoreResult<CashStatusDto> {
         .bind(s.id)
         .fetch_one(&db.pool)
         .await?;
-        let theoretical_cash = s.opening_cash + net_cash;
+        let theoretical_cash = Money(s.opening_cash)
+            .checked_add(Money(net_cash), "Solde théorique caisse")?
+            .value();
 
         let by_method = sqlx::query_as::<_, MethodSummaryDto>(
             "SELECT cm.method_code, pm.label, pm.is_cash,
@@ -260,7 +262,9 @@ pub async fn close_cash_session(db: &DepotDb, input: CloseCashInput) -> CoreResu
         s.ok_or_else(|| CoreError::SessionNotOpen("Session ouverte introuvable.".to_string()))?;
 
     let theoretical = get_theoretical_cash_tx(&mut tx, sid, opening_cash).await?;
-    let difference = physical_cash.value() - theoretical;
+    let difference = physical_cash
+        .checked_sub(Money(theoretical), "Écart de clôture")?
+        .value();
     if difference != 0 && notes.is_empty() {
         return Err(CoreError::Validation(format!(
             "Un écart de caisse ({difference} FCFA) nécessite obligatoirement un commentaire justificatif."
@@ -423,7 +427,9 @@ pub async fn pay_receivable(
         .await?;
     }
 
-    let next_rem = remaining - total_paid.value();
+    let next_rem = Money(remaining)
+        .checked_sub_non_negative(total_paid, "Solde restant créance")?
+        .value();
     sqlx::query("UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?")
         .bind(next_rem)
         .bind(if next_rem == 0 { "paid" } else { "partial" })

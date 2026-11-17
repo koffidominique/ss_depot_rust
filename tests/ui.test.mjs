@@ -2802,4 +2802,196 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       apiClient.getSettings = origGetSettings;
     }
   });
+
+  it('Lot 2 — SalesPage calcule en BigInt exact, bloque les fractions invalides et conserve le panier après échec', async () => {
+    const origListProducts = apiClient.listProducts;
+    const origListClients = apiClient.listClients;
+    const origGetSettings = apiClient.getSettings;
+    const origGetCash = apiClient.getCashStatus;
+    const origCreateSale = apiClient.createSale;
+
+    apiClient.listProducts = async () => ({
+      items: [
+        {
+          id: 95,
+          reference: 'PRD-0095',
+          barcode: null,
+          name: 'Sirop Lot 2 UI',
+          brand: null,
+          category_id: 1,
+          category_name: 'Sirops',
+          supplier_id: null,
+          supplier_name: null,
+          description: null,
+          base_unit: 'litre',
+          stock_milli: 50_000,
+          min_stock_milli: 5_000,
+          max_stock_milli: 0,
+          purchase_price: 80,
+          wholesale_price: 90,
+          semi_wholesale_price: 95,
+          retail_price: 100,
+          average_cost_fcfa: null,
+          image_path: null,
+          is_active: 1,
+          packagings: [
+            {
+              id: 951,
+              product_id: 95,
+              name: 'bouteille',
+              base_unit: 'litre',
+              coefficient_milli: 1000,
+              purchase_price: 80,
+              wholesale_price: 90,
+              semi_wholesale_price: 95,
+              retail_price: 100,
+              barcode: null,
+              allow_fraction: 1,
+              is_active: 1,
+              deposit_mode: 'none',
+              components: [],
+            },
+          ],
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 50,
+      totalPages: 1,
+    });
+    apiClient.listClients = async () => [];
+    apiClient.getSettings = async () => ({
+      settings: {
+        company_name: 'DEPOTPRO',
+        company_legal_name: null,
+        address: null,
+        phone: null,
+        email: null,
+        city: null,
+        country: null,
+        currency: 'FCFA',
+        allow_negative_stock: 0,
+        invoice_prefix: 'FAC',
+        sale_prefix: 'VTE',
+        purchase_prefix: 'ACH',
+        order_prefix: 'CMD',
+        receipt_prefix: 'REC',
+        credit_note_prefix: 'AVO',
+        theme: 'light',
+      },
+      paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+    });
+    apiClient.getCashStatus = async () => ({
+      activeSession: {
+        id: 1,
+        reference: 'CAI-1',
+        opened_at: '2026-11-17T08:00:00Z',
+        closed_at: null,
+        status: 'open',
+        opening_cash: 0,
+        theoretical_cash: 0,
+        physical_cash: null,
+        difference: null,
+        closing_notes: null,
+      },
+      summary: null,
+      history: [],
+    });
+    apiClient.createSale = async () => {
+      throw new Error('Encaissement insuffisant côté serveur');
+    };
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      useUiStore.setState({ heldCarts: [], posCart: [], posClientId: null, posSaleType: 'cash' });
+
+      // Vérifie l'addition décimale exacte dans le store POS (0.1 + 0.2 === 0.3, sans 0.30000000000000004)
+      useUiStore.getState().addToCart({
+        key: '95-951',
+        productId: 95,
+        productName: 'Sirop Lot 2 UI',
+        reference: 'PRD-0095',
+        baseUnit: 'litre',
+        stockMilli: 50_000,
+        packagingId: 951,
+        packagingName: 'bouteille',
+        coefficientMilli: 1000,
+        allowFraction: true,
+        quantity: '0.1',
+        unitPrice: 100,
+        discountAmount: 0,
+        depositPerPack: 0,
+        depositMode: 'none',
+      });
+      useUiStore.getState().addToCart({
+        key: '95-951',
+        productId: 95,
+        productName: 'Sirop Lot 2 UI',
+        reference: 'PRD-0095',
+        baseUnit: 'litre',
+        stockMilli: 50_000,
+        packagingId: 951,
+        packagingName: 'bouteille',
+        coefficientMilli: 1000,
+        allowFraction: true,
+        quantity: '0.2',
+        unitPrice: 100,
+        discountAmount: 0,
+        depositPerPack: 0,
+        depositMode: 'none',
+      });
+      assert.equal(useUiStore.getState().posCart[0].quantity, '0.3');
+
+      render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/sales/new'] },
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(SalesPage))
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByText('Sirop Lot 2 UI')));
+
+      // Quantité 0.333 × 100 FCFA -> non entier FCFA : doit afficher erreur, masquer total exact et désactiver validation
+      const qtyInputs = screen.getAllByRole('textbox');
+      const lineQtyInput = qtyInputs.find((el) => el.value === '0.3');
+      assert.ok(lineQtyInput);
+      fireEvent.change(lineQtyInput, { target: { value: '0.333' } });
+
+      await waitFor(() => {
+        const alerts = screen.getAllByRole('alert');
+        assert.ok(
+          alerts.some((a) => /nombre entier de FCFA/i.test(a.textContent || ''))
+        );
+      });
+      const submitBtn = screen.getByRole('button', { name: /Valider la vente \(F9\)/i });
+      assert.equal(submitBtn.hasAttribute('disabled'), true);
+
+      // Quantité valide 0.5 × 100 = 50 FCFA exact
+      fireEvent.change(lineQtyInput, { target: { value: '0.5' } });
+      await waitFor(() => {
+        assert.equal(submitBtn.hasAttribute('disabled'), false);
+        assert.ok(screen.getAllByText(/50 FCFA/).length >= 1);
+      });
+
+      // Échec API : le message d'erreur s'affiche et le panier n'est PAS vidé
+      fireEvent.click(submitBtn);
+      await waitFor(() => {
+        assert.ok(screen.getByText(/Encaissement insuffisant côté serveur/i));
+      });
+      assert.equal(useUiStore.getState().posCart.length, 1);
+    } finally {
+      useUiStore.setState({ heldCarts: [], posCart: [], posClientId: null, posSaleType: 'cash' });
+      qc.clear();
+      apiClient.listProducts = origListProducts;
+      apiClient.listClients = origListClients;
+      apiClient.getSettings = origGetSettings;
+      apiClient.getCashStatus = origGetCash;
+      apiClient.createSale = origCreateSale;
+    }
+  });
 });

@@ -268,7 +268,9 @@ pub(crate) async fn get_theoretical_cash_tx(
     .bind(session_id)
     .fetch_one(&mut **tx)
     .await?;
-    Ok(opening_cash + net)
+    Money(opening_cash)
+        .checked_add(Money(net), "Solde théorique de caisse")
+        .map(Money::value)
 }
 
 pub async fn list_clients(db: &DepotDb, search: Option<&str>) -> CoreResult<Vec<ClientSummaryDto>> {
@@ -909,14 +911,20 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
                 )));
             }
             for (rid, ppp, dep_val) in comps {
-                let pieces = packs * ppp;
-                let amt = Money(pieces * dep_val);
+                let pieces = packs.checked_mul(ppp).ok_or_else(|| {
+                    CoreError::Validation("Débordement du nombre de pièces consignées.".to_string())
+                })?;
+                let amt = Money::from_non_negative(dep_val, "Tarif consigne")?
+                    .checked_mul(pieces, "Montant consigne")?;
                 total_deposit = total_deposit.checked_add(amt, "Total consignes")?;
                 deposit_items.push((rid, pieces, dep_val, amt.value()));
             }
         }
 
-        *product_deductions.entry(pid).or_insert(0) += base_qty.milli_units;
+        let current_deduction = product_deductions.entry(pid).or_insert(0);
+        *current_deduction = current_deduction
+            .checked_add(base_qty.milli_units)
+            .ok_or_else(|| CoreError::Validation("Débordement quantité déduite.".to_string()))?;
         prepared_lines.push(PreparedSaleLine {
             product_id: pid,
             product_name: pname,
@@ -990,7 +998,9 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         ));
     }
 
-    let credit_amount = total_amount.value() - paid_amount.value();
+    let credit_amount = total_amount
+        .checked_sub_non_negative(paid_amount, "Solde crédit")?
+        .value();
     if input.sale_type == "credit" && credit_policy.as_deref() == Some("limited") {
         let cid = input.client_id.unwrap();
         let current_due: i64 = sqlx::query_scalar(
@@ -1000,7 +1010,8 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         .fetch_one(&mut *tx)
         .await?;
         if let Some(lim) = credit_limit {
-            if current_due + credit_amount > lim {
+            let next_due = (current_due as i128) + (credit_amount as i128);
+            if next_due > (lim as i128) {
                 return Err(CoreError::CreditPolicyViolation(format!(
                     "Plafond de crédit dépassé pour \"{client_name}\"."
                 )));
@@ -1056,7 +1067,9 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
             .bind(line.product_id)
             .fetch_one(&mut *tx)
             .await?;
-        let next_stock = cur_stock - line.base_qty_milli;
+        let next_stock = cur_stock
+            .checked_sub(line.base_qty_milli)
+            .ok_or_else(|| CoreError::Validation("Débordement stock lors de la vente.".to_string()))?;
         sqlx::query("UPDATE products SET stock_milli = ? WHERE id = ?")
             .bind(next_stock)
             .bind(line.product_id)
@@ -1236,7 +1249,9 @@ pub async fn cancel_sale(db: &DepotDb, sale_id: i64, input: CancelSaleInput) -> 
             .bind(pid)
             .fetch_one(&mut *tx)
             .await?;
-        let next_stock = cur_stock + qty_milli;
+        let next_stock = cur_stock
+            .checked_add(qty_milli)
+            .ok_or_else(|| CoreError::Validation("Débordement stock lors de l'annulation.".to_string()))?;
         sqlx::query("UPDATE products SET stock_milli = ? WHERE id = ?")
             .bind(next_stock)
             .bind(pid)
@@ -1463,7 +1478,10 @@ pub async fn create_sale_return(
                 "La ligne de vente #{sl_id} a déjà été intégralement retournée."
             )));
         }
-        if prev_ret + base_qty.milli_units > sold_base_milli {
+        let cum_ret = prev_ret
+            .checked_add(base_qty.milli_units)
+            .ok_or_else(|| CoreError::Validation("Débordement quantité retournée.".to_string()))?;
+        if cum_ret > sold_base_milli {
             return Err(CoreError::Validation(
                 "Quantité retournée supérieure à la quantité vendue restante.".to_string(),
             ));
@@ -1476,10 +1494,9 @@ pub async fn create_sale_return(
                 "La fraction retournée ne correspond pas à un nombre entier de FCFA.".to_string(),
             ));
         }
-        let line_amount = i64::try_from(exact_prod / denom)
-            .map_err(|_| CoreError::Validation("Débordement montant retour.".to_string()))?;
-        total_return = total_return.checked_add(Money(line_amount), "Total retour")?;
-        prepared.push((sl_id, pid, base_qty.milli_units, line_amount));
+        let line_amount = Money::from_i128(exact_prod / denom, "Montant retour ligne")?;
+        total_return = total_return.checked_add(line_amount, "Total retour")?;
+        prepared.push((sl_id, pid, base_qty.milli_units, line_amount.value()));
     }
 
     let mut credit_reduction: i64 = 0;
@@ -1494,11 +1511,14 @@ pub async fn create_sale_return(
     if let Some((_rec_id, rem)) = rec {
         if rem > 0 {
             credit_reduction = rem.min(total_return.value());
-            refund_amount = total_return.value() - credit_reduction;
+            refund_amount = total_return
+                .checked_sub_non_negative(Money(credit_reduction), "Remboursement retour")?
+                .value();
         }
     }
 
-    if credit_reduction + refund_amount != total_return.value() {
+    let check_sum = Money(credit_reduction).checked_add(Money(refund_amount), "Ventilation retour")?;
+    if check_sum != total_return {
         return Err(CoreError::Internal(
             "Incohérence interne dans la répartition du retour.".to_string(),
         ));
@@ -1589,7 +1609,9 @@ pub async fn create_sale_return(
                 .bind(pid)
                 .fetch_one(&mut *tx)
                 .await?;
-            let next_stock = cur_stock + base_qty_milli;
+            let next_stock = cur_stock
+                .checked_add(base_qty_milli)
+                .ok_or_else(|| CoreError::Validation("Débordement stock lors du retour.".to_string()))?;
             sqlx::query("UPDATE products SET stock_milli = ? WHERE id = ?")
                 .bind(next_stock)
                 .bind(pid)

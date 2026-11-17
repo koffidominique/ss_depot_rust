@@ -8,7 +8,11 @@ import {
 } from '../db.ts';
 import {
   BusinessError,
+  checkedAddMilli,
   checkedAddMoney,
+  checkedMulMoney,
+  checkedSubMilli,
+  checkedSubNonNegativeMoney,
   computeLineTotalFcfa,
   multiplyQtyCoeffToBaseMilli,
   nonNegativeFcfa,
@@ -377,8 +381,8 @@ export async function createSale(input: CreateSaleInput) {
           );
         }
         for (const comp of comps) {
-          const pieces = packs * comp.pieces_per_pack;
-          const amt = pieces * comp.deposit_value;
+          const pieces = checkedMulMoney(packs, comp.pieces_per_pack, 'Nombre de pièces consignées');
+          const amt = checkedMulMoney(pieces, comp.deposit_value, 'Montant consigne');
           totalDeposit = checkedAddMoney(totalDeposit, amt, 'Total consignes');
           depositItems.push({
             returnableId: comp.returnable_id,
@@ -391,7 +395,7 @@ export async function createSale(input: CreateSaleInput) {
 
       productDeductions.set(
         Number(prod.id),
-        (productDeductions.get(Number(prod.id)) || 0) + baseQtyMilli
+        checkedAddMilli(productDeductions.get(Number(prod.id)) || 0, baseQtyMilli, 'Total quantité déduite')
       );
 
       preparedLines.push({
@@ -429,7 +433,11 @@ export async function createSale(input: CreateSaleInput) {
       }
     }
 
-    const totalMerchandise = subtotalMerchandise - globalDiscount;
+    const totalMerchandise = checkedSubNonNegativeMoney(
+      subtotalMerchandise,
+      globalDiscount,
+      'Total marchandises'
+    );
     const totalAmount = checkedAddMoney(totalMerchandise, totalDeposit, 'Total vente');
     if (totalAmount <= 0) {
       throw new BusinessError('INVALID_MONEY', 'Le total de la vente doit être strictement positif.');
@@ -463,18 +471,18 @@ export async function createSale(input: CreateSaleInput) {
       );
     }
 
-    const creditAmount = totalAmount - paidAmount;
+    const creditAmount = checkedSubNonNegativeMoney(totalAmount, paidAmount, 'Solde crédit');
     if (input.sale_type === 'credit' && creditSetting?.policy === 'limited') {
       const currentDebtRow = db
         .prepare(
-          "SELECT COALESCE(SUM(remaining_amount), 0) AS due FROM customer_receivables WHERE client_id = ? AND status IN ('open', 'partial')"
+          "SELECT CAST(COALESCE(SUM(remaining_amount), 0) AS TEXT) AS due FROM customer_receivables WHERE client_id = ? AND status IN ('open', 'partial')"
         )
-        .get(client!.id) as { due: number };
-      const nextTotalDebt = currentDebtRow.due + creditAmount;
-      if (creditSetting.credit_limit !== null && nextTotalDebt > creditSetting.credit_limit) {
+        .get(client!.id) as { due: string };
+      const nextTotalDebt = BigInt(currentDebtRow.due) + BigInt(creditAmount);
+      if (creditSetting.credit_limit !== null && nextTotalDebt > BigInt(creditSetting.credit_limit)) {
         throw new BusinessError(
           'CREDIT_LIMIT_EXCEEDED',
-          `Plafond de crédit dépassé pour "${client!.name}" (encours après vente : ${nextTotalDebt} FCFA > plafond ${creditSetting.credit_limit} FCFA).`
+          `Plafond de crédit dépassé pour "${client!.name}" (encours après vente : ${nextTotalDebt.toString()} FCFA > plafond ${creditSetting.credit_limit} FCFA).`
         );
       }
     }
@@ -531,7 +539,7 @@ export async function createSale(input: CreateSaleInput) {
       const prod = db.prepare('SELECT stock_milli FROM products WHERE id = ?').get(line.productId) as {
         stock_milli: number;
       };
-      const nextStock = prod.stock_milli - line.baseQtyMilli;
+      const nextStock = checkedSubMilli(prod.stock_milli, line.baseQtyMilli, 'Stock après vente');
       db.prepare('UPDATE products SET stock_milli = ? WHERE id = ?').run(nextStock, line.productId);
       db.prepare(
         `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
@@ -762,7 +770,7 @@ export async function cancelSale(
       const prod = db.prepare('SELECT stock_milli FROM products WHERE id = ?').get(line.product_id) as {
         stock_milli: number;
       };
-      const nextStock = prod.stock_milli + line.base_quantity_milli;
+      const nextStock = checkedAddMilli(prod.stock_milli, line.base_quantity_milli, 'Stock après annulation vente');
       db.prepare('UPDATE products SET stock_milli = ? WHERE id = ?').run(nextStock, line.product_id);
       db.prepare(
         `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
@@ -933,7 +941,7 @@ export async function createSaleReturn(
           `La ligne de vente #${sl.id} a déjà été intégralement retournée.`
         );
       }
-      if (prevRet.s + l.baseQtyMilli > sl.base_quantity_milli) {
+      if (checkedAddMilli(prevRet.s, l.baseQtyMilli, 'Cumul quantité retournée') > sl.base_quantity_milli) {
         throw new BusinessError('INVALID_QUANTITY', 'Quantité retournée supérieure à la quantité vendue restante.');
       }
 
@@ -1025,7 +1033,7 @@ export async function createSaleReturn(
         const prod = db.prepare('SELECT stock_milli FROM products WHERE id = ?').get(p.productId) as {
           stock_milli: number;
         };
-        const nextStock = prod.stock_milli + p.baseQtyMilli;
+        const nextStock = checkedAddMilli(prod.stock_milli, p.baseQtyMilli, 'Stock après retour client');
         db.prepare('UPDATE products SET stock_milli = ? WHERE id = ?').run(nextStock, p.productId);
         db.prepare(
           `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)

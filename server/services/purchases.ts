@@ -1,7 +1,9 @@
 import { getDb, withWriteTx, nextSequence, requireOpenSession, getTheoreticalCash, auditLog } from '../db.ts';
 import {
   BusinessError,
+  checkedAddMilli,
   checkedAddMoney,
+  checkedSubNonNegativeMoney,
   computeLineTotalFcfa,
   multiplyQtyCoeffToBaseMilli,
   nonNegativeFcfa,
@@ -436,7 +438,7 @@ export async function receivePurchaseOrder(
         average_cost_den: string | null;
       };
 
-      const nextStock = prod.stock_milli + pl.baseQtyMilli;
+      const nextStock = checkedAddMilli(prod.stock_milli, pl.baseQtyMilli, 'Stock après réception');
       // Calcul du coût moyen pondéré en unité de base (FCFA / 1 unité)
       let nextCostNum = prod.average_cost_num;
       let nextCostDen = prod.average_cost_den;
@@ -460,8 +462,14 @@ export async function receivePurchaseOrder(
         'UPDATE products SET stock_milli = ?, average_cost_num = ?, average_cost_den = ? WHERE id = ?'
       ).run(nextStock, nextCostNum, nextCostDen, pl.productId);
 
-      const unitBaseCost =
-        pl.baseQtyMilli > 0 ? Number((BigInt(pl.amount) * 1000n) / BigInt(pl.baseQtyMilli)) : null;
+      let unitBaseCost: number | null = null;
+      if (pl.baseQtyMilli > 0) {
+        const unitCostBig = (BigInt(pl.amount) * 1000n) / BigInt(pl.baseQtyMilli);
+        if (unitCostBig > BigInt(Number.MAX_SAFE_INTEGER)) {
+          throw new BusinessError('INVALID_MONEY', 'Débordement du coût unitaire de base.');
+        }
+        unitBaseCost = Number(unitCostBig);
+      }
       db.prepare(
         `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, unit_cost, reason, reference_document)
          VALUES (?, 'purchase_in', ?, ?, ?, ?, ?, ?)`
@@ -610,7 +618,11 @@ export async function paySupplierDebt(
       payRef
     );
 
-    const nextRem = debt.remaining_amount - amount;
+    const nextRem = checkedSubNonNegativeMoney(
+      debt.remaining_amount,
+      amount,
+      'Solde dette fournisseur'
+    );
     db.prepare('UPDATE supplier_debts SET remaining_amount = ?, status = ? WHERE id = ?').run(
       nextRem,
       nextRem === 0 ? 'paid' : 'partial',

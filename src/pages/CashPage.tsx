@@ -117,11 +117,18 @@ export function CashPage() {
   const { activeSession, summary, history } = data;
   const theoreticalCash = summary?.theoreticalCash ?? 0;
   theoreticalCashRef.current = theoreticalCash;
-  const digitalNet = (summary?.byMethod || [])
+  const digitalNetBig = (summary?.byMethod || [])
     .filter((m) => m.is_cash === 0)
-    .reduce((acc, m) => acc + (m.total_in - m.total_out), 0);
+    .reduce((acc, m) => acc + (BigInt(Math.trunc(m.total_in)) - BigInt(Math.trunc(m.total_out))), 0n);
+  const digitalNet =
+    digitalNetBig <= BigInt(Number.MAX_SAFE_INTEGER) && digitalNetBig >= BigInt(Number.MIN_SAFE_INTEGER)
+      ? Number(digitalNetBig)
+      : 0;
   const physicalCashWatched = closeForm.watch('physical_cash');
-  const diffPreview = physicalCashWatched - theoreticalCash;
+  const diffPreview =
+    Number.isSafeInteger(physicalCashWatched) && physicalCashWatched >= 0
+      ? physicalCashWatched - theoreticalCash
+      : 0;
 
   const movementCols: ColumnDef<NonNullable<typeof summary>['movements'][number]>[] = [
     {

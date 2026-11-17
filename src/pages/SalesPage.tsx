@@ -26,6 +26,7 @@ import {
   type PrintableDocumentData,
 } from '../components/documents/DocumentPrintModal.tsx';
 import { formatDateTime, formatFcfa, formatQty, newRequestKey } from '../utils/format.ts';
+import { calculateSaleCart } from '../features/sales/utils/saleCalculations.ts';
 import type { PriceTier, Product, ProductPackaging, SaleDetail } from '../types/erp.ts';
 
 export function SalesPage() {
@@ -120,30 +121,18 @@ export function SalesPage() {
     });
   };
 
-  const totals = useMemo(() => {
-    let subtotalMerch = 0;
-    let totalDeposit = 0;
-    for (const item of posCart) {
-      const q = Number(item.quantity || '0');
-      if (!Number.isFinite(q) || q <= 0) continue;
-      const lineGross = Math.round(q * item.unitPrice);
-      subtotalMerch += Math.max(0, lineGross - item.discountAmount);
-      if (item.depositMode === 'deposit') {
-        totalDeposit += Math.round(q) * item.depositPerPack;
-      }
-    }
-    const netMerch = Math.max(0, subtotalMerch - globalDiscount);
-    const grandTotal = netMerch + totalDeposit;
-    return { subtotalMerch, netMerch, totalDeposit, grandTotal };
-  }, [posCart, globalDiscount]);
-
-  const paidTotal = useMemo(
-    () => paymentRows.reduce((s, p) => s + (Number.isFinite(p.amount) ? p.amount : 0), 0),
-    [paymentRows]
+  const totals = useMemo(
+    () => calculateSaleCart(posCart, globalDiscount, paymentRows),
+    [posCart, globalDiscount, paymentRows]
   );
+
+  const paidTotal = totals.paidTotal;
 
   const createSaleMutation = useMutation({
     mutationFn: () => {
+      if (!totals.isValid) {
+        throw new Error(totals.errors[0] || 'Panier invalide : corrigez les quantités ou montants.');
+      }
       const filteredPayments = paymentRows.filter((p) => p.amount > 0);
       return apiClient.createSale({
         request_key: requestKey,
@@ -203,11 +192,11 @@ export function SalesPage() {
 
   useEffect(() => {
     validateSaleRef.current = () => {
-      if (posCart.length > 0 && !createSaleMutation.isPending) {
+      if (posCart.length > 0 && totals.isValid && !createSaleMutation.isPending) {
         createSaleMutation.mutate();
       }
     };
-  }, [posCart.length, createSaleMutation]);
+  }, [posCart.length, totals.isValid, createSaleMutation]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -570,44 +559,48 @@ export function SalesPage() {
                   Sélectionnez un conditionnement à gauche pour démarrer la vente.
                 </p>
               ) : (
-                posCart.map((item) => (
-                  <div key={item.key} className="py-2.5 space-y-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-xs font-semibold text-[#182230] dark:text-slate-100">
-                          {item.productName}
+                posCart.map((item) => {
+                  const lineCalc = totals.lineResults[item.key];
+                  return (
+                    <div key={item.key} className="py-2.5 space-y-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-xs font-semibold text-[#182230] dark:text-slate-100">
+                            {item.productName}
+                          </div>
+                          <div className="text-[11px] text-[#667085] dark:text-slate-400">
+                            <span className="capitalize">{item.packagingName}</span> · {formatFcfa(item.unitPrice)}
+                            {item.depositMode === 'deposit' && item.depositPerPack > 0
+                              ? ` + consigne ${formatFcfa(item.depositPerPack)}`
+                              : ''}
+                          </div>
                         </div>
-                        <div className="text-[11px] text-[#667085] dark:text-slate-400">
-                          <span className="capitalize">{item.packagingName}</span> · {formatFcfa(item.unitPrice)}
-                          {item.depositMode === 'deposit' && item.depositPerPack > 0
-                            ? ` + consigne ${formatFcfa(item.depositPerPack)}`
-                            : ''}
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(item.key)}
+                          className="text-slate-400 hover:text-[#DC4545]"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <QuantityInput
+                          value={item.quantity}
+                          onChange={(q) => updateCartItem(item.key, { quantity: q })}
+                          allowFraction={item.allowFraction}
+                          unit={item.packagingName}
+                          error={lineCalc && !lineCalc.valid ? lineCalc.error || undefined : undefined}
+                          className="w-36"
+                        />
+                        <div className="font-mono-num text-xs font-semibold">
+                          {lineCalc && lineCalc.valid && lineCalc.lineNet !== null
+                            ? formatFcfa(lineCalc.lineNet)
+                            : '—'}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeFromCart(item.key)}
-                        className="text-slate-400 hover:text-[#DC4545]"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <QuantityInput
-                        value={item.quantity}
-                        onChange={(q) => updateCartItem(item.key, { quantity: q })}
-                        allowFraction={item.allowFraction}
-                        unit={item.packagingName}
-                        className="w-36"
-                      />
-                      <div className="font-mono-num text-xs font-semibold">
-                        {formatFcfa(
-                          Math.round(Number(item.quantity || '0') * item.unitPrice) - item.discountAmount
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -615,7 +608,9 @@ export function SalesPage() {
             <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3 text-xs">
               <div className="flex justify-between">
                 <span className="text-[#667085] dark:text-slate-400">Marchandises</span>
-                <span className="font-mono-num font-medium">{formatFcfa(totals.subtotalMerch)}</span>
+                <span className="font-mono-num font-medium">
+                  {totals.subtotalMerch !== null ? formatFcfa(totals.subtotalMerch) : '—'}
+                </span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-[#667085] dark:text-slate-400">Remise globale</span>
@@ -624,13 +619,13 @@ export function SalesPage() {
               <div className="flex justify-between">
                 <span className="text-[#667085] dark:text-slate-400">Consignes emballages</span>
                 <span className="font-mono-num font-medium text-[#D9901A] dark:text-amber-400">
-                  {formatFcfa(totals.totalDeposit)}
+                  {totals.totalDeposit !== null ? formatFcfa(totals.totalDeposit) : '—'}
                 </span>
               </div>
               <div className="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-2 text-sm font-bold">
                 <span>Total à payer</span>
                 <span className="font-mono-num text-[#2563EB] dark:text-[#60A5FA]">
-                  {formatFcfa(totals.grandTotal)}
+                  {totals.isValid && totals.grandTotal !== null ? formatFcfa(totals.grandTotal) : '—'}
                 </span>
               </div>
             </div>
@@ -640,11 +635,11 @@ export function SalesPage() {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold">Encaissement (simple ou mixte)</span>
                 <div className="flex items-center gap-2">
-                  {posSaleType === 'cash' && totals.grandTotal > 0 && (
+                  {posSaleType === 'cash' && totals.isValid && totals.grandTotal !== null && totals.grandTotal > 0 && (
                     <button
                       type="button"
                       onClick={() =>
-                        setPaymentRows([{ method_code: paymentRows[0]?.method_code || 'cash', amount: totals.grandTotal }])
+                        setPaymentRows([{ method_code: paymentRows[0]?.method_code || 'cash', amount: totals.grandTotal as number }])
                       }
                       className="text-[11px] font-medium text-[#2563EB] hover:underline"
                     >
@@ -705,21 +700,39 @@ export function SalesPage() {
                 </span>
                 <span className="font-mono-num font-semibold">
                   {posSaleType === 'credit'
-                    ? formatFcfa(Math.max(0, totals.grandTotal - paidTotal))
-                    : formatFcfa(paidTotal)}
+                    ? totals.isValid && totals.remainingAmount !== null
+                      ? formatFcfa(totals.remainingAmount)
+                      : '—'
+                    : paidTotal !== null
+                      ? formatFcfa(paidTotal)
+                      : '—'}
                 </span>
               </div>
             </div>
 
+            {totals.hasItems && !totals.isValid && (
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-xs text-[#DC4545] space-y-1"
+              >
+                {totals.errors.map((err, i) => (
+                  <div key={i}>{err}</div>
+                ))}
+              </div>
+            )}
+
             {errorMsg && (
-              <div className="rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-xs text-[#DC4545]">
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-xs text-[#DC4545]"
+              >
                 {errorMsg}
               </div>
             )}
 
             <button
               type="button"
-              disabled={posCart.length === 0 || createSaleMutation.isPending}
+              disabled={posCart.length === 0 || !totals.isValid || createSaleMutation.isPending}
               onClick={() => createSaleMutation.mutate()}
               className="w-full rounded-xl bg-[#16A36A] py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-40"
             >
@@ -768,7 +781,7 @@ export function SalesPage() {
                     lines: [
                       ...s.lines.map((l) => ({
                         label: l.product_name,
-                        sublabel: `${l.packaging_name} (×${l.coefficient_milli / 1000} ${l.base_unit})`,
+                        sublabel: `${l.packaging_name} (×${formatQty(l.coefficient_milli, l.base_unit)})`,
                         quantity: formatQty(l.quantity_milli),
                         unitPrice: l.unit_price,
                         total: l.line_total,
@@ -835,11 +848,7 @@ export function SalesPage() {
                 <p className="py-6 text-center text-[#667085]">Aucun panier en attente.</p>
               ) : (
                 heldCarts.map((ticket) => {
-                  const approxTotal = ticket.items.reduce(
-                    (s, it) =>
-                      s + Math.max(0, Math.round(Number(it.quantity || '0') * it.unitPrice) - it.discountAmount),
-                    0
-                  );
+                  const ticketCalc = calculateSaleCart(ticket.items, ticket.discountAmount);
                   return (
                     <div
                       key={ticket.id}
@@ -850,8 +859,11 @@ export function SalesPage() {
                           {ticket.label}
                         </div>
                         <div className="text-[11px] text-[#667085] font-mono-num">
-                          {ticket.items.length} ligne(s) · {formatFcfa(approxTotal)} ·{' '}
-                          {formatDateTime(ticket.createdAt)}
+                          {ticket.items.length} ligne(s) ·{' '}
+                          {ticketCalc.isValid && ticketCalc.grandTotal !== null
+                            ? formatFcfa(ticketCalc.grandTotal)
+                            : 'Total à vérifier'}{' '}
+                          · {formatDateTime(ticket.createdAt)}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">

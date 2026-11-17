@@ -641,7 +641,10 @@ pub async fn receive_purchase_order(
                 "La ligne de commande #{pol_id} a déjà été intégralement réceptionnée."
             )));
         }
-        if received_milli + qty.milli_units > ordered_milli {
+        let cum_received = received_milli
+            .checked_add(qty.milli_units)
+            .ok_or_else(|| CoreError::Validation("Débordement quantité réceptionnée.".to_string()))?;
+        if cum_received > ordered_milli {
             return Err(CoreError::Validation(
                 "La quantité reçue dépasse la quantité commandée restante.".to_string(),
             ));
@@ -713,7 +716,9 @@ pub async fn receive_purchase_order(
         .fetch_one(&mut *tx)
         .await?;
 
-        let next_stock = cur_stock + base_qty_milli;
+        let next_stock = cur_stock
+            .checked_add(*base_qty_milli)
+            .ok_or_else(|| CoreError::Validation("Débordement du stock produit.".to_string()))?;
         let mut next_num = avg_num.clone();
         let mut next_den = avg_den.clone();
 
@@ -739,7 +744,10 @@ pub async fn receive_purchase_order(
             .await?;
 
         let unit_base_cost = if *base_qty_milli > 0 {
-            Some(((*amount as i128 * 1000) / (*base_qty_milli as i128)) as i64)
+            Some(
+                i64::try_from((*amount as i128 * 1000) / (*base_qty_milli as i128))
+                    .map_err(|_| CoreError::Validation("Débordement du coût unitaire de base.".to_string()))?,
+            )
         } else {
             None
         };

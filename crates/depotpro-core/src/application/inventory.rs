@@ -135,9 +135,12 @@ pub async fn get_stock_overview(db: &DepotDb) -> CoreResult<StockOverviewDto> {
                 .zip(p.average_cost_den.as_deref().and_then(|d| d.parse::<i128>().ok()));
             let (avg_cost, valuation) = match parsed {
                 Some((num, den)) if den > 0 => {
-                    let avg = ((num + den / 2) / den) as i64;
-                    let val = (((p.stock_milli as i128) * (avg as i128) + 500) / 1000) as i64;
-                    (Some(avg), Some(val))
+                    let avg_i128 = (num + den / 2) / den;
+                    let avg = i64::try_from(avg_i128).ok();
+                    let val = avg.and_then(|a| {
+                        i64::try_from(((p.stock_milli as i128) * (a as i128) + 500) / 1000).ok()
+                    });
+                    (avg, val)
                 }
                 _ => (None, None),
             };
@@ -270,7 +273,7 @@ pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<S
         avg_num.as_deref().and_then(|n| n.parse::<i128>().ok()),
         avg_den.as_deref().and_then(|d| d.parse::<i128>().ok()),
     ) {
-        (Some(n), Some(d)) if d > 0 => Some(((n + d / 2) / d) as i64),
+        (Some(n), Some(d)) if d > 0 => i64::try_from((n + d / 2) / d).ok(),
         _ => None,
     };
 
