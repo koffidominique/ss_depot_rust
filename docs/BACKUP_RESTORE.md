@@ -8,6 +8,7 @@ SQLite fonctionne en mode `WAL` (`PRAGMA synchronous = FULL; PRAGMA foreign_keys
 2. **Checkpoint WAL complet** : `PRAGMA wal_checkpoint(TRUNCATE);` rapatrie les journaux et réinitialise le WAL.
 3. **Snapshot autonome** : `VACUUM INTO '<chemin_sauvegarde>'` produit un fichier `.db` compacté, cohérent et indépendant.
 4. **Contrôle automatique post-création** : la sauvegarde nouvellement produite est immédiatement ouverte en lecture seule avec `PRAGMA integrity_check` (`ok` obligatoire).
+5. **Rétention automatique** : après validation de la nouvelle sauvegarde, les archives les plus anciennes au-delà des **30 dernières sauvegardes** (`MAX_RETAINED_BACKUPS = 30`, Node & Rust) sont automatiquement purgées.
 
 ## Emplacement des sauvegardes
 

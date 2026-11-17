@@ -12,6 +12,7 @@ import {
   auditLog,
 } from '../db.ts';
 import { BusinessError } from '../domain.ts';
+import { sanitizeImagePath } from './catalog.ts';
 
 export function getDashboardData() {
   const db = getDb();
@@ -39,9 +40,25 @@ export function getDashboardData() {
     )
     .get() as { total: number; count: number };
 
+  const overdueReceivablesAgg = db
+    .prepare(
+      `SELECT COALESCE(SUM(remaining_amount), 0) AS total, COUNT(*) AS count
+       FROM customer_receivables
+       WHERE status IN ('open', 'partial') AND remaining_amount > 0 AND due_date IS NOT NULL AND date(due_date) < date('now')`
+    )
+    .get() as { total: number; count: number };
+
   const supplierDebtsAgg = db
     .prepare(
       "SELECT COALESCE(SUM(remaining_amount), 0) AS total, COUNT(*) AS count FROM supplier_debts WHERE status IN ('open', 'partial')"
+    )
+    .get() as { total: number; count: number };
+
+  const overdueSupplierDebtsAgg = db
+    .prepare(
+      `SELECT COALESCE(SUM(remaining_amount), 0) AS total, COUNT(*) AS count
+       FROM supplier_debts
+       WHERE status IN ('open', 'partial') AND remaining_amount > 0 AND due_date IS NOT NULL AND date(due_date) < date('now')`
     )
     .get() as { total: number; count: number };
 
@@ -128,8 +145,12 @@ export function getDashboardData() {
       collectionsTotal: collectionsAgg.total_in,
       receivablesTotal: receivablesAgg.total,
       receivablesCount: receivablesAgg.count,
+      overdueReceivablesTotal: overdueReceivablesAgg.total,
+      overdueReceivablesCount: overdueReceivablesAgg.count,
       supplierDebtsTotal: supplierDebtsAgg.total,
       supplierDebtsCount: supplierDebtsAgg.count,
+      overdueSupplierDebtsTotal: overdueSupplierDebtsAgg.total,
+      overdueSupplierDebtsCount: overdueSupplierDebtsAgg.count,
       expensesTotal: expensesAgg.total,
       cashSessionOpen: Boolean(openSession),
       cashSessionReference: openSession?.reference || null,
@@ -204,21 +225,44 @@ export function getReportsOverview(fromDate?: string, toDate?: string) {
     }
   }
 
+  const expClauses: string[] = [];
+  const expParams: string[] = [];
+  if (fromDate) {
+    expClauses.push('substr(COALESCE(expense_date, created_at), 1, 10) >= ?');
+    expParams.push(fromDate);
+  }
+  if (toDate) {
+    expClauses.push('substr(COALESCE(expense_date, created_at), 1, 10) <= ?');
+    expParams.push(toDate);
+  }
+  const expWhere = expClauses.length ? `WHERE ${expClauses.join(' AND ')}` : '';
   const expensesTotal = (
-    db.prepare('SELECT COALESCE(SUM(amount), 0) AS t FROM expenses').get() as { t: number }
+    db.prepare(`SELECT COALESCE(SUM(amount), 0) AS t FROM expenses ${expWhere}`).get(...expParams) as {
+      t: number;
+    }
   ).t;
 
+  const cmJoinClauses = ['cm.method_code = pm.code'];
+  const cmParams: string[] = [];
+  if (fromDate) {
+    cmJoinClauses.push('substr(cm.created_at, 1, 10) >= ?');
+    cmParams.push(fromDate);
+  }
+  if (toDate) {
+    cmJoinClauses.push('substr(cm.created_at, 1, 10) <= ?');
+    cmParams.push(toDate);
+  }
   const paymentBreakdown = db
     .prepare(
       `SELECT pm.code, pm.label, pm.is_cash,
               COALESCE(SUM(CASE WHEN cm.direction = 'in' THEN cm.amount ELSE 0 END), 0) AS total_in,
               COALESCE(SUM(CASE WHEN cm.direction = 'out' THEN cm.amount ELSE 0 END), 0) AS total_out
        FROM payment_methods pm
-       LEFT JOIN cash_movements cm ON cm.method_code = pm.code
+       LEFT JOIN cash_movements cm ON ${cmJoinClauses.join(' AND ')}
        GROUP BY pm.code, pm.label, pm.is_cash
        ORDER BY total_in DESC`
     )
-    .all();
+    .all(...cmParams);
 
   const stockStats = db
     .prepare(
@@ -303,14 +347,17 @@ export async function updateSettings(input: {
   receipt_prefix?: string;
   credit_note_prefix?: string;
   theme?: 'light' | 'dark';
+  logo_path?: string | null;
 }) {
   return withWriteTx((db) => {
     const cur = db.prepare('SELECT * FROM app_settings WHERE id = 1').get() as Record<string, string | number | null>;
+    const nextLogoPath =
+      input.logo_path !== undefined ? sanitizeImagePath(input.logo_path) : (cur.logo_path as string | null);
     db.prepare(
       `UPDATE app_settings
        SET company_name = ?, company_legal_name = ?, address = ?, phone = ?, email = ?, city = ?, country = ?,
            allow_negative_stock = ?, invoice_prefix = ?, sale_prefix = ?, purchase_prefix = ?, order_prefix = ?,
-           receipt_prefix = ?, credit_note_prefix = ?, theme = ?, updated_at = datetime('now')
+           receipt_prefix = ?, credit_note_prefix = ?, theme = ?, logo_path = ?, updated_at = datetime('now')
        WHERE id = 1`
     ).run(
       input.company_name?.trim() || cur.company_name,
@@ -327,7 +374,8 @@ export async function updateSettings(input: {
       input.order_prefix?.trim().toUpperCase() || cur.order_prefix,
       input.receipt_prefix?.trim().toUpperCase() || cur.receipt_prefix,
       input.credit_note_prefix?.trim().toUpperCase() || cur.credit_note_prefix,
-      input.theme === 'dark' ? 'dark' : input.theme === 'light' ? 'light' : cur.theme
+      input.theme === 'dark' ? 'dark' : input.theme === 'light' ? 'light' : cur.theme,
+      nextLogoPath
     );
     auditLog(db, 'UPDATE_SETTINGS', 'app_settings', 1, 'Mise à jour des paramètres application');
     return getSettings();
@@ -365,6 +413,28 @@ export async function togglePaymentMethod(code: string, active: boolean) {
   });
 }
 
+const MAX_RETAINED_BACKUPS = 30;
+
+function pruneOldBackups(keepCount = MAX_RETAINED_BACKUPS) {
+  if (!fs.existsSync(BACKUP_DIR)) return;
+  const files = fs
+    .readdirSync(BACKUP_DIR)
+    .filter((f) => f.endsWith('.db') && f.startsWith('depotpro_backup_'))
+    .map((f) => ({
+      name: f,
+      mtime: fs.statSync(path.join(BACKUP_DIR, f)).mtimeMs,
+    }))
+    .sort((a, b) => b.mtime - a.mtime);
+
+  for (const obsolete of files.slice(keepCount)) {
+    try {
+      fs.unlinkSync(path.join(BACKUP_DIR, obsolete.name));
+    } catch {
+      // Ignorer si le fichier est verrouillé
+    }
+  }
+}
+
 export async function createBackup() {
   return runSerialized((db) => {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -389,6 +459,7 @@ export async function createBackup() {
     }
 
     auditLog(db, 'CREATE_BACKUP', 'backups', filename, `Sauvegarde cohérente créée : ${filename}`);
+    pruneOldBackups();
     const stat = fs.statSync(dest);
     return {
       name: filename,

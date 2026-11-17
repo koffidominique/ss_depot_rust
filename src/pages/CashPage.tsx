@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Landmark, Lock, Printer, Unlock, Smartphone, Banknote, X } from 'lucide-react';
+import { Banknote, Download, Landmark, Lock, Printer, Smartphone, Unlock, X } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { DataTable } from '../components/tables/DataTable.tsx';
 import { MetricCard } from '../components/common/MetricCard.tsx';
@@ -15,17 +18,53 @@ import {
 } from '../components/documents/DocumentPrintModal.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
 import type { CashSession } from '../types/erp.ts';
+import { exportCashMovementsCsv, exportCashSessionsCsv } from '../utils/csv.ts';
 import { formatDateTime, formatFcfa, newRequestKey } from '../utils/format.ts';
+
+const openCashSchema = z.object({
+  opening_cash: z.number().int().min(0, 'Le fond de caisse doit être positif ou nul.'),
+});
+type OpenCashFormValues = z.infer<typeof openCashSchema>;
+
+type CloseCashFormValues = {
+  physical_cash: number;
+  closing_notes: string;
+};
 
 export function CashPage() {
   const qc = useQueryClient();
   const [openModal, setOpenModal] = useState(false);
   const [closeModal, setCloseModal] = useState(false);
   const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
-  const [openingCash, setOpeningCash] = useState(0);
-  const [physicalCash, setPhysicalCash] = useState(0);
-  const [closingNotes, setClosingNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const theoreticalCashRef = useRef(0);
+
+  const openForm = useForm<OpenCashFormValues>({
+    resolver: zodResolver(openCashSchema),
+    defaultValues: { opening_cash: 0 },
+  });
+
+  const closeCashSchema = useRef(
+    z
+      .object({
+        physical_cash: z.number().int().min(0, 'Le montant physique doit être positif ou nul.'),
+        closing_notes: z.string(),
+      })
+      .superRefine((vals, ctx) => {
+        if (vals.physical_cash !== theoreticalCashRef.current && !vals.closing_notes.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['closing_notes'],
+            message: 'Un commentaire justificatif est obligatoire lorsque la caisse présente un écart.',
+          });
+        }
+      })
+  ).current;
+
+  const closeForm = useForm<CloseCashFormValues>({
+    resolver: zodResolver(closeCashSchema),
+    defaultValues: { physical_cash: 0, closing_notes: '' },
+  });
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['cash'],
@@ -33,25 +72,25 @@ export function CashPage() {
   });
 
   const openMut = useMutation({
-    mutationFn: () =>
-      apiClient.openCashSession({ opening_cash: openingCash, request_key: newRequestKey('open') }),
+    mutationFn: (vals: OpenCashFormValues) =>
+      apiClient.openCashSession({ opening_cash: vals.opening_cash, request_key: newRequestKey('open') }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['cash'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       setOpenModal(false);
-      setOpeningCash(0);
+      openForm.reset({ opening_cash: 0 });
       setErrorMsg(null);
     },
     onError: (err) => setErrorMsg(err instanceof Error ? err.message : 'Erreur ouverture caisse.'),
   });
 
   const closeMut = useMutation({
-    mutationFn: () => {
+    mutationFn: (vals: CloseCashFormValues) => {
       if (!data?.activeSession) throw new Error('Aucune session ouverte');
       return apiClient.closeCashSession({
         session_id: data.activeSession.id,
-        physical_cash: physicalCash,
-        closing_notes: closingNotes,
+        physical_cash: vals.physical_cash,
+        closing_notes: vals.closing_notes.trim(),
         request_key: newRequestKey('close'),
       });
     },
@@ -59,7 +98,7 @@ export function CashPage() {
       qc.invalidateQueries({ queryKey: ['cash'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       setCloseModal(false);
-      setClosingNotes('');
+      closeForm.reset({ physical_cash: 0, closing_notes: '' });
       setErrorMsg(null);
     },
     onError: (err) => setErrorMsg(err instanceof Error ? err.message : 'Erreur clôture caisse.'),
@@ -77,10 +116,12 @@ export function CashPage() {
 
   const { activeSession, summary, history } = data;
   const theoreticalCash = summary?.theoreticalCash ?? 0;
+  theoreticalCashRef.current = theoreticalCash;
   const digitalNet = (summary?.byMethod || [])
     .filter((m) => m.is_cash === 0)
     .reduce((acc, m) => acc + (m.total_in - m.total_out), 0);
-  const diffPreview = physicalCash - theoreticalCash;
+  const physicalCashWatched = closeForm.watch('physical_cash');
+  const diffPreview = physicalCashWatched - theoreticalCash;
 
   const movementCols: ColumnDef<NonNullable<typeof summary>['movements'][number]>[] = [
     {
@@ -243,7 +284,7 @@ export function CashPage() {
         </div>
 
         {activeSession ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() =>
@@ -274,8 +315,7 @@ export function CashPage() {
             <button
               type="button"
               onClick={() => {
-                setPhysicalCash(theoreticalCash);
-                setClosingNotes('');
+                closeForm.reset({ physical_cash: theoreticalCash, closing_notes: '' });
                 setErrorMsg(null);
                 setCloseModal(true);
               }}
@@ -289,7 +329,7 @@ export function CashPage() {
           <button
             type="button"
             onClick={() => {
-              setOpeningCash(0);
+              openForm.reset({ opening_cash: 0 });
               setErrorMsg(null);
               setOpenModal(true);
             }}
@@ -349,7 +389,18 @@ export function CashPage() {
           )}
 
           <div>
-            <h3 className="mb-3 font-display text-sm font-semibold">Mouvements de la session en cours</h3>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-display text-sm font-semibold">Mouvements de la session en cours</h3>
+              <button
+                type="button"
+                disabled={summary.movements.length === 0}
+                onClick={() => exportCashMovementsCsv(activeSession.reference, summary.movements)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-1.5 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" />
+                CSV Mouvements
+              </button>
+            </div>
             <DataTable
               data={summary.movements}
               columns={movementCols as ColumnDef<NonNullable<typeof summary>['movements'][number], unknown>[]}
@@ -360,7 +411,18 @@ export function CashPage() {
       )}
 
       <div>
-        <h3 className="mb-3 font-display text-sm font-semibold">Historique des sessions clôturées</h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-display text-sm font-semibold">Historique des sessions clôturées</h3>
+          <button
+            type="button"
+            disabled={history.length === 0}
+            onClick={() => exportCashSessionsCsv(history)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-1.5 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+          >
+            <Download className="h-3.5 w-3.5" />
+            CSV Sessions
+          </button>
+        </div>
         <DataTable
           data={history}
           columns={historyCols as ColumnDef<CashSession, unknown>[]}
@@ -383,24 +445,36 @@ export function CashPage() {
               </div>
             </div>
             {errorMsg && <div className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-[#DC4545]">{errorMsg}</div>}
-            <div className="mt-4">
-              <MoneyInput label="Fond de caisse initial en espèces" value={openingCash} onChange={setOpeningCash} />
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <Dialog.Close asChild>
-                <button type="button" className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium">
-                  Annuler
+            <form onSubmit={openForm.handleSubmit((vals) => openMut.mutate(vals))} noValidate>
+              <div className="mt-4">
+                <Controller
+                  control={openForm.control}
+                  name="opening_cash"
+                  render={({ field, fieldState }) => (
+                    <MoneyInput
+                      label="Fond de caisse initial en espèces"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={fieldState.error?.message}
+                    />
+                  )}
+                />
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <Dialog.Close asChild>
+                  <button type="button" className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium">
+                    Annuler
+                  </button>
+                </Dialog.Close>
+                <button
+                  type="submit"
+                  disabled={openMut.isPending}
+                  className="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Confirmer l'ouverture
                 </button>
-              </Dialog.Close>
-              <button
-                type="button"
-                disabled={openMut.isPending}
-                onClick={() => openMut.mutate()}
-                className="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white"
-              >
-                Confirmer l'ouverture
-              </button>
-            </div>
+              </div>
+            </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -422,52 +496,70 @@ export function CashPage() {
               </div>
             </div>
             {errorMsg && <div className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-[#DC4545]">{errorMsg}</div>}
-            <div className="mt-4 space-y-4">
-              <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-3 text-xs space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-[#667085]">Espèces théoriques attendues</span>
-                  <span className="font-mono-num font-semibold">{formatFcfa(theoreticalCash)}</span>
+            <form onSubmit={closeForm.handleSubmit((vals) => closeMut.mutate(vals))} noValidate>
+              <div className="mt-4 space-y-4">
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-3 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-[#667085]">Espèces théoriques attendues</span>
+                    <span className="font-mono-num font-semibold">{formatFcfa(theoreticalCash)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#667085]">Encaissements digitaux (contrôle)</span>
+                    <span className="font-mono-num">{formatFcfa(digitalNet)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-[#667085]">Encaissements digitaux (contrôle)</span>
-                  <span className="font-mono-num">{formatFcfa(digitalNet)}</span>
-                </div>
-              </div>
-              <MoneyInput label="Espèces physiques comptées *" value={physicalCash} onChange={setPhysicalCash} />
-              <div className="flex justify-between text-xs">
-                <span className="text-[#667085]">Écart constaté</span>
-                <span className={`font-mono-num font-semibold ${diffPreview === 0 ? 'text-[#16A36A]' : 'text-[#D9901A]'}`}>
-                  {diffPreview > 0 ? '+' : ''}
-                  {formatFcfa(diffPreview)}
-                </span>
-              </div>
-              <div>
-                <label className="block text-xs font-medium">
-                  Commentaire de clôture {diffPreview !== 0 ? '(obligatoire car écart != 0) *' : '(optionnel)'}
-                </label>
-                <textarea
-                  rows={2}
-                  value={closingNotes}
-                  onChange={(e) => setClosingNotes(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                <Controller
+                  control={closeForm.control}
+                  name="physical_cash"
+                  render={({ field, fieldState }) => (
+                    <MoneyInput
+                      label="Espèces physiques comptées *"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={fieldState.error?.message}
+                    />
+                  )}
                 />
+                <div className="flex justify-between text-xs">
+                  <span className="text-[#667085]">Écart constaté</span>
+                  <span className={`font-mono-num font-semibold ${diffPreview === 0 ? 'text-[#16A36A]' : 'text-[#D9901A]'}`}>
+                    {diffPreview > 0 ? '+' : ''}
+                    {formatFcfa(diffPreview)}
+                  </span>
+                </div>
+                <div>
+                  <label htmlFor="cash-closing-notes" className="block text-xs font-medium">
+                    Commentaire de clôture {diffPreview !== 0 ? '(obligatoire car écart != 0) *' : '(optionnel)'}
+                  </label>
+                  <textarea
+                    id="cash-closing-notes"
+                    rows={2}
+                    aria-invalid={Boolean(closeForm.formState.errors.closing_notes)}
+                    {...closeForm.register('closing_notes')}
+                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                  />
+                  {closeForm.formState.errors.closing_notes && (
+                    <p className="mt-1 text-[11px] text-[#DC4545]" role="alert">
+                      {closeForm.formState.errors.closing_notes.message}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <Dialog.Close asChild>
-                <button type="button" className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium">
-                  Annuler
+              <div className="mt-6 flex justify-end gap-3">
+                <Dialog.Close asChild>
+                  <button type="button" className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium">
+                    Annuler
+                  </button>
+                </Dialog.Close>
+                <button
+                  type="submit"
+                  disabled={closeMut.isPending}
+                  className="rounded-lg bg-[#182230] dark:bg-slate-100 px-4 py-2 text-xs font-semibold text-white dark:text-slate-900 disabled:opacity-50"
+                >
+                  Clôturer définitivement
                 </button>
-              </Dialog.Close>
-              <button
-                type="button"
-                disabled={closeMut.isPending}
-                onClick={() => closeMut.mutate()}
-                className="rounded-lg bg-[#182230] dark:bg-slate-100 px-4 py-2 text-xs font-semibold text-white dark:text-slate-900"
-              >
-                Clôturer définitivement
-              </button>
-            </div>
+              </div>
+            </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

@@ -1,0 +1,106 @@
+name: DEPOTPRO PREMIUM V3 CI
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  web-and-migration:
+    name: Web API, Frontend UI, Benchmark & Migration Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Installer les dépendances Node
+        run: npm ci
+      - name: Typecheck TypeScript
+        run: npm run typecheck
+      - name: Lint ESLint
+        run: npm run lint
+      - name: Tests unitaires, API, UI & Contrats
+        run: npm run test
+      - name: Build production Vite
+        run: npm run build
+      - name: Benchmark charge SQLite (10k produits / 100k lignes)
+        run: npm run benchmark
+      - name: Vérification migration V2 -> V3 (--strict)
+        run: |
+          python3 - <<'PY'
+          import os, sqlite3, subprocess, tempfile
+          with tempfile.TemporaryDirectory() as tmp:
+              v2 = os.path.join(tmp, 'v2.db')
+              v3 = os.path.join(tmp, 'v3.db')
+              conn = sqlite3.connect(v2)
+              conn.executescript('''
+              CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT);
+              INSERT INTO categories VALUES (1, 'Boissons');
+              CREATE TABLE suppliers (id INTEGER PRIMARY KEY, code TEXT, name TEXT, phone TEXT, address TEXT, payment_terms_days INTEGER, balance_due REAL);
+              INSERT INTO suppliers VALUES (1, 'FOU-01', 'Brasseries', '01020304', 'Abidjan', 30, 50000);
+              CREATE TABLE clients (id INTEGER PRIMARY KEY, code TEXT, name TEXT, phone TEXT, address TEXT, client_type TEXT, credit_limit REAL, payment_terms_days INTEGER, unpaid_balance REAL);
+              INSERT INTO clients VALUES (1, 'CLI-01', 'Maquis Central', '05060708', 'Cocody', 'semi_wholesale', 200000, 15, 10000);
+              CREATE TABLE products (id INTEGER PRIMARY KEY, reference TEXT, name TEXT, category_id INTEGER, supplier_id INTEGER, stock REAL, min_stock REAL, purchase_price REAL, wholesale_price REAL, semi_wholesale_price REAL, retail_price REAL, is_active INTEGER);
+              INSERT INTO products VALUES (1, 'PROD-01', 'Flag 65cl', 1, 1, 24, 6, 450, 500, 550, 600, 1);
+              ''')
+              conn.commit()
+              conn.close()
+              subprocess.run(['python3', 'scripts/migrate_v2_to_v3.py', '--source', v2, '--target', v3, '--strict'], check=True)
+          PY
+
+  playwright-e2e:
+    name: Playwright E2E Navigateur
+    needs: web-and-migration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install chromium --with-deps
+      - run: npm run test:e2e
+
+  rust-core-and-server:
+    name: Rust Core & Axum Server (fmt, clippy, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy -p depotpro-core -p depotpro-server --all-targets -- -D warnings
+      - run: cargo test -p depotpro-core -p depotpro-server
+
+  desktop-tauri-bundle:
+    name: Tauri 2 Desktop (${{ matrix.os }})
+    needs: web-and-migration
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - name: Vérification compilation Tauri & génération installateur
+        run: npx tauri build
+        env:
+          TAURI_BUNDLER_TOOLS_GITHUB_MIRROR: ''

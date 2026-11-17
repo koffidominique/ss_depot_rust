@@ -38,14 +38,20 @@ Pour générer les installateurs (`.msi`/`.exe` Windows ou `.app`/`.dmg` macOS) 
 ## Tests, Benchmark et Build
 
 ```bash
-# Contrôle TypeScript
+# Contrôle TypeScript strict
+npm run typecheck
+
+# Lint ESLint (TypeScript + React Hooks)
 npm run lint
 
 # Build production frontend
 npm run build
 
-# Tests d'intégration métier (Scénarios A à L)
+# Tests d'intégration API (A–X), contrats Rust/Tauri et composants React UI
 npm run test
+
+# Tests navigateur E2E Playwright (nécessite Chromium installé via `npx playwright install chromium`)
+npm run test:e2e
 
 # Benchmark SQLite (10k produits / 10k clients / 100k lignes de vente & stock)
 npm run benchmark
@@ -75,7 +81,8 @@ Consulter `docs/TROUBLESHOOTING.md` (verrouillage PIN après 5 essais, verrou d'
 - `API.md` — Contrats HTTP et commandes Tauri
 - `FRONTEND.md` — Architecture React, API client et documents imprimables
 - `DESIGN_SYSTEM.md` — Thème clair/sombre, typographie et composants
-- `TESTING.md` — Couverture des scénarios A–L et benchmark
+- `TESTING.md` — Couverture des scénarios A–X et benchmark
+- `USER_GUIDE.md` — Guide utilisateur quotidien du dépôt (caisse, POS, stock, consignations, sauvegardes)
 - `BACKUP_RESTORE.md` — Sauvegarde `VACUUM INTO`, vérification et restauration
 - `INSTALLATION_WEB.md` — Déploiement Web Node/Express et serveur Rust Axum
 - `INSTALLATION_WINDOWS.md` — Build et installation Windows (MSI/NSIS)

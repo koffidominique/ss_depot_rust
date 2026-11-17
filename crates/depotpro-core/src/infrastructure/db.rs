@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
@@ -24,8 +23,8 @@ impl DepotDb {
         }
 
         let path_str = db_path.to_string_lossy().to_string();
-        let options = SqliteConnectOptions::from_str(&format!("sqlite://{path_str}"))
-            .map_err(|e| CoreError::Database(e.to_string()))?
+        let options = SqliteConnectOptions::new()
+            .filename(db_path)
             .create_if_missing(true)
             .foreign_keys(true)
             .journal_mode(SqliteJournalMode::Wal)
@@ -40,6 +39,28 @@ impl DepotDb {
             .await?;
 
         sqlx::raw_sql(V3_SCHEMA_SQL).execute(&pool).await?;
+
+        let has_logo_path: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('app_settings') WHERE name = 'logo_path'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        if has_logo_path == 0 {
+            sqlx::query("ALTER TABLE app_settings ADD COLUMN logo_path TEXT NULL")
+                .execute(&pool)
+                .await?;
+        }
+
+        let has_receipt_path: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('expenses') WHERE name = 'receipt_path'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        if has_receipt_path == 0 {
+            sqlx::query("ALTER TABLE expenses ADD COLUMN receipt_path TEXT NULL")
+                .execute(&pool)
+                .await?;
+        }
 
         sqlx::query("INSERT OR IGNORE INTO schema_version (version, name) VALUES (1, '0001_initial_v3')")
             .execute(&pool)

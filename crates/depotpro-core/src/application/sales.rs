@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Sqlite, Transaction};
 use std::collections::HashMap;
 
+use crate::application::products::deserialize_nullable_opt;
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
@@ -45,6 +46,23 @@ pub struct UpdateCreditPolicyInput {
     pub credit_policy: String,
     pub credit_limit: Option<i64>,
     pub payment_terms_days: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateClientInput {
+    pub name: Option<String>,
+    pub client_type: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub phone: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub address: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub city: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub email: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub contact_person: Option<Option<String>>,
+    pub is_active: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -129,16 +147,77 @@ pub struct SaleSummaryDto {
     pub total_amount: i64,
     pub paid_amount: i64,
     pub remaining_amount: i64,
+    pub payment_labels: Option<String>,
     pub status: String,
     pub notes: Option<String>,
     pub created_at: String,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct SalePaymentDto {
+    pub id: i64,
+    pub reference: String,
+    pub method_code: String,
+    pub method_label: String,
+    pub part_amount: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct SaleDepositDto {
+    pub id: i64,
+    pub returnable_id: i64,
+    pub packaging_name: String,
+    pub packaging_code: String,
+    pub pieces: i64,
+    pub returned_pieces: i64,
+    pub unit_value: i64,
+    pub amount: i64,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct SaleCancellationDto {
+    pub id: i64,
+    pub reason: String,
+    pub refunded_amount: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct SaleReturnDto {
+    pub id: i64,
+    pub reference: String,
+    pub credit_note_ref: String,
+    pub total_amount: i64,
+    pub credit_reduction: i64,
+    pub refund_amount: i64,
+    pub reason: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginatedSalesDto {
+    pub items: Vec<SaleSummaryDto>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+    pub total_pages: i64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct SaleDetailDto {
     #[serde(flatten)]
     pub sale: SaleSummaryDto,
+    pub client_code: Option<String>,
+    pub client_phone: Option<String>,
+    pub receivable_id: Option<i64>,
+    pub due_date: Option<String>,
     pub lines: Vec<SaleLineDto>,
+    pub payments: Vec<SalePaymentDto>,
+    pub deposits: Vec<SaleDepositDto>,
+    pub cancellation: Option<SaleCancellationDto>,
+    pub returns: Vec<SaleReturnDto>,
 }
 
 pub(crate) async fn audit_log_tx(
@@ -301,6 +380,108 @@ pub async fn create_client(db: &DepotDb, input: CreateClientInput) -> CoreResult
         .ok_or_else(|| CoreError::Internal("Client créé introuvable.".to_string()))
 }
 
+pub async fn update_client(
+    db: &DepotDb,
+    client_id: i64,
+    input: UpdateClientInput,
+) -> CoreResult<ClientSummaryDto> {
+    let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<(
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        i64,
+    )> = sqlx::query_as(
+        "SELECT code, name, client_type, phone, address, city, email, contact_person, is_active
+         FROM clients WHERE id = ?",
+    )
+    .bind(client_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let (code, prev_name, prev_type, prev_phone, prev_address, prev_city, prev_email, prev_contact, prev_active) =
+        existing.ok_or_else(|| CoreError::Validation("Client introuvable.".to_string()))?;
+
+    let name = match input.name {
+        Some(n) => {
+            let clean = n.trim().to_string();
+            if clean.is_empty() {
+                return Err(CoreError::Validation("Le nom du client est obligatoire.".to_string()));
+            }
+            clean
+        }
+        None => prev_name,
+    };
+    let client_type = match input.client_type {
+        Some(t) => {
+            if !matches!(t.as_str(), "particulier" | "professionnel") {
+                return Err(CoreError::Validation("Type de client invalide.".to_string()));
+            }
+            t
+        }
+        None => prev_type,
+    };
+
+    let opt_text = |opt: Option<Option<String>>, prev: Option<String>| -> Option<String> {
+        match opt {
+            None => prev,
+            Some(None) => None,
+            Some(Some(s)) => {
+                let t = s.trim().to_string();
+                if t.is_empty() { None } else { Some(t) }
+            }
+        }
+    };
+
+    let phone = opt_text(input.phone, prev_phone);
+    let address = opt_text(input.address, prev_address);
+    let city = opt_text(input.city, prev_city);
+    let email = opt_text(input.email, prev_email);
+    let contact_person = opt_text(input.contact_person, prev_contact);
+    let is_active = match input.is_active {
+        Some(v) => if v { 1 } else { 0 },
+        None => prev_active,
+    };
+
+    sqlx::query(
+        "UPDATE clients
+         SET name = ?, client_type = ?, phone = ?, address = ?, city = ?, email = ?, contact_person = ?, is_active = ?
+         WHERE id = ?",
+    )
+    .bind(&name)
+    .bind(&client_type)
+    .bind(&phone)
+    .bind(&address)
+    .bind(&city)
+    .bind(&email)
+    .bind(&contact_person)
+    .bind(is_active)
+    .bind(client_id)
+    .execute(&mut *tx)
+    .await?;
+
+    audit_log_tx(
+        &mut tx,
+        "UPDATE_CLIENT",
+        "clients",
+        Some(client_id.to_string()),
+        &format!("{code} — {name}"),
+    )
+    .await?;
+    tx.commit().await?;
+
+    list_clients(db, Some(&code))
+        .await?
+        .into_iter()
+        .find(|c| c.id == client_id)
+        .ok_or_else(|| CoreError::Internal("Client introuvable après mise à jour.".to_string()))
+}
+
 pub async fn update_client_credit_policy(
     db: &DepotDb,
     client_id: i64,
@@ -381,7 +562,11 @@ pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetai
         "SELECT s.id, s.reference, s.client_id, COALESCE(c.name, 'Client Comptoir') AS client_name,
                 s.sale_type, s.price_tier, s.subtotal_merchandise, s.discount_amount,
                 s.total_merchandise, s.total_deposit, s.total_amount, s.paid_amount,
-                COALESCE(cr.remaining_amount, 0) AS remaining_amount, s.status, s.notes, s.created_at
+                COALESCE(cr.remaining_amount, 0) AS remaining_amount,
+                (SELECT GROUP_CONCAT(DISTINCT pm.label)
+                 FROM payments p JOIN payment_parts pp ON pp.payment_id = p.id JOIN payment_methods pm ON pm.code = pp.method_code
+                 WHERE p.sale_id = s.id) AS payment_labels,
+                s.status, s.notes, s.created_at
          FROM sales s
          LEFT JOIN clients c ON c.id = s.client_id
          LEFT JOIN customer_receivables cr ON cr.sale_id = s.id
@@ -391,6 +576,22 @@ pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetai
     .fetch_optional(&db.pool)
     .await?
     .ok_or_else(|| CoreError::Validation("Vente introuvable.".to_string()))?;
+
+    let (client_code, client_phone, receivable_id, due_date): (
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+        Option<String>,
+    ) = sqlx::query_as(
+        "SELECT c.code, c.phone, cr.id, cr.due_date
+         FROM sales s
+         LEFT JOIN clients c ON c.id = s.client_id
+         LEFT JOIN customer_receivables cr ON cr.sale_id = s.id
+         WHERE s.id = ?",
+    )
+    .bind(sale_id)
+    .fetch_one(&db.pool)
+    .await?;
 
     let lines = sqlx::query_as::<_, SaleLineDto>(
         "SELECT sl.id, sl.sale_id, sl.product_id, sl.packaging_id, sl.product_name, sl.packaging_name,
@@ -404,28 +605,110 @@ pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetai
     .fetch_all(&db.pool)
     .await?;
 
-    Ok(SaleDetailDto { sale, lines })
+    let payments = sqlx::query_as::<_, SalePaymentDto>(
+        "SELECT p.id, p.reference, pp.method_code, pm.label AS method_label, pp.amount AS part_amount, p.created_at
+         FROM payments p
+         JOIN payment_parts pp ON pp.payment_id = p.id
+         JOIN payment_methods pm ON pm.code = pp.method_code
+         WHERE p.sale_id = ?
+         ORDER BY p.id ASC",
+    )
+    .bind(sale_id)
+    .fetch_all(&db.pool)
+    .await?;
+
+    let deposits = sqlx::query_as::<_, SaleDepositDto>(
+        "SELECT di.id, di.returnable_id, rpt.name AS packaging_name, rpt.code AS packaging_code,
+                di.pieces, di.returned_pieces, di.unit_value, di.amount
+         FROM deposit_issues di
+         JOIN returnable_packaging_types rpt ON rpt.id = di.returnable_id
+         WHERE di.sale_id = ?",
+    )
+    .bind(sale_id)
+    .fetch_all(&db.pool)
+    .await?;
+
+    let cancellation = sqlx::query_as::<_, SaleCancellationDto>(
+        "SELECT id, reason, refunded_amount, created_at FROM sales_cancellations WHERE sale_id = ?",
+    )
+    .bind(sale_id)
+    .fetch_optional(&db.pool)
+    .await?;
+
+    let returns = sqlx::query_as::<_, SaleReturnDto>(
+        "SELECT id, reference, credit_note_ref, total_amount, credit_reduction, refund_amount, reason, created_at
+         FROM sales_returns WHERE sale_id = ? ORDER BY id DESC",
+    )
+    .bind(sale_id)
+    .fetch_all(&db.pool)
+    .await?;
+
+    Ok(SaleDetailDto {
+        sale,
+        client_code,
+        client_phone,
+        receivable_id,
+        due_date,
+        lines,
+        payments,
+        deposits,
+        cancellation,
+        returns,
+    })
 }
 
 pub async fn list_sales(
     db: &DepotDb,
     search: Option<&str>,
     status: Option<&str>,
+    from_date: Option<&str>,
+    to_date: Option<&str>,
     limit: i64,
     offset: i64,
-) -> CoreResult<Vec<SaleSummaryDto>> {
+) -> CoreResult<PaginatedSalesDto> {
+    let ps = limit.clamp(1, 100);
+    let page = (offset / ps) + 1;
     let pat = format!("%{}%", search.unwrap_or("").trim());
     let status_filter = status.filter(|s| *s != "all").unwrap_or("");
-    let rows = sqlx::query_as::<_, SaleSummaryDto>(
+    let from_f = from_date.unwrap_or("").trim();
+    let to_f = to_date.unwrap_or("").trim();
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)
+         FROM sales s
+         LEFT JOIN clients c ON c.id = s.client_id
+         WHERE (? = '' OR s.status = ?)
+           AND (s.reference LIKE ? OR COALESCE(c.name, 'Client Comptoir') LIKE ?)
+           AND (? = '' OR substr(s.created_at, 1, 10) >= ?)
+           AND (? = '' OR substr(s.created_at, 1, 10) <= ?)",
+    )
+    .bind(status_filter)
+    .bind(status_filter)
+    .bind(&pat)
+    .bind(&pat)
+    .bind(from_f)
+    .bind(from_f)
+    .bind(to_f)
+    .bind(to_f)
+    .fetch_one(&db.pool)
+    .await?;
+
+    let items = sqlx::query_as::<_, SaleSummaryDto>(
         "SELECT s.id, s.reference, s.client_id, COALESCE(c.name, 'Client Comptoir') AS client_name,
                 s.sale_type, s.price_tier, s.subtotal_merchandise, s.discount_amount,
                 s.total_merchandise, s.total_deposit, s.total_amount, s.paid_amount,
-                COALESCE(cr.remaining_amount, 0) AS remaining_amount, s.status, s.notes, s.created_at
+                COALESCE(cr.remaining_amount, 0) AS remaining_amount,
+                (SELECT GROUP_CONCAT(DISTINCT pm.label)
+                 FROM payments p JOIN payment_parts pp ON pp.payment_id = p.id JOIN payment_methods pm ON pm.code = pp.method_code
+                 WHERE p.sale_id = s.id) AS payment_labels,
+                s.status, s.notes, s.created_at
          FROM sales s
          LEFT JOIN clients c ON c.id = s.client_id
          LEFT JOIN customer_receivables cr ON cr.sale_id = s.id
          WHERE (? = '' OR s.status = ?)
            AND (s.reference LIKE ? OR COALESCE(c.name, 'Client Comptoir') LIKE ?)
+           AND (? = '' OR substr(s.created_at, 1, 10) >= ?)
+           AND (? = '' OR substr(s.created_at, 1, 10) <= ?)
          ORDER BY s.id DESC
          LIMIT ? OFFSET ?",
     )
@@ -433,11 +716,23 @@ pub async fn list_sales(
     .bind(status_filter)
     .bind(&pat)
     .bind(&pat)
-    .bind(limit)
+    .bind(from_f)
+    .bind(from_f)
+    .bind(to_f)
+    .bind(to_f)
+    .bind(ps)
     .bind(offset)
     .fetch_all(&db.pool)
     .await?;
-    Ok(rows)
+
+    let total_pages = ((total + ps - 1) / ps).max(1);
+    Ok(PaginatedSalesDto {
+        items,
+        total,
+        page,
+        page_size: ps,
+        total_pages,
+    })
 }
 
 pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<SaleDetailDto> {

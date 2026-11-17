@@ -62,7 +62,85 @@ export async function createSupplier(input: {
         ).lastInsertRowid
     );
     auditLog(db, 'CREATE_SUPPLIER', 'suppliers', id, `${code} — ${name}`);
-    return db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
+    return db
+      .prepare(
+        `SELECT s.*,
+                0 AS total_purchases,
+                0 AS balance_due
+         FROM suppliers s WHERE s.id = ?`
+      )
+      .get(id);
+  });
+}
+
+export async function updateSupplier(
+  supplierId: number,
+  input: {
+    name?: string;
+    company_name?: string | null;
+    phone?: string;
+    address?: string | null;
+    email?: string | null;
+    contact_person?: string | null;
+    payment_terms_days?: number;
+    is_active?: boolean;
+  }
+) {
+  if (!Number.isInteger(supplierId) || supplierId <= 0) {
+    throw new BusinessError('SUPPLIER_NOT_FOUND', 'Fournisseur invalide.', 400);
+  }
+  return withWriteTx((db) => {
+    const existing = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplierId) as
+      | {
+          id: number;
+          code: string;
+          name: string;
+          company_name: string | null;
+          phone: string;
+          address: string | null;
+          email: string | null;
+          contact_person: string | null;
+          payment_terms_days: number;
+          is_active: number;
+        }
+      | undefined;
+    if (!existing) throw new BusinessError('SUPPLIER_NOT_FOUND', 'Fournisseur introuvable.', 404);
+
+    const name = input.name !== undefined ? input.name.trim() : existing.name;
+    const phone = input.phone !== undefined ? input.phone.trim() : existing.phone;
+    if (!name || !phone) {
+      throw new BusinessError('VALIDATION_ERROR', 'Nom et téléphone fournisseur obligatoires.');
+    }
+    const terms =
+      input.payment_terms_days !== undefined ? Number(input.payment_terms_days) : existing.payment_terms_days;
+    if (!Number.isInteger(terms) || terms < 0) {
+      throw new BusinessError('VALIDATION_ERROR', 'Délai de paiement invalide.');
+    }
+
+    const optText = (val: string | null | undefined, prev: string | null) =>
+      val === undefined ? prev : val?.trim() || null;
+
+    const companyName = optText(input.company_name, existing.company_name);
+    const address = optText(input.address, existing.address);
+    const email = optText(input.email, existing.email);
+    const contactPerson = optText(input.contact_person, existing.contact_person);
+    const isActive = input.is_active !== undefined ? (input.is_active ? 1 : 0) : existing.is_active;
+
+    db.prepare(
+      `UPDATE suppliers
+       SET name = ?, company_name = ?, phone = ?, address = ?, email = ?, contact_person = ?, payment_terms_days = ?, is_active = ?
+       WHERE id = ?`
+    ).run(name, companyName, phone, address, email, contactPerson, terms, isActive, supplierId);
+
+    auditLog(db, 'UPDATE_SUPPLIER', 'suppliers', supplierId, `${existing.code} — ${name}`);
+    return db
+      .prepare(
+        `SELECT s.*,
+                COALESCE((SELECT SUM(initial_amount) FROM supplier_debts sd WHERE sd.supplier_id = s.id), 0) AS total_purchases,
+                COALESCE((SELECT SUM(remaining_amount) FROM supplier_debts sd WHERE sd.supplier_id = s.id AND sd.status IN ('open', 'partial')), 0) AS balance_due
+         FROM suppliers s WHERE s.id = ?`
+      )
+      .get(supplierId);
   });
 }
 
@@ -365,6 +443,54 @@ export async function receivePurchaseOrder(
 
     auditLog(db, 'RECEIVE_PO', 'purchase_receipts', receiptId, `Réception ${recRef} sur ${po.reference} — ${receiptTotal} FCFA`);
     return db.prepare('SELECT * FROM purchase_receipts WHERE id = ?').get(receiptId);
+  });
+}
+
+export async function cancelPurchaseOrder(
+  purchaseOrderId: number,
+  input: { reason?: string }
+) {
+  if (!Number.isInteger(purchaseOrderId) || purchaseOrderId <= 0) {
+    throw new BusinessError('PURCHASE_NOT_FOUND', 'Bon de commande invalide.', 400);
+  }
+  const reason = (input.reason || '').trim();
+  if (!reason) {
+    throw new BusinessError('VALIDATION_ERROR', "Le motif d'annulation est obligatoire.");
+  }
+
+  return withWriteTx((db) => {
+    const po = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(purchaseOrderId) as
+      | { id: number; reference: string; status: string; received_amount: number; notes: string | null }
+      | undefined;
+    if (!po) throw new BusinessError('PURCHASE_NOT_FOUND', 'Bon de commande introuvable.', 404);
+    if (po.status === 'cancelled') {
+      throw new BusinessError('HISTORICAL_IMMUTABLE', 'Ce bon de commande est déjà annulé.');
+    }
+    const receiptCount = (
+      db
+        .prepare('SELECT COUNT(*) AS c FROM purchase_receipts WHERE purchase_order_id = ?')
+        .get(purchaseOrderId) as { c: number }
+    ).c;
+    if (po.status === 'partial' || po.status === 'received' || po.received_amount > 0 || receiptCount > 0) {
+      throw new BusinessError(
+        'HISTORICAL_IMMUTABLE',
+        "Impossible d'annuler un bon de commande ayant déjà fait l'objet d'une réception."
+      );
+    }
+
+    const nextNotes = po.notes ? `${po.notes} · [Annulé : ${reason}]` : `[Annulé : ${reason}]`;
+    db.prepare("UPDATE purchase_orders SET status = 'cancelled', notes = ? WHERE id = ?").run(
+      nextNotes,
+      purchaseOrderId
+    );
+    auditLog(
+      db,
+      'CANCEL_PURCHASE_ORDER',
+      'purchase_orders',
+      purchaseOrderId,
+      `Annulation ${po.reference} — ${reason}`
+    );
+    return listPurchaseOrders().find((o) => o.id === purchaseOrderId);
   });
 }
 

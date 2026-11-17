@@ -29,12 +29,33 @@ pub struct MethodSummaryDto {
     pub total_out: i64,
 }
 
+#[derive(Debug, Serialize, FromRow)]
+pub struct CashMovementDto {
+    pub id: i64,
+    pub kind: String,
+    pub method_code: String,
+    pub method_label: String,
+    pub is_cash: i64,
+    pub direction: String,
+    pub amount: i64,
+    pub description: String,
+    pub reference_document: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CashSummaryDto {
+    pub theoretical_cash: i64,
+    pub by_method: Vec<MethodSummaryDto>,
+    pub movements: Vec<CashMovementDto>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CashStatusDto {
     pub active_session: Option<CashSessionDto>,
-    pub theoretical_cash: Option<i64>,
-    pub by_method: Vec<MethodSummaryDto>,
+    pub summary: Option<CashSummaryDto>,
     pub history: Vec<CashSessionDto>,
 }
 
@@ -42,13 +63,18 @@ pub struct CashStatusDto {
 pub struct ReceivableDto {
     pub id: i64,
     pub sale_id: i64,
+    pub sale_reference: String,
+    pub sale_date: String,
+    pub sale_total: i64,
     pub client_id: i64,
     pub client_name: String,
-    pub sale_reference: String,
+    pub client_code: string,
+    pub client_phone: Option<String>,
     pub initial_amount: i64,
     pub remaining_amount: i64,
     pub due_date: Option<String>,
     pub status: String,
+    pub created_at: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,6 +106,7 @@ pub struct CreateExpenseInput {
     pub method_code: String,
     pub beneficiary: Option<String>,
     pub notes: Option<String>,
+    pub receipt_path: Option<String>,
     pub expense_date: Option<String>,
 }
 
@@ -91,8 +118,7 @@ pub async fn get_cash_status(db: &DepotDb) -> CoreResult<CashStatusDto> {
     .fetch_optional(&db.pool)
     .await?;
 
-    let mut theoretical_cash = None;
-    let mut by_method = Vec::new();
+    let mut summary = None;
 
     if let Some(ref s) = active_session {
         let net_cash: i64 = sqlx::query_scalar(
@@ -102,9 +128,9 @@ pub async fn get_cash_status(db: &DepotDb) -> CoreResult<CashStatusDto> {
         .bind(s.id)
         .fetch_one(&db.pool)
         .await?;
-        theoretical_cash = Some(s.opening_cash + net_cash);
+        let theoretical_cash = s.opening_cash + net_cash;
 
-        by_method = sqlx::query_as::<_, MethodSummaryDto>(
+        let by_method = sqlx::query_as::<_, MethodSummaryDto>(
             "SELECT cm.method_code, pm.label, pm.is_cash,
                     COALESCE(SUM(CASE WHEN cm.direction = 'in' THEN cm.amount ELSE 0 END), 0) AS total_in,
                     COALESCE(SUM(CASE WHEN cm.direction = 'out' THEN cm.amount ELSE 0 END), 0) AS total_out
@@ -116,6 +142,24 @@ pub async fn get_cash_status(db: &DepotDb) -> CoreResult<CashStatusDto> {
         .bind(s.id)
         .fetch_all(&db.pool)
         .await?;
+
+        let movements = sqlx::query_as::<_, CashMovementDto>(
+            "SELECT cm.id, cm.kind, cm.method_code, pm.label AS method_label, pm.is_cash,
+                    cm.direction, cm.amount, cm.description, cm.reference_document, cm.created_at
+             FROM cash_movements cm
+             JOIN payment_methods pm ON pm.code = cm.method_code
+             WHERE cm.session_id = ?
+             ORDER BY cm.id DESC LIMIT 100",
+        )
+        .bind(s.id)
+        .fetch_all(&db.pool)
+        .await?;
+
+        summary = Some(CashSummaryDto {
+            theoretical_cash,
+            by_method,
+            movements,
+        });
     }
 
     let history = sqlx::query_as::<_, CashSessionDto>(
@@ -127,8 +171,7 @@ pub async fn get_cash_status(db: &DepotDb) -> CoreResult<CashStatusDto> {
 
     Ok(CashStatusDto {
         active_session,
-        theoretical_cash,
-        by_method,
+        summary,
         history,
     })
 }
@@ -261,8 +304,9 @@ pub async fn close_cash_session(db: &DepotDb, input: CloseCashInput) -> CoreResu
 
 pub async fn list_receivables(db: &DepotDb) -> CoreResult<Vec<ReceivableDto>> {
     let rows = sqlx::query_as::<_, ReceivableDto>(
-        "SELECT cr.id, cr.sale_id, cr.client_id, c.name AS client_name, s.reference AS sale_reference,
-                cr.initial_amount, cr.remaining_amount, cr.due_date, cr.status
+        "SELECT cr.id, cr.sale_id, s.reference AS sale_reference, s.created_at AS sale_date, s.total_amount AS sale_total,
+                cr.client_id, c.name AS client_name, c.code AS client_code, c.phone AS client_phone,
+                cr.initial_amount, cr.remaining_amount, cr.due_date, cr.status, cr.created_at
          FROM customer_receivables cr
          JOIN sales s ON s.id = cr.sale_id
          JOIN clients c ON c.id = cr.client_id
@@ -416,6 +460,8 @@ pub async fn create_expense(db: &DepotDb, input: CreateExpenseInput) -> CoreResu
         return Err(CoreError::Validation("La catégorie est obligatoire.".to_string()));
     }
     let amount = Money::from_positive(input.amount, "Montant dépense")?;
+    let receipt_path =
+        crate::application::products::sanitize_image_path(input.receipt_path.as_deref())?;
     let (_guard, mut tx) = db.begin_write().await?;
 
     if sqlx::query_scalar::<_, i64>("SELECT id FROM expenses WHERE request_key = ?")
@@ -453,8 +499,8 @@ pub async fn create_expense(db: &DepotDb, input: CreateExpenseInput) -> CoreResu
         .expense_date
         .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
     let exp_id = sqlx::query(
-        "INSERT INTO expenses (reference, request_key, category, amount, method_code, session_id, beneficiary, notes, expense_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO expenses (reference, request_key, category, amount, method_code, session_id, beneficiary, notes, receipt_path, expense_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&reference)
     .bind(&input.request_key)
@@ -464,6 +510,7 @@ pub async fn create_expense(db: &DepotDb, input: CreateExpenseInput) -> CoreResu
     .bind(session_id)
     .bind(input.beneficiary.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(input.notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(&receipt_path)
     .bind(&exp_date)
     .execute(&mut *tx)
     .await?
@@ -511,6 +558,7 @@ pub struct ExpenseItemDto {
     pub session_id: i64,
     pub beneficiary: Option<String>,
     pub notes: Option<String>,
+    pub receipt_path: Option<String>,
     pub expense_date: String,
     pub created_at: String,
 }
@@ -528,10 +576,10 @@ pub async fn list_expenses(db: &DepotDb) -> CoreResult<ExpensesOverviewDto> {
             .await?;
     let items = sqlx::query_as::<_, ExpenseItemDto>(
         "SELECT e.id, e.reference, e.category, e.amount, e.method_code, pm.label AS method_label,
-                e.session_id, e.beneficiary, e.notes, e.expense_date, e.created_at
+                e.session_id, e.beneficiary, e.notes, e.receipt_path, e.expense_date, e.created_at
          FROM expenses e
          JOIN payment_methods pm ON pm.code = e.method_code
-         ORDER BY e.id DESC LIMIT 100",
+         ORDER BY e.id DESC LIMIT 500",
     )
     .fetch_all(&db.pool)
     .await?;

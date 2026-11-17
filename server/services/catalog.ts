@@ -134,6 +134,7 @@ export interface CreateProductInput {
   wholesale_price?: number | null;
   semi_wholesale_price?: number | null;
   retail_price?: number | null;
+  image_path?: string | null;
   packagings?: Array<{
     name: 'casier' | 'carton' | 'bouteille' | 'pack' | 'canette';
     coefficient: string | number;
@@ -149,6 +150,24 @@ export interface CreateProductInput {
 }
 
 const ALLOWED_PACKAGING_NAMES = new Set(['casier', 'carton', 'bouteille', 'pack', 'canette']);
+
+export function sanitizeImagePath(raw?: string | null): string | null {
+  if (raw === null || raw === undefined) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 350_000) {
+    throw new BusinessError('VALIDATION_ERROR', "L'image est trop volumineuse (max 250 Ko).");
+  }
+  const isSafeDataUri = /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/i.test(trimmed);
+  const isSafeRelPath = /^\/images\/[a-zA-Z0-9._/-]+$/.test(trimmed) && !trimmed.includes('..');
+  if (!isSafeDataUri && !isSafeRelPath) {
+    throw new BusinessError(
+      'VALIDATION_ERROR',
+      "Format d'image invalide (utilisez PNG, JPEG ou WebP local)."
+    );
+  }
+  return trimmed;
+}
 
 export async function createProduct(input: CreateProductInput) {
   const name = (input.name || '').trim();
@@ -175,6 +194,7 @@ export async function createProduct(input: CreateProductInput) {
     input.retail_price !== null && input.retail_price !== undefined
       ? nonNegativeFcfa(input.retail_price, 'Prix détail')
       : null;
+  const imagePath = sanitizeImagePath(input.image_path);
 
   return withWriteTx((db) => {
     const cat = db.prepare('SELECT id FROM categories WHERE id = ?').get(input.category_id);
@@ -199,8 +219,8 @@ export async function createProduct(input: CreateProductInput) {
 
     const prodRes = db
       .prepare(
-        `INSERT INTO products (reference, barcode, name, brand, category_id, supplier_id, description, base_unit, stock_milli, min_stock_milli, max_stock_milli, average_cost_num, average_cost_den, purchase_price, wholesale_price, semi_wholesale_price, retail_price)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO products (reference, barcode, name, brand, category_id, supplier_id, description, base_unit, stock_milli, min_stock_milli, max_stock_milli, average_cost_num, average_cost_den, purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         reference,
@@ -219,7 +239,8 @@ export async function createProduct(input: CreateProductInput) {
         purchasePrice,
         wholesalePrice,
         semiPrice,
-        retailPrice
+        retailPrice,
+        imagePath
       );
 
     const productId = Number(prodRes.lastInsertRowid);
@@ -365,12 +386,16 @@ export async function updateProduct(
         : (existing.purchase_price as number | null);
 
     const isActive = input.is_active !== undefined ? (input.is_active ? 1 : 0) : Number(existing.is_active);
+    const imagePath =
+      input.image_path !== undefined
+        ? sanitizeImagePath(input.image_path)
+        : (existing.image_path as string | null);
 
     db.prepare(
       `UPDATE products
        SET name = ?, brand = ?, barcode = ?, category_id = ?, supplier_id = ?, description = ?,
            min_stock_milli = ?, max_stock_milli = ?, purchase_price = ?, wholesale_price = ?,
-           semi_wholesale_price = ?, retail_price = ?, is_active = ?
+           semi_wholesale_price = ?, retail_price = ?, image_path = ?, is_active = ?
        WHERE id = ?`
     ).run(
       name,
@@ -385,6 +410,7 @@ export async function updateProduct(
       wholesalePrice,
       semiPrice,
       retailPrice,
+      imagePath,
       isActive,
       id
     );
@@ -432,8 +458,24 @@ export async function addOrUpdatePackaging(
       if (dup) throw new BusinessError('DUPLICATE_OPERATION', 'Code-barres déjà utilisé.');
     }
 
+    const dupName = db
+      .prepare('SELECT id FROM product_packagings WHERE product_id = ? AND name = ? AND id != ?')
+      .get(productId, pkg.name, pkg.id ?? -1);
+    if (dupName) {
+      throw new BusinessError(
+        'DUPLICATE_OPERATION',
+        `Un conditionnement "${pkg.name}" existe déjà pour ce produit. Sélectionnez-le pour le modifier.`
+      );
+    }
+
     let pkgId = pkg.id;
     if (pkgId) {
+      const existingPkg = db
+        .prepare('SELECT id FROM product_packagings WHERE id = ? AND product_id = ?')
+        .get(pkgId, productId);
+      if (!existingPkg) {
+        throw new BusinessError('VALIDATION_ERROR', 'Conditionnement introuvable pour ce produit.', 404);
+      }
       db.prepare(
         `UPDATE product_packagings
          SET name = ?, coefficient_milli = ?, purchase_price = ?, wholesale_price = ?, semi_wholesale_price = ?, retail_price = ?, barcode = ?, allow_fraction = ?, is_active = ?

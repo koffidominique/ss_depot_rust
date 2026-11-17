@@ -87,8 +87,80 @@ export async function createClient(input: {
     auditLog(db, 'CREATE_CLIENT', 'clients', clientId, `${code} — ${name} (${input.credit_policy})`);
     return db
       .prepare(
-        `SELECT c.*, ccs.policy AS credit_policy, ccs.credit_limit, ccs.payment_terms_days
+        `SELECT c.*, ccs.policy AS credit_policy, ccs.credit_limit, ccs.payment_terms_days,
+                0 AS unpaid_balance, 0 AS returnable_pieces_due
          FROM clients c JOIN client_credit_settings ccs ON ccs.client_id = c.id WHERE c.id = ?`
+      )
+      .get(clientId);
+  });
+}
+
+export async function updateClient(
+  clientId: number,
+  input: {
+    name?: string;
+    client_type?: 'particulier' | 'professionnel';
+    phone?: string | null;
+    address?: string | null;
+    city?: string | null;
+    email?: string | null;
+    contact_person?: string | null;
+    is_active?: boolean;
+  }
+) {
+  if (!Number.isInteger(clientId) || clientId <= 0) {
+    throw new BusinessError('CLIENT_NOT_FOUND', 'Client invalide.', 400);
+  }
+  return withWriteTx((db) => {
+    const existing = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId) as
+      | {
+          id: number;
+          code: string;
+          name: string;
+          client_type: 'particulier' | 'professionnel';
+          phone: string | null;
+          address: string | null;
+          city: string | null;
+          email: string | null;
+          contact_person: string | null;
+          is_active: number;
+        }
+      | undefined;
+    if (!existing) throw new BusinessError('CLIENT_NOT_FOUND', 'Client introuvable.', 404);
+
+    const name = input.name !== undefined ? input.name.trim() : existing.name;
+    if (!name) throw new BusinessError('VALIDATION_ERROR', 'Le nom du client est obligatoire.');
+
+    const clientType = input.client_type !== undefined ? input.client_type : existing.client_type;
+    if (!['particulier', 'professionnel'].includes(clientType)) {
+      throw new BusinessError('VALIDATION_ERROR', 'Type de client invalide.');
+    }
+
+    const optText = (val: string | null | undefined, prev: string | null) =>
+      val === undefined ? prev : val?.trim() || null;
+
+    const phone = optText(input.phone, existing.phone);
+    const address = optText(input.address, existing.address);
+    const city = optText(input.city, existing.city);
+    const email = optText(input.email, existing.email);
+    const contactPerson = optText(input.contact_person, existing.contact_person);
+    const isActive = input.is_active !== undefined ? (input.is_active ? 1 : 0) : existing.is_active;
+
+    db.prepare(
+      `UPDATE clients
+       SET name = ?, client_type = ?, phone = ?, address = ?, city = ?, email = ?, contact_person = ?, is_active = ?
+       WHERE id = ?`
+    ).run(name, clientType, phone, address, city, email, contactPerson, isActive, clientId);
+
+    auditLog(db, 'UPDATE_CLIENT', 'clients', clientId, `${existing.code} — ${name}`);
+    return db
+      .prepare(
+        `SELECT c.*, ccs.policy AS credit_policy, ccs.credit_limit, ccs.payment_terms_days,
+                COALESCE((SELECT SUM(remaining_amount) FROM customer_receivables r WHERE r.client_id = c.id AND r.status IN ('open', 'partial')), 0) AS unpaid_balance,
+                COALESCE((SELECT SUM(balance_pieces) FROM customer_packaging_accounts cpa WHERE cpa.client_id = c.id), 0) AS returnable_pieces_due
+         FROM clients c
+         LEFT JOIN client_credit_settings ccs ON ccs.client_id = c.id
+         WHERE c.id = ?`
       )
       .get(clientId);
   });
@@ -552,7 +624,16 @@ export async function createSale(input: CreateSaleInput) {
   });
 }
 
-export function listSales(filter: { search?: string; status?: string; page?: number; pageSize?: number } = {}) {
+export function listSales(
+  filter: {
+    search?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}
+) {
   const db = getDb();
   const page = Math.max(1, Number(filter.page || 1));
   const pageSize = Math.min(100, Math.max(1, Number(filter.pageSize || 25)));
@@ -568,6 +649,14 @@ export function listSales(filter: { search?: string; status?: string; page?: num
     const q = `%${filter.search.trim()}%`;
     clauses.push("(s.reference LIKE ? OR COALESCE(c.name, 'Client Comptoir') LIKE ?)");
     params.push(q, q);
+  }
+  if (filter.from?.trim()) {
+    clauses.push('substr(s.created_at, 1, 10) >= ?');
+    params.push(filter.from.trim());
+  }
+  if (filter.to?.trim()) {
+    clauses.push('substr(s.created_at, 1, 10) <= ?');
+    params.push(filter.to.trim());
   }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const total = (db.prepare(`SELECT COUNT(*) AS c FROM sales s LEFT JOIN clients c ON c.id = s.client_id ${where}`).get(...params) as { c: number }).c;

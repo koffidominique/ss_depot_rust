@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ColumnDef } from '@tanstack/react-table';
-import { ArrowLeftRight, PackageCheck, Plus, Printer, Repeat, X } from 'lucide-react';
+import { ArrowLeftRight, Download, PackageCheck, Plus, Printer, Repeat, X } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { DataTable } from '../components/tables/DataTable.tsx';
 import { MetricCard } from '../components/common/MetricCard.tsx';
@@ -14,6 +14,7 @@ import {
   type PrintableDocumentData,
 } from '../components/documents/DocumentPrintModal.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
+import { exportConsignmentBalancesCsv, exportConsignmentMovementsCsv } from '../utils/csv.ts';
 import { formatDateTime, formatFcfa, formatNumber, newRequestKey } from '../utils/format.ts';
 
 interface ReturnableType {
@@ -35,6 +36,20 @@ interface ClientBalance {
   packaging_code: string;
   balance_pieces: number;
   deposit_held_amount: number;
+}
+
+interface ReturnableMovementRow {
+  id: number;
+  packaging_id: number;
+  packaging_name: string;
+  packaging_code: string;
+  movement_type: 'initial' | 'entry' | 'exit' | 'breakage' | 'loss' | 'correction_in' | 'correction_out';
+  quantity: number;
+  stock_before: number | null;
+  stock_after: number;
+  reason: string;
+  reference_document: string | null;
+  created_at: string;
 }
 
 interface OpenIssue {
@@ -68,6 +83,7 @@ interface DepositReturnRow {
 
 export function ConsignmentsPage() {
   const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState('issues');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
 
@@ -184,6 +200,7 @@ export function ConsignmentsPage() {
 
   const types = (data.types || []) as unknown as ReturnableType[];
   const clientBalances = (data.clientBalances || []) as unknown as ClientBalance[];
+  const recentMovements = (data.recentMovements || []) as unknown as ReturnableMovementRow[];
   const openIssues = (data.openIssues || []) as unknown as OpenIssue[];
   const returns = (data.returns || []) as unknown as DepositReturnRow[];
 
@@ -307,6 +324,110 @@ export function ConsignmentsPage() {
     },
   ];
 
+  const balanceCols: ColumnDef<ClientBalance>[] = [
+    {
+      accessorKey: 'client_name',
+      header: 'Client',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.client_name}</div>
+          <div className="font-mono-num text-[11px] text-[#667085]">{row.original.client_code}</div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'packaging_name',
+      header: 'Emballage',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.packaging_name}</div>
+          <div className="font-mono-num text-[11px] text-[#667085]">{row.original.packaging_code}</div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'balance_pieces',
+      header: 'Solde vides détenus',
+      cell: ({ row }) => (
+        <span className="font-mono-num font-semibold text-[#D9901A]">
+          {formatNumber(row.original.balance_pieces)} pcs
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'deposit_held_amount',
+      header: 'Dépôt de garantie retenu',
+      cell: ({ row }) => <span className="font-mono-num font-semibold">{formatFcfa(row.original.deposit_held_amount)}</span>,
+    },
+  ];
+
+  const movementCols: ColumnDef<ReturnableMovementRow>[] = [
+    {
+      accessorKey: 'created_at',
+      header: 'Date',
+      cell: ({ row }) => <span className="font-mono-num text-xs">{formatDateTime(row.original.created_at)}</span>,
+    },
+    {
+      accessorKey: 'packaging_name',
+      header: 'Emballage',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.packaging_name}</div>
+          <div className="font-mono-num text-[11px] text-[#667085]">{row.original.packaging_code}</div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'movement_type',
+      header: 'Type',
+      cell: ({ row }) => {
+        const labels: Record<ReturnableMovementRow['movement_type'], string> = {
+          initial: 'Stock initial',
+          entry: 'Entrée (+)',
+          exit: 'Sortie (-)',
+          breakage: 'Casse (-)',
+          loss: 'Perte (-)',
+          correction_in: 'Correction (+)',
+          correction_out: 'Correction (-)',
+        };
+        return <span className="text-xs font-medium">{labels[row.original.movement_type] || row.original.movement_type}</span>;
+      },
+    },
+    {
+      accessorKey: 'quantity',
+      header: 'Quantité',
+      cell: ({ row }) => {
+        const isIn = ['initial', 'entry', 'correction_in'].includes(row.original.movement_type);
+        return (
+          <span className={`font-mono-num font-semibold ${isIn ? 'text-[#16A36A]' : 'text-[#DC4545]'}`}>
+            {isIn ? '+' : '-'}{formatNumber(row.original.quantity)} pcs
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'stock_after',
+      header: 'Stock avant → après',
+      cell: ({ row }) => (
+        <span className="font-mono-num text-xs">
+          {row.original.stock_before ?? 0} → <strong>{row.original.stock_after}</strong> pcs
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'reason',
+      header: 'Motif / Référence',
+      cell: ({ row }) => (
+        <div className="text-xs">
+          <div>{row.original.reason}</div>
+          {row.original.reference_document && (
+            <div className="font-mono-num text-[11px] text-[#667085]">{row.original.reference_document}</div>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   const returnCols: ColumnDef<DepositReturnRow>[] = [
     {
       accessorKey: 'reference',
@@ -412,9 +533,9 @@ export function ConsignmentsPage() {
         />
       </div>
 
-      <Tabs.Root defaultValue="issues" className="space-y-4">
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs.List className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-1">
+          <Tabs.List className="inline-flex flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-1">
             <Tabs.Trigger
               value="issues"
               className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
@@ -422,10 +543,22 @@ export function ConsignmentsPage() {
               Consignes clients ouvertes ({openIssues.length})
             </Tabs.Trigger>
             <Tabs.Trigger
+              value="balances"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
+            >
+              Soldes par client ({clientBalances.length})
+            </Tabs.Trigger>
+            <Tabs.Trigger
               value="catalog"
               className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
             >
               Catalogue & stock vides ({types.length})
+            </Tabs.Trigger>
+            <Tabs.Trigger
+              value="movements"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
+            >
+              Journal mouvements ({recentMovements.length})
             </Tabs.Trigger>
             <Tabs.Trigger
               value="returns"
@@ -435,8 +568,47 @@ export function ConsignmentsPage() {
             </Tabs.Trigger>
           </Tabs.List>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <FormTipsButton topicId="consignments" label="Comprendre les onglets" />
+            <button
+              type="button"
+              onClick={() =>
+                activeTab === 'movements'
+                  ? exportConsignmentMovementsCsv(recentMovements)
+                  : exportConsignmentBalancesCsv(clientBalances)
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-2 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {activeTab === 'movements' ? 'CSV Mouvements' : 'CSV Soldes clients'}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setPrintDoc({
+                  docType: 'ÉTAT DES CONSIGNATIONS',
+                  reference: `RAP-CON-${new Date().toISOString().slice(0, 10)}`,
+                  date: new Date().toISOString(),
+                  statusLabel: `${clientBalances.length} compte(s) client(s)`,
+                  lines: clientBalances.map((b) => ({
+                    label: `${b.client_name} (${b.client_code})`,
+                    sublabel: `${b.packaging_name} (${b.packaging_code})`,
+                    quantity: `${b.balance_pieces} pcs`,
+                    unitPrice: null,
+                    total: b.deposit_held_amount,
+                  })),
+                  summaryRows: [
+                    { label: 'Vides en stock dépôt', value: `${formatNumber(totalDepotPieces)} pcs` },
+                    { label: 'Vides détenus par clients', value: `${formatNumber(totalClientPieces)} pcs`, tone: 'warning' },
+                    { label: 'Dépôts de garantie retenus', value: formatFcfa(totalHeldAmount), bold: true },
+                  ],
+                })
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-2 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Imprimer état
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -459,11 +631,27 @@ export function ConsignmentsPage() {
           />
         </Tabs.Content>
 
+        <Tabs.Content value="balances">
+          <DataTable
+            data={clientBalances}
+            columns={balanceCols as ColumnDef<ClientBalance, unknown>[]}
+            emptyMessage="Aucun client ne détient d'emballages consignés."
+          />
+        </Tabs.Content>
+
         <Tabs.Content value="catalog">
           <DataTable
             data={types}
             columns={typeCols as ColumnDef<ReturnableType, unknown>[]}
             emptyMessage="Aucun emballage consigné configuré."
+          />
+        </Tabs.Content>
+
+        <Tabs.Content value="movements">
+          <DataTable
+            data={recentMovements}
+            columns={movementCols as ColumnDef<ReturnableMovementRow, unknown>[]}
+            emptyMessage="Aucun mouvement de stock d'emballages enregistré."
           />
         </Tabs.Content>
 

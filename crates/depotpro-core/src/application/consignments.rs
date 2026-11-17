@@ -13,18 +13,38 @@ pub struct ReturnableTypeDto {
     pub name: String,
     pub producer: String,
     pub kind: String,
+    pub description: Option<String>,
     pub deposit_value: i64,
     pub stock_quantity: i64,
 }
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct ClientPackagingBalanceDto {
+    pub id: i64,
     pub client_id: i64,
     pub client_name: String,
+    pub client_code: String,
     pub returnable_id: i64,
     pub packaging_name: String,
+    pub packaging_code: String,
+    pub deposit_value: i64,
     pub balance_pieces: i64,
     pub deposit_held_amount: i64,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct ReturnableMovementDto {
+    pub id: i64,
+    pub packaging_id: i64,
+    pub packaging_name: String,
+    pub packaging_code: String,
+    pub movement_type: String,
+    pub quantity: i64,
+    pub stock_before: Option<i64>,
+    pub stock_after: i64,
+    pub reason: String,
+    pub reference_document: Option<String>,
+    pub created_at: String,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -32,13 +52,30 @@ pub struct OpenDepositIssueDto {
     pub id: i64,
     pub sale_id: i64,
     pub sale_reference: String,
+    pub client_id: Option<i64>,
     pub client_name: Option<String>,
     pub returnable_id: i64,
     pub packaging_name: String,
+    pub packaging_code: String,
     pub pieces: i64,
     pub returned_pieces: i64,
     pub unit_value: i64,
     pub amount: i64,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct DepositReturnDto {
+    pub id: i64,
+    pub reference: String,
+    pub packaging_name: String,
+    pub client_name: Option<String>,
+    pub pieces: i64,
+    pub condition_state: String,
+    pub refund_amount: i64,
+    pub credit_reduction: i64,
+    pub method_label: String,
+    pub reason: String,
+    pub created_at: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -46,7 +83,9 @@ pub struct OpenDepositIssueDto {
 pub struct ConsignmentsOverviewDto {
     pub types: Vec<ReturnableTypeDto>,
     pub client_balances: Vec<ClientPackagingBalanceDto>,
+    pub recent_movements: Vec<ReturnableMovementDto>,
     pub open_issues: Vec<OpenDepositIssueDto>,
+    pub returns: Vec<DepositReturnDto>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -83,7 +122,7 @@ pub struct ReturnClientEmptiesInput {
 
 pub async fn get_overview(db: &DepotDb) -> CoreResult<ConsignmentsOverviewDto> {
     let types = sqlx::query_as::<_, ReturnableTypeDto>(
-        "SELECT rpt.id, rpt.code, rpt.name, rpt.producer, rpt.kind, rpt.deposit_value,
+        "SELECT rpt.id, rpt.code, rpt.name, rpt.producer, rpt.kind, rpt.description, rpt.deposit_value,
                 COALESCE(rsb.quantity, 0) AS stock_quantity
          FROM returnable_packaging_types rpt
          LEFT JOIN returnable_stock_balances rsb ON rsb.packaging_id = rpt.id
@@ -93,7 +132,8 @@ pub async fn get_overview(db: &DepotDb) -> CoreResult<ConsignmentsOverviewDto> {
     .await?;
 
     let client_balances = sqlx::query_as::<_, ClientPackagingBalanceDto>(
-        "SELECT cpa.client_id, c.name AS client_name, cpa.returnable_id, rpt.name AS packaging_name,
+        "SELECT cpa.id, cpa.client_id, c.name AS client_name, c.code AS client_code,
+                cpa.returnable_id, rpt.name AS packaging_name, rpt.code AS packaging_code, rpt.deposit_value,
                 cpa.balance_pieces, cpa.deposit_held_amount
          FROM customer_packaging_accounts cpa
          JOIN clients c ON c.id = cpa.client_id
@@ -104,10 +144,21 @@ pub async fn get_overview(db: &DepotDb) -> CoreResult<ConsignmentsOverviewDto> {
     .fetch_all(&db.pool)
     .await?;
 
+    let recent_movements = sqlx::query_as::<_, ReturnableMovementDto>(
+        "SELECT rsm.id, rsm.packaging_id, rpt.name AS packaging_name, rpt.code AS packaging_code,
+                rsm.movement_type, rsm.quantity, rsm.stock_before, rsm.stock_after,
+                rsm.reason, rsm.reference_document, rsm.created_at
+         FROM returnable_stock_movements rsm
+         JOIN returnable_packaging_types rpt ON rpt.id = rsm.packaging_id
+         ORDER BY rsm.id DESC LIMIT 50",
+    )
+    .fetch_all(&db.pool)
+    .await?;
+
     let open_issues = sqlx::query_as::<_, OpenDepositIssueDto>(
-        "SELECT di.id, di.sale_id, s.reference AS sale_reference, c.name AS client_name,
-                di.returnable_id, rpt.name AS packaging_name, di.pieces, di.returned_pieces,
-                di.unit_value, di.amount
+        "SELECT di.id, di.sale_id, s.reference AS sale_reference, di.client_id, c.name AS client_name,
+                di.returnable_id, rpt.name AS packaging_name, rpt.code AS packaging_code,
+                di.pieces, di.returned_pieces, di.unit_value, di.amount
          FROM deposit_issues di
          JOIN sales s ON s.id = di.sale_id
          LEFT JOIN clients c ON c.id = di.client_id
@@ -118,10 +169,25 @@ pub async fn get_overview(db: &DepotDb) -> CoreResult<ConsignmentsOverviewDto> {
     .fetch_all(&db.pool)
     .await?;
 
+    let returns = sqlx::query_as::<_, DepositReturnDto>(
+        "SELECT dr.id, dr.reference, rpt.name AS packaging_name, c.name AS client_name,
+                dr.pieces, dr.condition_state, dr.refund_amount, dr.credit_reduction,
+                pm.label AS method_label, dr.reason, dr.created_at
+         FROM deposit_returns dr
+         JOIN returnable_packaging_types rpt ON rpt.id = dr.returnable_id
+         LEFT JOIN clients c ON c.id = dr.client_id
+         JOIN payment_methods pm ON pm.code = dr.method_code
+         ORDER BY dr.id DESC LIMIT 50",
+    )
+    .fetch_all(&db.pool)
+    .await?;
+
     Ok(ConsignmentsOverviewDto {
         types,
         client_balances,
+        recent_movements,
         open_issues,
+        returns,
     })
 }
 
@@ -158,6 +224,12 @@ pub async fn create_returnable_type(
         return Err(CoreError::DuplicateOperation("Code emballage déjà utilisé.".to_string()));
     }
 
+    let clean_desc = input
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToString::to_string);
     let id = sqlx::query(
         "INSERT INTO returnable_packaging_types (code, name, producer, kind, description, deposit_value)
          VALUES (?, ?, ?, ?, ?, ?)",
@@ -166,7 +238,7 @@ pub async fn create_returnable_type(
     .bind(&name)
     .bind(&producer)
     .bind(&input.kind)
-    .bind(input.description.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(clean_desc.as_deref())
     .bind(deposit_value.value())
     .execute(&mut *tx)
     .await?
@@ -208,6 +280,7 @@ pub async fn create_returnable_type(
         name,
         producer,
         kind: input.kind,
+        description: clean_desc,
         deposit_value: deposit_value.value(),
         stock_quantity: initial_stock,
     })

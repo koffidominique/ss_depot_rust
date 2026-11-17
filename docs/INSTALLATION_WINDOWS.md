@@ -1,6 +1,6 @@
 # Installation Windows (Desktop Tauri 2) — DEPOTPRO PREMIUM V3
 
-> Note d'état : le projet inclut la configuration complète Tauri 2 (`src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `src-tauri/src/commands.rs`) prête à être compilée sur un poste Windows équipé de Rust et des outils MSVC.
+> Note d'état : le projet inclut la configuration complète Tauri 2 (`src-tauri/build.rs`, `src-tauri/tauri.conf.json`, `src-tauri/icons/{32x32.png,128x128.png,128x128@2x.png,icon.ico,icon.icns}`, `src-tauri/src/lib.rs`, `src-tauri/src/commands.rs`) prête à être compilée sur un poste Windows équipé de Rust et des outils MSVC.
 
 ## Prérequis de compilation sous Windows
 

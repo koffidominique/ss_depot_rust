@@ -112,6 +112,13 @@ export class TauriApiClient implements ApiClient {
       payload: input,
     });
   }
+  updateClient(clientId: number, input: Record<string, unknown>) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['updateClient']>>>('update_client', {
+      token: getStoredToken(),
+      clientId,
+      payload: input,
+    });
+  }
   updateClientCredit(clientId: number, input: Record<string, unknown>) {
     return tauriInvoke('update_client_credit', {
       token: getStoredToken(),
@@ -119,11 +126,22 @@ export class TauriApiClient implements ApiClient {
       payload: input,
     });
   }
-  listSales(params: { search?: string; status?: string; page?: number; pageSize?: number } = {}) {
+  listSales(
+    params: {
+      search?: string;
+      status?: string;
+      from?: string;
+      to?: string;
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ) {
     return tauriInvoke<Awaited<ReturnType<ApiClient['listSales']>>>('list_sales', {
       token: getStoredToken(),
       search: params.search,
       status: params.status,
+      from: params.from,
+      to: params.to,
       page: params.page,
       pageSize: params.pageSize,
     });
@@ -174,6 +192,13 @@ export class TauriApiClient implements ApiClient {
       payload: input,
     });
   }
+  updateSupplier(supplierId: number, input: Record<string, unknown>) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['updateSupplier']>>>('update_supplier', {
+      token: getStoredToken(),
+      supplierId,
+      payload: input,
+    });
+  }
   listPurchases() {
     return tauriInvoke<Awaited<ReturnType<ApiClient['listPurchases']>>>('list_purchases', {
       token: getStoredToken(),
@@ -192,6 +217,13 @@ export class TauriApiClient implements ApiClient {
       payload: input,
     });
   }
+  cancelPurchaseOrder(orderId: number, input: { reason: string }) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['cancelPurchaseOrder']>>>('cancel_purchase_order', {
+      token: getStoredToken(),
+      purchaseOrderId: orderId,
+      payload: input,
+    });
+  }
   listSupplierDebts() {
     return tauriInvoke<Awaited<ReturnType<ApiClient['listSupplierDebts']>>>('list_supplier_debts', {
       token: getStoredToken(),
@@ -203,6 +235,18 @@ export class TauriApiClient implements ApiClient {
   getStockOverview() {
     return tauriInvoke<Awaited<ReturnType<ApiClient['getStockOverview']>>>('get_stock_overview', {
       token: getStoredToken(),
+    });
+  }
+  adjustStock(input: {
+    product_id: number;
+    direction: 'in' | 'out';
+    quantity: string | number;
+    reason: string;
+    request_key: string;
+  }) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['adjustStock']>>>('adjust_stock', {
+      token: getStoredToken(),
+      payload: { ...input, quantity: String(input.quantity) },
     });
   }
   listInventories() {
@@ -308,5 +352,19 @@ export class TauriApiClient implements ApiClient {
       token: getStoredToken(),
       name,
     });
+  }
+  async downloadBackup(name: string) {
+    const bytes = await tauriInvoke<number[]>('download_backup', {
+      token: getStoredToken(),
+      name,
+    });
+    return new Uint8Array(bytes);
+  }
+  async generateDocumentPdf(doc: Record<string, unknown>) {
+    const bytes = await tauriInvoke<number[]>('generate_document_pdf', {
+      token: getStoredToken(),
+      doc,
+    });
+    return new Uint8Array(bytes);
   }
 }

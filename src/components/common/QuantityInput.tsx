@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { cn } from '../../utils/format.ts';
 
 interface QuantityInputProps {
@@ -23,16 +24,19 @@ export function QuantityInput({
   id,
   className,
 }: QuantityInputProps) {
+  const autoId = useId();
+  const inputId = id ?? autoId;
+
   return (
     <div className={cn('space-y-1', className)}>
       {label && (
-        <label htmlFor={id} className="block text-xs font-medium text-[#182230] dark:text-slate-200">
+        <label htmlFor={inputId} className="block text-xs font-medium text-[#182230] dark:text-slate-200">
           {label}
         </label>
       )}
       <div className="relative flex items-center">
         <input
-          id={id}
+          id={inputId}
           type="text"
           inputMode={allowFraction ? 'decimal' : 'numeric'}
           disabled={disabled}

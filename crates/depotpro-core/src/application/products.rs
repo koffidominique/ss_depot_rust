@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::FromRow;
 use crate::application::sales::audit_log_tx;
 use crate::domain::money::Money;
@@ -7,6 +7,56 @@ use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 
 const ALLOWED_PACKAGING_NAMES: &[&str] = &["casier", "carton", "bouteille", "pack", "canette"];
+
+pub(crate) fn deserialize_nullable_opt<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Some(Option::deserialize(deserializer)?))
+}
+
+pub(crate) fn sanitize_image_path(raw: Option<&str>) -> CoreResult<Option<String>> {
+    let Some(val) = raw else {
+        return Ok(None);
+    };
+    let trimmed = val.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.len() > 350_000 {
+        return Err(CoreError::Validation(
+            "L'image est trop volumineuse (max 250 Ko).".to_string(),
+        ));
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    let is_safe_data_uri = (lower.starts_with("data:image/png;base64,")
+        || lower.starts_with("data:image/jpeg;base64,")
+        || lower.starts_with("data:image/jpg;base64,")
+        || lower.starts_with("data:image/webp;base64,"))
+        && trimmed
+            .split_once(";base64,")
+            .map(|(_, b64)| {
+                !b64.is_empty()
+                    && b64
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=')
+            })
+            .unwrap_or(false);
+    let is_safe_rel = trimmed.starts_with("/images/")
+        && !trimmed.contains("..")
+        && trimmed
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '_' | '-'));
+
+    if !is_safe_data_uri && !is_safe_rel {
+        return Err(CoreError::Validation(
+            "Format d'image invalide (utilisez PNG, JPEG ou WebP local).".to_string(),
+        ));
+    }
+    Ok(Some(trimmed.to_string()))
+}
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct CategoryDto {
@@ -83,6 +133,7 @@ struct ProductRow {
     pub wholesale_price: Option<i64>,
     pub semi_wholesale_price: Option<i64>,
     pub retail_price: Option<i64>,
+    pub image_path: Option<String>,
     pub is_active: i64,
 }
 
@@ -107,6 +158,7 @@ pub struct ProductSummaryDto {
     pub wholesale_price: Option<i64>,
     pub semi_wholesale_price: Option<i64>,
     pub retail_price: Option<i64>,
+    pub image_path: Option<String>,
     pub is_active: i64,
     pub packagings: Vec<ProductPackagingDto>,
 }
@@ -159,6 +211,7 @@ pub struct CreateProductInput {
     pub wholesale_price: Option<i64>,
     pub semi_wholesale_price: Option<i64>,
     pub retail_price: Option<i64>,
+    pub image_path: Option<String>,
     pub packagings: Option<Vec<PackagingInput>>,
 }
 
@@ -176,6 +229,8 @@ pub struct UpdateProductInput {
     pub wholesale_price: Option<i64>,
     pub semi_wholesale_price: Option<i64>,
     pub retail_price: Option<i64>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub image_path: Option<Option<String>>,
     pub is_active: Option<bool>,
 }
 
@@ -271,7 +326,7 @@ pub async fn list_products(
         "SELECT p.id, p.reference, p.barcode, p.name, p.brand, p.category_id, c.name AS category_name,
                 p.supplier_id, s.name AS supplier_name, p.description, p.base_unit,
                 p.stock_milli, p.min_stock_milli, p.max_stock_milli, p.average_cost_num, p.average_cost_den,
-                p.purchase_price, p.wholesale_price, p.semi_wholesale_price, p.retail_price, p.is_active
+                p.purchase_price, p.wholesale_price, p.semi_wholesale_price, p.retail_price, p.image_path, p.is_active
          FROM products p
          JOIN categories c ON c.id = p.category_id
          LEFT JOIN suppliers s ON s.id = p.supplier_id
@@ -301,6 +356,21 @@ pub async fn list_products(
     .fetch_all(&db.pool)
     .await?;
 
+    let items = hydrate_products(db, rows).await?;
+    let total_pages = ((total + ps - 1) / ps).max(1);
+    Ok(PaginatedProductsDto {
+        items,
+        total,
+        page: p,
+        page_size: ps,
+        total_pages,
+    })
+}
+
+async fn hydrate_products(
+    db: &DepotDb,
+    rows: Vec<ProductRow>,
+) -> CoreResult<Vec<ProductSummaryDto>> {
     let mut items = Vec::with_capacity(rows.len());
     for prod in rows {
         let pkg_rows = sqlx::query_as::<_, PackagingRow>(
@@ -379,19 +449,12 @@ pub async fn list_products(
             wholesale_price: prod.wholesale_price,
             semi_wholesale_price: prod.semi_wholesale_price,
             retail_price: prod.retail_price,
+            image_path: prod.image_path,
             is_active: prod.is_active,
             packagings,
         });
     }
-
-    let total_pages = ((total + ps - 1) / ps).max(1);
-    Ok(PaginatedProductsDto {
-        items,
-        total,
-        page: p,
-        page_size: ps,
-        total_pages,
-    })
+    Ok(items)
 }
 
 pub async fn list_active_products(
@@ -406,10 +469,24 @@ pub async fn list_active_products(
 }
 
 async fn get_product_by_id(db: &DepotDb, id: i64) -> CoreResult<ProductSummaryDto> {
-    let all = list_products(db, None, None, true, false, 1, 100).await?;
-    all.items
-        .into_iter()
-        .find(|p| p.id == id)
+    let row = sqlx::query_as::<_, ProductRow>(
+        "SELECT p.id, p.reference, p.barcode, p.name, p.brand, p.category_id, c.name AS category_name,
+                p.supplier_id, s.name AS supplier_name, p.description, p.base_unit,
+                p.stock_milli, p.min_stock_milli, p.max_stock_milli, p.average_cost_num, p.average_cost_den,
+                p.purchase_price, p.wholesale_price, p.semi_wholesale_price, p.retail_price, p.image_path, p.is_active
+         FROM products p
+         JOIN categories c ON c.id = p.category_id
+         LEFT JOIN suppliers s ON s.id = p.supplier_id
+         WHERE p.id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&db.pool)
+    .await?
+    .ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
+
+    let mut items = hydrate_products(db, vec![row]).await?;
+    items
+        .pop()
         .ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))
 }
 
@@ -443,6 +520,7 @@ pub async fn create_product(db: &DepotDb, input: CreateProductInput) -> CoreResu
         .retail_price
         .map(|v| Money::from_non_negative(v, "Prix détail").map(|m| m.value()))
         .transpose()?;
+    let image_path = sanitize_image_path(input.image_path.as_deref())?;
 
     let (_guard, mut tx) = db.begin_write().await?;
 
@@ -488,8 +566,8 @@ pub async fn create_product(db: &DepotDb, input: CreateProductInput) -> CoreResu
     let product_id = sqlx::query(
         "INSERT INTO products (reference, barcode, name, brand, category_id, supplier_id, description, base_unit,
                                stock_milli, min_stock_milli, max_stock_milli, average_cost_num, average_cost_den,
-                               purchase_price, wholesale_price, semi_wholesale_price, retail_price)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&reference)
     .bind(clean_barcode)
@@ -508,6 +586,7 @@ pub async fn create_product(db: &DepotDb, input: CreateProductInput) -> CoreResu
     .bind(wholesale_price)
     .bind(semi_price)
     .bind(retail_price)
+    .bind(image_path)
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
@@ -659,10 +738,11 @@ pub async fn update_product(
         Option<i64>,
         Option<i64>,
         Option<i64>,
+        Option<String>,
         i64,
     )> = sqlx::query_as(
         "SELECT reference, name, brand, barcode, category_id, supplier_id, description,
-                min_stock_milli, max_stock_milli, purchase_price, wholesale_price, semi_wholesale_price, retail_price, is_active
+                min_stock_milli, max_stock_milli, purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path, is_active
          FROM products WHERE id = ?",
     )
     .bind(id)
@@ -715,13 +795,17 @@ pub async fn update_product(
     let wholesale_price = input.wholesale_price.or(cur.10);
     let semi_price = input.semi_wholesale_price.or(cur.11);
     let retail_price = input.retail_price.or(cur.12);
-    let is_active = input.is_active.map(|b| if b { 1_i64 } else { 0_i64 }).unwrap_or(cur.13);
+    let image_path = match input.image_path {
+        Some(opt) => sanitize_image_path(opt.as_deref())?,
+        None => cur.13.clone(),
+    };
+    let is_active = input.is_active.map(|b| if b { 1_i64 } else { 0_i64 }).unwrap_or(cur.14);
 
     sqlx::query(
         "UPDATE products
          SET name = ?, brand = ?, barcode = ?, category_id = ?, supplier_id = ?, description = ?,
              min_stock_milli = ?, max_stock_milli = ?, purchase_price = ?, wholesale_price = ?,
-             semi_wholesale_price = ?, retail_price = ?, is_active = ?
+             semi_wholesale_price = ?, retail_price = ?, image_path = ?, is_active = ?
          WHERE id = ?",
     )
     .bind(&name)
@@ -736,6 +820,7 @@ pub async fn update_product(
     .bind(wholesale_price)
     .bind(semi_price)
     .bind(retail_price)
+    .bind(image_path)
     .bind(is_active)
     .bind(id)
     .execute(&mut *tx)
@@ -792,7 +877,33 @@ pub async fn upsert_packaging(
         }
     }
 
+    let dup_name: Option<(i64,)> = sqlx::query_as(
+        "SELECT id FROM product_packagings WHERE product_id = ? AND name = ? AND id != ?",
+    )
+    .bind(product_id)
+    .bind(&pkg.name)
+    .bind(pkg.id.unwrap_or(-1))
+    .fetch_optional(&mut *tx)
+    .await?;
+    if dup_name.is_some() {
+        return Err(CoreError::DuplicateOperation(format!(
+            "Un conditionnement \"{}\" existe déjà pour ce produit. Sélectionnez-le pour le modifier.",
+            pkg.name
+        )));
+    }
+
     let pkg_id = if let Some(id) = pkg.id {
+        let exists: Option<(i64,)> =
+            sqlx::query_as("SELECT id FROM product_packagings WHERE id = ? AND product_id = ?")
+                .bind(id)
+                .bind(product_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if exists.is_none() {
+            return Err(CoreError::Validation(
+                "Conditionnement introuvable pour ce produit.".to_string(),
+            ));
+        }
         sqlx::query(
             "UPDATE product_packagings
              SET name = ?, coefficient_milli = ?, purchase_price = ?, wholesale_price = ?,
@@ -1014,12 +1125,19 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
             .map(|s| s.trim())
             .filter(|s| !s.is_empty());
         if let Some(bc) = barcode {
-            if sqlx::query_scalar::<_, i64>("SELECT id FROM products WHERE barcode = ?")
+            let dup_prod = sqlx::query_scalar::<_, i64>("SELECT id FROM products WHERE barcode = ?")
                 .bind(bc)
                 .fetch_optional(&mut *tx)
                 .await?
-                .is_some()
-            {
+                .is_some();
+            let dup_pkg = sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM product_packagings WHERE barcode = ?",
+            )
+            .bind(bc)
+            .fetch_optional(&mut *tx)
+            .await?
+            .is_some();
+            if dup_prod || dup_pkg {
                 return Err(CoreError::DuplicateOperation(format!(
                     "Ligne {} : code-barres {bc} déjà existant.",
                     line_num + 1
@@ -1107,6 +1225,19 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
             .bind(pkg_id)
             .execute(&mut *tx)
             .await?;
+
+        if stock_milli > 0 {
+            sqlx::query(
+                "INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
+                 VALUES (?, 'manual_adjust', ?, 0, ?, 'Import initial CSV', ?)",
+            )
+            .bind(prod_id)
+            .bind(stock_milli)
+            .bind(stock_milli)
+            .bind(&reference)
+            .execute(&mut *tx)
+            .await?;
+        }
 
         created += 1;
     }

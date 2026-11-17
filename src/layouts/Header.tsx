@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Lock, Moon, Sun, Landmark, Settings, HelpCircle } from 'lucide-react';
+import { Lock, Moon, Sun, Landmark, Settings, HelpCircle, Search, AlertTriangle } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { useUiStore } from '../stores/uiStore.ts';
 import { resolveTopicIdFromPath } from '../data/businessTips.ts';
+import { GlobalSearchModal } from '../components/common/GlobalSearchModal.tsx';
 import { formatFcfa } from '../utils/format.ts';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -32,6 +34,18 @@ export function Header() {
   const toggleTheme = useUiStore((s) => s.toggleTheme);
   const setToken = useUiStore((s) => s.setToken);
   const openTips = useUiStore((s) => s.openTips);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const title = PAGE_TITLES[location.pathname] ?? 'DEPOTPRO ERP';
   const topicId = resolveTopicIdFromPath(location.pathname);
@@ -41,6 +55,19 @@ export function Header() {
     queryFn: () => apiClient.getCashStatus(),
     refetchInterval: 30000,
   });
+
+  const { data: dash } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () =>
+      typeof apiClient.getDashboard === 'function'
+        ? apiClient.getDashboard().catch(() => null)
+        : Promise.resolve(null),
+    refetchInterval: 60000,
+  });
+
+  const overdueReceivables = dash?.kpis?.overdueReceivablesCount ?? 0;
+  const overdueSuppliers = dash?.kpis?.overdueSupplierDebtsCount ?? 0;
+  const totalOverdue = overdueReceivables + overdueSuppliers;
 
   const handleLock = async () => {
     try {
@@ -65,6 +92,30 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
+        {totalOverdue > 0 && (
+          <Link
+            to={overdueReceivables > 0 ? '/debts' : '/suppliers'}
+            aria-label="Voir les échéances dépassées"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1.5 text-xs font-semibold text-[#DC4545] dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-colors whitespace-nowrap shrink-0"
+          >
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span className="font-mono-num">{totalOverdue} échéance(s)</span>
+          </Link>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Ouvrir la recherche globale"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 text-xs text-[#667085] dark:text-slate-300 hover:border-[#2563EB] hover:text-[#182230] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
+        >
+          <Search className="h-3.5 w-3.5" />
+          <span className="hidden md:inline">Rechercher...</span>
+          <kbd className="hidden lg:inline-block rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 font-mono-num text-[10px]">
+            Ctrl+K
+          </kbd>
+        </button>
+
         <Link
           to="/cash"
           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
@@ -119,6 +170,7 @@ export function Header() {
           Verrouiller
         </button>
       </div>
+      <GlobalSearchModal open={searchOpen} onOpenChange={setSearchOpen} />
     </header>
   );
 }

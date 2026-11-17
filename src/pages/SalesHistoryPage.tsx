@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Search, Eye, Printer, RotateCcw, Ban, X } from 'lucide-react';
+import { Search, Eye, Printer, RotateCcw, Ban, X, Download } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { DataTable } from '../components/tables/DataTable.tsx';
 import { StatusBadge } from '../components/common/StatusBadge.tsx';
@@ -13,12 +13,15 @@ import {
 } from '../components/documents/DocumentPrintModal.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
 import type { SaleDetail, SaleSummary } from '../types/erp.ts';
+import { exportSalesCsv } from '../utils/csv.ts';
 import { formatDateTime, formatFcfa, formatQty, newRequestKey } from '../utils/format.ts';
 
 export function SalesHistoryPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(1);
 
   const [selectedSale, setSelectedSale] = useState<SaleDetail | null>(null);
@@ -29,11 +32,67 @@ export function SalesHistoryPage() {
   const [returnReason, setReturnReason] = useState('');
   const [returnQtyByLine, setReturnQtyByLine] = useState<Record<number, string>>({});
   const [restockApproved, setRestockApproved] = useState(true);
+  const [refundMethodCode, setRefundMethodCode] = useState('cash');
   const [actionError, setActionError] = useState<string | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    setActionError(null);
+    try {
+      const all: SaleSummary[] = [];
+      let cur = 1;
+      let pages = 1;
+      do {
+        const res = await apiClient.listSales({
+          search,
+          status,
+          from: fromDate || undefined,
+          to: toDate || undefined,
+          page: cur,
+          pageSize: 100,
+        });
+        all.push(...res.items);
+        pages = res.totalPages || 1;
+        cur += 1;
+      } while (cur <= pages && cur <= 100);
+      exportSalesCsv(all);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erreur export CSV des ventes.');
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
+  const { data: settingsData } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => apiClient.getSettings(),
+  });
+  const activePaymentMethods = (settingsData?.paymentMethods || []).filter((m) => m.active === 1);
+  const refundMethods =
+    activePaymentMethods.length > 0
+      ? activePaymentMethods
+      : [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }];
+
+  const defaultRefundMethodFor = (sale: SaleDetail) => {
+    const firstCode = sale.payments?.[0]?.method_code;
+    if (firstCode && refundMethods.some((m) => m.code === firstCode)) {
+      return firstCode;
+    }
+    return refundMethods[0]?.code || 'cash';
+  };
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['sales', search, status, page],
-    queryFn: () => apiClient.listSales({ search, status, page, pageSize: 20 }),
+    queryKey: ['sales', search, status, fromDate, toDate, page],
+    queryFn: () =>
+      apiClient.listSales({
+        search,
+        status,
+        from: fromDate || undefined,
+        to: toDate || undefined,
+        page,
+        pageSize: 20,
+      }),
   });
 
   const openDetail = async (id: number) => {
@@ -47,7 +106,7 @@ export function SalesHistoryPage() {
       if (!cancelTarget) throw new Error('Aucune vente sélectionnée');
       return apiClient.cancelSale(cancelTarget.id, {
         reason: cancelReason,
-        refund_method_code: 'cash',
+        refund_method_code: refundMethodCode,
         request_key: newRequestKey('cancel'),
       });
     },
@@ -56,6 +115,8 @@ export function SalesHistoryPage() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['cash'] });
       qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['clients'] });
+      qc.invalidateQueries({ queryKey: ['debts'] });
       setCancelTarget(null);
       setCancelReason('');
       setSelectedSale(updated);
@@ -73,7 +134,7 @@ export function SalesHistoryPage() {
         request_key: newRequestKey('ret'),
         reason: returnReason,
         restock_approved: restockApproved,
-        refund_method_code: 'cash',
+        refund_method_code: refundMethodCode,
         lines,
       });
     },
@@ -82,6 +143,8 @@ export function SalesHistoryPage() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['cash'] });
       qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['clients'] });
+      qc.invalidateQueries({ queryKey: ['debts'] });
       setReturnTarget(null);
       setReturnReason('');
       setReturnQtyByLine({});
@@ -172,34 +235,85 @@ export function SalesHistoryPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={search}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Référence vente ou client..."
+              className="w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] py-2 pl-9 pr-3 text-sm"
+            />
+          </div>
+          <select
+            aria-label="Statut ventes"
+            value={status}
             onChange={(e) => {
-              setSearch(e.target.value);
+              setStatus(e.target.value);
               setPage(1);
             }}
-            placeholder="Référence vente ou client..."
-            className="w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] py-2 pl-9 pr-3 text-sm"
-          />
+            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-2 text-xs font-medium"
+          >
+            <option value="all">Tous les statuts</option>
+            <option value="validated">Validées</option>
+            <option value="partially_returned">Retour partiel</option>
+            <option value="returned">Retournées</option>
+            <option value="cancelled">Annulées</option>
+          </select>
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="text-[#667085] dark:text-slate-400">Du</span>
+            <input
+              aria-label="Date début ventes"
+              type="date"
+              value={fromDate}
+              onChange={(e) => {
+                setFromDate(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-2.5 py-1.5 font-mono-num text-xs"
+            />
+            <span className="text-[#667085] dark:text-slate-400">au</span>
+            <input
+              aria-label="Date fin ventes"
+              type="date"
+              value={toDate}
+              onChange={(e) => {
+                setToDate(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-2.5 py-1.5 font-mono-num text-xs"
+            />
+            {(fromDate || toDate || search || status !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setStatus('all');
+                  setFromDate('');
+                  setToDate('');
+                  setPage(1);
+                }}
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-[11px] font-medium text-[#667085] hover:text-[#182230] dark:hover:text-slate-200"
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
         </div>
-        <select
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(1);
-          }}
-          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-2 text-xs font-medium"
+        <button
+          type="button"
+          disabled={exportingCsv}
+          onClick={handleExportCsv}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3.5 py-2 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap shrink-0"
         >
-          <option value="all">Tous les statuts</option>
-          <option value="validated">Validées</option>
-          <option value="partially_returned">Retour partiel</option>
-          <option value="returned">Retournées</option>
-          <option value="cancelled">Annulées</option>
-        </select>
+          <Download className="h-3.5 w-3.5" />
+          {exportingCsv ? 'Export en cours...' : 'Exporter CSV'}
+        </button>
       </div>
 
       {isLoading ? (
@@ -418,6 +532,7 @@ export function SalesHistoryPage() {
                       type="button"
                       onClick={() => {
                         setActionError(null);
+                        setRefundMethodCode(defaultRefundMethodFor(selectedSale));
                         setReturnTarget(selectedSale);
                       }}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 px-3.5 py-2 text-xs font-medium"
@@ -430,6 +545,7 @@ export function SalesHistoryPage() {
                         type="button"
                         onClick={() => {
                           setActionError(null);
+                          setRefundMethodCode(defaultRefundMethodFor(selectedSale));
                           setCancelTarget(selectedSale);
                         }}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-[#DC4545] px-3.5 py-2 text-xs font-semibold text-white hover:bg-rose-700"
@@ -465,15 +581,32 @@ export function SalesHistoryPage() {
                 {actionError}
               </div>
             )}
-            <div className="mt-4">
-              <label className="block text-xs font-medium">Motif obligatoire *</label>
-              <input
-                type="text"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Ex : Erreur de saisie client"
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-              />
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium">Moyen de remboursement</label>
+                <select
+                  aria-label="Moyen de remboursement"
+                  value={refundMethodCode}
+                  onChange={(e) => setRefundMethodCode(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                >
+                  {refundMethods.map((m) => (
+                    <option key={m.code} value={m.code}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium">Motif obligatoire *</label>
+                <input
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Ex : Erreur de saisie client"
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                />
+              </div>
             </div>
             <div className="mt-5 flex justify-end gap-3">
               <Dialog.Close asChild>
@@ -540,6 +673,22 @@ export function SalesHistoryPage() {
                 />
                 <span>Réintégrer les marchandises en stock (état conforme)</span>
               </label>
+
+              <div>
+                <label className="block text-xs font-medium">Moyen de remboursement (si avoir remboursé)</label>
+                <select
+                  aria-label="Moyen de remboursement retour"
+                  value={refundMethodCode}
+                  onChange={(e) => setRefundMethodCode(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                >
+                  {refundMethods.map((m) => (
+                    <option key={m.code} value={m.code}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div>
                 <label className="block text-xs font-medium">Motif du retour *</label>

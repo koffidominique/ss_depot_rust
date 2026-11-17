@@ -24,10 +24,10 @@
 ## 5. Vente à crédit refusée pour un client
 - **Symptôme** : Message `CREDIT_POLICY_VIOLATION` lors de la validation dans `SalesPage`.
 - **Causes possibles** :
-  - `credit_enabled = 0` sur la fiche client (`Clients`).
-  - `is_credit_blocked = 1` (client bloqué manuellement).
-  - Le nouveau solde dû (`solde actuel + montant à crédit`) dépasse `credit_limit`.
-- **Solution** : Mettre à jour la politique de crédit dans **Clients**, enregistrer un encaissement partiel de créance dans **Créances**, ou solder l'achat au comptant.
+  - `policy = 'forbidden'` dans `client_credit_settings` sur la fiche client (`Clients` — défaut pour tout nouveau client).
+  - `policy = 'blocked'` (client bloqué manuellement).
+  - Pour `policy = 'limited'`, le nouveau solde dû (`solde actuel + montant à crédit`) dépasse `credit_limit`.
+- **Solution** : Mettre à jour la politique de crédit (`forbidden` / `limited` / `unlimited` / `blocked`) dans **Clients**, enregistrer un encaissement partiel de créance dans **Créances**, ou solder l'achat au comptant.
 
 ## 6. `cargo` / `tauri` absent lors de la compilation desktop
 - **Symptôme** : `rustc: command not found` ou erreur similaire.

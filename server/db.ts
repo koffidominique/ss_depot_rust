@@ -50,6 +50,16 @@ function applyMigrations(db: DatabaseSync): void {
   const schemaSql = fs.readFileSync(sqlPath, 'utf-8');
   db.exec(schemaSql);
 
+  const settingsCols = db.prepare('PRAGMA table_info(app_settings)').all() as Array<{ name: string }>;
+  if (!settingsCols.some((c) => c.name === 'logo_path')) {
+    db.exec('ALTER TABLE app_settings ADD COLUMN logo_path TEXT NULL;');
+  }
+
+  const expenseCols = db.prepare('PRAGMA table_info(expenses)').all() as Array<{ name: string }>;
+  if (!expenseCols.some((c) => c.name === 'receipt_path')) {
+    db.exec('ALTER TABLE expenses ADD COLUMN receipt_path TEXT NULL;');
+  }
+
   const row = db.prepare('SELECT version FROM schema_version WHERE version = 1').get() as
     | { version: number }
     | undefined;
