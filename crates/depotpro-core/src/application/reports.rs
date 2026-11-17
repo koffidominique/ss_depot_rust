@@ -151,6 +151,7 @@ pub struct AppSettingsDto {
     pub credit_note_prefix: String,
     pub theme: String,
     pub logo_path: Option<String>,
+    pub setup_completed: i64,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -187,6 +188,7 @@ pub struct UpdateSettingsInput {
     pub theme: Option<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_opt")]
     pub logo_path: Option<Option<String>>,
+    pub setup_completed: Option<bool>,
 }
 
 pub async fn get_dashboard_kpis(db: &DepotDb) -> CoreResult<DashboardKpisDto> {
@@ -515,7 +517,7 @@ pub async fn get_settings(db: &DepotDb) -> CoreResult<AppSettingsDto> {
     let row = sqlx::query_as::<_, AppSettingsDto>(
         "SELECT company_name, company_legal_name, address, phone, email, city, country, currency,
                 allow_negative_stock, invoice_prefix, sale_prefix, purchase_prefix, order_prefix,
-                receipt_prefix, credit_note_prefix, theme, logo_path
+                receipt_prefix, credit_note_prefix, theme, logo_path, setup_completed
          FROM app_settings WHERE id = 1",
     )
     .fetch_one(&db.pool)
@@ -576,6 +578,20 @@ pub async fn update_settings(
             .unwrap_or(prev)
     };
 
+    let has_identity_update = input.company_name.is_some()
+        || input.company_legal_name.is_some()
+        || input.address.is_some()
+        || input.phone.is_some()
+        || input.email.is_some()
+        || input.city.is_some()
+        || input.country.is_some()
+        || input.logo_path.is_some();
+    let next_setup_completed = match input.setup_completed {
+        Some(v) => i64::from(v),
+        None if has_identity_update => 1,
+        None => cur.setup_completed,
+    };
+
     let next_logo_path = match input.logo_path {
         Some(opt) => sanitize_image_path(opt.as_deref())?,
         None => cur.logo_path,
@@ -585,7 +601,7 @@ pub async fn update_settings(
         "UPDATE app_settings
          SET company_name = ?, company_legal_name = ?, address = ?, phone = ?, email = ?, city = ?, country = ?,
              allow_negative_stock = ?, invoice_prefix = ?, sale_prefix = ?, purchase_prefix = ?, order_prefix = ?,
-             receipt_prefix = ?, credit_note_prefix = ?, theme = ?, logo_path = ?, updated_at = datetime('now')
+             receipt_prefix = ?, credit_note_prefix = ?, theme = ?, logo_path = ?, setup_completed = ?, updated_at = datetime('now')
          WHERE id = 1",
     )
     .bind(&next_name)
@@ -604,6 +620,7 @@ pub async fn update_settings(
     .bind(prefix_or(input.credit_note_prefix, cur.credit_note_prefix))
     .bind(next_theme)
     .bind(next_logo_path)
+    .bind(next_setup_completed)
     .execute(&mut *tx)
     .await?;
 

@@ -2994,4 +2994,136 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       apiClient.createSale = origCreateSale;
     }
   });
+
+  it('Lot 4 — DashboardPage affiche l’assistant de première configuration quand setup_completed === 0', async () => {
+    const origGetDashboard = apiClient.getDashboard;
+    const origGetReports = apiClient.getReports;
+    const origGetSettings = apiClient.getSettings;
+    const origUpdateSettings = apiClient.updateSettings;
+    const savedCalls = [];
+
+    apiClient.getDashboard = async () => ({
+      kpis: {
+        revenueMerchandise: 0,
+        depositsTotal: 0,
+        salesCount: 0,
+        collectionsTotal: 0,
+        receivablesTotal: 0,
+        receivablesCount: 0,
+        supplierDebtsTotal: 0,
+        supplierDebtsCount: 0,
+        expensesTotal: 0,
+        cashSessionOpen: false,
+        cashSessionReference: null,
+        cashPhysicalTheoretical: 0,
+        digitalSessionTotal: 0,
+        lowStockCount: 0,
+        outOfStockCount: 0,
+      },
+      lowStockProducts: [],
+      topProducts: [],
+      salesSeries: [],
+      recentAudit: [],
+    });
+    apiClient.getReports = async () => ({
+      commercial: { count: 0, merchandise_revenue: 0, deposit_billed: 0, paid_amount: 0 },
+      profitability: {
+        knownCostTotal: 0,
+        knownCostRevenue: 0,
+        knownGrossMargin: 0,
+        unknownCostLines: 0,
+        expensesTotal: 0,
+        netKnownResult: 0,
+      },
+      paymentBreakdown: [],
+      stock: { product_count: 0, unknown_cost_products: 0, knownValuationFcfa: 0 },
+      dailySales: [],
+    });
+    apiClient.getSettings = async () => ({
+      settings: {
+        company_name: 'Mon Dépôt',
+        company_legal_name: null,
+        address: null,
+        phone: null,
+        email: null,
+        city: null,
+        country: null,
+        currency: 'FCFA',
+        allow_negative_stock: 0,
+        invoice_prefix: 'FAC',
+        sale_prefix: 'VTE',
+        purchase_prefix: 'ACH',
+        order_prefix: 'CMD',
+        receipt_prefix: 'REC',
+        credit_note_prefix: 'AVO',
+        theme: 'light',
+        logo_path: null,
+        setup_completed: 0,
+      },
+      paymentMethods: [],
+    });
+    apiClient.updateSettings = async (input) => {
+      savedCalls.push(input);
+      return {
+        settings: {
+          company_name: String(input.company_name || 'Mon Dépôt'),
+          company_legal_name: input.company_legal_name ?? null,
+          address: input.address ?? null,
+          phone: input.phone ?? null,
+          email: null,
+          city: input.city ?? null,
+          country: input.country ?? null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          logo_path: null,
+          setup_completed: 1,
+        },
+        paymentMethods: [],
+      };
+    };
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(DashboardPage))
+        )
+      );
+      await waitFor(() =>
+        assert.ok(screen.getByText(/Assistant de première configuration/i))
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Configurer mon dépôt/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByRole('heading', { name: /Identité de votre dépôt/i }))
+      );
+
+      const nameInput = screen.getByPlaceholderText(/Ex\. Dépôt Boissons Étoile/i);
+      fireEvent.change(nameInput, { target: { value: 'Dépôt Cocody Boissons' } });
+      fireEvent.click(screen.getByRole('button', { name: /Enregistrer et terminer/i }));
+
+      await waitFor(() => assert.equal(savedCalls.length, 1));
+      assert.equal(savedCalls[0].company_name, 'Dépôt Cocody Boissons');
+      assert.equal(savedCalls[0].setup_completed, true);
+    } finally {
+      qc.clear();
+      apiClient.getDashboard = origGetDashboard;
+      apiClient.getReports = origGetReports;
+      apiClient.getSettings = origGetSettings;
+      apiClient.updateSettings = origUpdateSettings;
+    }
+  });
 });

@@ -348,16 +348,34 @@ export async function updateSettings(input: {
   credit_note_prefix?: string;
   theme?: 'light' | 'dark';
   logo_path?: string | null;
+  setup_completed?: boolean | number;
 }) {
   return withWriteTx((db) => {
     const cur = db.prepare('SELECT * FROM app_settings WHERE id = 1').get() as Record<string, string | number | null>;
     const nextLogoPath =
       input.logo_path !== undefined ? sanitizeImagePath(input.logo_path) : (cur.logo_path as string | null);
+    const hasIdentityUpdate =
+      input.company_name !== undefined ||
+      input.company_legal_name !== undefined ||
+      input.address !== undefined ||
+      input.phone !== undefined ||
+      input.email !== undefined ||
+      input.city !== undefined ||
+      input.country !== undefined ||
+      input.logo_path !== undefined;
+    const nextSetupCompleted =
+      input.setup_completed !== undefined
+        ? input.setup_completed
+          ? 1
+          : 0
+        : hasIdentityUpdate
+          ? 1
+          : Number(cur.setup_completed ?? 0);
     db.prepare(
       `UPDATE app_settings
        SET company_name = ?, company_legal_name = ?, address = ?, phone = ?, email = ?, city = ?, country = ?,
            allow_negative_stock = ?, invoice_prefix = ?, sale_prefix = ?, purchase_prefix = ?, order_prefix = ?,
-           receipt_prefix = ?, credit_note_prefix = ?, theme = ?, logo_path = ?, updated_at = datetime('now')
+           receipt_prefix = ?, credit_note_prefix = ?, theme = ?, logo_path = ?, setup_completed = ?, updated_at = datetime('now')
        WHERE id = 1`
     ).run(
       input.company_name?.trim() || cur.company_name,
@@ -375,7 +393,8 @@ export async function updateSettings(input: {
       input.receipt_prefix?.trim().toUpperCase() || cur.receipt_prefix,
       input.credit_note_prefix?.trim().toUpperCase() || cur.credit_note_prefix,
       input.theme === 'dark' ? 'dark' : input.theme === 'light' ? 'light' : cur.theme,
-      nextLogoPath
+      nextLogoPath,
+      nextSetupCompleted
     );
     auditLog(db, 'UPDATE_SETTINGS', 'app_settings', 1, 'Mise à jour des paramètres application');
     return getSettings();

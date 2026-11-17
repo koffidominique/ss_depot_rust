@@ -170,8 +170,9 @@ export interface ApiClient {
   getReports(from?: string, to?: string): Promise<ReportsOverview>;
   getSettings(): Promise<{ settings: AppSettings; paymentMethods: PaymentMethodConfig[] }>;
   updateSettings(
-    input: Partial<Omit<AppSettings, 'allow_negative_stock'>> & {
+    input: Partial<Omit<AppSettings, 'allow_negative_stock' | 'setup_completed'>> & {
       allow_negative_stock?: boolean | number;
+      setup_completed?: boolean | number;
     }
   ): Promise<{ settings: AppSettings; paymentMethods: PaymentMethodConfig[] }>;
   addPaymentMethod(label: string): Promise<PaymentMethodConfig>;

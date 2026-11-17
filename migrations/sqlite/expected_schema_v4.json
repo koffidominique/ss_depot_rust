@@ -1,0 +1,2379 @@
+{
+  "tables": [
+    {
+      "name": "app_settings",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "company_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "company_legal_name",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "address",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "phone",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "email",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "city",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "country",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "allow_negative_stock",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "invoice_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "order_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "receipt_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "credit_note_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "theme",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "logo_path",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "setup_completed",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "audit_logs",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "action",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "entity_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "entity_id",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "details",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "cash_movements",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "payment_part_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "kind",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "method_code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "direction",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference_document",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "cash_sessions",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "opening_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "closing_key",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "opened_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "closed_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "opening_cash",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "theoretical_cash",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "physical_cash",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "difference",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "closing_notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "categories",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "client_credit_settings",
+      "columns": [
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "policy",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "credit_limit",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "payment_terms_days",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "clients",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "phone",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "address",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "city",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "email",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "contact_person",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_packaging_accounts",
+      "columns": [
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 1
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 2
+        },
+        {
+          "name": "balance_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_held_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_receivables",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "initial_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "remaining_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "due_date",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "deposit_issues",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_line_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returned_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "deposit_packaging_components",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "pieces_per_pack",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "deposit_packaging_profiles",
+      "columns": [
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "mode",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "deposit_returns",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "issue_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_movement_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "condition_state",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "refund_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "credit_reduction",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "method_code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "document_sequences",
+      "columns": [
+        {
+          "name": "prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 1
+        },
+        {
+          "name": "year",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 2
+        },
+        {
+          "name": "last_number",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "expense_categories",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "expenses",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "category",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "method_code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "beneficiary",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "receipt_path",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "expense_date",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "inventories",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "validated_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "inventory_lines",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "inventory_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "theoretical_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "counted_milli",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "owner_security",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "pin_hash",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "failed_attempts",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "locked_until",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "payment_allocations",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "payment_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "receivable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "payment_methods",
+      "columns": [
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "label",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_cash",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "payment_parts",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "payment_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "method_code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "payments",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "payment_kind",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "note",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "product_packagings",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "coefficient_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "semi_wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "retail_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "barcode",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "allow_fraction",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "products",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "barcode",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "brand",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "category_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "base_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "min_stock_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "max_stock_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "average_cost_num",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "average_cost_den",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "purchase_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "semi_wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "retail_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "image_path",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "purchase_order_lines",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "purchase_order_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "coefficient_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "ordered_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "received_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "line_total",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "purchase_orders",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "received_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "expected_date",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "purchase_receipt_lines",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "receipt_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_order_line_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "discrepancy_reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "purchase_receipts",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_order_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "returnable_packaging_types",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "producer",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "kind",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "returnable_stock_balances",
+      "columns": [
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "returnable_stock_movements",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "date",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "movement_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_before",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "stock_after",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference_document",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sale_lines",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "coefficient_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "discount_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "line_total",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "cost_num",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "cost_den",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sales",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "sale_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "price_tier",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "subtotal_merchandise",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "discount_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_merchandise",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_deposit",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "paid_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sales_cancellations",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "refund_method_code",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "refunded_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sales_return_lines",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "return_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_line_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sales_returns",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "credit_note_ref",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "credit_reduction",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "refund_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "refund_method_code",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "restock_approved",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "schema_version",
+      "columns": [
+        {
+          "name": "version",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "applied_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "stock_movements",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "movement_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_before_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_after_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_cost",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reference_document",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "supplier_debts",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "receipt_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "initial_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "remaining_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "due_date",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "suppliers",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "company_name",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "phone",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "address",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "email",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "contact_person",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "payment_terms_days",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_audit_logs_created",
+      "tableName": "audit_logs"
+    },
+    {
+      "name": "idx_cash_movements_session",
+      "tableName": "cash_movements"
+    },
+    {
+      "name": "idx_clients_name",
+      "tableName": "clients"
+    },
+    {
+      "name": "idx_packagings_product",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_payment_parts_payment",
+      "tableName": "payment_parts"
+    },
+    {
+      "name": "idx_products_active",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_category",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_name",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_supplier",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_receivables_client",
+      "tableName": "customer_receivables"
+    },
+    {
+      "name": "idx_sale_lines_sale",
+      "tableName": "sale_lines"
+    },
+    {
+      "name": "idx_sales_client",
+      "tableName": "sales"
+    },
+    {
+      "name": "idx_sales_created",
+      "tableName": "sales"
+    },
+    {
+      "name": "idx_sales_status",
+      "tableName": "sales"
+    },
+    {
+      "name": "idx_stock_movements_created",
+      "tableName": "stock_movements"
+    },
+    {
+      "name": "idx_stock_movements_product",
+      "tableName": "stock_movements"
+    },
+    {
+      "name": "uq_cash_session_single_open",
+      "tableName": "cash_sessions"
+    }
+  ],
+  "schemaVersions": [
+    {
+      "version": 1,
+      "name": "0001_initial_v3"
+    },
+    {
+      "version": 2,
+      "name": "0002_app_settings_logo_path"
+    },
+    {
+      "version": 3,
+      "name": "0003_expense_receipt_path"
+    },
+    {
+      "version": 4,
+      "name": "0004_onboarding_setup_state"
+    }
+  ]
+}

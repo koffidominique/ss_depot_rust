@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Dialog from '@radix-ui/react-dialog';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
@@ -14,6 +15,9 @@ import {
   AlertTriangle,
   Plus,
   PackagePlus,
+  Building2,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -51,7 +55,16 @@ function formatCompactFcfa(value: number): string {
 }
 
 export function DashboardPage() {
+  const qc = useQueryClient();
   const [chartMode, setChartMode] = useState<'revenue' | 'comparison'>('revenue');
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [obName, setObName] = useState('');
+  const [obLegal, setObLegal] = useState('');
+  const [obPhone, setObPhone] = useState('');
+  const [obAddress, setObAddress] = useState('');
+  const [obCity, setObCity] = useState('');
+  const [obCountry, setObCountry] = useState('');
+  const [obError, setObError] = useState<string | null>(null);
 
   const { monthFrom, monthTo, monthLabel, daysInMonth, yearMonth } = useMemo(() => {
     const now = new Date();
@@ -72,6 +85,34 @@ export function DashboardPage() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => apiClient.getDashboard(),
+  });
+
+  const { data: settingsData } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () =>
+      typeof apiClient.getSettings === 'function'
+        ? apiClient.getSettings().catch(() => null)
+        : Promise.resolve(null),
+  });
+
+  const onboardingMut = useMutation({
+    mutationFn: (payload: {
+      company_name?: string;
+      company_legal_name?: string;
+      phone?: string;
+      address?: string;
+      city?: string;
+      country?: string;
+      setup_completed: boolean;
+    }) => apiClient.updateSettings(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings'] });
+      setOnboardingOpen(false);
+      setObError(null);
+    },
+    onError: (err) => {
+      setObError(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde.');
+    },
   });
 
   const {
@@ -132,9 +173,192 @@ export function DashboardPage() {
   const monthlyCollected = monthlyReport?.commercial?.paid_amount ?? 0;
   const monthlySalesCount = monthlyReport?.commercial?.count ?? 0;
   const avgPerActiveDay = activeDaysCount > 0 ? Math.round(monthlyRevenue / activeDaysCount) : 0;
+  const needsOnboarding = settingsData?.settings?.setup_completed === 0;
+
+  const openOnboardingDialog = () => {
+    const s = settingsData?.settings;
+    setObName(s?.company_name && s.company_name !== 'Mon Dépôt' ? s.company_name : '');
+    setObLegal(s?.company_legal_name || '');
+    setObPhone(s?.phone || '');
+    setObAddress(s?.address || '');
+    setObCity(s?.city || '');
+    setObCountry(s?.country || '');
+    setObError(null);
+    setOnboardingOpen(true);
+  };
 
   return (
     <div className="space-y-6">
+      {needsOnboarding && (
+        <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/30 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-[#2563EB]" />
+                <h2 className="font-display text-sm font-semibold text-[#182230] dark:text-slate-100">
+                  Assistant de première configuration
+                </h2>
+              </div>
+              <p className="text-xs text-[#667085] dark:text-slate-300 max-w-2xl">
+                Votre espace est prêt avec les moyens de paiement et catégories génériques par défaut.
+                Personnalisez l’identité de votre dépôt avant d’émettre vos premières factures et reçus PDF.
+              </p>
+              <div className="flex flex-wrap items-center gap-4 pt-1 text-[11px] font-medium text-[#182230] dark:text-slate-200">
+                <span className="inline-flex items-center gap-1 text-[#16A36A]">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> 1. PIN propriétaire configuré
+                </span>
+                <span className="inline-flex items-center gap-1 text-[#2563EB]">
+                  2. Identité du dépôt à renseigner
+                </span>
+                <Link to="/suppliers" className="hover:underline text-[#667085] dark:text-slate-300">
+                  3. Ajouter fournisseurs & produits →
+                </Link>
+                <Link to="/cash" className="hover:underline text-[#667085] dark:text-slate-300">
+                  4. Ouvrir la caisse →
+                </Link>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={openOnboardingDialog}
+                className="rounded-lg bg-[#2563EB] px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+              >
+                Configurer mon dépôt
+              </button>
+              <button
+                type="button"
+                disabled={onboardingMut.isPending}
+                onClick={() => onboardingMut.mutate({ setup_completed: true })}
+                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-medium text-[#667085] dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Configurer plus tard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Dialog.Root open={onboardingOpen} onOpenChange={setOnboardingOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-xs" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <Dialog.Title className="font-display text-base font-semibold">
+                Identité de votre dépôt
+              </Dialog.Title>
+              <Dialog.Close className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <X className="h-4 w-4" />
+              </Dialog.Close>
+            </div>
+            <form
+              className="mt-4 space-y-3 text-xs"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!obName.trim()) {
+                  setObError('Le nom commercial du dépôt est obligatoire.');
+                  return;
+                }
+                onboardingMut.mutate({
+                  company_name: obName.trim(),
+                  company_legal_name: obLegal.trim(),
+                  phone: obPhone.trim(),
+                  address: obAddress.trim(),
+                  city: obCity.trim(),
+                  country: obCountry.trim(),
+                  setup_completed: true,
+                });
+              }}
+            >
+              {obError && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[#DC4545]">
+                  {obError}
+                </div>
+              )}
+              <label className="block space-y-1">
+                <span className="font-medium text-[#667085] dark:text-slate-400">Nom commercial du dépôt *</span>
+                <input
+                  type="text"
+                  value={obName}
+                  onChange={(e) => setObName(e.target.value)}
+                  placeholder="Ex. Dépôt Boissons Étoile"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block space-y-1">
+                  <span className="font-medium text-[#667085] dark:text-slate-400">Raison sociale</span>
+                  <input
+                    type="text"
+                    value={obLegal}
+                    onChange={(e) => setObLegal(e.target.value)}
+                    placeholder="SARL / Établissement"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="font-medium text-[#667085] dark:text-slate-400">Téléphone</span>
+                  <input
+                    type="text"
+                    value={obPhone}
+                    onChange={(e) => setObPhone(e.target.value)}
+                    placeholder="+225 ..."
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                  />
+                </label>
+              </div>
+              <label className="block space-y-1">
+                <span className="font-medium text-[#667085] dark:text-slate-400">Adresse / Quartier</span>
+                <input
+                  type="text"
+                  value={obAddress}
+                  onChange={(e) => setObAddress(e.target.value)}
+                  placeholder="Adresse physique du dépôt"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block space-y-1">
+                  <span className="font-medium text-[#667085] dark:text-slate-400">Ville</span>
+                  <input
+                    type="text"
+                    value={obCity}
+                    onChange={(e) => setObCity(e.target.value)}
+                    placeholder="Abidjan, Bouaké..."
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="font-medium text-[#667085] dark:text-slate-400">Pays</span>
+                  <input
+                    type="text"
+                    value={obCountry}
+                    onChange={(e) => setObCountry(e.target.value)}
+                    placeholder="Côte d'Ivoire"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+                  />
+                </label>
+              </div>
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setOnboardingOpen(false)}
+                  className="rounded-lg border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-medium"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={onboardingMut.isPending}
+                  className="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  Enregistrer et terminer
+                </button>
+              </div>
+            </form>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       {/* Actions rapides */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>

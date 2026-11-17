@@ -13,7 +13,8 @@
     "lint": "eslint . --max-warnings 0",
     "test": "tsx --test tests/*.test.mjs",
     "test:e2e": "playwright test",
-    "benchmark": "tsx scripts/benchmark_perf.ts"
+    "benchmark": "tsx scripts/benchmark_perf.ts",
+    "seed:demo": "tsx scripts/seed_demo.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

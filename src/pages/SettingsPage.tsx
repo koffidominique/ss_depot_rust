@@ -40,6 +40,7 @@ export function SettingsPage() {
         ...form,
         allow_negative_stock: Boolean(form.allow_negative_stock),
         logo_path: form.logo_path ?? null,
+        setup_completed: true,
         theme,
       }),
     onSuccess: () => {
@@ -107,6 +108,11 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      {data.settings.setup_completed === 0 && (
+        <div className="rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/30 px-4 py-3 text-xs font-medium text-[#182230] dark:text-slate-100">
+          Première configuration : renseignez le nom commercial et les coordonnées de votre dépôt pour personnaliser vos documents imprimés et reçus PDF.
+        </div>
+      )}
       {feedback && (
         <div
           className={`rounded-xl border px-4 py-3 text-xs font-medium ${

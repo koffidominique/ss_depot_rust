@@ -827,6 +827,7 @@ mod tests {
             credit_note_prefix: "AVO".to_string(),
             theme: "light".to_string(),
             logo_path: None,
+            setup_completed: 1,
         };
 
         for doc_type in VALID_DOC_TYPES {

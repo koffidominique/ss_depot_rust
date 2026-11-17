@@ -366,6 +366,7 @@ export interface AppSettings {
   credit_note_prefix: string;
   theme: 'light' | 'dark';
   logo_path?: string | null;
+  setup_completed?: number;
 }
 
 export interface ExpenseItem {
