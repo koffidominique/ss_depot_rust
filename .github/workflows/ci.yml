@@ -85,20 +85,22 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           set +e
-          cargo clippy -p depotpro-core -p depotpro-server --all-targets -- -D warnings 2>&1 | tee /tmp/clippy.log
+          CARGO_TERM_COLOR=never cargo clippy -p depotpro-core -p depotpro-server --all-targets -- -D warnings 2>&1 | tee /tmp/clippy.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
-            grep -E '^error|warning:|   -->' /tmp/clippy.log | head -n 40 | while IFS= read -r line; do echo "::error::$line"; done
+            MSG=$(grep -v -E '^\s*(Compiling|Checking|Downloading|Downloaded|Updating|Locking) ' /tmp/clippy.log | tail -n 35 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
+            echo "::error title=clippy::$MSG"
             exit "$rc"
           fi
       - name: Tests unitaires et d'intégration Rust
         if: ${{ !cancelled() }}
         run: |
           set +e
-          cargo test -p depotpro-core -p depotpro-server 2>&1 | tee /tmp/rust_test.log
+          CARGO_TERM_COLOR=never cargo test -p depotpro-core -p depotpro-server 2>&1 | tee /tmp/rust_test.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
-            tail -n 60 /tmp/rust_test.log | while IFS= read -r line; do echo "::error::$line"; done
+            MSG=$(grep -v -E '^\s*(Compiling|Checking|Downloading|Downloaded|Updating|Locking) ' /tmp/rust_test.log | tail -n 45 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
+            echo "::error title=cargo-test::$MSG"
             exit "$rc"
           fi
 
