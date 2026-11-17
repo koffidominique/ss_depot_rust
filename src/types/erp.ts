@@ -6,6 +6,7 @@ export interface AuthStatus {
   needsSetup: boolean;
   lockedUntil: string | null;
   failedAttempts: number;
+  authenticated?: boolean;
 }
 
 export interface Category {
@@ -61,6 +62,7 @@ export interface Product {
   wholesale_price: number | null;
   semi_wholesale_price: number | null;
   retail_price: number | null;
+  image_path: string | null;
   is_active: number;
   packagings: ProductPackaging[];
 }
@@ -295,8 +297,12 @@ export interface DashboardData {
     collectionsTotal: number;
     receivablesTotal: number;
     receivablesCount: number;
+    overdueReceivablesTotal?: number;
+    overdueReceivablesCount?: number;
     supplierDebtsTotal: number;
     supplierDebtsCount: number;
+    overdueSupplierDebtsTotal?: number;
+    overdueSupplierDebtsCount?: number;
     expensesTotal: number;
     cashSessionOpen: boolean;
     cashSessionReference: string | null;
@@ -359,6 +365,22 @@ export interface AppSettings {
   receipt_prefix: string;
   credit_note_prefix: string;
   theme: 'light' | 'dark';
+  logo_path?: string | null;
+}
+
+export interface ExpenseItem {
+  id: number;
+  reference: string;
+  category: string;
+  amount: number;
+  method_code: string;
+  method_label: string;
+  session_id: number;
+  beneficiary: string | null;
+  notes: string | null;
+  receipt_path: string | null;
+  expense_date: string;
+  created_at?: string;
 }
 
 export interface BackupFile {

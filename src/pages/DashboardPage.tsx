@@ -122,6 +122,11 @@ export function DashboardPage() {
   }
 
   const { kpis, lowStockProducts, topProducts, recentAudit } = data;
+  const overdueReceivablesCount = kpis.overdueReceivablesCount ?? 0;
+  const overdueReceivablesTotal = kpis.overdueReceivablesTotal ?? 0;
+  const overdueSupplierDebtsCount = kpis.overdueSupplierDebtsCount ?? 0;
+  const overdueSupplierDebtsTotal = kpis.overdueSupplierDebtsTotal ?? 0;
+  const hasOverdueAlerts = overdueReceivablesCount > 0 || overdueSupplierDebtsCount > 0;
   const activeDaysCount = (monthlyReport?.dailySales ?? []).filter((d) => d.count > 0).length;
   const monthlyRevenue = monthlyReport?.commercial?.merchandise_revenue ?? 0;
   const monthlyCollected = monthlyReport?.commercial?.paid_amount ?? 0;
@@ -158,6 +163,58 @@ export function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Alertes proactives d'échéances dépassées */}
+      {hasOverdueAlerts && (
+        <div
+          role="region"
+          aria-label="Alertes d'échéances dépassées"
+          className="grid grid-cols-1 gap-3 md:grid-cols-2"
+        >
+          {overdueReceivablesCount > 0 && (
+            <Link
+              to="/debts"
+              className="flex items-center justify-between gap-3 rounded-xl border border-amber-300 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 text-xs hover:bg-amber-100/70 dark:hover:bg-amber-950/50 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-[#D9901A] shrink-0" />
+                <div>
+                  <div className="font-semibold text-[#182230] dark:text-amber-200">
+                    {overdueReceivablesCount} créance(s) client à échéance dépassée
+                  </div>
+                  <div className="text-[#667085] dark:text-amber-300/80 font-mono-num">
+                    Encours échu : {formatFcfa(overdueReceivablesTotal)}
+                  </div>
+                </div>
+              </div>
+              <span className="font-semibold text-[#D9901A] dark:text-amber-300 whitespace-nowrap shrink-0">
+                Relancer →
+              </span>
+            </Link>
+          )}
+          {overdueSupplierDebtsCount > 0 && (
+            <Link
+              to="/suppliers"
+              className="flex items-center justify-between gap-3 rounded-xl border border-rose-300 dark:border-rose-900/60 bg-rose-50/80 dark:bg-rose-950/30 px-4 py-3 text-xs hover:bg-rose-100/70 dark:hover:bg-rose-950/50 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-[#DC4545] shrink-0" />
+                <div>
+                  <div className="font-semibold text-[#182230] dark:text-rose-200">
+                    {overdueSupplierDebtsCount} dette(s) fournisseur échue(s)
+                  </div>
+                  <div className="text-[#667085] dark:text-rose-300/80 font-mono-num">
+                    Solde à régler : {formatFcfa(overdueSupplierDebtsTotal)}
+                  </div>
+                </div>
+              </div>
+              <span className="font-semibold text-[#DC4545] dark:text-rose-300 whitespace-nowrap shrink-0">
+                Régler →
+              </span>
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* KPIs principaux — séparation stricte CA / Encaissements / Caisse / Créances / Dettes */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

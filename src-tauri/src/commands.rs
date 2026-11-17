@@ -1,7 +1,7 @@
 use tauri::State;
 use uuid::Uuid;
 use depotpro_core::application::{
-    auth, cash, consignments, inventory, products, purchases, reports, sales,
+    auth, cash, consignments, inventory, pdf, products, purchases, reports, sales,
 };
 use depotpro_core::infrastructure::backup;
 use crate::state::DesktopState;
@@ -15,7 +15,8 @@ async fn verify_desktop_session(state: &DesktopState, token: &str) -> Result<(),
 
 #[tauri::command]
 pub async fn auth_status(state: State<'_, DesktopState>) -> Result<serde_json::Value, String> {
-    let res = auth::get_auth_status(&state.db)
+    let db = state.db().await;
+    let res = auth::get_auth_status(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
@@ -26,7 +27,8 @@ pub async fn auth_setup_pin(
     state: State<'_, DesktopState>,
     pin: String,
 ) -> Result<serde_json::Value, String> {
-    auth::setup_owner_pin(&state.db, &pin)
+    let db = state.db().await;
+    auth::setup_owner_pin(&db, &pin)
         .await
         .map_err(|e| e.to_string())?;
     let token = Uuid::new_v4().to_string();
@@ -39,7 +41,8 @@ pub async fn auth_login(
     state: State<'_, DesktopState>,
     pin: String,
 ) -> Result<serde_json::Value, String> {
-    auth::verify_owner_pin(&state.db, &pin)
+    let db = state.db().await;
+    auth::verify_owner_pin(&db, &pin)
         .await
         .map_err(|e| e.to_string())?;
     let token = Uuid::new_v4().to_string();
@@ -61,7 +64,8 @@ pub async fn change_owner_pin(
     new_pin: String,
 ) -> Result<(), String> {
     verify_desktop_session(&state, &token).await?;
-    auth::change_owner_pin(&state.db, &current_pin, &new_pin)
+    let db = state.db().await;
+    auth::change_owner_pin(&db, &current_pin, &new_pin)
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -73,7 +77,8 @@ pub async fn list_categories(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let items = products::list_categories(&state.db)
+    let db = state.db().await;
+    let items = products::list_categories(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
@@ -87,7 +92,8 @@ pub async fn create_category(
     description: Option<String>,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let cat = products::create_category(&state.db, &name, description.as_deref())
+    let db = state.db().await;
+    let cat = products::create_category(&db, &name, description.as_deref())
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(cat).map_err(|e| e.to_string())?)
@@ -105,8 +111,9 @@ pub async fn list_products(
     page_size: Option<i64>,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
+    let db = state.db().await;
     let res = products::list_products(
-        &state.db,
+        &db,
         search.as_deref(),
         category_id,
         include_archived.unwrap_or(false),
@@ -126,7 +133,8 @@ pub async fn create_product(
     payload: products::CreateProductInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let prod = products::create_product(&state.db, payload)
+    let db = state.db().await;
+    let prod = products::create_product(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(prod).map_err(|e| e.to_string())?)
@@ -140,7 +148,8 @@ pub async fn update_product(
     payload: products::UpdateProductInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let prod = products::update_product(&state.db, id, payload)
+    let db = state.db().await;
+    let prod = products::update_product(&db, id, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(prod).map_err(|e| e.to_string())?)
@@ -154,7 +163,8 @@ pub async fn upsert_packaging(
     pkg: products::PackagingInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let res = products::upsert_packaging(&state.db, product_id, pkg)
+    let db = state.db().await;
+    let res = products::upsert_packaging(&db, product_id, pkg)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
@@ -166,7 +176,8 @@ pub async fn export_products_csv(
     token: String,
 ) -> Result<String, String> {
     verify_desktop_session(&state, &token).await?;
-    products::export_products_csv(&state.db)
+    let db = state.db().await;
+    products::export_products_csv(&db)
         .await
         .map_err(|e| e.to_string())
 }
@@ -178,7 +189,8 @@ pub async fn import_products_csv(
     csv: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let created = products::import_products_csv(&state.db, &csv)
+    let db = state.db().await;
+    let created = products::import_products_csv(&db, &csv)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "created": created }))
@@ -191,7 +203,8 @@ pub async fn list_clients(
     search: Option<String>,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let clients = sales::list_clients(&state.db, search.as_deref())
+    let db = state.db().await;
+    let clients = sales::list_clients(&db, search.as_deref())
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(clients).map_err(|e| e.to_string())?)
@@ -204,7 +217,23 @@ pub async fn create_client(
     payload: sales::CreateClientInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let client = sales::create_client(&state.db, payload)
+    let db = state.db().await;
+    let client = sales::create_client(&db, payload)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(client).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn update_client(
+    state: State<'_, DesktopState>,
+    token: String,
+    client_id: i64,
+    payload: sales::UpdateClientInput,
+) -> Result<serde_json::Value, String> {
+    verify_desktop_session(&state, &token).await?;
+    let db = state.db().await;
+    let client = sales::update_client(&db, client_id, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(client).map_err(|e| e.to_string())?)
@@ -218,7 +247,8 @@ pub async fn update_client_credit(
     payload: sales::UpdateCreditPolicyInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    sales::update_client_credit_policy(&state.db, client_id, payload)
+    let db = state.db().await;
+    sales::update_client_credit_policy(&db, client_id, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "ok": true }))
@@ -230,22 +260,27 @@ pub async fn list_sales(
     token: String,
     search: Option<String>,
     status: Option<String>,
+    from: Option<String>,
+    to: Option<String>,
     page: Option<i64>,
     page_size: Option<i64>,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
+    let db = state.db().await;
     let p = page.unwrap_or(1).max(1);
     let ps = page_size.unwrap_or(25).clamp(1, 100);
-    let items = sales::list_sales(
-        &state.db,
+    let res = sales::list_sales(
+        &db,
         search.as_deref(),
         status.as_deref(),
+        from.as_deref(),
+        to.as_deref(),
         ps,
         (p - 1) * ps,
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "items": items, "page": p, "pageSize": ps }))
+    Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -255,7 +290,8 @@ pub async fn get_sale_detail(
     sale_id: i64,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let detail = sales::get_sale_detail(&state.db, sale_id)
+    let db = state.db().await;
+    let detail = sales::get_sale_detail(&db, sale_id)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(detail).map_err(|e| e.to_string())?)
@@ -268,7 +304,8 @@ pub async fn create_sale(
     payload: sales::CreateSaleInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let sale = sales::create_sale(&state.db, payload)
+    let db = state.db().await;
+    let sale = sales::create_sale(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(sale).map_err(|e| e.to_string())?)
@@ -282,7 +319,8 @@ pub async fn cancel_sale(
     payload: sales::CancelSaleInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let sale = sales::cancel_sale(&state.db, sale_id, payload)
+    let db = state.db().await;
+    let sale = sales::cancel_sale(&db, sale_id, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(sale).map_err(|e| e.to_string())?)
@@ -296,7 +334,8 @@ pub async fn create_sale_return(
     payload: sales::CreateSaleReturnInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let sale = sales::create_sale_return(&state.db, sale_id, payload)
+    let db = state.db().await;
+    let sale = sales::create_sale_return(&db, sale_id, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(sale).map_err(|e| e.to_string())?)
@@ -308,7 +347,8 @@ pub async fn list_receivables(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let items = cash::list_receivables(&state.db)
+    let db = state.db().await;
+    let items = cash::list_receivables(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
@@ -322,7 +362,8 @@ pub async fn pay_receivable(
     payload: cash::PayReceivableInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let rec = cash::pay_receivable(&state.db, receivable_id, payload)
+    let db = state.db().await;
+    let rec = cash::pay_receivable(&db, receivable_id, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(rec).map_err(|e| e.to_string())?)
@@ -335,7 +376,8 @@ pub async fn list_suppliers(
     search: Option<String>,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let items = purchases::list_suppliers(&state.db, search.as_deref())
+    let db = state.db().await;
+    let items = purchases::list_suppliers(&db, search.as_deref())
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
@@ -348,7 +390,23 @@ pub async fn create_supplier(
     payload: purchases::CreateSupplierInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let s = purchases::create_supplier(&state.db, payload)
+    let db = state.db().await;
+    let s = purchases::create_supplier(&db, payload)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn update_supplier(
+    state: State<'_, DesktopState>,
+    token: String,
+    supplier_id: i64,
+    payload: purchases::UpdateSupplierInput,
+) -> Result<serde_json::Value, String> {
+    verify_desktop_session(&state, &token).await?;
+    let db = state.db().await;
+    let s = purchases::update_supplier(&db, supplier_id, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
@@ -360,7 +418,8 @@ pub async fn list_purchases(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let items = purchases::list_purchase_orders(&state.db)
+    let db = state.db().await;
+    let items = purchases::list_purchase_orders(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
@@ -373,7 +432,8 @@ pub async fn create_purchase_order(
     payload: purchases::CreatePurchaseOrderInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let po = purchases::create_purchase_order(&state.db, payload)
+    let db = state.db().await;
+    let po = purchases::create_purchase_order(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(po).map_err(|e| e.to_string())?)
@@ -387,10 +447,26 @@ pub async fn receive_purchase_order(
     payload: purchases::ReceivePurchaseOrderInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let rec = purchases::receive_purchase_order(&state.db, purchase_order_id, payload)
+    let db = state.db().await;
+    let rec = purchases::receive_purchase_order(&db, purchase_order_id, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(rec).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn cancel_purchase_order(
+    state: State<'_, DesktopState>,
+    token: String,
+    purchase_order_id: i64,
+    payload: purchases::CancelPurchaseOrderInput,
+) -> Result<serde_json::Value, String> {
+    verify_desktop_session(&state, &token).await?;
+    let db = state.db().await;
+    let po = purchases::cancel_purchase_order(&db, purchase_order_id, payload)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(po).map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -399,7 +475,8 @@ pub async fn list_supplier_debts(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let items = purchases::list_supplier_debts(&state.db)
+    let db = state.db().await;
+    let items = purchases::list_supplier_debts(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
@@ -413,7 +490,8 @@ pub async fn pay_supplier_debt(
     payload: purchases::PaySupplierDebtInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    purchases::pay_supplier_debt(&state.db, debt_id, payload)
+    let db = state.db().await;
+    purchases::pay_supplier_debt(&db, debt_id, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "ok": true }))
@@ -425,10 +503,25 @@ pub async fn get_stock_overview(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let ov = inventory::get_stock_overview(&state.db)
+    let db = state.db().await;
+    let ov = inventory::get_stock_overview(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(ov).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn adjust_stock(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: inventory::AdjustStockInput,
+) -> Result<serde_json::Value, String> {
+    verify_desktop_session(&state, &token).await?;
+    let db = state.db().await;
+    let mv = inventory::adjust_stock(&db, payload)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(mv).map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -437,7 +530,8 @@ pub async fn list_inventories(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let items = inventory::list_inventories(&state.db)
+    let db = state.db().await;
+    let items = inventory::list_inventories(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
@@ -450,7 +544,8 @@ pub async fn create_inventory(
     notes: Option<String>,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let inv = inventory::create_inventory(&state.db, notes.as_deref())
+    let db = state.db().await;
+    let inv = inventory::create_inventory(&db, notes.as_deref())
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(inv).map_err(|e| e.to_string())?)
@@ -464,7 +559,8 @@ pub async fn validate_inventory(
     lines: Vec<inventory::ValidateInventoryLineInput>,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let inv = inventory::validate_inventory(&state.db, inventory_id, lines)
+    let db = state.db().await;
+    let inv = inventory::validate_inventory(&db, inventory_id, lines)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(inv).map_err(|e| e.to_string())?)
@@ -476,7 +572,8 @@ pub async fn get_consignments_overview(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let ov = consignments::get_overview(&state.db)
+    let db = state.db().await;
+    let ov = consignments::get_overview(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(ov).map_err(|e| e.to_string())?)
@@ -489,7 +586,8 @@ pub async fn create_returnable_type(
     payload: consignments::CreateReturnableTypeInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let rt = consignments::create_returnable_type(&state.db, payload)
+    let db = state.db().await;
+    let rt = consignments::create_returnable_type(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(rt).map_err(|e| e.to_string())?)
@@ -502,7 +600,8 @@ pub async fn adjust_returnable_stock(
     payload: consignments::AdjustReturnableStockInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    consignments::adjust_returnable_stock(&state.db, payload)
+    let db = state.db().await;
+    consignments::adjust_returnable_stock(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "ok": true }))
@@ -515,7 +614,8 @@ pub async fn return_client_empties(
     payload: consignments::ReturnClientEmptiesInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let reference = consignments::return_client_empties(&state.db, payload)
+    let db = state.db().await;
+    let reference = consignments::return_client_empties(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "reference": reference }))
@@ -527,7 +627,8 @@ pub async fn get_cash_status(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let s = cash::get_cash_status(&state.db)
+    let db = state.db().await;
+    let s = cash::get_cash_status(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
@@ -540,7 +641,8 @@ pub async fn open_cash_session(
     payload: cash::OpenCashInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let s = cash::open_cash_session(&state.db, payload)
+    let db = state.db().await;
+    let s = cash::open_cash_session(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
@@ -553,7 +655,8 @@ pub async fn close_cash_session(
     payload: cash::CloseCashInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let s = cash::close_cash_session(&state.db, payload)
+    let db = state.db().await;
+    let s = cash::close_cash_session(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
@@ -565,7 +668,8 @@ pub async fn list_expenses(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let ov = cash::list_expenses(&state.db)
+    let db = state.db().await;
+    let ov = cash::list_expenses(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(ov).map_err(|e| e.to_string())?)
@@ -578,7 +682,8 @@ pub async fn create_expense(
     payload: cash::CreateExpenseInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    cash::create_expense(&state.db, payload)
+    let db = state.db().await;
+    cash::create_expense(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "ok": true }))
@@ -590,10 +695,11 @@ pub async fn get_dashboard(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let kpis = reports::get_dashboard_kpis(&state.db)
+    let db = state.db().await;
+    let data = reports::get_dashboard_data(&db)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "kpis": kpis }))
+    Ok(serde_json::to_value(data).map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -604,7 +710,8 @@ pub async fn get_reports(
     to: Option<String>,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let rep = reports::get_reports_overview(&state.db, from.as_deref(), to.as_deref())
+    let db = state.db().await;
+    let rep = reports::get_reports_overview(&db, from.as_deref(), to.as_deref())
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(rep).map_err(|e| e.to_string())?)
@@ -616,7 +723,8 @@ pub async fn get_settings(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let bundle = reports::get_settings_bundle(&state.db)
+    let db = state.db().await;
+    let bundle = reports::get_settings_bundle(&db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(bundle).map_err(|e| e.to_string())?)
@@ -629,7 +737,8 @@ pub async fn update_settings(
     payload: reports::UpdateSettingsInput,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let bundle = reports::update_settings(&state.db, payload)
+    let db = state.db().await;
+    let bundle = reports::update_settings(&db, payload)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(bundle).map_err(|e| e.to_string())?)
@@ -642,7 +751,8 @@ pub async fn add_payment_method(
     label: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let pm = reports::add_payment_method(&state.db, &label)
+    let db = state.db().await;
+    let pm = reports::add_payment_method(&db, &label)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(pm).map_err(|e| e.to_string())?)
@@ -656,10 +766,25 @@ pub async fn toggle_payment_method(
     active: bool,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let pm = reports::toggle_payment_method(&state.db, &code, active)
+    let db = state.db().await;
+    let pm = reports::toggle_payment_method(&db, &code, active)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(pm).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn generate_document_pdf(
+    state: State<'_, DesktopState>,
+    token: String,
+    doc: pdf::DocumentPdfInput,
+) -> Result<Vec<u8>, String> {
+    verify_desktop_session(&state, &token).await?;
+    let db = state.db().await;
+    let (_filename, bytes) = pdf::generate_document_pdf(&db, doc)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(bytes)
 }
 
 #[tauri::command]
@@ -678,7 +803,8 @@ pub async fn create_backup(
     token: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let summary = backup::create_backup_summary(&state.db, &state.backup_dir)
+    let db = state.db().await;
+    let summary = backup::create_backup_summary(&db, &state.backup_dir)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(summary).map_err(|e| e.to_string())?)
@@ -698,13 +824,25 @@ pub async fn verify_backup(
 }
 
 #[tauri::command]
+pub async fn download_backup(
+    state: State<'_, DesktopState>,
+    token: String,
+    name: String,
+) -> Result<Vec<u8>, String> {
+    verify_desktop_session(&state, &token).await?;
+    let (_safe_name, bytes) =
+        backup::read_backup_bytes(&state.backup_dir, &name).map_err(|e| e.to_string())?;
+    Ok(bytes)
+}
+
+#[tauri::command]
 pub async fn restore_backup(
     state: State<'_, DesktopState>,
     token: String,
     name: String,
 ) -> Result<serde_json::Value, String> {
     verify_desktop_session(&state, &token).await?;
-    let res = backup::restore_backup(&state.db, &state.backup_dir, &name)
+    let res = backup::restore_and_reconnect(&state.db, &state.backup_dir, &name)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)

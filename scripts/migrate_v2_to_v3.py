@@ -176,13 +176,21 @@ def migrate(source_path: Path, target_path: Path, schema_sql_path: Path, strict:
                 f"products[{r['id']}].semi_wholesale_price",
                 anomalies,
             )
+            purchase = parse_exact_fcfa(
+                r["purchase_price"] if "purchase_price" in keys else None,
+                f"products[{r['id']}].purchase_price",
+                anomalies,
+            )
             if stock_milli is None or min_milli is None:
                 continue
+            avg_num = str(purchase) if purchase is not None else None
+            avg_den = "1" if purchase is not None else None
             dst.execute(
                 """INSERT OR IGNORE INTO products
                    (id, reference, barcode, name, brand, category_id, supplier_id, base_unit,
-                    stock_milli, min_stock_milli, wholesale_price, semi_wholesale_price, retail_price, is_active)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    stock_milli, min_stock_milli, average_cost_num, average_cost_den,
+                    purchase_price, wholesale_price, semi_wholesale_price, retail_price, is_active)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     r["id"],
                     r["reference"] if "reference" in keys and r["reference"] else f"PROD-LEG-{r['id']:05d}",
@@ -194,6 +202,9 @@ def migrate(source_path: Path, target_path: Path, schema_sql_path: Path, strict:
                     r["base_unit"] if "base_unit" in keys and r["base_unit"] else "bouteille",
                     stock_milli,
                     min_milli,
+                    avg_num,
+                    avg_den,
+                    purchase,
                     wholesale,
                     semi,
                     retail,
@@ -216,23 +227,30 @@ def migrate(source_path: Path, target_path: Path, schema_sql_path: Path, strict:
             if not coeff_milli or coeff_milli <= 0:
                 anomalies.append(f"product_packagings[{r['id']}]: coefficient <= 0 ignoré")
                 continue
+            purchase = parse_exact_fcfa(r["purchase_price"] if "purchase_price" in keys else None, f"pkg[{r['id']}].purchase", anomalies)
             retail = parse_exact_fcfa(r["retail_price"] if "retail_price" in keys else None, f"pkg[{r['id']}].retail", anomalies)
             wholesale = parse_exact_fcfa(r["wholesale_price"] if "wholesale_price" in keys else None, f"pkg[{r['id']}].wholesale", anomalies)
             semi = parse_exact_fcfa(r["semi_wholesale_price"] if "semi_wholesale_price" in keys else None, f"pkg[{r['id']}].semi", anomalies)
             dst.execute(
                 """INSERT OR IGNORE INTO product_packagings
-                   (id, product_id, name, base_unit, coefficient_milli, wholesale_price, semi_wholesale_price, retail_price, is_active)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+                   (id, product_id, name, base_unit, coefficient_milli, purchase_price, wholesale_price, semi_wholesale_price, retail_price, is_active)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
                 (
                     r["id"],
                     r["product_id"],
                     r["name"],
                     r["base_unit"] if "base_unit" in keys and r["base_unit"] else "bouteille",
                     coeff_milli,
+                    purchase,
                     wholesale,
                     semi,
                     retail,
                 ),
+            )
+            # Profil consigne explicite requis avant toute vente (jamais de consigne implicite)
+            dst.execute(
+                "INSERT OR IGNORE INTO deposit_packaging_profiles (packaging_id, mode) VALUES (?, 'none')",
+                (r["id"],),
             )
             pkg_count += 1
     report["counts"]["product_packagings"] = pkg_count

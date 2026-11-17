@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Dialog from '@radix-ui/react-dialog';
 import { Link } from 'react-router-dom';
 import {
   Search,
@@ -9,35 +10,57 @@ import {
   CheckCircle2,
   Printer,
   AlertTriangle,
+  Package,
+  PauseCircle,
+  PlayCircle,
+  UserPlus,
+  X,
 } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { useUiStore } from '../stores/uiStore.ts';
 import { MoneyInput } from '../components/common/MoneyInput.tsx';
 import { QuantityInput } from '../components/common/QuantityInput.tsx';
 import { FormTipsButton } from '../components/common/FormTipsButton.tsx';
-import { formatFcfa, formatQty, newRequestKey } from '../utils/format.ts';
+import {
+  DocumentPrintModal,
+  type PrintableDocumentData,
+} from '../components/documents/DocumentPrintModal.tsx';
+import { formatDateTime, formatFcfa, formatQty, newRequestKey } from '../utils/format.ts';
 import type { PriceTier, Product, ProductPackaging, SaleDetail } from '../types/erp.ts';
 
 export function SalesPage() {
   const qc = useQueryClient();
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [search, setSearch] = useState('');
   const [globalDiscount, setGlobalDiscount] = useState(0);
+  const [dueDate, setDueDate] = useState('');
   const [paymentRows, setPaymentRows] = useState<Array<{ method_code: string; amount: number }>>([
     { method_code: 'cash', amount: 0 },
   ]);
   const [requestKey, setRequestKey] = useState(() => newRequestKey('sale'));
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [validatedSale, setValidatedSale] = useState<SaleDetail | null>(null);
+  const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
+  const [heldModalOpen, setHeldModalOpen] = useState(false);
+  const [quickClientOpen, setQuickClientOpen] = useState(false);
+  const [quickClientName, setQuickClientName] = useState('');
+  const [quickClientType, setQuickClientType] = useState<'particulier' | 'professionnel'>('particulier');
+  const [quickClientPhone, setQuickClientPhone] = useState('');
+  const [quickClientError, setQuickClientError] = useState<string | null>(null);
 
   const {
     posCart,
     posClientId,
     posPriceTier,
     posSaleType,
+    heldCarts,
     addToCart,
     updateCartItem,
     removeFromCart,
     clearCart,
+    holdCurrentCart,
+    resumeHeldCart,
+    deleteHeldCart,
     setPosClientId,
     setPosPriceTier,
     setPosSaleType,
@@ -46,6 +69,7 @@ export function SalesPage() {
   const { data: productsRes } = useQuery({
     queryKey: ['products-pos', search],
     queryFn: () => apiClient.listProducts({ search, page: 1, pageSize: 50 }),
+    placeholderData: (prev) => prev,
   });
   const { data: clients } = useQuery({
     queryKey: ['clients'],
@@ -127,6 +151,7 @@ export function SalesPage() {
         sale_type: posSaleType,
         price_tier: posPriceTier,
         discount_amount: globalDiscount,
+        due_date: posSaleType === 'credit' && dueDate ? dueDate : undefined,
         lines: posCart.map((c) => ({
           product_id: c.productId,
           packaging_id: c.packagingId,
@@ -140,6 +165,7 @@ export function SalesPage() {
       setValidatedSale(sale);
       clearCart();
       setGlobalDiscount(0);
+      setDueDate('');
       setPaymentRows([{ method_code: 'cash', amount: 0 }]);
       setRequestKey(newRequestKey('sale'));
       setErrorMsg(null);
@@ -153,6 +179,68 @@ export function SalesPage() {
     onError: (err) => setErrorMsg(err instanceof Error ? err.message : 'Erreur lors de la validation.'),
   });
 
+  const quickClientMutation = useMutation({
+    mutationFn: () =>
+      apiClient.createClient({
+        name: quickClientName.trim(),
+        client_type: quickClientType,
+        phone: quickClientPhone.trim() || undefined,
+        credit_policy: 'forbidden',
+      }),
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: ['clients'] });
+      setPosClientId(created.id);
+      setQuickClientName('');
+      setQuickClientPhone('');
+      setQuickClientError(null);
+      setQuickClientOpen(false);
+    },
+    onError: (err) =>
+      setQuickClientError(err instanceof Error ? err.message : 'Erreur création client.'),
+  });
+
+  const validateSaleRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    validateSaleRef.current = () => {
+      if (posCart.length > 0 && !createSaleMutation.isPending) {
+        createSaleMutation.mutate();
+      }
+    };
+  }, [posCart.length, createSaleMutation]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      } else if (e.key === 'F9') {
+        if (!quickClientOpen && !heldModalOpen && !printDoc) {
+          e.preventDefault();
+          validateSaleRef.current();
+        }
+      } else if (e.key === 'Escape') {
+        if (quickClientOpen) setQuickClientOpen(false);
+        else if (heldModalOpen) setHeldModalOpen(false);
+        else if (validatedSale) setValidatedSale(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [quickClientOpen, heldModalOpen, printDoc, validatedSale]);
+
+  const handleHoldCart = () => {
+    if (posCart.length === 0) return;
+    const selectedClient = clients?.find((c) => c.id === posClientId);
+    const label = selectedClient ? selectedClient.name : `Ticket ${heldCarts.length + 1}`;
+    holdCurrentCart(label, globalDiscount);
+    setGlobalDiscount(0);
+    setDueDate('');
+    setPaymentRows([{ method_code: 'cash', amount: 0 }]);
+    setErrorMsg(null);
+  };
+
   const handlePriceTierChange = (nextTier: PriceTier) => {
     setPosPriceTier(nextTier);
     const products = productsRes?.items || [];
@@ -162,6 +250,44 @@ export function SalesPage() {
       if (pkg) {
         updateCartItem(item.key, { unitPrice: getTierPrice(pkg, nextTier) });
       }
+    }
+  };
+
+  const handleScanEnter = async (rawCode: string) => {
+    const code = rawCode.trim();
+    if (!code) return;
+    const findAndAdd = (products: Product[]): boolean => {
+      for (const prod of products) {
+        const matchedPkg = prod.packagings.find(
+          (pk) =>
+            pk.is_active && pk.barcode && pk.barcode.trim().toLowerCase() === code.toLowerCase()
+        );
+        if (matchedPkg) {
+          handleAddPackaging(prod, matchedPkg);
+          setSearch('');
+          return true;
+        }
+      }
+      const matchedProd = products.find(
+        (prod) =>
+          (prod.barcode && prod.barcode.trim().toLowerCase() === code.toLowerCase()) ||
+          prod.reference.toLowerCase() === code.toLowerCase()
+      );
+      const defaultPkg = matchedProd?.packagings.find((pk) => pk.is_active);
+      if (matchedProd && defaultPkg) {
+        handleAddPackaging(matchedProd, defaultPkg);
+        setSearch('');
+        return true;
+      }
+      return false;
+    };
+
+    if (findAndAdd(productsRes?.items || [])) return;
+    try {
+      const fresh = await apiClient.listProducts({ search: code, page: 1, pageSize: 20 });
+      findAndAdd(fresh.items || []);
+    } catch {
+      // L'utilisateur verra le résultat filtré normal si l'appel échoue
     }
   };
 
@@ -189,10 +315,17 @@ export function SalesPage() {
             <div className="relative flex-1 min-w-[220px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Scanner code-barres ou chercher une boisson..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleScanEnter(search);
+                  }
+                }}
+                placeholder="Scanner code-barres ou chercher (F2)..."
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] py-2.5 pl-9 pr-3 text-sm focus:border-[#2563EB] focus:outline-none"
               />
             </div>
@@ -227,14 +360,28 @@ export function SalesPage() {
                 className="flex flex-col justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-4"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="truncate font-display text-sm font-semibold text-[#182230] dark:text-slate-100">
-                        {prod.name}
-                      </h3>
-                      <p className="text-xs text-[#667085] dark:text-slate-400">
-                        {prod.reference} · {prod.category_name}
-                      </p>
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      {prod.image_path ? (
+                        <img
+                          src={prod.image_path}
+                          alt={prod.name}
+                          loading="lazy"
+                          className="h-10 w-10 rounded-lg border border-slate-200 dark:border-slate-700 object-cover shrink-0 bg-slate-50"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-400 shrink-0">
+                          <Package className="h-4 w-4" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <h3 className="truncate font-display text-sm font-semibold text-[#182230] dark:text-slate-100">
+                          {prod.name}
+                        </h3>
+                        <p className="text-xs text-[#667085] dark:text-slate-400 truncate">
+                          {prod.reference} · {prod.category_name}
+                        </p>
+                      </div>
                     </div>
                     <span
                       className={`font-mono-num text-xs font-semibold shrink-0 ${
@@ -281,7 +428,27 @@ export function SalesPage() {
                 <ShoppingCart className="h-4 w-4 text-[#2563EB]" />
                 <span>Panier de vente ({posCart.length})</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {heldCarts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setHeldModalOpen(true)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 text-[11px] font-semibold text-[#D9901A]"
+                  >
+                    <PlayCircle className="h-3.5 w-3.5" />
+                    En attente ({heldCarts.length})
+                  </button>
+                )}
+                {posCart.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleHoldCart}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-medium text-[#667085] hover:border-[#2563EB] hover:text-[#2563EB]"
+                  >
+                    <PauseCircle className="h-3.5 w-3.5" />
+                    Mettre en attente
+                  </button>
+                )}
                 <FormTipsButton topicId="sales-pos" label="Aide saisie" />
                 {posCart.length > 0 && (
                   <button
@@ -298,9 +465,23 @@ export function SalesPage() {
             {/* Sélection client et mode vente */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-[#667085] dark:text-slate-400">
-                  Client
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-[#667085] dark:text-slate-400">
+                    Client
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickClientError(null);
+                      setQuickClientOpen(true);
+                    }}
+                    aria-label="Créer rapidement un client"
+                    className="inline-flex items-center gap-0.5 text-[11px] font-medium text-[#2563EB] hover:underline"
+                  >
+                    <UserPlus className="h-3 w-3" />
+                    Nouveau client
+                  </button>
+                </div>
                 <select
                   value={posClientId ?? ''}
                   onChange={(e) => setPosClientId(e.target.value ? Number(e.target.value) : null)}
@@ -344,6 +525,43 @@ export function SalesPage() {
                 </div>
               </div>
             </div>
+
+            {(() => {
+              const selectedClient = clients?.find((c) => c.id === posClientId);
+              if (!selectedClient) return null;
+              const availCredit =
+                selectedClient.credit_policy === 'limited' && selectedClient.credit_limit !== null
+                  ? Math.max(0, selectedClient.credit_limit - selectedClient.unpaid_balance)
+                  : null;
+              return (
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 px-3 py-2 text-[11px] flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-[#182230] dark:text-slate-200">
+                    {selectedClient.credit_policy === 'forbidden'
+                      ? 'Crédit interdit'
+                      : selectedClient.credit_policy === 'unlimited'
+                      ? 'Crédit autorisé (sans plafond)'
+                      : `Plafond ${formatFcfa(selectedClient.credit_limit ?? 0)} · Dispo ${formatFcfa(availCredit ?? 0)}`}
+                  </span>
+                  <span className="font-mono-num text-[#667085] dark:text-slate-400">
+                    Dû : {formatFcfa(selectedClient.unpaid_balance)} · Vides : {selectedClient.returnable_pieces_due} pcs
+                  </span>
+                </div>
+              );
+            })()}
+
+            {posSaleType === 'credit' && (
+              <div>
+                <label className="block text-xs font-medium text-[#667085] dark:text-slate-400">
+                  Date d'échéance (optionnelle, sinon calculée selon délai client)
+                </label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num text-xs"
+                />
+              </div>
+            )}
 
             {/* Lignes du panier */}
             <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
@@ -505,7 +723,7 @@ export function SalesPage() {
               onClick={() => createSaleMutation.mutate()}
               className="w-full rounded-xl bg-[#16A36A] py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-40"
             >
-              {createSaleMutation.isPending ? 'Validation en cours...' : 'Valider la vente'}
+              {createSaleMutation.isPending ? 'Validation en cours...' : 'Valider la vente (F9)'}
             </button>
           </div>
         </div>
@@ -530,11 +748,62 @@ export function SalesPage() {
             <div className="flex items-center gap-2.5 no-print">
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-medium"
+                onClick={() => {
+                  const s = validatedSale;
+                  setPrintDoc({
+                    docType: s.sale_type === 'credit' ? 'FACTURE' : 'REÇU DE VENTE',
+                    reference: s.reference,
+                    date: s.created_at,
+                    statusLabel:
+                      s.status === 'validated'
+                        ? 'Validée'
+                        : s.status === 'cancelled'
+                          ? 'Annulée'
+                          : s.status === 'partially_returned'
+                            ? 'Retour partiel'
+                            : 'Retournée',
+                    partyTitle: 'Client',
+                    partyName: s.client_name || 'Client Comptoir',
+                    partyDetails: [s.client_code, s.client_phone].filter(Boolean).join(' · ') || undefined,
+                    lines: [
+                      ...s.lines.map((l) => ({
+                        label: l.product_name,
+                        sublabel: `${l.packaging_name} (×${l.coefficient_milli / 1000} ${l.base_unit})`,
+                        quantity: formatQty(l.quantity_milli),
+                        unitPrice: l.unit_price,
+                        total: l.line_total,
+                      })),
+                      ...s.deposits.map((d) => ({
+                        label: `Consigne : ${d.packaging_name}`,
+                        sublabel: `Code ${d.packaging_code}`,
+                        quantity: `${d.pieces} pcs`,
+                        unitPrice: d.unit_value,
+                        total: d.amount,
+                      })),
+                    ],
+                    summaryRows: [
+                      { label: 'Total marchandises', value: formatFcfa(s.total_merchandise) },
+                      { label: 'Remise', value: formatFcfa(s.discount_amount) },
+                      { label: 'Consignes emballages', value: formatFcfa(s.total_deposit) },
+                      { label: 'Total TTC', value: formatFcfa(s.total_amount), bold: true },
+                      { label: 'Encaissé', value: formatFcfa(s.paid_amount), tone: 'success' },
+                      {
+                        label: 'Reste à payer',
+                        value: formatFcfa(s.remaining_amount),
+                        tone: s.remaining_amount > 0 ? 'warning' : 'default',
+                      },
+                    ],
+                    payments: s.payments.map((p) => ({
+                      label: `${p.method_label} (${p.reference})`,
+                      amount: p.part_amount,
+                    })),
+                    notes: s.due_date ? `Échéance crédit : ${s.due_date}` : s.notes,
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 <Printer className="h-3.5 w-3.5" />
-                Imprimer reçu
+                Imprimer / PDF
               </button>
               <button
                 type="button"
@@ -547,6 +816,150 @@ export function SalesPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Paniers en attente */}
+      <Dialog.Root open={heldModalOpen} onOpenChange={setHeldModalOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-950/50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <Dialog.Title className="font-display text-base font-semibold">
+                Ventes mises en attente ({heldCarts.length})
+              </Dialog.Title>
+              <Dialog.Close className="rounded-lg p-1 text-slate-400">
+                <X className="h-4 w-4" />
+              </Dialog.Close>
+            </div>
+            <div className="mt-4 max-h-80 space-y-2.5 overflow-y-auto text-xs">
+              {heldCarts.length === 0 ? (
+                <p className="py-6 text-center text-[#667085]">Aucun panier en attente.</p>
+              ) : (
+                heldCarts.map((ticket) => {
+                  const approxTotal = ticket.items.reduce(
+                    (s, it) =>
+                      s + Math.max(0, Math.round(Number(it.quantity || '0') * it.unitPrice) - it.discountAmount),
+                    0
+                  );
+                  return (
+                    <div
+                      key={ticket.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-semibold text-[#182230] dark:text-slate-100 truncate">
+                          {ticket.label}
+                        </div>
+                        <div className="text-[11px] text-[#667085] font-mono-num">
+                          {ticket.items.length} ligne(s) · {formatFcfa(approxTotal)} ·{' '}
+                          {formatDateTime(ticket.createdAt)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const resumed = resumeHeldCart(ticket.id);
+                            if (resumed) setGlobalDiscount(resumed.discountAmount);
+                            setHeldModalOpen(false);
+                          }}
+                          className="rounded-lg bg-[#2563EB] px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700"
+                        >
+                          Reprendre
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Supprimer ticket ${ticket.label}`}
+                          onClick={() => deleteHeldCart(ticket.id)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:text-[#DC4545]"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* Modal Création client rapide depuis le POS */}
+      <Dialog.Root open={quickClientOpen} onOpenChange={setQuickClientOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-950/50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <Dialog.Title className="font-display text-base font-semibold">
+                Nouveau client rapide
+              </Dialog.Title>
+              <Dialog.Close className="rounded-lg p-1 text-slate-400">
+                <X className="h-4 w-4" />
+              </Dialog.Close>
+            </div>
+            {quickClientError && (
+              <div className="mt-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-xs text-[#DC4545]">
+                {quickClientError}
+              </div>
+            )}
+            <div className="mt-4 space-y-3 text-xs">
+              <div>
+                <label className="block font-medium">Nom complet / Enseigne *</label>
+                <input
+                  type="text"
+                  value={quickClientName}
+                  onChange={(e) => setQuickClientName(e.target.value)}
+                  placeholder="Ex : Maquis Horizon"
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Type</label>
+                <select
+                  value={quickClientType}
+                  onChange={(e) =>
+                    setQuickClientType(e.target.value === 'professionnel' ? 'professionnel' : 'particulier')
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
+                >
+                  <option value="particulier">Particulier</option>
+                  <option value="professionnel">Professionnel</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-medium">Téléphone</label>
+                <input
+                  type="text"
+                  value={quickClientPhone}
+                  onChange={(e) => setQuickClientPhone(e.target.value)}
+                  placeholder="+225 07..."
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium"
+                >
+                  Annuler
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={!quickClientName.trim() || quickClientMutation.isPending}
+                onClick={() => quickClientMutation.mutate()}
+                className="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40"
+              >
+                Créer & sélectionner
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <DocumentPrintModal doc={printDoc} onClose={() => setPrintDoc(null)} />
     </div>
   );
 }

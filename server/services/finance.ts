@@ -9,10 +9,13 @@ import {
 import {
   BusinessError,
   checkedAddMoney,
+  formatMilli,
   nonNegativeFcfa,
   nonNegativeMilli,
   positiveFcfa,
+  positiveMilli,
 } from '../domain.ts';
+import { sanitizeImagePath } from './catalog.ts';
 
 export function getCashStatus() {
   const db = getDb();
@@ -235,7 +238,7 @@ export function listExpenses() {
       `SELECT e.*, pm.label AS method_label
        FROM expenses e
        JOIN payment_methods pm ON pm.code = e.method_code
-       ORDER BY e.id DESC LIMIT 100`
+       ORDER BY e.id DESC LIMIT 500`
     )
     .all();
   return { categories, items };
@@ -248,11 +251,13 @@ export async function createExpense(input: {
   method_code: string;
   beneficiary?: string;
   notes?: string;
+  receipt_path?: string | null;
   expense_date?: string;
 }) {
   const category = (input.category || '').trim();
   if (!category) throw new BusinessError('VALIDATION_ERROR', 'La catégorie est obligatoire.');
   const amount = positiveFcfa(input.amount, 'Montant dépense');
+  const receiptPath = sanitizeImagePath(input.receipt_path);
 
   return withWriteTx((db) => {
     const dup = db.prepare('SELECT * FROM expenses WHERE request_key = ?').get(input.request_key);
@@ -275,8 +280,8 @@ export async function createExpense(input: {
     const expId = Number(
       db
         .prepare(
-          `INSERT INTO expenses (reference, request_key, category, amount, method_code, session_id, beneficiary, notes, expense_date)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO expenses (reference, request_key, category, amount, method_code, session_id, beneficiary, notes, receipt_path, expense_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           ref,
@@ -287,6 +292,7 @@ export async function createExpense(input: {
           session.id,
           input.beneficiary?.trim() || null,
           input.notes?.trim() || null,
+          receiptPath,
           input.expense_date || new Date().toISOString()
         ).lastInsertRowid
     );
@@ -331,11 +337,131 @@ export function getStockOverview() {
       `SELECT sm.*, p.name AS product_name, p.reference AS product_reference, p.base_unit
        FROM stock_movements sm
        JOIN products p ON p.id = sm.product_id
-       ORDER BY sm.id DESC LIMIT 100`
+       ORDER BY sm.id DESC LIMIT 500`
     )
     .all();
 
   return { products: enriched, movements };
+}
+
+export async function adjustStock(input: {
+  product_id: number;
+  direction: 'in' | 'out';
+  quantity: string | number;
+  reason: string;
+  request_key: string;
+}) {
+  const productId = Number(input.product_id);
+  if (!Number.isInteger(productId) || productId <= 0) {
+    throw new BusinessError('PRODUCT_NOT_FOUND', 'Produit invalide.', 400);
+  }
+  if (input.direction !== 'in' && input.direction !== 'out') {
+    throw new BusinessError('VALIDATION_ERROR', "Le sens d'ajustement doit être 'in' ou 'out'.");
+  }
+  const qtyMilli = positiveMilli(input.quantity, 'Quantité ajustée');
+  const reason = (input.reason || '').trim();
+  if (reason.length < 3) {
+    throw new BusinessError(
+      'VALIDATION_ERROR',
+      'Un motif explicite (au moins 3 caractères) est obligatoire pour ajuster le stock.'
+    );
+  }
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) {
+    throw new BusinessError('VALIDATION_ERROR', "La clé d'idempotence (request_key) est obligatoire.");
+  }
+
+  return withWriteTx((db) => {
+    const existingLog = db
+      .prepare(
+        "SELECT details FROM audit_logs WHERE action = 'MANUAL_STOCK_ADJUST_KEY' AND entity_id = ?"
+      )
+      .get(requestKey) as { details: string } | undefined;
+    if (existingLog) {
+      const existingMove = db
+        .prepare(
+          `SELECT sm.*, p.name AS product_name, p.reference AS product_reference, p.base_unit
+           FROM stock_movements sm
+           JOIN products p ON p.id = sm.product_id
+           WHERE sm.id = ?`
+        )
+        .get(Number(existingLog.details));
+      if (existingMove) return existingMove;
+    }
+
+    const prod = db
+      .prepare(
+        'SELECT id, name, reference, base_unit, stock_milli, average_cost_num, average_cost_den, is_active FROM products WHERE id = ?'
+      )
+      .get(productId) as
+      | {
+          id: number;
+          name: string;
+          reference: string;
+          base_unit: string;
+          stock_milli: number;
+          average_cost_num: string | null;
+          average_cost_den: string | null;
+          is_active: number;
+        }
+      | undefined;
+
+    if (!prod) {
+      throw new BusinessError('PRODUCT_NOT_FOUND', 'Produit introuvable.', 404);
+    }
+    if (!prod.is_active) {
+      throw new BusinessError(
+        'VALIDATION_ERROR',
+        'Impossible d’ajuster manuellement le stock d’un produit archivé.'
+      );
+    }
+
+    const delta = input.direction === 'out' ? -qtyMilli : qtyMilli;
+    const stockAfter = prod.stock_milli + delta;
+    const settings = db
+      .prepare('SELECT allow_negative_stock FROM app_settings WHERE id = 1')
+      .get() as { allow_negative_stock: number } | undefined;
+    if (stockAfter < 0 && (!settings || !settings.allow_negative_stock)) {
+      throw new BusinessError(
+        'INSUFFICIENT_STOCK',
+        `Stock insuffisant sur "${prod.name}" (disponible : ${formatMilli(prod.stock_milli)} ${prod.base_unit}).`
+      );
+    }
+
+    const unitCost =
+      prod.average_cost_num && prod.average_cost_den && BigInt(prod.average_cost_den) > 0n
+        ? Number((BigInt(prod.average_cost_num) + BigInt(prod.average_cost_den) / 2n) / BigInt(prod.average_cost_den))
+        : null;
+
+    const adjRef = nextSequence(db, 'ADJ');
+    db.prepare('UPDATE products SET stock_milli = ? WHERE id = ?').run(stockAfter, productId);
+
+    const moveRes = db
+      .prepare(
+        `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, unit_cost, reason, reference_document)
+         VALUES (?, 'manual_adjust', ?, ?, ?, ?, ?, ?)`
+      )
+      .run(productId, delta, prod.stock_milli, stockAfter, unitCost, reason, adjRef);
+    const movementId = Number(moveRes.lastInsertRowid);
+
+    auditLog(
+      db,
+      'MANUAL_STOCK_ADJUST',
+      'products',
+      productId,
+      `${adjRef} · ${prod.name} (${delta > 0 ? '+' : ''}${formatMilli(delta)} ${prod.base_unit}) : ${reason}`
+    );
+    auditLog(db, 'MANUAL_STOCK_ADJUST_KEY', 'request_key', requestKey, String(movementId));
+
+    return db
+      .prepare(
+        `SELECT sm.*, p.name AS product_name, p.reference AS product_reference, p.base_unit
+         FROM stock_movements sm
+         JOIN products p ON p.id = sm.product_id
+         WHERE sm.id = ?`
+      )
+      .get(movementId);
+  });
 }
 
 export function listInventories() {

@@ -1,6 +1,6 @@
 # Installation macOS (Desktop Tauri 2) — DEPOTPRO PREMIUM V3
 
-> Note d'état : le workspace Tauri 2 (`src-tauri/`) configure les cibles `.app` et `.dmg` (`minimumSystemVersion: 12.0`). La compilation et la signature nécessitent un environnement macOS avec Xcode Command Line Tools et Rust.
+> Note d'état : le workspace Tauri 2 (`src-tauri/build.rs`, `src-tauri/tauri.conf.json`, `src-tauri/icons/icon.icns`, `src-tauri/src/*`) configure les cibles `.app` et `.dmg` (`minimumSystemVersion: 12.0`). La compilation et la signature nécessitent un environnement macOS avec Xcode Command Line Tools et Rust.
 
 ## Prérequis de compilation sous macOS
 

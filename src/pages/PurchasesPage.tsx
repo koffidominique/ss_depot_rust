@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Plus, PackageCheck, Printer, Trash2, X } from 'lucide-react';
+import { Ban, Download, Eye, Plus, PackageCheck, Printer, Trash2, X } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { DataTable } from '../components/tables/DataTable.tsx';
 import { StatusBadge } from '../components/common/StatusBadge.tsx';
@@ -15,16 +18,29 @@ import {
 } from '../components/documents/DocumentPrintModal.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
 import type { PurchaseOrder } from '../types/erp.ts';
-import { formatDateTime, formatFcfa, formatQty, newRequestKey } from '../utils/format.ts';
+import { exportPurchasesCsv } from '../utils/csv.ts';
+import { formatDate, formatDateTime, formatFcfa, formatQty, newRequestKey } from '../utils/format.ts';
+
+const cancelPoSchema = z.object({
+  reason: z.string().trim().min(1, "Le motif d'annulation est obligatoire."),
+});
+type CancelPoFormValues = z.infer<typeof cancelPoSchema>;
 
 export function PurchasesPage() {
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<PurchaseOrder | null>(null);
   const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<PurchaseOrder | null>(null);
   const [receiveQty, setReceiveQty] = useState<Record<number, string>>({});
   const [receiveReason, setReceiveReason] = useState<Record<number, string>>({});
+  const [cancelTarget, setCancelTarget] = useState<PurchaseOrder | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const cancelPoForm = useForm<CancelPoFormValues>({
+    resolver: zodResolver(cancelPoSchema),
+    defaultValues: { reason: '' },
+  });
 
   const [supplierId, setSupplierId] = useState<number>(0);
   const [poLines, setPoLines] = useState<
@@ -42,6 +58,11 @@ export function PurchasesPage() {
   const { data: productsRes } = useQuery({
     queryKey: ['products-all'],
     queryFn: () => apiClient.listProducts({ page: 1, pageSize: 100 }),
+  });
+  const { data: supplierDebts } = useQuery({
+    queryKey: ['supplier-debts'],
+    queryFn: () => apiClient.listSupplierDebts(),
+    enabled: Boolean(detailTarget),
   });
 
   const products = productsRes?.items || [];
@@ -90,6 +111,20 @@ export function PurchasesPage() {
       setErrorMsg(null);
     },
     onError: (err) => setErrorMsg(err instanceof Error ? err.message : 'Erreur réception.'),
+  });
+
+  const cancelPoMutation = useMutation({
+    mutationFn: (vals: CancelPoFormValues) => {
+      if (!cancelTarget) throw new Error('Commande non sélectionnée');
+      return apiClient.cancelPurchaseOrder(cancelTarget.id, { reason: vals.reason.trim() });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['purchases'] });
+      setCancelTarget(null);
+      cancelPoForm.reset({ reason: '' });
+      setErrorMsg(null);
+    },
+    onError: (err) => setErrorMsg(err instanceof Error ? err.message : 'Erreur annulation commande.'),
   });
 
   const addLine = () => {
@@ -147,6 +182,14 @@ export function PurchasesPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setDetailTarget(row.original)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Écarts & Dettes
+          </button>
+          <button
+            type="button"
             onClick={() =>
               setPrintDoc({
                 docType: row.original.receipts.length > 0 ? 'BON DE RÉCEPTION' : 'BON DE COMMANDE',
@@ -199,6 +242,23 @@ export function PurchasesPage() {
               Réceptionner
             </button>
           )}
+          {row.original.status !== 'received' &&
+            row.original.status !== 'partial' &&
+            row.original.status !== 'cancelled' &&
+            row.original.receipts.length === 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelTarget(row.original);
+                  cancelPoForm.reset({ reason: '' });
+                  setErrorMsg(null);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 dark:border-rose-900/50 px-2.5 py-1.5 text-xs font-medium text-[#DC4545] hover:bg-rose-50 dark:hover:bg-rose-950/30"
+              >
+                <Ban className="h-3.5 w-3.5" />
+                Annuler
+              </button>
+            )}
         </div>
       ),
     },
@@ -210,19 +270,30 @@ export function PurchasesPage() {
         <p className="text-xs text-[#667085] dark:text-slate-400">
           Le bon de commande ne modifie pas le stock : seule une réception validée augmente les quantités et génère la dette fournisseur.
         </p>
-        <button
-          type="button"
-          onClick={() => {
-            setSupplierId(suppliers?.[0]?.id ?? 0);
-            setPoLines([]);
-            setErrorMsg(null);
-            setCreateOpen(true);
-          }}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 whitespace-nowrap shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          Nouveau bon de commande
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={!orders || orders.length === 0}
+            onClick={() => exportPurchasesCsv(orders || [])}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3.5 py-2 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap shrink-0"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Exporter CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSupplierId(suppliers?.[0]?.id ?? 0);
+              setPoLines([]);
+              setErrorMsg(null);
+              setCreateOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 whitespace-nowrap shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            Nouveau bon de commande
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -474,6 +545,170 @@ export function PurchasesPage() {
                 Valider la réception en stock
               </button>
             </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* Modal Détails, Écarts de réception & Dettes fournisseur */}
+      <Dialog.Root open={Boolean(detailTarget)} onOpenChange={(o) => !o && setDetailTarget(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-950/50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-6 shadow-xl">
+            {detailTarget && (() => {
+              const receiptRefs = new Set(detailTarget.receipts.map((r) => r.reference));
+              const linkedDebts = (supplierDebts || []).filter((d) => receiptRefs.has(d.receipt_reference));
+              return (
+                <div className="space-y-5 text-xs">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+                    <div>
+                      <Dialog.Title className="font-display text-base font-semibold">
+                        Détails commande · {detailTarget.reference}
+                      </Dialog.Title>
+                      <p className="mt-0.5 text-[#667085] dark:text-slate-400">
+                        {detailTarget.supplier_name} ({detailTarget.supplier_code}) · {formatDateTime(detailTarget.created_at)}
+                      </p>
+                    </div>
+                    <Dialog.Close className="rounded-lg p-1 text-slate-400">
+                      <X className="h-4 w-4" />
+                    </Dialog.Close>
+                  </div>
+
+                  <div>
+                    <h4 className="font-display font-semibold mb-2">Lignes & écarts de réception</h4>
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-lg border border-slate-200 dark:border-slate-800">
+                      {detailTarget.lines.map((l) => {
+                        const gapMilli = l.ordered_quantity_milli - l.received_quantity_milli;
+                        return (
+                          <div key={l.id} className="flex items-center justify-between px-3 py-2">
+                            <div>
+                              <div className="font-medium">
+                                {l.product_name} ({l.packaging_name})
+                              </div>
+                              <div className="font-mono-num text-[11px] text-[#667085]">
+                                Commandé : {formatQty(l.ordered_quantity_milli)} · Reçu : {formatQty(l.received_quantity_milli)}
+                              </div>
+                            </div>
+                            <span
+                              className={`font-mono-num font-semibold ${
+                                gapMilli === 0 ? 'text-[#16A36A]' : 'text-[#D9901A]'
+                              }`}
+                            >
+                              {gapMilli === 0 ? 'Complet' : `Écart restant : ${formatQty(gapMilli)}`}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-display font-semibold mb-2">
+                      Réceptions enregistrées ({detailTarget.receipts.length})
+                    </h4>
+                    {detailTarget.receipts.length === 0 ? (
+                      <p className="text-[#667085]">Aucune réception effectuée sur cette commande.</p>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-lg border border-slate-200 dark:border-slate-800">
+                        {detailTarget.receipts.map((rec) => (
+                          <div key={rec.id} className="flex items-center justify-between px-3 py-2">
+                            <span className="font-mono-num font-semibold">{rec.reference}</span>
+                            <span className="font-mono-num text-[#667085]">{formatDateTime(rec.created_at)}</span>
+                            <span className="font-mono-num font-semibold text-[#16A36A]">
+                              {formatFcfa(rec.total_amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="font-display font-semibold mb-2">
+                      Dettes & échéances générées ({linkedDebts.length})
+                    </h4>
+                    {linkedDebts.length === 0 ? (
+                      <p className="text-[#667085]">Aucune dette fournisseur ouverte issue de ces réceptions.</p>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-lg border border-slate-200 dark:border-slate-800">
+                        {linkedDebts.map((d) => (
+                          <div key={d.id} className="flex items-center justify-between px-3 py-2">
+                            <div>
+                              <span className="font-mono-num font-semibold">{d.receipt_reference}</span>
+                              <span className="ml-2 text-[#667085]">Échéance : {formatDate(d.due_date)}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono-num font-semibold text-[#DC4545]">
+                                Reste {formatFcfa(d.remaining_amount)}
+                              </span>
+                              <StatusBadge status={d.status} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* Modal Annulation bon de commande non réceptionné */}
+      <Dialog.Root open={Boolean(cancelTarget)} onOpenChange={(o) => !o && setCancelTarget(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-950/50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-6 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <Dialog.Title className="font-display text-base font-semibold text-[#DC4545]">
+                Annuler la commande · {cancelTarget?.reference}
+              </Dialog.Title>
+              <Dialog.Close className="rounded-lg p-1 text-slate-400">
+                <X className="h-4 w-4" />
+              </Dialog.Close>
+            </div>
+            <p className="mt-1.5 text-xs text-[#667085] dark:text-slate-400">
+              Cette commande n&apos;a fait l&apos;objet d&apos;aucune réception. Son annulation la marquera définitivement comme annulée sans impact sur le stock.
+            </p>
+            {errorMsg && (
+              <div className="mt-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-xs text-[#DC4545]">
+                {errorMsg}
+              </div>
+            )}
+            <form onSubmit={cancelPoForm.handleSubmit((vals) => cancelPoMutation.mutate(vals))} noValidate>
+              <div className="mt-4">
+                <label htmlFor="po-cancel-reason" className="block text-xs font-medium">
+                  Motif d&apos;annulation obligatoire *
+                </label>
+                <input
+                  id="po-cancel-reason"
+                  type="text"
+                  aria-invalid={Boolean(cancelPoForm.formState.errors.reason)}
+                  {...cancelPoForm.register('reason')}
+                  placeholder="Ex : Rupture fournisseur / doublon"
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                />
+                {cancelPoForm.formState.errors.reason && (
+                  <p className="mt-1 text-[11px] text-[#DC4545]" role="alert">
+                    {cancelPoForm.formState.errors.reason.message}
+                  </p>
+                )}
+              </div>
+              <div className="mt-5 flex justify-end gap-3">
+                <Dialog.Close asChild>
+                  <button type="button" className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium">
+                    Fermer
+                  </button>
+                </Dialog.Close>
+                <button
+                  type="submit"
+                  disabled={cancelPoMutation.isPending}
+                  className="rounded-lg bg-[#DC4545] px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-40"
+                >
+                  Confirmer l&apos;annulation
+                </button>
+              </div>
+            </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

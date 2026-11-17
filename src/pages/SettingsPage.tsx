@@ -1,19 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Switch from '@radix-ui/react-switch';
-import { KeyRound, Plus, Save } from 'lucide-react';
+import { Image as ImageIcon, KeyRound, Plus, Save, Trash2 } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { useUiStore } from '../stores/uiStore.ts';
 import { FormTipsButton } from '../components/common/FormTipsButton.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
 import type { AppSettings } from '../types/erp.ts';
+import { compressLocalImage } from '../utils/image.ts';
 
 export function SettingsPage() {
   const qc = useQueryClient();
   const theme = useUiStore((s) => s.theme);
   const setTheme = useUiStore((s) => s.setTheme);
 
-  const [form, setForm] = useState<Partial<AppSettings>>({});
+  const [draft, setDraft] = useState<Partial<AppSettings>>({});
   const [newMethodLabel, setNewMethodLabel] = useState('');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -24,25 +25,45 @@ export function SettingsPage() {
     queryFn: () => apiClient.getSettings(),
   });
 
-  useEffect(() => {
-    if (data?.settings) {
-      setForm(data.settings);
-    }
-  }, [data]);
+  const form: Partial<AppSettings> = {
+    ...(data?.settings || {}),
+    ...draft,
+  };
+
+  const setForm = (updater: (prev: Partial<AppSettings>) => Partial<AppSettings>) => {
+    setDraft((prev) => updater({ ...(data?.settings || {}), ...prev }));
+  };
 
   const saveMut = useMutation({
     mutationFn: () =>
       apiClient.updateSettings({
         ...form,
+        allow_negative_stock: Boolean(form.allow_negative_stock),
+        logo_path: form.logo_path ?? null,
         theme,
       }),
     onSuccess: () => {
+      setDraft({});
       qc.invalidateQueries({ queryKey: ['settings'] });
       setFeedback({ type: 'ok', text: 'Paramètres enregistrés avec succès.' });
     },
     onError: (err) =>
       setFeedback({ type: 'err', text: err instanceof Error ? err.message : 'Erreur sauvegarde.' }),
   });
+
+  const handleLogoChange = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const dataUrl = await compressLocalImage(file, { maxSide: 256, quality: 0.85, maxLength: 350_000 });
+      setFeedback(null);
+      setForm((p) => ({ ...p, logo_path: dataUrl }));
+    } catch (err) {
+      setFeedback({
+        type: 'err',
+        text: err instanceof Error ? err.message : 'Erreur chargement du logo.',
+      });
+    }
+  };
 
   const addMethodMut = useMutation({
     mutationFn: () => apiClient.addPaymentMethod(newMethodLabel),
@@ -99,19 +120,70 @@ export function SettingsPage() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Entreprise & Préfixes */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-4">
+        {/* Général, Commercial, Documents & Affichage */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-5">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="font-display text-sm font-semibold">Identité du dépôt & numérotation</h3>
+            <h3 className="font-display text-sm font-semibold">Général & société</h3>
             <FormTipsButton topicId="settings" label="Aide paramètres" />
           </div>
           <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="col-span-2 flex items-center gap-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 p-3">
+              {form.logo_path ? (
+                <img
+                  src={form.logo_path}
+                  alt={form.company_name || 'Logo dépôt'}
+                  className="h-14 w-14 rounded-lg border border-slate-200 dark:border-slate-700 bg-white object-contain p-1 shrink-0"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#667085] shrink-0">
+                  <ImageIcon className="h-5 w-5" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-[#182230] dark:text-slate-100">
+                  Logo du dépôt (documents imprimés)
+                </div>
+                <div className="text-[11px] text-[#667085] dark:text-slate-400">
+                  PNG, JPEG ou WebP · redimensionné automatiquement (max 256×256)
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <label className="cursor-pointer rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-[11px] font-medium hover:bg-slate-100 dark:hover:bg-slate-800">
+                    Choisir un logo
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      onChange={(e) => handleLogoChange(e.target.files?.[0])}
+                    />
+                  </label>
+                  {form.logo_path && (
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, logo_path: null }))}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-[#DC4545] hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Retirer
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
             <div className="col-span-2">
               <label className="block font-medium">Nom commercial</label>
               <input
                 type="text"
                 value={form.company_name || ''}
                 onChange={(e) => setForm((p) => ({ ...p, company_name: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block font-medium">Raison sociale / En-tête légal</label>
+              <input
+                type="text"
+                value={form.company_legal_name || ''}
+                onChange={(e) => setForm((p) => ({ ...p, company_legal_name: e.target.value }))}
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
               />
             </div>
@@ -125,11 +197,11 @@ export function SettingsPage() {
               />
             </div>
             <div>
-              <label className="block font-medium">Ville</label>
+              <label className="block font-medium">E-mail</label>
               <input
-                type="text"
-                value={form.city || ''}
-                onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
+                type="email"
+                value={form.email || ''}
+                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
               />
             </div>
@@ -143,26 +215,91 @@ export function SettingsPage() {
               />
             </div>
             <div>
-              <label className="block font-medium">Préfixe ventes</label>
+              <label className="block font-medium">Ville</label>
               <input
                 type="text"
-                value={form.sale_prefix || 'VTE'}
-                onChange={(e) => setForm((p) => ({ ...p, sale_prefix: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 font-mono-num"
+                value={form.city || ''}
+                onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
               />
             </div>
             <div>
-              <label className="block font-medium">Préfixe factures</label>
+              <label className="block font-medium">Pays</label>
               <input
                 type="text"
-                value={form.invoice_prefix || 'FAC'}
-                onChange={(e) => setForm((p) => ({ ...p, invoice_prefix: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 font-mono-num"
+                value={form.country || ''}
+                onChange={(e) => setForm((p) => ({ ...p, country: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
               />
             </div>
           </div>
 
+          <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-3">
+            <h4 className="font-display text-xs font-semibold uppercase tracking-wider text-[#667085]">
+              Documents & numérotation
+            </h4>
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div>
+                <label className="block font-medium">Ventes</label>
+                <input
+                  type="text"
+                  value={form.sale_prefix || 'VTE'}
+                  onChange={(e) => setForm((p) => ({ ...p, sale_prefix: e.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num"
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Factures</label>
+                <input
+                  type="text"
+                  value={form.invoice_prefix || 'FAC'}
+                  onChange={(e) => setForm((p) => ({ ...p, invoice_prefix: e.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num"
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Avoirs</label>
+                <input
+                  type="text"
+                  value={form.credit_note_prefix || 'AVO'}
+                  onChange={(e) => setForm((p) => ({ ...p, credit_note_prefix: e.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num"
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Commandes</label>
+                <input
+                  type="text"
+                  value={form.order_prefix || 'CMD'}
+                  onChange={(e) => setForm((p) => ({ ...p, order_prefix: e.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num"
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Réceptions</label>
+                <input
+                  type="text"
+                  value={form.receipt_prefix || 'REC'}
+                  onChange={(e) => setForm((p) => ({ ...p, receipt_prefix: e.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num"
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Achats</label>
+                <input
+                  type="text"
+                  value={form.purchase_prefix || 'ACH'}
+                  onChange={(e) => setForm((p) => ({ ...p, purchase_prefix: e.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-3 border-t border-slate-200 dark:border-slate-800 pt-4 text-xs">
+            <h4 className="font-display text-xs font-semibold uppercase tracking-wider text-[#667085]">
+              Commercial, crédit & affichage
+            </h4>
             <div className="flex items-center justify-between">
               <div>
                 <div className="font-medium">Autoriser le stock négatif en vente</div>
@@ -175,6 +312,9 @@ export function SettingsPage() {
               >
                 <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white transition-transform data-[state=checked]:translate-x-[18px]" />
               </Switch.Root>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-900/60 px-3 py-2 text-[11px] text-[#667085] dark:text-slate-400">
+              Politique crédit par défaut : aucune vente à crédit autorisée sans configuration explicite sur la fiche client (écran Clients).
             </div>
 
             <div className="flex items-center justify-between">

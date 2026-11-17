@@ -7,11 +7,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!headers.has('Content-Type') && init.body) {
     headers.set('Content-Type', 'application/json');
   }
-  if (token) {
+  if (token && token !== 'cookie-session') {
     headers.set('Authorization', `Bearer ${token}`);
+    headers.set('X-DepotPro-Token', token);
   }
 
-  const res = await fetch(path, { ...init, headers });
+  const res = await fetch(path, { ...init, headers, credentials: 'same-origin' });
   if (res.status === 401 && !path.startsWith('/api/auth/')) {
     useUiStore.getState().setToken(null);
   }
@@ -27,6 +28,31 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     return (await res.text()) as unknown as T;
   }
   return (await res.json()) as T;
+}
+
+async function requestBytes(path: string, init: RequestInit = {}): Promise<Uint8Array> {
+  const token = useUiStore.getState().token;
+  const headers = new Headers(init.headers);
+  if (!headers.has('Content-Type') && init.body) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (token && token !== 'cookie-session') {
+    headers.set('Authorization', `Bearer ${token}`);
+    headers.set('X-DepotPro-Token', token);
+  }
+  const res = await fetch(path, { ...init, headers, credentials: 'same-origin' });
+  if (res.status === 401 && !path.startsWith('/api/auth/')) {
+    useUiStore.getState().setToken(null);
+  }
+  if (!res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const err = (await res.json()) as { code?: string; message?: string };
+      throw new ApiError(err.code || 'API_ERROR', err.message || 'Erreur lors de la requête.', res.status);
+    }
+    throw new ApiError('HTTP_ERROR', `Erreur HTTP ${res.status}`, res.status);
+  }
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 function qs(params: Record<string, unknown> = {}): string {
@@ -51,8 +77,11 @@ export class HttpApiClient implements ApiClient {
     return request<{ token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ pin }) });
   }
   async lock() {
-    await request('/api/auth/lock', { method: 'POST' });
-    useUiStore.getState().setToken(null);
+    try {
+      await request('/api/auth/lock', { method: 'POST' });
+    } finally {
+      useUiStore.getState().setToken(null);
+    }
   }
   async changePin(currentPin: string, newPin: string) {
     await request('/api/auth/change-pin', {
@@ -114,6 +143,12 @@ export class HttpApiClient implements ApiClient {
       body: JSON.stringify(input),
     });
   }
+  updateClient(clientId: number, input: Record<string, unknown>) {
+    return request<Awaited<ReturnType<ApiClient['updateClient']>>>(`/api/clients/${clientId}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  }
   updateClientCredit(clientId: number, input: Record<string, unknown>) {
     return request(`/api/clients/${clientId}/credit`, {
       method: 'PUT',
@@ -165,6 +200,12 @@ export class HttpApiClient implements ApiClient {
       body: JSON.stringify(input),
     });
   }
+  updateSupplier(supplierId: number, input: Record<string, unknown>) {
+    return request<Awaited<ReturnType<ApiClient['updateSupplier']>>>(`/api/suppliers/${supplierId}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  }
   listPurchases() {
     return request<Awaited<ReturnType<ApiClient['listPurchases']>>>('/api/purchases');
   }
@@ -176,6 +217,12 @@ export class HttpApiClient implements ApiClient {
   }
   receivePurchaseOrder(orderId: number, input: Record<string, unknown>) {
     return request(`/api/purchases/${orderId}/receive`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+  cancelPurchaseOrder(orderId: number, input: { reason: string }) {
+    return request<Awaited<ReturnType<ApiClient['cancelPurchaseOrder']>>>(`/api/purchases/${orderId}/cancel`, {
       method: 'POST',
       body: JSON.stringify(input),
     });
@@ -192,6 +239,18 @@ export class HttpApiClient implements ApiClient {
 
   getStockOverview() {
     return request<Awaited<ReturnType<ApiClient['getStockOverview']>>>('/api/stock');
+  }
+  adjustStock(input: {
+    product_id: number;
+    direction: 'in' | 'out';
+    quantity: string | number;
+    reason: string;
+    request_key: string;
+  }) {
+    return request<Awaited<ReturnType<ApiClient['adjustStock']>>>('/api/stock/adjust', {
+      method: 'POST',
+      body: JSON.stringify({ ...input, quantity: String(input.quantity) }),
+    });
   }
   listInventories() {
     return request<Awaited<ReturnType<ApiClient['listInventories']>>>('/api/inventories');
@@ -274,6 +333,15 @@ export class HttpApiClient implements ApiClient {
   restoreBackup(name: string) {
     return request<Awaited<ReturnType<ApiClient['restoreBackup']>>>(`/api/backups/${encodeURIComponent(name)}/restore`, {
       method: 'POST',
+    });
+  }
+  downloadBackup(name: string) {
+    return requestBytes(`/api/backups/${encodeURIComponent(name)}/download`);
+  }
+  generateDocumentPdf(doc: Record<string, unknown>) {
+    return requestBytes('/api/documents/pdf', {
+      method: 'POST',
+      body: JSON.stringify(doc),
     });
   }
 }

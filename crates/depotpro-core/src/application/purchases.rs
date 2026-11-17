@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+use crate::application::products::deserialize_nullable_opt;
 use crate::application::sales::{audit_log_tx, get_theoretical_cash_tx, require_open_session_tx};
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
@@ -14,6 +15,9 @@ pub struct SupplierSummaryDto {
     pub name: String,
     pub company_name: Option<String>,
     pub phone: String,
+    pub address: Option<String>,
+    pub email: Option<String>,
+    pub contact_person: Option<String>,
     pub payment_terms_days: i64,
     pub is_active: i64,
     pub total_purchases: i64,
@@ -21,17 +25,50 @@ pub struct SupplierSummaryDto {
 }
 
 #[derive(Debug, Serialize, FromRow)]
-pub struct PurchaseOrderDto {
+pub struct PurchaseOrderLineDto {
+    pub id: i64,
+    pub product_id: i64,
+    pub packaging_id: i64,
+    pub product_name: String,
+    pub packaging_name: String,
+    pub base_unit: String,
+    pub coefficient_milli: i64,
+    pub ordered_quantity_milli: i64,
+    pub received_quantity_milli: i64,
+    pub unit_price: i64,
+    pub line_total: i64,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct PurchaseOrderRow {
     pub id: i64,
     pub reference: String,
     pub supplier_id: i64,
     pub supplier_name: String,
+    pub supplier_code: String,
     pub status: String,
     pub total_amount: i64,
     pub received_amount: i64,
     pub expected_date: Option<String>,
     pub notes: Option<String>,
     pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PurchaseOrderDto {
+    pub id: i64,
+    pub reference: String,
+    pub supplier_id: i64,
+    pub supplier_name: String,
+    pub supplier_code: String,
+    pub status: String,
+    pub total_amount: i64,
+    pub received_amount: i64,
+    pub expected_date: Option<String>,
+    pub notes: Option<String>,
+    pub created_at: String,
+    pub lines: Vec<PurchaseOrderLineDto>,
+    pub receipts: Vec<PurchaseReceiptDto>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -50,12 +87,14 @@ pub struct SupplierDebtDto {
     pub receipt_id: i64,
     pub supplier_id: i64,
     pub supplier_name: String,
+    pub supplier_code: String,
     pub receipt_reference: String,
     pub order_reference: String,
     pub initial_amount: i64,
     pub remaining_amount: i64,
     pub due_date: Option<String>,
     pub status: String,
+    pub created_at: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -67,6 +106,22 @@ pub struct CreateSupplierInput {
     pub email: Option<String>,
     pub contact_person: Option<String>,
     pub payment_terms_days: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSupplierInput {
+    pub name: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub company_name: Option<Option<String>>,
+    pub phone: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub address: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub email: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub contact_person: Option<Option<String>>,
+    pub payment_terms_days: Option<i64>,
+    pub is_active: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,6 +156,11 @@ pub struct ReceivePurchaseOrderInput {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CancelPurchaseOrderInput {
+    pub reason: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct PaySupplierDebtInput {
     pub method_code: String,
     pub amount: i64,
@@ -114,7 +174,7 @@ pub async fn list_suppliers(db: &DepotDb, search: Option<&str>) -> CoreResult<Ve
         Some(s) => {
             let pat = format!("%{s}%");
             sqlx::query_as::<_, SupplierSummaryDto>(
-                "SELECT s.id, s.code, s.name, s.company_name, s.phone, s.payment_terms_days, s.is_active,
+                "SELECT s.id, s.code, s.name, s.company_name, s.phone, s.address, s.email, s.contact_person, s.payment_terms_days, s.is_active,
                         COALESCE((SELECT SUM(initial_amount) FROM supplier_debts sd WHERE sd.supplier_id = s.id), 0) AS total_purchases,
                         COALESCE((SELECT SUM(remaining_amount) FROM supplier_debts sd WHERE sd.supplier_id = s.id AND sd.status IN ('open', 'partial')), 0) AS balance_due
                  FROM suppliers s
@@ -129,7 +189,7 @@ pub async fn list_suppliers(db: &DepotDb, search: Option<&str>) -> CoreResult<Ve
         }
         None => {
             sqlx::query_as::<_, SupplierSummaryDto>(
-                "SELECT s.id, s.code, s.name, s.company_name, s.phone, s.payment_terms_days, s.is_active,
+                "SELECT s.id, s.code, s.name, s.company_name, s.phone, s.address, s.email, s.contact_person, s.payment_terms_days, s.is_active,
                         COALESCE((SELECT SUM(initial_amount) FROM supplier_debts sd WHERE sd.supplier_id = s.id), 0) AS total_purchases,
                         COALESCE((SELECT SUM(remaining_amount) FROM supplier_debts sd WHERE sd.supplier_id = s.id AND sd.status IN ('open', 'partial')), 0) AS balance_due
                  FROM suppliers s
@@ -181,17 +241,163 @@ pub async fn create_supplier(db: &DepotDb, input: CreateSupplierInput) -> CoreRe
         .ok_or_else(|| CoreError::Internal("Fournisseur créé introuvable.".to_string()))
 }
 
+pub async fn update_supplier(
+    db: &DepotDb,
+    supplier_id: i64,
+    input: UpdateSupplierInput,
+) -> CoreResult<SupplierSummaryDto> {
+    let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<(
+        String,
+        String,
+        Option<String>,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        i64,
+        i64,
+    )> = sqlx::query_as(
+        "SELECT code, name, company_name, phone, address, email, contact_person, payment_terms_days, is_active
+         FROM suppliers WHERE id = ?",
+    )
+    .bind(supplier_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let (code, prev_name, prev_company, prev_phone, prev_address, prev_email, prev_contact, prev_terms, prev_active) =
+        existing.ok_or_else(|| CoreError::Validation("Fournisseur introuvable.".to_string()))?;
+
+    let name = match input.name {
+        Some(n) => {
+            let clean = n.trim().to_string();
+            if clean.is_empty() {
+                return Err(CoreError::Validation("Nom fournisseur obligatoire.".to_string()));
+            }
+            clean
+        }
+        None => prev_name,
+    };
+    let phone = match input.phone {
+        Some(p) => {
+            let clean = p.trim().to_string();
+            if clean.is_empty() {
+                return Err(CoreError::Validation("Téléphone fournisseur obligatoire.".to_string()));
+            }
+            clean
+        }
+        None => prev_phone,
+    };
+    let terms = input.payment_terms_days.unwrap_or(prev_terms);
+    if terms < 0 {
+        return Err(CoreError::Validation("Délai de paiement invalide.".to_string()));
+    }
+
+    let opt_text = |opt: Option<Option<String>>, prev: Option<String>| -> Option<String> {
+        match opt {
+            None => prev,
+            Some(None) => None,
+            Some(Some(s)) => {
+                let t = s.trim().to_string();
+                if t.is_empty() { None } else { Some(t) }
+            }
+        }
+    };
+
+    let company_name = opt_text(input.company_name, prev_company);
+    let address = opt_text(input.address, prev_address);
+    let email = opt_text(input.email, prev_email);
+    let contact_person = opt_text(input.contact_person, prev_contact);
+    let is_active = match input.is_active {
+        Some(v) => if v { 1 } else { 0 },
+        None => prev_active,
+    };
+
+    sqlx::query(
+        "UPDATE suppliers
+         SET name = ?, company_name = ?, phone = ?, address = ?, email = ?, contact_person = ?, payment_terms_days = ?, is_active = ?
+         WHERE id = ?",
+    )
+    .bind(&name)
+    .bind(&company_name)
+    .bind(&phone)
+    .bind(&address)
+    .bind(&email)
+    .bind(&contact_person)
+    .bind(terms)
+    .bind(is_active)
+    .bind(supplier_id)
+    .execute(&mut *tx)
+    .await?;
+
+    audit_log_tx(
+        &mut tx,
+        "UPDATE_SUPPLIER",
+        "suppliers",
+        Some(supplier_id.to_string()),
+        &format!("{code} — {name}"),
+    )
+    .await?;
+    tx.commit().await?;
+
+    list_suppliers(db, Some(&code))
+        .await?
+        .into_iter()
+        .find(|s| s.id == supplier_id)
+        .ok_or_else(|| CoreError::Internal("Fournisseur introuvable après mise à jour.".to_string()))
+}
+
 pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderDto>> {
-    let rows = sqlx::query_as::<_, PurchaseOrderDto>(
-        "SELECT po.id, po.reference, po.supplier_id, s.name AS supplier_name, po.status,
-                po.total_amount, po.received_amount, po.expected_date, po.notes, po.created_at
+    let rows = sqlx::query_as::<_, PurchaseOrderRow>(
+        "SELECT po.id, po.reference, po.supplier_id, s.name AS supplier_name, s.code AS supplier_code,
+                po.status, po.total_amount, po.received_amount, po.expected_date, po.notes, po.created_at
          FROM purchase_orders po
          JOIN suppliers s ON s.id = po.supplier_id
          ORDER BY po.id DESC",
     )
     .fetch_all(&db.pool)
     .await?;
-    Ok(rows)
+
+    let mut result = Vec::with_capacity(rows.len());
+    for po in rows {
+        let lines = sqlx::query_as::<_, PurchaseOrderLineDto>(
+            "SELECT id, product_id, packaging_id, product_name, packaging_name, base_unit,
+                    coefficient_milli, ordered_quantity_milli, received_quantity_milli, unit_price, line_total
+             FROM purchase_order_lines
+             WHERE purchase_order_id = ?
+             ORDER BY id ASC",
+        )
+        .bind(po.id)
+        .fetch_all(&db.pool)
+        .await?;
+
+        let receipts = sqlx::query_as::<_, PurchaseReceiptDto>(
+            "SELECT id, reference, purchase_order_id, total_amount, notes, created_at
+             FROM purchase_receipts
+             WHERE purchase_order_id = ?
+             ORDER BY id DESC",
+        )
+        .bind(po.id)
+        .fetch_all(&db.pool)
+        .await?;
+
+        result.push(PurchaseOrderDto {
+            id: po.id,
+            reference: po.reference,
+            supplier_id: po.supplier_id,
+            supplier_name: po.supplier_name,
+            supplier_code: po.supplier_code,
+            status: po.status,
+            total_amount: po.total_amount,
+            received_amount: po.received_amount,
+            expected_date: po.expected_date,
+            notes: po.notes,
+            created_at: po.created_at,
+            lines,
+            receipts,
+        });
+    }
+    Ok(result)
 }
 
 pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput) -> CoreResult<PurchaseOrderDto> {
@@ -540,11 +746,80 @@ pub async fn receive_purchase_order(
     Ok(rec)
 }
 
+pub async fn cancel_purchase_order(
+    db: &DepotDb,
+    purchase_order_id: i64,
+    input: CancelPurchaseOrderInput,
+) -> CoreResult<PurchaseOrderDto> {
+    if purchase_order_id <= 0 {
+        return Err(CoreError::Validation("Bon de commande invalide.".to_string()));
+    }
+    let reason = input.reason.trim();
+    if reason.is_empty() {
+        return Err(CoreError::Validation("Le motif d'annulation est obligatoire.".to_string()));
+    }
+
+    let (_guard, mut tx) = db.begin_write().await?;
+    let po: Option<(String, String, i64, Option<String>)> = sqlx::query_as(
+        "SELECT reference, status, received_amount, notes FROM purchase_orders WHERE id = ?",
+    )
+    .bind(purchase_order_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let (po_ref, status, received_amount, prev_notes) =
+        po.ok_or_else(|| CoreError::Validation("Bon de commande introuvable.".to_string()))?;
+
+    if status == "cancelled" {
+        return Err(CoreError::HistoricalImmutable(
+            "Ce bon de commande est déjà annulé.".to_string(),
+        ));
+    }
+    let receipt_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM purchase_receipts WHERE purchase_order_id = ?")
+            .bind(purchase_order_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
+    if status == "partial" || status == "received" || received_amount > 0 || receipt_count > 0 {
+        return Err(CoreError::HistoricalImmutable(
+            "Impossible d'annuler un bon de commande ayant déjà fait l'objet d'une réception."
+                .to_string(),
+        ));
+    }
+
+    let next_notes = match prev_notes {
+        Some(n) if !n.trim().is_empty() => format!("{n} · [Annulé : {reason}]"),
+        _ => format!("[Annulé : {reason}]"),
+    };
+
+    sqlx::query("UPDATE purchase_orders SET status = 'cancelled', notes = ? WHERE id = ?")
+        .bind(&next_notes)
+        .bind(purchase_order_id)
+        .execute(&mut *tx)
+        .await?;
+
+    audit_log_tx(
+        &mut tx,
+        "CANCEL_PURCHASE_ORDER",
+        "purchase_orders",
+        Some(purchase_order_id.to_string()),
+        &format!("Annulation {po_ref} — {reason}"),
+    )
+    .await?;
+    tx.commit().await?;
+
+    list_purchase_orders(db)
+        .await?
+        .into_iter()
+        .find(|o| o.id == purchase_order_id)
+        .ok_or_else(|| CoreError::Internal("Bon de commande introuvable après annulation.".to_string()))
+}
+
 pub async fn list_supplier_debts(db: &DepotDb) -> CoreResult<Vec<SupplierDebtDto>> {
     let rows = sqlx::query_as::<_, SupplierDebtDto>(
-        "SELECT sd.id, sd.receipt_id, sd.supplier_id, s.name AS supplier_name,
+        "SELECT sd.id, sd.receipt_id, sd.supplier_id, s.name AS supplier_name, s.code AS supplier_code,
                 pr.reference AS receipt_reference, po.reference AS order_reference,
-                sd.initial_amount, sd.remaining_amount, sd.due_date, sd.status
+                sd.initial_amount, sd.remaining_amount, sd.due_date, sd.status, sd.created_at
          FROM supplier_debts sd
          JOIN suppliers s ON s.id = sd.supplier_id
          JOIN purchase_receipts pr ON pr.id = sd.receipt_id

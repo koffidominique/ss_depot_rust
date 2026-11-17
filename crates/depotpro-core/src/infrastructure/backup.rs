@@ -73,7 +73,31 @@ pub async fn create_consistent_backup(db: &DepotDb, backup_dir: &Path) -> CoreRe
     .await?;
     tx.commit().await?;
 
+    prune_old_backups(backup_dir, 30);
+
     Ok(dest)
+}
+
+fn prune_old_backups(backup_dir: &Path, keep_count: usize) {
+    let Ok(entries) = std::fs::read_dir(backup_dir) else {
+        return;
+    };
+    let mut files: Vec<(PathBuf, std::time::SystemTime)> = entries
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with("depotpro_backup_") && name.ends_with(".db") {
+                let modified = e.metadata().ok()?.modified().ok()?;
+                Some((e.path(), modified))
+            } else {
+                None
+            }
+        })
+        .collect();
+    files.sort_by(|a, b| b.1.cmp(&a.1));
+    for (obsolete_path, _) in files.into_iter().skip(keep_count) {
+        let _ = std::fs::remove_file(obsolete_path);
+    }
 }
 
 pub async fn create_backup_summary(db: &DepotDb, backup_dir: &Path) -> CoreResult<BackupFileDto> {
@@ -188,4 +212,38 @@ pub async fn restore_backup(
     Ok(BackupRestoreDto {
         restored: check.name,
     })
+}
+
+pub fn read_backup_bytes(backup_dir: &Path, filename: &str) -> CoreResult<(String, Vec<u8>)> {
+    let safe_name = Path::new(filename)
+        .file_name()
+        .ok_or_else(|| CoreError::Validation("Nom de sauvegarde invalide.".to_string()))?
+        .to_string_lossy()
+        .to_string();
+    if !safe_name.starts_with("depotpro_backup_") || !safe_name.ends_with(".db") {
+        return Err(CoreError::Validation(
+            "Nom de fichier de sauvegarde non autorisé.".to_string(),
+        ));
+    }
+    let full_path = backup_dir.join(&safe_name);
+    if !full_path.exists() {
+        return Err(CoreError::Validation(
+            "Fichier de sauvegarde introuvable.".to_string(),
+        ));
+    }
+    let bytes = std::fs::read(&full_path)
+        .map_err(|e| CoreError::Internal(format!("Lecture sauvegarde impossible : {e}")))?;
+    Ok((safe_name, bytes))
+}
+
+pub async fn restore_and_reconnect(
+    db_lock: &tokio::sync::RwLock<DepotDb>,
+    backup_dir: &Path,
+    filename: &str,
+) -> CoreResult<BackupRestoreDto> {
+    let mut guard = db_lock.write().await;
+    let db_path = PathBuf::from(&guard.db_path);
+    let res = restore_backup(&guard, backup_dir, filename).await?;
+    *guard = DepotDb::connect(&db_path).await?;
+    Ok(res)
 }

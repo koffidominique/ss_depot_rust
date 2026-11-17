@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { CheckCircle2, DatabaseBackup, Download, RotateCcw, ShieldCheck } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
-import { useUiStore } from '../stores/uiStore.ts';
 import { DataTable } from '../components/tables/DataTable.tsx';
 import { ConfirmationDialog } from '../components/common/ConfirmationDialog.tsx';
 import { FormTipsButton } from '../components/common/FormTipsButton.tsx';
@@ -13,7 +12,6 @@ import { formatBytes, formatDateTime } from '../utils/format.ts';
 
 export function BackupsPage() {
   const qc = useQueryClient();
-  const token = useUiStore((s) => s.token);
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
@@ -63,11 +61,8 @@ export function BackupsPage() {
 
   const handleDownload = async (name: string) => {
     try {
-      const res = await fetch(`/api/backups/${encodeURIComponent(name)}/download`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error('Téléchargement impossible.');
-      const blob = await res.blob();
+      const bytes = await apiClient.downloadBackup(name);
+      const blob = new Blob([new Uint8Array(bytes)], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -140,7 +135,7 @@ export function BackupsPage() {
         <div>
           <h2 className="font-display text-sm font-semibold">Sauvegardes SQLite cohérentes (VACUUM INTO)</h2>
           <p className="mt-1 text-xs text-[#667085] dark:text-slate-400">
-            Chaque sauvegarde consolide le journal WAL, exécute PRAGMA integrity_check et peut être vérifiée avant toute restauration.
+            Chaque sauvegarde consolide le journal WAL, exécute PRAGMA integrity_check, conserve les 30 dernières archives et peut être vérifiée avant restauration.
           </p>
         </div>
         <div className="flex items-center gap-2.5">

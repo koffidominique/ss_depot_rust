@@ -3,7 +3,8 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { createApiApp } from './server/app.ts';
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || process.env.DEPOTPRO_HOST || '127.0.0.1';
 
 async function startServer() {
   const app = createApiApp();
@@ -22,8 +23,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`DEPOTPRO ERP listening on http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`DEPOTPRO ERP listening on http://${HOST}:${PORT}`);
   });
 }
 

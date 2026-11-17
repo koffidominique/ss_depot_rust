@@ -332,6 +332,13 @@ export const BUSINESS_TIPS_TOPICS: TipTopic[] = [
         meaning: 'N’affiche que les articles dont le stock est inférieur ou égal au seuil minimum configuré.',
         rule: 'Utilisez ensuite « Rapport de stock » pour imprimer la liste à réapprovisionner.',
       },
+      {
+        formName: 'Ajustement manuel du stock',
+        field: 'Type, Quantité & Motif obligatoire',
+        meaning: 'Permet de déclarer une casse, une perte, un don ou un surplus ponctuel sans passer par un inventaire complet.',
+        rule: 'Chaque ajustement exige un motif tracé, crée un mouvement manual_adjust (ADJ-YYYY-NNNNN) et respecte le paramètre de stock négatif.',
+        example: 'Sortie (-) · 2 bouteille · « Casse / bouteille brisée lors de la manutention »',
+      },
     ],
     pitfalls: [
       'Un article marqué « Non valorisable » n’est pas une erreur : il suffit d’enregistrer une réception fournisseur valorisée pour initialiser son CUMP.',

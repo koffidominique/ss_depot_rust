@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { cn } from '../../utils/format.ts';
 
 interface MoneyInputProps {
@@ -21,18 +22,20 @@ export function MoneyInput({
   id,
   className,
 }: MoneyInputProps) {
+  const autoId = useId();
+  const inputId = id ?? autoId;
   const display = value === '' || value === null || value === undefined ? '' : String(value);
 
   return (
     <div className={cn('space-y-1', className)}>
       {label && (
-        <label htmlFor={id} className="block text-xs font-medium text-[#182230] dark:text-slate-200">
+        <label htmlFor={inputId} className="block text-xs font-medium text-[#182230] dark:text-slate-200">
           {label}
         </label>
       )}
       <div className="relative flex items-center">
         <input
-          id={id}
+          id={inputId}
           type="text"
           inputMode="numeric"
           disabled={disabled}

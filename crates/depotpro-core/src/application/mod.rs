@@ -2,6 +2,7 @@ pub mod auth;
 pub mod cash;
 pub mod consignments;
 pub mod inventory;
+pub mod pdf;
 pub mod products;
 pub mod purchases;
 pub mod reports;

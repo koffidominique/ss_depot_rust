@@ -24,6 +24,7 @@ import {
 import {
   listClients,
   createClient,
+  updateClient,
   updateClientCreditPolicy,
   createSale,
   listSales,
@@ -34,9 +35,11 @@ import {
 import {
   listSuppliers,
   createSupplier,
+  updateSupplier,
   listPurchaseOrders,
   createPurchaseOrder,
   receivePurchaseOrder,
+  cancelPurchaseOrder,
   paySupplierDebt,
   listSupplierDebts,
 } from './services/purchases.ts';
@@ -52,6 +55,7 @@ import {
   listInventories,
   createInventory,
   validateInventory,
+  adjustStock,
 } from './services/finance.ts';
 import {
   getConsignmentsOverview,
@@ -71,13 +75,88 @@ import {
   verifyBackup,
   restoreBackup,
 } from './services/reports.ts';
+import { generateDocumentPdf } from './services/pdf.ts';
 
 export function createApiApp() {
   const app = express();
+  app.disable('x-powered-by');
   app.use(express.json({ limit: '5mb' }));
 
   // Initialise SQLite au démarrage
   getDb();
+
+  // En-têtes de sécurité et protection CSRF / Origine locale (Partie 15.4)
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (process.env.DEPOTPRO_ALLOW_FRAME !== 'true') {
+      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    }
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (req.path.startsWith('/api')) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+
+    const origin = req.headers.origin;
+    if (origin && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      const host = req.headers.host || '';
+      const forwardedHost = String(req.headers['x-forwarded-host'] || '')
+        .split(',')[0]
+        .trim();
+      const matchesHost = (h: string) =>
+        Boolean(h) && (origin === `http://${h}` || origin === `https://${h}`);
+      const isLocalOrigin =
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin) ||
+        matchesHost(host) ||
+        matchesHost(forwardedHost);
+      const extraOrigins = (process.env.DEPOTPRO_ALLOWED_ORIGINS || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const matchesExtra = extraOrigins.some((pattern) => {
+        if (pattern.startsWith('https://*.') || pattern.startsWith('http://*.')) {
+          const [scheme, rest] = pattern.split('://*.');
+          try {
+            const parsed = new URL(origin);
+            return parsed.protocol === `${scheme}:` && parsed.hostname.endsWith(`.${rest}`);
+          } catch {
+            return false;
+          }
+        }
+        return origin === pattern;
+      });
+      const isAllowed = isLocalOrigin || matchesExtra;
+      if (!isAllowed) {
+        res.status(403).json({
+          code: 'FORBIDDEN_ORIGIN',
+          message: 'Origine requête non autorisée.',
+        });
+        return;
+      }
+    }
+    next();
+  });
+
+  // Limitation de débit sur les routes d'authentification sensibles (fenêtre 60s)
+  const authBuckets = new Map<string, { count: number; resetAt: number }>();
+  const authRateLimit = (req: Request, res: Response, next: NextFunction) => {
+    const key = `${req.ip || 'local'}:${req.path}`;
+    const now = Date.now();
+    const bucket = authBuckets.get(key);
+    if (!bucket || now > bucket.resetAt) {
+      authBuckets.set(key, { count: 1, resetAt: now + 60_000 });
+      next();
+      return;
+    }
+    bucket.count += 1;
+    if (bucket.count > 25) {
+      res.status(429).json({
+        code: 'RATE_LIMITED',
+        message: 'Trop de requêtes d’authentification. Patientez une minute.',
+      });
+      return;
+    }
+    next();
+  };
 
   const asyncHandler =
     (fn: (req: Request, res: Response) => Promise<unknown> | unknown) =>
@@ -85,9 +164,72 @@ export function createApiApp() {
       Promise.resolve(fn(req, res)).catch(next);
     };
 
-  const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  const extractCookie = (req: Request, name: string): string | undefined => {
+    const raw = req.headers.cookie;
+    if (!raw) return undefined;
+    for (const part of raw.split(';')) {
+      const eq = part.indexOf('=');
+      if (eq === -1) continue;
+      const k = part.slice(0, eq).trim();
+      if (k === name) {
+        try {
+          return decodeURIComponent(part.slice(eq + 1).trim());
+        } catch {
+          return part.slice(eq + 1).trim();
+        }
+      }
+    }
+    return undefined;
+  };
+
+  const extractToken = (req: Request): string | undefined => {
     const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      const t = authHeader.slice(7).trim();
+      if (t) return t;
+    }
+    const altHeader = req.headers['x-depotpro-token'];
+    if (typeof altHeader === 'string' && altHeader.trim()) {
+      return altHeader.trim();
+    }
+    return extractCookie(req, 'depotpro_session');
+  };
+
+  const isHttpsRequest = (req: Request): boolean => {
+    const proto = String(req.headers['x-forwarded-proto'] || '')
+      .split(',')[0]
+      .trim()
+      .toLowerCase();
+    return req.secure || proto === 'https';
+  };
+
+  const setSessionCookie = (req: Request, res: Response, token: string): void => {
+    const secure = isHttpsRequest(req);
+    const attrs = [
+      `depotpro_session=${encodeURIComponent(token)}`,
+      'Path=/',
+      'HttpOnly',
+      secure ? 'SameSite=None' : 'SameSite=Lax',
+    ];
+    if (secure) attrs.push('Secure');
+    res.setHeader('Set-Cookie', attrs.join('; '));
+  };
+
+  const clearSessionCookie = (req: Request, res: Response): void => {
+    const secure = isHttpsRequest(req);
+    const attrs = [
+      'depotpro_session=',
+      'Path=/',
+      'Max-Age=0',
+      'HttpOnly',
+      secure ? 'SameSite=None' : 'SameSite=Lax',
+    ];
+    if (secure) attrs.push('Secure');
+    res.setHeader('Set-Cookie', attrs.join('; '));
+  };
+
+  const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+    const token = extractToken(req);
     if (!verifyToken(token)) {
       res.status(401).json({ code: 'UNAUTHORIZED', message: 'Session verrouillée ou expirée.' });
       return;
@@ -97,24 +239,33 @@ export function createApiApp() {
 
   // Routes Auth publiques
   app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
-  app.get('/api/auth/status', (_req, res) => res.json(getAuthStatus()));
+  app.get('/api/auth/status', (req, res) => {
+    const status = getAuthStatus();
+    const authenticated = verifyToken(extractToken(req));
+    res.json({ ...status, authenticated });
+  });
   app.post(
     '/api/auth/setup',
+    authRateLimit,
     asyncHandler(async (req, res) => {
       const result = await setupOwnerPin(String(req.body?.pin ?? ''));
+      setSessionCookie(req, res, result.token);
       res.json(result);
     })
   );
   app.post(
     '/api/auth/login',
+    authRateLimit,
     asyncHandler(async (req, res) => {
       const result = await loginOwner(String(req.body?.pin ?? ''));
+      setSessionCookie(req, res, result.token);
       res.json(result);
     })
   );
   app.post('/api/auth/lock', (req, res) => {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const token = extractToken(req);
     revokeToken(token);
+    clearSessionCookie(req, res);
     res.json({ locked: true });
   });
 
@@ -123,6 +274,7 @@ export function createApiApp() {
 
   app.post(
     '/api/auth/change-pin',
+    authRateLimit,
     asyncHandler(async (req, res) => {
       await changeOwnerPin(String(req.body?.currentPin ?? ''), String(req.body?.newPin ?? ''));
       res.json({ ok: true });
@@ -184,6 +336,10 @@ export function createApiApp() {
     asyncHandler(async (req, res) => res.status(201).json(await createClient(req.body)))
   );
   app.put(
+    '/api/clients/:id',
+    asyncHandler(async (req, res) => res.json(await updateClient(Number(req.params.id), req.body)))
+  );
+  app.put(
     '/api/clients/:id/credit',
     asyncHandler(async (req, res) =>
       res.json(await updateClientCreditPolicy(Number(req.params.id), req.body))
@@ -196,6 +352,8 @@ export function createApiApp() {
       listSales({
         search: req.query.search ? String(req.query.search) : undefined,
         status: req.query.status ? String(req.query.status) : undefined,
+        from: req.query.from ? String(req.query.from) : undefined,
+        to: req.query.to ? String(req.query.to) : undefined,
         page: req.query.page ? Number(req.query.page) : 1,
         pageSize: req.query.pageSize ? Number(req.query.pageSize) : 25,
       })
@@ -230,6 +388,10 @@ export function createApiApp() {
     '/api/suppliers',
     asyncHandler(async (req, res) => res.status(201).json(await createSupplier(req.body)))
   );
+  app.put(
+    '/api/suppliers/:id',
+    asyncHandler(async (req, res) => res.json(await updateSupplier(Number(req.params.id), req.body)))
+  );
   app.get('/api/purchases', (_req, res) => res.json(listPurchaseOrders()));
   app.post(
     '/api/purchases',
@@ -241,6 +403,12 @@ export function createApiApp() {
       res.status(201).json(await receivePurchaseOrder(Number(req.params.id), req.body))
     )
   );
+  app.post(
+    '/api/purchases/:id/cancel',
+    asyncHandler(async (req, res) =>
+      res.json(await cancelPurchaseOrder(Number(req.params.id), req.body))
+    )
+  );
   app.get('/api/supplier-debts', (_req, res) => res.json(listSupplierDebts()));
   app.post(
     '/api/supplier-debts/:id/pay',
@@ -249,6 +417,10 @@ export function createApiApp() {
 
   // Stocks & Inventaires
   app.get('/api/stock', (_req, res) => res.json(getStockOverview()));
+  app.post(
+    '/api/stock/adjust',
+    asyncHandler(async (req, res) => res.status(201).json(await adjustStock(req.body)))
+  );
   app.get('/api/inventories', (_req, res) => res.json(listInventories()));
   app.post(
     '/api/inventories',
@@ -315,6 +487,16 @@ export function createApiApp() {
     asyncHandler(async (req, res) =>
       res.json(await togglePaymentMethod(req.params.code, Boolean(req.body?.active)))
     )
+  );
+
+  app.post(
+    '/api/documents/pdf',
+    asyncHandler(async (req, res) => {
+      const { filename, buffer } = generateDocumentPdf(req.body);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    })
   );
 
   app.get('/api/backups', (_req, res) => res.json(listBackups()));

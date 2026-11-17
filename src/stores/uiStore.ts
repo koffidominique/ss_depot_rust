@@ -19,6 +19,17 @@ export interface CartItem {
   depositMode: 'none' | 'deposit' | null;
 }
 
+export interface HeldCart {
+  id: string;
+  label: string;
+  createdAt: string;
+  items: CartItem[];
+  clientId: number | null;
+  priceTier: PriceTier;
+  saleType: 'cash' | 'credit';
+  discountAmount: number;
+}
+
 interface UiState {
   token: string | null;
   theme: 'light' | 'dark';
@@ -27,6 +38,7 @@ interface UiState {
   posClientId: number | null;
   posPriceTier: PriceTier;
   posSaleType: 'cash' | 'credit';
+  heldCarts: HeldCart[];
   tipsOpen: boolean;
   tipsTopicId: string | null;
   setToken: (token: string | null) => void;
@@ -40,6 +52,9 @@ interface UiState {
   updateCartItem: (key: string, patch: Partial<CartItem>) => void;
   removeFromCart: (key: string) => void;
   clearCart: () => void;
+  holdCurrentCart: (label: string, discountAmount: number) => void;
+  resumeHeldCart: (id: string) => HeldCart | null;
+  deleteHeldCart: (id: string) => void;
   setPosClientId: (id: number | null) => void;
   setPosPriceTier: (tier: PriceTier) => void;
   setPosSaleType: (t: 'cash' | 'credit') => void;
@@ -69,10 +84,29 @@ function applyThemeClass(theme: 'light' | 'dark') {
   }
 }
 
+function getInitialHeldCarts(): HeldCart[] {
+  try {
+    const raw = localStorage.getItem('depotpro_held_carts');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistHeldCarts(carts: HeldCart[]) {
+  try {
+    localStorage.setItem('depotpro_held_carts', JSON.stringify(carts));
+  } catch {
+    // ignore
+  }
+}
+
 const initTheme = getInitialTheme();
 applyThemeClass(initTheme);
 
-export const useUiStore = create<UiState>((set) => ({
+export const useUiStore = create<UiState>((set, get) => ({
   token: getInitialToken(),
   theme: initTheme,
   sidebarCollapsed: false,
@@ -80,6 +114,7 @@ export const useUiStore = create<UiState>((set) => ({
   posClientId: null,
   posPriceTier: 'retail',
   posSaleType: 'cash',
+  heldCarts: getInitialHeldCarts(),
   tipsOpen: false,
   tipsTopicId: null,
 
@@ -148,6 +183,51 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({ posCart: state.posCart.filter((c) => c.key !== key) })),
 
   clearCart: () => set({ posCart: [], posSaleType: 'cash' }),
+
+  holdCurrentCart: (label, discountAmount) =>
+    set((state) => {
+      if (state.posCart.length === 0) return state;
+      const ticket: HeldCart = {
+        id: `hold-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        label: label.trim() || `Ticket ${state.heldCarts.length + 1}`,
+        createdAt: new Date().toISOString(),
+        items: state.posCart,
+        clientId: state.posClientId,
+        priceTier: state.posPriceTier,
+        saleType: state.posSaleType,
+        discountAmount: Math.max(0, discountAmount),
+      };
+      const nextHeld = [ticket, ...state.heldCarts];
+      persistHeldCarts(nextHeld);
+      return {
+        heldCarts: nextHeld,
+        posCart: [],
+        posClientId: null,
+        posSaleType: 'cash',
+      };
+    }),
+
+  resumeHeldCart: (id) => {
+    const target = get().heldCarts.find((h) => h.id === id) || null;
+    if (!target) return null;
+    const remaining = get().heldCarts.filter((h) => h.id !== id);
+    persistHeldCarts(remaining);
+    set({
+      heldCarts: remaining,
+      posCart: target.items,
+      posClientId: target.clientId,
+      posPriceTier: target.priceTier,
+      posSaleType: target.saleType,
+    });
+    return target;
+  },
+
+  deleteHeldCart: (id) =>
+    set((state) => {
+      const remaining = state.heldCarts.filter((h) => h.id !== id);
+      persistHeldCarts(remaining);
+      return { heldCarts: remaining };
+    }),
 
   setPosClientId: (posClientId) => set({ posClientId }),
   setPosPriceTier: (posPriceTier) => set({ posPriceTier }),

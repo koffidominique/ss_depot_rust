@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
     receipt_prefix TEXT NOT NULL DEFAULT 'REC',
     credit_note_prefix TEXT NOT NULL DEFAULT 'AVO',
     theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light', 'dark')),
+    logo_path TEXT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -495,6 +496,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     session_id INTEGER NOT NULL REFERENCES cash_sessions(id),
     beneficiary TEXT NULL,
     notes TEXT NULL,
+    receipt_path TEXT NULL,
     expense_date TEXT NOT NULL DEFAULT (datetime('now')),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
