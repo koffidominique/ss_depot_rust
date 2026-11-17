@@ -1610,7 +1610,7 @@ pub async fn create_sale_return(
                 .fetch_one(&mut *tx)
                 .await?;
             let next_stock = cur_stock
-                .checked_add(base_qty_milli)
+                .checked_add(*base_qty_milli)
                 .ok_or_else(|| CoreError::Validation("Débordement stock lors du retour.".to_string()))?;
             sqlx::query("UPDATE products SET stock_milli = ? WHERE id = ?")
                 .bind(next_stock)
