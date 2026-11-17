@@ -1,0 +1,187 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { BarChart3, Printer, AlertCircle } from 'lucide-react';
+import { apiClient } from '../services/api/createApiClient.ts';
+import { MetricCard } from '../components/common/MetricCard.tsx';
+import { FormTipsButton } from '../components/common/FormTipsButton.tsx';
+import { ErrorState, LoadingState } from '../components/common/States.tsx';
+import type { ReportsOverview } from '../types/erp.ts';
+import { formatFcfa, formatNumber } from '../utils/format.ts';
+
+export function ReportsPage() {
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+
+  const { data, isLoading, error, refetch } = useQuery<ReportsOverview>({
+    queryKey: ['reports', fromDate, toDate],
+    queryFn: () => apiClient.getReports(fromDate || undefined, toDate || undefined),
+  });
+
+  if (isLoading) return <LoadingState rows={6} />;
+  if (error || !data) {
+    return (
+      <ErrorState
+        message={error instanceof Error ? error.message : 'Erreur chargement rapports.'}
+        onRetry={() => refetch()}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="no-print flex flex-wrap items-end justify-between gap-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs font-medium text-[#667085]">Du</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="mt-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-mono-num"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[#667085]">Au</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="mt-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-mono-num"
+            />
+          </div>
+          {(fromDate || toDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setFromDate('');
+                setToDate('');
+              }}
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              Réinitialiser
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <FormTipsButton topicId="reports" label="Logique des marges" />
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            Imprimer le rapport
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="CA Marchandises (hors consignes)"
+          value={formatFcfa(data.commercial.merchandise_revenue)}
+          hint={`${formatNumber(data.commercial.count)} vente(s) validée(s)`}
+          icon={<BarChart3 className="h-4 w-4" />}
+        />
+        <MetricCard
+          label="Consignations facturées"
+          value={formatFcfa(data.commercial.deposit_billed)}
+          hint="Emballages consignés hors chiffre d'affaires"
+        />
+        <MetricCard
+          label="Marge brute connue"
+          value={formatFcfa(data.profitability.knownGrossMargin)}
+          tone={data.profitability.knownGrossMargin >= 0 ? 'success' : 'danger'}
+          hint={`Sur CA à coût connu : ${formatFcfa(data.profitability.knownCostRevenue)}`}
+        />
+        <MetricCard
+          label="Valorisation stock connue"
+          value={formatFcfa(data.stock.knownValuationFcfa)}
+          hint={`${data.stock.product_count} produits actifs`}
+        />
+      </div>
+
+      {(data.profitability.unknownCostLines > 0 || data.stock.unknown_cost_products > 0) && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-950/20 p-4 text-xs text-[#D9901A]">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <div className="font-semibold">Transparence des coûts historiques</div>
+            <p className="mt-0.5 text-[#667085] dark:text-slate-300">
+              {data.profitability.unknownCostLines} ligne(s) de vente et {data.stock.unknown_cost_products}{' '}
+              produit(s) ont un coût d'achat non encore renseigné (aucun CUMP inventé : ces lignes sont exclues du calcul de marge connue).
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+          <h3 className="font-display text-sm font-semibold">Compte d'exploitation synthétique (coûts connus)</h3>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+            <div className="flex justify-between py-2.5">
+              <span className="text-[#667085]">Chiffre d'affaires marchandises à coût connu</span>
+              <span className="font-mono-num font-semibold">{formatFcfa(data.profitability.knownCostRevenue)}</span>
+            </div>
+            <div className="flex justify-between py-2.5">
+              <span className="text-[#667085]">Coût d'achat des marchandises vendues (COGS)</span>
+              <span className="font-mono-num text-[#DC4545]">- {formatFcfa(data.profitability.knownCostTotal)}</span>
+            </div>
+            <div className="flex justify-between py-2.5">
+              <span className="font-medium">Marge brute connue</span>
+              <span className="font-mono-num font-bold text-[#16A36A]">
+                {formatFcfa(data.profitability.knownGrossMargin)}
+              </span>
+            </div>
+            <div className="flex justify-between py-2.5">
+              <span className="text-[#667085]">Dépenses d'exploitation cumulées</span>
+              <span className="font-mono-num text-[#DC4545]">- {formatFcfa(data.profitability.expensesTotal)}</span>
+            </div>
+            <div className="flex justify-between py-2.5 text-sm">
+              <span className="font-semibold">Résultat net connu</span>
+              <span
+                className={`font-mono-num font-bold ${
+                  data.profitability.netKnownResult >= 0 ? 'text-[#16A36A]' : 'text-[#DC4545]'
+                }`}
+              >
+                {formatFcfa(data.profitability.netKnownResult)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+          <h3 className="font-display text-sm font-semibold">Ventilation des flux par moyen de paiement</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-[#667085]">
+                  <th className="py-2">Moyen</th>
+                  <th className="py-2 text-right">Entrées</th>
+                  <th className="py-2 text-right">Sorties</th>
+                  <th className="py-2 text-right">Solde net</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {data.paymentBreakdown.map((pm) => (
+                  <tr key={pm.code}>
+                    <td className="py-2.5 font-medium">
+                      {pm.label}{' '}
+                      <span className="text-[11px] text-[#667085]">
+                        ({pm.is_cash === 1 ? 'Espèces' : 'Digital'})
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-right font-mono-num text-[#16A36A]">{formatFcfa(pm.total_in)}</td>
+                    <td className="py-2.5 text-right font-mono-num text-[#DC4545]">{formatFcfa(pm.total_out)}</td>
+                    <td className="py-2.5 text-right font-mono-num font-semibold">
+                      {formatFcfa(pm.total_in - pm.total_out)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

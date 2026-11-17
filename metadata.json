@@ -1,0 +1,6 @@
+{
+  "name": "DEPOTPRO ERP",
+  "description": "ERP professionnel local-first de gestion de dépôt de boissons (ventes, stocks, achats, crédits, consignations et caisse).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

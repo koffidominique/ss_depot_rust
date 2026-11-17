@@ -1,0 +1,71 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --dp-navy: #101B33;
+  --dp-blue: #2563EB;
+  --dp-blue-light: #60A5FA;
+  --dp-bg: #F5F7FB;
+  --dp-surface: #FFFFFF;
+  --dp-border: #E2E8F0;
+  --dp-text: #182230;
+  --dp-muted: #667085;
+  --dp-success: #16A36A;
+  --dp-warning: #D9901A;
+  --dp-danger: #DC4545;
+
+  --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+.dark {
+  --dp-bg: #0B1220;
+  --dp-surface: #111A2E;
+  --dp-border: #1E293B;
+  --dp-text: #F1F5F9;
+  --dp-muted: #94A3B8;
+}
+
+@layer base {
+  html, body {
+    font-family: var(--font-sans);
+    background-color: var(--dp-bg);
+    color: var(--dp-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+  .print-document-root {
+    position: static !important;
+    transform: none !important;
+    max-height: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+}

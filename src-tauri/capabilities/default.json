@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/capabilities/2",
+  "identifier": "default",
+  "description": "Permissions minimales DEPOTPRO ERP Desktop (aucun shell global, aucun fs arbitraire).",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-maximize",
+    "core:window:allow-minimize"
+  ]
+}
