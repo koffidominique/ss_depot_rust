@@ -247,3 +247,20 @@ pub async fn restore_and_reconnect(
     *guard = DepotDb::connect(&db_path).await?;
     Ok(res)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[allow(dead_code)]
+    fn assert_backup_futures_are_send(
+        db: &DepotDb,
+        dir: &Path,
+        lock: &tokio::sync::RwLock<DepotDb>,
+    ) {
+        fn assert_send<F: std::future::Future + Send>(_: F) {}
+        assert_send(create_backup_summary(db, dir));
+        assert_send(verify_backup(dir, "dummy.db"));
+        assert_send(restore_and_reconnect(lock, dir, "dummy.db"));
+    }
+}

@@ -32,8 +32,9 @@ impl DepotDb {
     pub async fn connect_with_busy_timeout(db_path: &Path, busy_timeout_ms: u64) -> CoreResult<Self> {
         let clamped_timeout = busy_timeout_ms.clamp(1, 60_000);
         if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| CoreError::Internal(format!("Création répertoire SQLite impossible : {e}")))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CoreError::Internal(format!("Création répertoire SQLite impossible : {e}"))
+            })?;
         }
 
         let path_str = db_path.to_string_lossy().to_string();
@@ -53,25 +54,39 @@ impl DepotDb {
             .connect_with(options)
             .await?;
 
+        Self::ensure_schema_initialized(&pool).await?;
+
+        let db = Self {
+            pool,
+            write_lock: Arc::new(Mutex::new(())),
+            db_path: path_str,
+            busy_timeout_ms: clamped_timeout,
+        };
+        db.verify_integrity().await?;
+
+        Ok(db)
+    }
+
+    async fn ensure_schema_initialized(pool: &SqlitePool) -> CoreResult<()> {
         let has_schema_table: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'",
         )
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await?;
         let already_initialized = if has_schema_table > 0 {
             let v1_count: i64 =
                 sqlx::query_scalar("SELECT COUNT(*) FROM schema_version WHERE version >= 1")
-                    .fetch_one(&pool)
+                    .fetch_one(pool)
                     .await?;
             let logo_col: i64 = sqlx::query_scalar(
                 "SELECT COUNT(*) FROM pragma_table_info('app_settings') WHERE name = 'logo_path'",
             )
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await?;
             let receipt_col: i64 = sqlx::query_scalar(
                 "SELECT COUNT(*) FROM pragma_table_info('expenses') WHERE name = 'receipt_path'",
             )
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await?;
             v1_count > 0 && logo_col > 0 && receipt_col > 0
         } else {
@@ -80,7 +95,22 @@ impl DepotDb {
 
         if !already_initialized {
             let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
-            sqlx::raw_sql(V3_SCHEMA_SQL).execute(&mut *tx).await?;
+            for chunk in V3_SCHEMA_SQL.split(';') {
+                let cleaned: String = chunk
+                    .lines()
+                    .map(str::trim_end)
+                    .filter(|line| {
+                        let t = line.trim_start();
+                        !t.is_empty() && !t.starts_with("--")
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let stmt = cleaned.trim();
+                if stmt.is_empty() || stmt.to_ascii_uppercase().starts_with("PRAGMA ") {
+                    continue;
+                }
+                sqlx::query(stmt).execute(&mut *tx).await?;
+            }
 
             let has_logo_path: i64 = sqlx::query_scalar(
                 "SELECT COUNT(*) FROM pragma_table_info('app_settings') WHERE name = 'logo_path'",
@@ -151,15 +181,7 @@ impl DepotDb {
             tx.commit().await?;
         }
 
-        let db = Self {
-            pool,
-            write_lock: Arc::new(Mutex::new(())),
-            db_path: path_str,
-            busy_timeout_ms: clamped_timeout,
-        };
-        db.verify_integrity().await?;
-
-        Ok(db)
+        Ok(())
     }
 
     pub fn busy_timeout_ms(&self) -> u64 {
@@ -222,5 +244,18 @@ impl DepotDb {
         .await?;
 
         Ok(format!("{prefix}-{year}-{val:05}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn depot_db_futures_are_send() {
+        fn assert_send<F: std::future::Future + Send>(_: F) {}
+        let path = Path::new("dummy_send_check.db");
+        assert_send(DepotDb::connect(path));
+        assert_send(DepotDb::connect_with_busy_timeout(path, 5_000));
     }
 }
