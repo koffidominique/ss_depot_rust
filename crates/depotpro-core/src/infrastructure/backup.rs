@@ -94,7 +94,7 @@ fn prune_old_backups(backup_dir: &Path, keep_count: usize) {
             }
         })
         .collect();
-    files.sort_by(|a, b| b.1.cmp(&a.1));
+    files.sort_by_key(|a| std::cmp::Reverse(a.1));
     for (obsolete_path, _) in files.into_iter().skip(keep_count) {
         let _ = std::fs::remove_file(obsolete_path);
     }

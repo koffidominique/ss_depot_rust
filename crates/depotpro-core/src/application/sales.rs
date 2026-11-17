@@ -385,8 +385,7 @@ pub async fn update_client(
     client_id: i64,
     input: UpdateClientInput,
 ) -> CoreResult<ClientSummaryDto> {
-    let (_guard, mut tx) = db.begin_write().await?;
-    let existing: Option<(
+    type ExistingClientRow = (
         String,
         String,
         String,
@@ -396,7 +395,9 @@ pub async fn update_client(
         Option<String>,
         Option<String>,
         i64,
-    )> = sqlx::query_as(
+    );
+    let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<ExistingClientRow> = sqlx::query_as(
         "SELECT code, name, client_type, phone, address, city, email, contact_person, is_active
          FROM clients WHERE id = ?",
     )
@@ -815,8 +816,11 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
     let mut subtotal_merchandise = Money::ZERO;
     let mut total_deposit = Money::ZERO;
 
+    type SaleProductRow = (i64, String, String, Option<String>, Option<String>, i64);
+    type SalePackagingRow = (i64, String, i64, Option<i64>, Option<i64>, Option<i64>, i64);
+
     for line in &input.lines {
-        let prod: Option<(i64, String, String, Option<String>, Option<String>, i64)> = sqlx::query_as(
+        let prod: Option<SaleProductRow> = sqlx::query_as(
             "SELECT id, name, base_unit, average_cost_num, average_cost_den, is_active FROM products WHERE id = ?",
         )
         .bind(line.product_id)
@@ -828,7 +832,7 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
             return Err(CoreError::Validation(format!("Produit \"{pname}\" archivé.")));
         }
 
-        let pkg: Option<(i64, String, i64, Option<i64>, Option<i64>, Option<i64>, i64)> = sqlx::query_as(
+        let pkg: Option<SalePackagingRow> = sqlx::query_as(
             "SELECT id, name, coefficient_milli, wholesale_price, semi_wholesale_price, retail_price, allow_fraction
              FROM product_packagings WHERE id = ? AND product_id = ? AND is_active = 1",
         )

@@ -247,18 +247,19 @@ pub async fn update_supplier(
     supplier_id: i64,
     input: UpdateSupplierInput,
 ) -> CoreResult<SupplierSummaryDto> {
+    type ExistingSupplierRow = (
+        String,
+        String,
+        Option<String>,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        i64,
+        i64,
+    );
     let (_guard, mut tx) = db.begin_write().await?;
-    let existing: Option<(
-        String,
-        String,
-        Option<String>,
-        String,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        i64,
-        i64,
-    )> = sqlx::query_as(
+    let existing: Option<ExistingSupplierRow> = sqlx::query_as(
         "SELECT code, name, company_name, phone, address, email, contact_person, payment_terms_days, is_active
          FROM suppliers WHERE id = ?",
     )
@@ -432,8 +433,9 @@ pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput
         return Err(CoreError::Validation("Fournisseur introuvable.".to_string()));
     }
 
+    type PreparedPurchaseOrderLine = (i64, i64, String, String, String, i64, i64, i64, i64);
     let mut total_amount = Money::ZERO;
-    let mut prepared: Vec<(i64, i64, String, String, String, i64, i64, i64, i64)> = Vec::new();
+    let mut prepared: Vec<PreparedPurchaseOrderLine> = Vec::new();
 
     for l in &input.lines {
         let prod: Option<(i64, String, String)> =
@@ -617,8 +619,9 @@ pub async fn receive_purchase_order(
             .fetch_one(&mut *tx)
             .await?;
 
+    type PreparedReceiptLine = (i64, i64, i64, i64, i64, i64, Option<String>);
     let mut receipt_total = Money::ZERO;
-    let mut prepared: Vec<(i64, i64, i64, i64, i64, i64, Option<String>)> =
+    let mut prepared: Vec<PreparedReceiptLine> =
         Vec::with_capacity(normalized_lines.len());
 
     for (po_line_id, qty, disc_reason) in &normalized_lines {

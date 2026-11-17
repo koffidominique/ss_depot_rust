@@ -68,7 +68,16 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx playwright install chromium --with-deps
-      - run: npm run test:e2e
+      - name: Tests Playwright E2E
+        run: |
+          set +e
+          NO_COLOR=1 npm run test:e2e 2>&1 | tee /tmp/e2e.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            MSG=$(tail -n 60 /tmp/e2e.log | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
+            echo "::error title=e2e::$MSG"
+            exit "$rc"
+          fi
 
   rust-core-and-server:
     name: Rust Core & Axum Server (fmt, clippy, test)
@@ -80,7 +89,15 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: Vérification formatage Rust (rustfmt)
-        run: cargo fmt --all -- --check
+        run: |
+          set +e
+          cargo fmt --all -- --check 2>&1 | tee /tmp/fmt.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            MSG=$(grep -E '^Diff in ' /tmp/fmt.log | head -n 40 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
+            echo "::error title=rustfmt::$MSG"
+            exit "$rc"
+          fi
       - name: Analyse statique Rust (clippy)
         if: ${{ !cancelled() }}
         run: |

@@ -407,7 +407,8 @@ pub async fn return_client_empties(
     }
 
     let (session_id, _sref, opening_cash) = require_open_session_tx(&mut tx).await?;
-    let issue: Option<(i64, i64, Option<i64>, i64, i64, i64, i64)> = sqlx::query_as(
+    type DepositIssueRow = (i64, i64, Option<i64>, i64, i64, i64, i64);
+    let issue: Option<DepositIssueRow> = sqlx::query_as(
         "SELECT id, sale_id, client_id, returnable_id, pieces, returned_pieces, unit_value
          FROM deposit_issues WHERE id = ?",
     )

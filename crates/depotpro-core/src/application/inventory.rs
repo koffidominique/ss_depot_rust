@@ -228,7 +228,8 @@ pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<S
         }
     }
 
-    let prod: Option<(i64, String, String, i64, Option<String>, Option<String>, i64)> =
+    type InventoryProductRow = (i64, String, String, i64, Option<String>, Option<String>, i64);
+    let prod: Option<InventoryProductRow> =
         sqlx::query_as(
             "SELECT id, name, base_unit, stock_milli, average_cost_num, average_cost_den, is_active
              FROM products WHERE id = ?",

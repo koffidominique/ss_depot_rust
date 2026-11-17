@@ -723,24 +723,25 @@ pub async fn update_product(
     id: i64,
     input: UpdateProductInput,
 ) -> CoreResult<ProductSummaryDto> {
+    type ExistingProductRow = (
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        i64,
+        Option<i64>,
+        Option<String>,
+        i64,
+        i64,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+        i64,
+    );
     let (_guard, mut tx) = db.begin_write().await?;
-    let existing: Option<(
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-        i64,
-        Option<i64>,
-        Option<String>,
-        i64,
-        i64,
-        Option<i64>,
-        Option<i64>,
-        Option<i64>,
-        Option<i64>,
-        Option<String>,
-        i64,
-    )> = sqlx::query_as(
+    let existing: Option<ExistingProductRow> = sqlx::query_as(
         "SELECT reference, name, brand, barcode, category_id, supplier_id, description,
                 min_stock_milli, max_stock_milli, purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path, is_active
          FROM products WHERE id = ?",
@@ -1013,7 +1014,7 @@ fn format_milli(milli: i64) -> String {
 }
 
 pub async fn export_products_csv(db: &DepotDb) -> CoreResult<String> {
-    let rows: Vec<(
+    type ExportProductRow = (
         String,
         Option<String>,
         String,
@@ -1027,7 +1028,8 @@ pub async fn export_products_csv(db: &DepotDb) -> CoreResult<String> {
         Option<i64>,
         Option<i64>,
         i64,
-    )> = sqlx::query_as(
+    );
+    let rows: Vec<ExportProductRow> = sqlx::query_as(
         "SELECT p.reference, p.barcode, p.name, p.brand, c.name, p.base_unit, p.stock_milli, p.min_stock_milli,
                 p.purchase_price, p.wholesale_price, p.semi_wholesale_price, p.retail_price, p.is_active
          FROM products p JOIN categories c ON c.id = p.category_id ORDER BY p.reference",

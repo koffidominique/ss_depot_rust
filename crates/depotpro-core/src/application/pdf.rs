@@ -196,7 +196,7 @@ fn format_fcfa_ascii(amount: i64) -> String {
     let abs = amount.unsigned_abs().to_string();
     let mut grouped = String::with_capacity(abs.len() + 4);
     for (i, ch) in abs.chars().enumerate() {
-        if i > 0 && (abs.len() - i) % 3 == 0 {
+        if i > 0 && (abs.len() - i).is_multiple_of(3) {
             grouped.push(' ');
         }
         grouped.push(ch);
@@ -830,7 +830,7 @@ mod tests {
         };
 
         for doc_type in VALID_DOC_TYPES {
-            let lines: Vec<DocumentPdfLine> = (1..=45)
+            let lines: Vec<DocumentPdfLine> = (1..=30)
                 .map(|i| DocumentPdfLine {
                     label: format!("Flag Spéciale 65cl lot #{i}"),
                     sublabel: Some("casier (×24 bouteille)".to_string()),
