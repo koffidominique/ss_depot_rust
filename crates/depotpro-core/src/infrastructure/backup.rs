@@ -207,8 +207,14 @@ impl Sha256 {
 
     fn compress(&mut self, block: &[u8; 64]) {
         let mut w = [0u32; 64];
-        for (slot, chunk) in w[..16].iter_mut().zip(block.chunks_exact(4)) {
-            *slot = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        for (i, slot) in w[..16].iter_mut().enumerate() {
+            let off = i * 4;
+            *slot = u32::from_be_bytes([
+                block[off],
+                block[off + 1],
+                block[off + 2],
+                block[off + 3],
+            ]);
         }
         for i in 16..64 {
             let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);

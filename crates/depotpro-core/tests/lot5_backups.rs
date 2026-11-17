@@ -211,7 +211,7 @@ async fn seed_all_14_entities(db: &DepotDb) {
 
     sales::create_sale_return(
         db,
-        sale_cash.id,
+        sale_cash.sale.id,
         sales::CreateSaleReturnInput {
             request_key: "rust-lot5-ret".to_string(),
             reason: "Retour partiel Lot 5".to_string(),
@@ -252,7 +252,7 @@ async fn seed_all_14_entities(db: &DepotDb) {
     let recs = cash::list_receivables(db).await.unwrap();
     let rec = recs
         .into_iter()
-        .find(|r| r.sale_id == sale_credit.id)
+        .find(|r| r.sale_id == sale_credit.sale.id)
         .unwrap();
     cash::pay_receivable(
         db,
