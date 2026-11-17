@@ -68,7 +68,7 @@ pub struct ReceivableDto {
     pub sale_total: i64,
     pub client_id: i64,
     pub client_name: String,
-    pub client_code: string,
+    pub client_code: String,
     pub client_phone: Option<String>,
     pub initial_amount: i64,
     pub remaining_amount: i64,

@@ -1487,7 +1487,7 @@ pub async fn create_sale_return(
     .fetch_optional(&mut *tx)
     .await?;
 
-    if let Some((rec_id, rem)) = rec {
+    if let Some((_rec_id, rem)) = rec {
         if rem > 0 {
             credit_reduction = rem.min(total_return.value());
             refund_amount = total_return.value() - credit_reduction;

@@ -826,6 +826,7 @@ mod tests {
             receipt_prefix: "REC".to_string(),
             credit_note_prefix: "AVO".to_string(),
             theme: "light".to_string(),
+            logo_path: None,
         };
 
         for doc_type in VALID_DOC_TYPES {
