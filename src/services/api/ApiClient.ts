@@ -32,6 +32,24 @@ export class ApiError extends Error {
   }
 }
 
+export interface CreateSaleReturnPayload {
+  request_key: string;
+  reason: string;
+  restock_approved: boolean;
+  refund_method_code: string;
+  lines: Array<{ sale_line_id: number; base_quantity: string | number }>;
+}
+
+export interface ReceivePurchaseOrderPayload {
+  request_key: string;
+  notes?: string;
+  lines: Array<{
+    purchase_order_line_id: number;
+    received_quantity: string | number;
+    discrepancy_reason?: string;
+  }>;
+}
+
 export interface ApiClient {
   // Auth
   getAuthStatus(): Promise<AuthStatus>;
@@ -79,7 +97,7 @@ export interface ApiClient {
   getSaleDetail(saleId: number): Promise<SaleDetail>;
   createSale(input: Record<string, unknown>): Promise<SaleDetail>;
   cancelSale(saleId: number, input: { reason: string; refund_method_code?: string; request_key: string }): Promise<SaleDetail>;
-  createSaleReturn(saleId: number, input: Record<string, unknown>): Promise<SaleDetail>;
+  createSaleReturn(saleId: number, input: CreateSaleReturnPayload): Promise<SaleDetail>;
 
   // Receivables
   listReceivables(): Promise<Receivable[]>;
@@ -94,7 +112,7 @@ export interface ApiClient {
   updateSupplier(supplierId: number, input: Record<string, unknown>): Promise<Supplier>;
   listPurchases(): Promise<PurchaseOrder[]>;
   createPurchaseOrder(input: Record<string, unknown>): Promise<PurchaseOrder>;
-  receivePurchaseOrder(orderId: number, input: Record<string, unknown>): Promise<unknown>;
+  receivePurchaseOrder(orderId: number, input: ReceivePurchaseOrderPayload): Promise<unknown>;
   cancelPurchaseOrder(orderId: number, input: { reason: string }): Promise<PurchaseOrder>;
   listSupplierDebts(): Promise<SupplierDebt[]>;
   paySupplierDebt(

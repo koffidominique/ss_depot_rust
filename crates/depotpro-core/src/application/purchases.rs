@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::collections::HashSet;
 
 use crate::application::products::deserialize_nullable_opt;
 use crate::application::sales::{audit_log_tx, get_theoretical_cash_tx, require_open_session_tx};
@@ -531,22 +532,68 @@ pub async fn receive_purchase_order(
     purchase_order_id: i64,
     input: ReceivePurchaseOrderInput,
 ) -> CoreResult<PurchaseReceiptDto> {
-    if input.request_key.trim().is_empty() {
-        return Err(CoreError::Validation("Clé d'idempotence requise.".to_string()));
+    if purchase_order_id <= 0 {
+        return Err(CoreError::Validation(
+            "Identifiant de bon de commande invalide.".to_string(),
+        ));
+    }
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
     }
     if input.lines.is_empty() {
-        return Err(CoreError::Validation("Saisissez au moins une ligne reçue.".to_string()));
+        return Err(CoreError::Validation(
+            "Saisissez au moins une ligne reçue.".to_string(),
+        ));
+    }
+
+    let mut seen_po_lines: HashSet<i64> = HashSet::with_capacity(input.lines.len());
+    let mut normalized_lines: Vec<(i64, Quantity, Option<String>)> =
+        Vec::with_capacity(input.lines.len());
+    for l in &input.lines {
+        if l.purchase_order_line_id <= 0 {
+            return Err(CoreError::Validation(
+                "Identifiant de ligne de commande invalide.".to_string(),
+            ));
+        }
+        if !seen_po_lines.insert(l.purchase_order_line_id) {
+            return Err(CoreError::Validation(format!(
+                "Ligne de commande #{} dupliquée dans la même demande de réception. Regroupez les quantités sur une seule ligne.",
+                l.purchase_order_line_id
+            )));
+        }
+        let qty = Quantity::parse_str(&l.received_quantity, "Quantité réceptionnée")?;
+        if qty.milli_units <= 0 {
+            return Err(CoreError::Validation(
+                "La quantité reçue doit être > 0.".to_string(),
+            ));
+        }
+        let disc_reason = l
+            .discrepancy_reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+        normalized_lines.push((l.purchase_order_line_id, qty, disc_reason));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
     if let Some(existing) = sqlx::query_as::<_, PurchaseReceiptDto>(
         "SELECT id, reference, purchase_order_id, total_amount, notes, created_at FROM purchase_receipts WHERE request_key = ?",
     )
-    .bind(&input.request_key)
+    .bind(&request_key)
     .fetch_optional(&mut *tx)
     .await?
     {
         tx.rollback().await?;
+        if existing.purchase_order_id != purchase_order_id {
+            return Err(CoreError::DuplicateOperation(
+                "Cette clé d'idempotence a déjà été utilisée pour un autre bon de commande."
+                    .to_string(),
+            ));
+        }
         return Ok(existing);
     }
 
@@ -564,30 +611,33 @@ pub async fn receive_purchase_order(
         ));
     }
 
-    let payment_terms_days: i64 = sqlx::query_scalar("SELECT payment_terms_days FROM suppliers WHERE id = ?")
-        .bind(supplier_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    let payment_terms_days: i64 =
+        sqlx::query_scalar("SELECT payment_terms_days FROM suppliers WHERE id = ?")
+            .bind(supplier_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let mut receipt_total = Money::ZERO;
-    let mut prepared: Vec<(i64, i64, i64, i64, i64, i64, Option<String>)> = Vec::new();
+    let mut prepared: Vec<(i64, i64, i64, i64, i64, i64, Option<String>)> =
+        Vec::with_capacity(normalized_lines.len());
 
-    for l in &input.lines {
-        let qty = Quantity::parse_str(&l.received_quantity, "Quantité réceptionnée")?;
-        if qty.milli_units <= 0 {
-            return Err(CoreError::Validation("La quantité reçue doit être > 0.".to_string()));
-        }
+    for (po_line_id, qty, disc_reason) in &normalized_lines {
         let pol: Option<(i64, i64, i64, i64, i64, i64)> = sqlx::query_as(
             "SELECT id, product_id, coefficient_milli, ordered_quantity_milli, received_quantity_milli, unit_price
              FROM purchase_order_lines WHERE id = ? AND purchase_order_id = ?",
         )
-        .bind(l.purchase_order_line_id)
+        .bind(po_line_id)
         .bind(purchase_order_id)
         .fetch_optional(&mut *tx)
         .await?;
         let (pol_id, pid, coeff_milli, ordered_milli, received_milli, unit_price) =
             pol.ok_or_else(|| CoreError::Validation("Ligne de commande introuvable.".to_string()))?;
 
+        if received_milli >= ordered_milli {
+            return Err(CoreError::Validation(format!(
+                "La ligne de commande #{pol_id} a déjà été intégralement réceptionnée."
+            )));
+        }
         if received_milli + qty.milli_units > ordered_milli {
             return Err(CoreError::Validation(
                 "La quantité reçue dépasse la quantité commandée restante.".to_string(),
@@ -603,7 +653,7 @@ pub async fn receive_purchase_order(
             base_qty.milli_units,
             unit_price,
             amount.value(),
-            l.discrepancy_reason.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string),
+            disc_reason.clone(),
         ));
     }
 
@@ -613,7 +663,7 @@ pub async fn receive_purchase_order(
          VALUES (?, ?, ?, ?, ?)",
     )
     .bind(&rec_ref)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(purchase_order_id)
     .bind(receipt_total.value())
     .bind(input.notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
@@ -622,6 +672,23 @@ pub async fn receive_purchase_order(
     .last_insert_rowid();
 
     for (pol_id, pid, qty_milli, base_qty_milli, unit_price, amount, disc_reason) in &prepared {
+        let updated = sqlx::query(
+            "UPDATE purchase_order_lines
+             SET received_quantity_milli = received_quantity_milli + ?
+             WHERE id = ? AND purchase_order_id = ? AND received_quantity_milli + ? <= ordered_quantity_milli",
+        )
+        .bind(qty_milli)
+        .bind(pol_id)
+        .bind(purchase_order_id)
+        .bind(qty_milli)
+        .execute(&mut *tx)
+        .await?;
+        if updated.rows_affected() != 1 {
+            return Err(CoreError::Validation(
+                "La quantité reçue dépasse la quantité commandée restante.".to_string(),
+            ));
+        }
+
         sqlx::query(
             "INSERT INTO purchase_receipt_lines (receipt_id, purchase_order_line_id, quantity_milli, base_quantity_milli, unit_price, amount, discrepancy_reason)
              VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -635,12 +702,6 @@ pub async fn receive_purchase_order(
         .bind(disc_reason.as_deref())
         .execute(&mut *tx)
         .await?;
-
-        sqlx::query("UPDATE purchase_order_lines SET received_quantity_milli = received_quantity_milli + ? WHERE id = ?")
-            .bind(qty_milli)
-            .bind(pol_id)
-            .execute(&mut *tx)
-            .await?;
 
         let (cur_stock, avg_num, avg_den): (i64, Option<String>, Option<String>) = sqlx::query_as(
             "SELECT stock_milli, average_cost_num, average_cost_den FROM products WHERE id = ?",

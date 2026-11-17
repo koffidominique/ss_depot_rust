@@ -1,5 +1,10 @@
 import { useUiStore } from '../../stores/uiStore.ts';
-import { ApiError, type ApiClient } from './ApiClient.ts';
+import {
+  ApiError,
+  type ApiClient,
+  type CreateSaleReturnPayload,
+  type ReceivePurchaseOrderPayload,
+} from './ApiClient.ts';
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = useUiStore.getState().token;
@@ -174,7 +179,7 @@ export class HttpApiClient implements ApiClient {
       body: JSON.stringify(input),
     });
   }
-  createSaleReturn(saleId: number, input: Record<string, unknown>) {
+  createSaleReturn(saleId: number, input: CreateSaleReturnPayload) {
     return request<Awaited<ReturnType<ApiClient['createSaleReturn']>>>(`/api/sales/${saleId}/returns`, {
       method: 'POST',
       body: JSON.stringify(input),
@@ -215,7 +220,7 @@ export class HttpApiClient implements ApiClient {
       body: JSON.stringify(input),
     });
   }
-  receivePurchaseOrder(orderId: number, input: Record<string, unknown>) {
+  receivePurchaseOrder(orderId: number, input: ReceivePurchaseOrderPayload) {
     return request(`/api/purchases/${orderId}/receive`, {
       method: 'POST',
       body: JSON.stringify(input),

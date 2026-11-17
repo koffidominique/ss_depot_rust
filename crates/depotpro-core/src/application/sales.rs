@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Sqlite, Transaction};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::application::products::deserialize_nullable_opt;
 use crate::domain::money::Money;
@@ -1352,21 +1352,65 @@ pub async fn create_sale_return(
     sale_id: i64,
     input: CreateSaleReturnInput,
 ) -> CoreResult<SaleDetailDto> {
+    if sale_id <= 0 {
+        return Err(CoreError::Validation(
+            "Identifiant de vente invalide.".to_string(),
+        ));
+    }
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
+    }
     let reason = input.reason.trim().to_string();
     if reason.is_empty() {
-        return Err(CoreError::Validation("Le motif du retour est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le motif du retour est obligatoire.".to_string(),
+        ));
     }
     if input.lines.is_empty() {
-        return Err(CoreError::Validation("Sélectionnez au moins un article à retourner.".to_string()));
+        return Err(CoreError::Validation(
+            "Sélectionnez au moins un article à retourner.".to_string(),
+        ));
+    }
+
+    let mut seen_line_ids: HashSet<i64> = HashSet::with_capacity(input.lines.len());
+    let mut normalized_lines: Vec<(i64, Quantity)> = Vec::with_capacity(input.lines.len());
+    for l in &input.lines {
+        if l.sale_line_id <= 0 {
+            return Err(CoreError::Validation(
+                "Identifiant de ligne de vente invalide.".to_string(),
+            ));
+        }
+        if !seen_line_ids.insert(l.sale_line_id) {
+            return Err(CoreError::Validation(format!(
+                "Ligne de vente #{} dupliquée dans la même demande de retour. Regroupez les quantités sur une seule ligne.",
+                l.sale_line_id
+            )));
+        }
+        let base_qty = Quantity::parse_str(&l.base_quantity, "Quantité retournée")?;
+        if base_qty.milli_units <= 0 {
+            return Err(CoreError::Validation(
+                "La quantité retournée doit être > 0.".to_string(),
+            ));
+        }
+        normalized_lines.push((l.sale_line_id, base_qty));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    let dup: Option<(i64,)> = sqlx::query_as("SELECT id FROM sales_returns WHERE request_key = ?")
-        .bind(&input.request_key)
-        .fetch_optional(&mut *tx)
-        .await?;
-    if dup.is_some() {
+    let dup: Option<(i64, i64)> =
+        sqlx::query_as("SELECT id, sale_id FROM sales_returns WHERE request_key = ?")
+            .bind(&request_key)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if let Some((_ret_id, dup_sale_id)) = dup {
         tx.rollback().await?;
+        if dup_sale_id != sale_id {
+            return Err(CoreError::DuplicateOperation(
+                "Cette clé d'idempotence a déjà été utilisée pour une autre vente.".to_string(),
+            ));
+        }
         return get_sale_detail(db, sale_id).await;
     }
 
@@ -1379,25 +1423,24 @@ pub async fn create_sale_return(
     let (_id, sale_ref, status) =
         sale.ok_or_else(|| CoreError::Validation("Vente introuvable.".to_string()))?;
     if status == "cancelled" {
-        return Err(CoreError::HistoricalImmutable("Vente annulée : retour impossible.".to_string()));
+        return Err(CoreError::HistoricalImmutable(
+            "Vente annulée : retour impossible.".to_string(),
+        ));
     }
 
-    let avo_prefix: String = sqlx::query_scalar("SELECT credit_note_prefix FROM app_settings WHERE id = 1")
-        .fetch_one(&mut *tx)
-        .await?;
+    let avo_prefix: String =
+        sqlx::query_scalar("SELECT credit_note_prefix FROM app_settings WHERE id = 1")
+            .fetch_one(&mut *tx)
+            .await?;
 
     let mut total_return = Money::ZERO;
-    let mut prepared: Vec<(i64, i64, i64, i64)> = Vec::new();
+    let mut prepared: Vec<(i64, i64, i64, i64)> = Vec::with_capacity(normalized_lines.len());
 
-    for l in &input.lines {
-        let base_qty = Quantity::parse_str(&l.base_quantity, "Quantité retournée")?;
-        if base_qty.milli_units <= 0 {
-            return Err(CoreError::Validation("La quantité retournée doit être > 0.".to_string()));
-        }
+    for (sale_line_id, base_qty) in &normalized_lines {
         let sl: Option<(i64, i64, i64, i64)> = sqlx::query_as(
             "SELECT id, product_id, base_quantity_milli, line_total FROM sale_lines WHERE id = ? AND sale_id = ?",
         )
-        .bind(l.sale_line_id)
+        .bind(sale_line_id)
         .bind(sale_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -1411,6 +1454,11 @@ pub async fn create_sale_return(
         .fetch_one(&mut *tx)
         .await?;
 
+        if prev_ret >= sold_base_milli {
+            return Err(CoreError::Validation(format!(
+                "La ligne de vente #{sl_id} a déjà été intégralement retournée."
+            )));
+        }
         if prev_ret + base_qty.milli_units > sold_base_milli {
             return Err(CoreError::Validation(
                 "Quantité retournée supérieure à la quantité vendue restante.".to_string(),
@@ -1443,22 +1491,54 @@ pub async fn create_sale_return(
         if rem > 0 {
             credit_reduction = rem.min(total_return.value());
             refund_amount = total_return.value() - credit_reduction;
-            let next_rem = rem - credit_reduction;
-            sqlx::query("UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?")
-                .bind(next_rem)
-                .bind(if next_rem == 0 { "paid" } else { "partial" })
-                .bind(rec_id)
-                .execute(&mut *tx)
-                .await?;
         }
     }
 
-    if refund_amount > 0 && input.refund_method_code == "cash" {
-        let avail = get_theoretical_cash_tx(&mut tx, session_id, opening_cash).await?;
-        if refund_amount > avail {
-            return Err(CoreError::InvalidPayment(
-                "Espèces insuffisantes en caisse pour le remboursement.".to_string(),
-            ));
+    if credit_reduction + refund_amount != total_return.value() {
+        return Err(CoreError::Internal(
+            "Incohérence interne dans la répartition du retour.".to_string(),
+        ));
+    }
+
+    if refund_amount > 0 {
+        let pm: Option<(String, i64, i64)> =
+            sqlx::query_as("SELECT code, is_cash, active FROM payment_methods WHERE code = ?")
+                .bind(&input.refund_method_code)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let (_code, is_cash, active) = pm.ok_or_else(|| {
+            CoreError::InvalidPayment(format!(
+                "Moyen de remboursement introuvable : {}",
+                input.refund_method_code
+            ))
+        })?;
+        if active == 0 {
+            return Err(CoreError::InvalidPayment(format!(
+                "Moyen de remboursement inactif : {}",
+                input.refund_method_code
+            )));
+        }
+        if is_cash == 1 {
+            let avail = get_theoretical_cash_tx(&mut tx, session_id, opening_cash).await?;
+            if refund_amount > avail {
+                return Err(CoreError::InvalidPayment(
+                    "Espèces insuffisantes en caisse pour le remboursement.".to_string(),
+                ));
+            }
+        }
+    }
+
+    if let Some((rec_id, rem)) = rec {
+        if credit_reduction > 0 {
+            let next_rem = rem - credit_reduction;
+            sqlx::query(
+                "UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?",
+            )
+            .bind(next_rem)
+            .bind(if next_rem == 0 { "paid" } else { "partial" })
+            .bind(rec_id)
+            .execute(&mut *tx)
+            .await?;
         }
     }
 
@@ -1471,13 +1551,17 @@ pub async fn create_sale_return(
     )
     .bind(&ret_ref)
     .bind(&avo_ref)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(sale_id)
     .bind(session_id)
     .bind(total_return.value())
     .bind(credit_reduction)
     .bind(refund_amount)
-    .bind(if refund_amount > 0 { Some(&input.refund_method_code) } else { None })
+    .bind(if refund_amount > 0 {
+        Some(&input.refund_method_code)
+    } else {
+        None
+    })
     .bind(if input.restock_approved { 1_i64 } else { 0_i64 })
     .bind(&reason)
     .execute(&mut *tx)
@@ -1528,7 +1612,7 @@ pub async fn create_sale_return(
              VALUES (?, ?, 'sale_refund', ?, 'out', ?, ?, ?)",
         )
         .bind(session_id)
-        .bind(format!("ret-ref:{}", input.request_key))
+        .bind(format!("ret-ref:{request_key}"))
         .bind(&input.refund_method_code)
         .bind(refund_amount)
         .bind(format!("Avoir {avo_ref} sur vente {sale_ref}"))
@@ -1547,7 +1631,11 @@ pub async fn create_sale_return(
     .await?;
 
     sqlx::query("UPDATE sales SET status = ? WHERE id = ?")
-        .bind(if remaining_qty <= 0 { "returned" } else { "partially_returned" })
+        .bind(if remaining_qty <= 0 {
+            "returned"
+        } else {
+            "partially_returned"
+        })
         .bind(sale_id)
         .execute(&mut *tx)
         .await?;

@@ -21,6 +21,14 @@ import type { PurchaseOrder } from '../types/erp.ts';
 import { exportPurchasesCsv } from '../utils/csv.ts';
 import { formatDate, formatDateTime, formatFcfa, formatQty, newRequestKey } from '../utils/format.ts';
 
+function parseQtyMilliInput(raw: string): number | null {
+  const cleaned = raw.trim().replace(',', '.');
+  if (!cleaned) return 0;
+  if (!/^\d+(\.\d{1,3})?$/.test(cleaned)) return null;
+  const [intPart, fracPart = ''] = cleaned.split('.');
+  return Number(intPart) * 1000 + Number(fracPart.padEnd(3, '0'));
+}
+
 const cancelPoSchema = z.object({
   reason: z.string().trim().min(1, "Le motif d'annulation est obligatoire."),
 });
@@ -86,13 +94,34 @@ export function PurchasesPage() {
   const receiveMutation = useMutation({
     mutationFn: () => {
       if (!receiveTarget) throw new Error('Commande non sélectionnée');
-      const lines = Object.entries(receiveQty)
-        .filter(([, q]) => Number(q) > 0)
-        .map(([lineId, q]) => ({
-          purchase_order_line_id: Number(lineId),
-          received_quantity: q,
-          discrepancy_reason: receiveReason[Number(lineId)] || undefined,
-        }));
+      const lines: Array<{
+        purchase_order_line_id: number;
+        received_quantity: string;
+        discrepancy_reason?: string;
+      }> = [];
+      for (const l of receiveTarget.lines) {
+        const raw = (receiveQty[l.id] || '').trim().replace(',', '.');
+        if (!raw) continue;
+        const qtyMilli = parseQtyMilliInput(raw);
+        if (qtyMilli === null) {
+          throw new Error(`Quantité réceptionnée invalide pour ${l.product_name}.`);
+        }
+        if (qtyMilli <= 0) continue;
+        const remMilli = Math.max(0, l.ordered_quantity_milli - l.received_quantity_milli);
+        if (qtyMilli > remMilli) {
+          throw new Error(
+            `La quantité reçue dépasse le reliquat commandé pour ${l.product_name}.`
+          );
+        }
+        lines.push({
+          purchase_order_line_id: l.id,
+          received_quantity: raw,
+          discrepancy_reason: receiveReason[l.id]?.trim() || undefined,
+        });
+      }
+      if (lines.length === 0) {
+        throw new Error('Saisissez au moins une ligne reçue avec une quantité > 0.');
+      }
       return apiClient.receivePurchaseOrder(receiveTarget.id, {
         request_key: newRequestKey('rec'),
         lines,
@@ -230,10 +259,18 @@ export function PurchasesPage() {
                 setReceiveTarget(row.original);
                 const initQty: Record<number, string> = {};
                 row.original.lines.forEach((l) => {
-                  const rem = (l.ordered_quantity_milli - l.received_quantity_milli) / 1000;
-                  if (rem > 0) initQty[l.id] = String(rem);
+                  const remMilli = l.ordered_quantity_milli - l.received_quantity_milli;
+                  if (remMilli > 0) {
+                    const intPart = Math.floor(remMilli / 1000);
+                    const frac = remMilli % 1000;
+                    initQty[l.id] =
+                      frac === 0
+                        ? String(intPart)
+                        : `${intPart}.${String(frac).padStart(3, '0').replace(/0+$/, '')}`;
+                  }
                 });
                 setReceiveQty(initQty);
+                setReceiveReason({});
                 setErrorMsg(null);
               }}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"

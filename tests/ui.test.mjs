@@ -2585,4 +2585,221 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       useUiStore.getState().setToken(null);
     }
   });
+
+  it('SalesHistoryPage & PurchasesPage bloquent les dépassements de quantité côté UI et normalisent les saisies', async () => {
+    const origListSales = apiClient.listSales;
+    const origGetSaleDetail = apiClient.getSaleDetail;
+    const origCreateReturn = apiClient.createSaleReturn;
+    const origListPurchases = apiClient.listPurchases;
+    const origListSuppliers = apiClient.listSuppliers;
+    const origListProducts = apiClient.listProducts;
+    const origReceivePo = apiClient.receivePurchaseOrder;
+    const origGetSettings = apiClient.getSettings;
+
+    const returnCalls = [];
+    const receiveCalls = [];
+
+    apiClient.getSettings = async () => ({
+      settings: {
+        company_name: 'DEPOTPRO',
+        company_legal_name: null,
+        address: null,
+        phone: null,
+        email: null,
+        city: null,
+        country: "Côte d'Ivoire",
+        currency: 'FCFA',
+        allow_negative_stock: 0,
+        invoice_prefix: 'FAC',
+        sale_prefix: 'VTE',
+        purchase_prefix: 'ACH',
+        order_prefix: 'CMD',
+        receipt_prefix: 'REC',
+        credit_note_prefix: 'AVO',
+        theme: 'light',
+        logo_path: null,
+      },
+      paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+    });
+
+    const saleDetail = {
+      id: 91,
+      reference: 'VTE-2026-00091',
+      client_id: null,
+      client_name: 'Client Comptoir',
+      sale_type: 'cash',
+      price_tier: 'retail',
+      subtotal_merchandise: 3000,
+      discount_amount: 0,
+      total_merchandise: 3000,
+      total_deposit: 0,
+      total_amount: 3000,
+      paid_amount: 3000,
+      remaining_amount: 0,
+      payment_labels: 'Espèces',
+      status: 'partially_returned',
+      notes: null,
+      created_at: '2026-11-17T10:00:00Z',
+      client_code: null,
+      client_phone: null,
+      receivable_id: null,
+      due_date: null,
+      lines: [
+        {
+          id: 501,
+          sale_id: 91,
+          product_id: 1,
+          packaging_id: 1,
+          product_name: 'Flag 65cl',
+          packaging_name: 'bouteille',
+          base_unit: 'bouteille',
+          coefficient_milli: 1000,
+          quantity_milli: 5000,
+          base_quantity_milli: 5000,
+          unit_price: 600,
+          discount_amount: 0,
+          line_total: 3000,
+          returned_base_milli: 2000,
+        },
+        {
+          id: 502,
+          sale_id: 91,
+          product_id: 2,
+          packaging_id: 2,
+          product_name: 'Coca 33cl',
+          packaging_name: 'canette',
+          base_unit: 'canette',
+          coefficient_milli: 1000,
+          quantity_milli: 2000,
+          base_quantity_milli: 2000,
+          unit_price: 500,
+          discount_amount: 0,
+          line_total: 1000,
+          returned_base_milli: 2000,
+        },
+      ],
+      payments: [{ id: 1, reference: 'REC-1', method_code: 'cash', method_label: 'Espèces', part_amount: 3000, created_at: '2026-11-17T10:00:00Z' }],
+      deposits: [],
+      cancellation: null,
+      returns: [],
+    };
+    apiClient.listSales = async () => ({
+      items: [saleDetail],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+    apiClient.getSaleDetail = async () => saleDetail;
+    apiClient.createSaleReturn = async (saleId, input) => {
+      returnCalls.push({ saleId, input });
+      return saleDetail;
+    };
+
+    apiClient.listSuppliers = async () => [];
+    apiClient.listProducts = async () => ({ items: [], total: 0, page: 1, pageSize: 100, totalPages: 1 });
+    apiClient.listPurchases = async () => [
+      {
+        id: 77,
+        reference: 'CMD-2026-00077',
+        supplier_id: 1,
+        supplier_name: 'SOLIBRA',
+        supplier_code: 'FRN-001',
+        status: 'partial',
+        total_amount: 100000,
+        received_amount: 60000,
+        expected_date: null,
+        notes: null,
+        created_at: '2026-11-17T08:00:00Z',
+        lines: [
+          {
+            id: 901,
+            product_id: 1,
+            packaging_id: 1,
+            product_name: 'Flag 65cl',
+            packaging_name: 'casier',
+            base_unit: 'bouteille',
+            coefficient_milli: 24000,
+            ordered_quantity_milli: 10000,
+            received_quantity_milli: 6000,
+            unit_price: 10000,
+            line_total: 100000,
+          },
+        ],
+        receipts: [],
+      },
+    ];
+    apiClient.receivePurchaseOrder = async (orderId, input) => {
+      receiveCalls.push({ orderId, input });
+      return { id: 1 };
+    };
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      const shView = render(
+        React.createElement(QueryClientProvider, { client: qc }, React.createElement(SalesHistoryPage))
+      );
+      await waitFor(() => assert.ok(screen.getByText('VTE-2026-00091')));
+      fireEvent.click(screen.getByRole('button', { name: /Détails/i }));
+      await waitFor(() => assert.ok(screen.getByRole('button', { name: /Retour & Avoir/i })));
+      fireEvent.click(screen.getByRole('button', { name: /Retour & Avoir/i }));
+      await waitFor(() => assert.ok(screen.getByText(/Déjà intégralement retournée/i)));
+
+      const cocaInput = screen.getByLabelText('Quantité retour Coca 33cl');
+      assert.equal(cocaInput.hasAttribute('disabled'), true);
+
+      const flagInput = screen.getByLabelText('Quantité retour Flag 65cl');
+      fireEvent.change(flagInput, { target: { value: '5' } });
+      fireEvent.change(flagInput.closest('div.space-y-3').querySelector('input[type="text"]:not([aria-label])'), {
+        target: { value: 'Motif test' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Générer l'avoir/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByText(/Quantité retournée supérieure au solde restant/i))
+      );
+      assert.equal(returnCalls.length, 0);
+
+      fireEvent.change(flagInput, { target: { value: '1,5' } });
+      fireEvent.click(screen.getByRole('button', { name: /Générer l'avoir/i }));
+      await waitFor(() => assert.equal(returnCalls.length, 1));
+      assert.deepEqual(returnCalls[0].input.lines, [{ sale_line_id: 501, base_quantity: '1.5' }]);
+      shView.unmount();
+
+      render(
+        React.createElement(QueryClientProvider, { client: qc }, React.createElement(PurchasesPage))
+      );
+      await waitFor(() => assert.ok(screen.getByText('CMD-2026-00077')));
+      fireEvent.click(screen.getByRole('button', { name: /Réceptionner/i }));
+      await waitFor(() => assert.ok(screen.getByText(/Restant : 4 casier/i)));
+
+      const recInput = screen.getByLabelText('Quantité reçue');
+      fireEvent.change(recInput, { target: { value: '6' } });
+      fireEvent.click(screen.getByRole('button', { name: /Valider la réception en stock/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByText(/La quantité reçue dépasse le reliquat commandé/i))
+      );
+      assert.equal(receiveCalls.length, 0);
+
+      fireEvent.change(recInput, { target: { value: '2' } });
+      fireEvent.click(screen.getByRole('button', { name: /Valider la réception en stock/i }));
+      await waitFor(() => assert.equal(receiveCalls.length, 1));
+      assert.equal(receiveCalls[0].input.lines[0].purchase_order_line_id, 901);
+      assert.equal(receiveCalls[0].input.lines[0].received_quantity, '2');
+    } finally {
+      qc.clear();
+      apiClient.listSales = origListSales;
+      apiClient.getSaleDetail = origGetSaleDetail;
+      apiClient.createSaleReturn = origCreateReturn;
+      apiClient.listPurchases = origListPurchases;
+      apiClient.listSuppliers = origListSuppliers;
+      apiClient.listProducts = origListProducts;
+      apiClient.receivePurchaseOrder = origReceivePo;
+      apiClient.getSettings = origGetSettings;
+    }
+  });
 });

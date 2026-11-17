@@ -79,9 +79,14 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy -p depotpro-core -p depotpro-server --all-targets -- -D warnings
-      - run: cargo test -p depotpro-core -p depotpro-server
+      - name: Vérification formatage Rust (rustfmt)
+        run: cargo fmt --all -- --check
+      - name: Analyse statique Rust (clippy)
+        if: ${{ !cancelled() }}
+        run: cargo clippy -p depotpro-core -p depotpro-server --all-targets -- -D warnings
+      - name: Tests unitaires et d'intégration Rust
+        if: ${{ !cancelled() }}
+        run: cargo test -p depotpro-core -p depotpro-server
 
   desktop-tauri-bundle:
     name: Tauri 2 Desktop (${{ matrix.os }})

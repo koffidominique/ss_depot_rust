@@ -16,6 +16,14 @@ import type { SaleDetail, SaleSummary } from '../types/erp.ts';
 import { exportSalesCsv } from '../utils/csv.ts';
 import { formatDateTime, formatFcfa, formatQty, newRequestKey } from '../utils/format.ts';
 
+function parseQtyMilliInput(raw: string): number | null {
+  const cleaned = raw.trim().replace(',', '.');
+  if (!cleaned) return 0;
+  if (!/^\d+(\.\d{1,3})?$/.test(cleaned)) return null;
+  const [intPart, fracPart = ''] = cleaned.split('.');
+  return Number(intPart) * 1000 + Number(fracPart.padEnd(3, '0'));
+}
+
 export function SalesHistoryPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -103,6 +111,7 @@ export function SalesHistoryPage() {
 
   const cancelMutation = useMutation({
     mutationFn: () => {
+      setActionError(null);
       if (!cancelTarget) throw new Error('Aucune vente sélectionnée');
       return apiClient.cancelSale(cancelTarget.id, {
         reason: cancelReason,
@@ -119,6 +128,7 @@ export function SalesHistoryPage() {
       qc.invalidateQueries({ queryKey: ['debts'] });
       setCancelTarget(null);
       setCancelReason('');
+      setActionError(null);
       setSelectedSale(updated);
     },
     onError: (err) => setActionError(err instanceof Error ? err.message : 'Erreur annulation.'),
@@ -126,10 +136,28 @@ export function SalesHistoryPage() {
 
   const returnMutation = useMutation({
     mutationFn: () => {
+      setActionError(null);
       if (!returnTarget) throw new Error('Aucune vente sélectionnée');
-      const lines = Object.entries(returnQtyByLine)
-        .filter(([, q]) => Number(q) > 0)
-        .map(([lineId, q]) => ({ sale_line_id: Number(lineId), base_quantity: q }));
+      const lines: Array<{ sale_line_id: number; base_quantity: string }> = [];
+      for (const l of returnTarget.lines) {
+        const raw = (returnQtyByLine[l.id] || '').trim().replace(',', '.');
+        if (!raw) continue;
+        const qtyMilli = parseQtyMilliInput(raw);
+        if (qtyMilli === null) {
+          throw new Error(`Quantité de retour invalide pour ${l.product_name}.`);
+        }
+        if (qtyMilli <= 0) continue;
+        const remMilli = Math.max(0, l.base_quantity_milli - l.returned_base_milli);
+        if (qtyMilli > remMilli) {
+          throw new Error(
+            `Quantité retournée supérieure au solde restant pour ${l.product_name}.`
+          );
+        }
+        lines.push({ sale_line_id: l.id, base_quantity: raw });
+      }
+      if (lines.length === 0) {
+        throw new Error('Saisissez au moins un article à retourner avec une quantité > 0.');
+      }
       return apiClient.createSaleReturn(returnTarget.id, {
         request_key: newRequestKey('ret'),
         reason: returnReason,
@@ -422,7 +450,7 @@ export function SalesHistoryPage() {
                   </div>
                 </div>
 
-                {actionError && (
+                {actionError && !cancelTarget && !returnTarget && (
                   <div className="rounded-lg bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-xs text-[#DC4545]">
                     {actionError}
                   </div>
@@ -532,6 +560,9 @@ export function SalesHistoryPage() {
                       type="button"
                       onClick={() => {
                         setActionError(null);
+                        setReturnQtyByLine({});
+                        setReturnReason('');
+                        setRestockApproved(true);
                         setRefundMethodCode(defaultRefundMethodFor(selectedSale));
                         setReturnTarget(selectedSale);
                       }}
@@ -645,21 +676,30 @@ export function SalesHistoryPage() {
             )}
             <div className="mt-4 space-y-3">
               {returnTarget?.lines.map((l) => {
-                const maxBase = (l.base_quantity_milli - l.returned_base_milli) / 1000;
+                const remMilli = Math.max(0, l.base_quantity_milli - l.returned_base_milli);
                 return (
                   <div key={l.id} className="flex items-center justify-between gap-3 text-xs">
                     <div>
                       <div className="font-medium">{l.product_name}</div>
-                      <div className="text-[#667085]">Max retournable : {maxBase} {l.base_unit}</div>
+                      <div className="text-[#667085]">
+                        {remMilli > 0
+                          ? `Max retournable : ${formatQty(remMilli, l.base_unit)}`
+                          : 'Déjà intégralement retournée'}
+                      </div>
                     </div>
                     <input
                       type="text"
+                      aria-label={`Quantité retour ${l.product_name}`}
+                      disabled={remMilli <= 0}
                       value={returnQtyByLine[l.id] || ''}
-                      onChange={(e) =>
-                        setReturnQtyByLine((prev) => ({ ...prev, [l.id]: e.target.value }))
-                      }
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(',', '.');
+                        if (raw === '' || /^\d+(\.\d{0,3})?$/.test(raw)) {
+                          setReturnQtyByLine((prev) => ({ ...prev, [l.id]: raw }));
+                        }
+                      }}
                       placeholder="0"
-                      className="w-24 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num text-right"
+                      className="w-24 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num text-right disabled:opacity-50"
                     />
                   </div>
                 );

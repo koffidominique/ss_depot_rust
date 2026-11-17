@@ -855,13 +855,46 @@ export async function createSaleReturn(
     lines: Array<{ sale_line_id: number; base_quantity: string | number }>;
   }
 ) {
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const reason = (input.reason || '').trim();
   if (!reason) throw new BusinessError('VALIDATION_ERROR', 'Le motif du retour est obligatoire.');
-  if (!input.lines?.length) throw new BusinessError('VALIDATION_ERROR', 'Sélectionnez au moins un article à retourner.');
+  if (!input.lines?.length) {
+    throw new BusinessError('VALIDATION_ERROR', 'Sélectionnez au moins un article à retourner.');
+  }
+
+  const seenLineIds = new Set<number>();
+  const normalizedLines: Array<{ saleLineId: number; baseQtyMilli: number }> = [];
+  for (const l of input.lines) {
+    const saleLineId = Number(l.sale_line_id);
+    if (!Number.isInteger(saleLineId) || saleLineId <= 0) {
+      throw new BusinessError('VALIDATION_ERROR', 'Identifiant de ligne de vente invalide.');
+    }
+    if (seenLineIds.has(saleLineId)) {
+      throw new BusinessError(
+        'VALIDATION_ERROR',
+        `Ligne de vente #${saleLineId} dupliquée dans la même demande de retour. Regroupez les quantités sur une seule ligne.`
+      );
+    }
+    seenLineIds.add(saleLineId);
+    const baseQtyMilli = positiveMilli(l.base_quantity, 'Quantité retournée');
+    normalizedLines.push({ saleLineId, baseQtyMilli });
+  }
 
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM sales_returns WHERE request_key = ?').get(input.request_key);
-    if (dup) return getSaleDetail(saleId);
+    const dup = db
+      .prepare('SELECT id, sale_id FROM sales_returns WHERE request_key = ?')
+      .get(requestKey) as { id: number; sale_id: number } | undefined;
+    if (dup) {
+      if (dup.sale_id !== saleId) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour une autre vente.",
+          409
+        );
+      }
+      return getSaleDetail(saleId);
+    }
 
     const session = requireOpenSession(db);
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId) as
@@ -879,9 +912,8 @@ export async function createSaleReturn(
     let totalReturnAmount = 0;
     const prepared: Array<{ saleLineId: number; productId: number; baseQtyMilli: number; amount: number }> = [];
 
-    for (const l of input.lines) {
-      const baseQtyMilli = positiveMilli(l.base_quantity, 'Quantité retournée');
-      const sl = db.prepare('SELECT * FROM sale_lines WHERE id = ? AND sale_id = ?').get(l.sale_line_id, saleId) as
+    for (const l of normalizedLines) {
+      const sl = db.prepare('SELECT * FROM sale_lines WHERE id = ? AND sale_id = ?').get(l.saleLineId, saleId) as
         | {
             id: number;
             product_id: number;
@@ -895,11 +927,17 @@ export async function createSaleReturn(
         .prepare('SELECT COALESCE(SUM(base_quantity_milli), 0) AS s FROM sales_return_lines WHERE sale_line_id = ?')
         .get(sl.id) as { s: number };
 
-      if (prevRet.s + baseQtyMilli > sl.base_quantity_milli) {
+      if (prevRet.s >= sl.base_quantity_milli) {
+        throw new BusinessError(
+          'INVALID_QUANTITY',
+          `La ligne de vente #${sl.id} a déjà été intégralement retournée.`
+        );
+      }
+      if (prevRet.s + l.baseQtyMilli > sl.base_quantity_milli) {
         throw new BusinessError('INVALID_QUANTITY', 'Quantité retournée supérieure à la quantité vendue restante.');
       }
 
-      const exactProd = BigInt(sl.line_total) * BigInt(baseQtyMilli);
+      const exactProd = BigInt(sl.line_total) * BigInt(l.baseQtyMilli);
       const denom = BigInt(sl.base_quantity_milli);
       if (exactProd % denom !== 0n) {
         throw new BusinessError(
@@ -909,7 +947,7 @@ export async function createSaleReturn(
       }
       const lineAmount = Number(exactProd / denom);
       totalReturnAmount = checkedAddMoney(totalReturnAmount, lineAmount, 'Total retour');
-      prepared.push({ saleLineId: sl.id, productId: sl.product_id, baseQtyMilli, amount: lineAmount });
+      prepared.push({ saleLineId: sl.id, productId: sl.product_id, baseQtyMilli: l.baseQtyMilli, amount: lineAmount });
     }
 
     // Répartition : réduction créance d'abord, puis remboursement en caisse
@@ -921,19 +959,37 @@ export async function createSaleReturn(
     if (rec && rec.remaining_amount > 0) {
       creditReduction = Math.min(rec.remaining_amount, totalReturnAmount);
       refundAmount = totalReturnAmount - creditReduction;
+    }
+
+    if (creditReduction + refundAmount !== totalReturnAmount) {
+      throw new BusinessError('VALIDATION_ERROR', 'Incohérence interne dans la répartition du retour.');
+    }
+
+    if (refundAmount > 0) {
+      const pm = db
+        .prepare('SELECT code, is_cash, active FROM payment_methods WHERE code = ?')
+        .get(input.refund_method_code) as { code: string; is_cash: number; active: number } | undefined;
+      if (!pm || !pm.active) {
+        throw new BusinessError(
+          'INVALID_PAYMENT',
+          `Moyen de remboursement inactif ou introuvable : ${input.refund_method_code}`
+        );
+      }
+      if (pm.is_cash === 1) {
+        const avail = getTheoreticalCash(db, session.id, session.opening_cash);
+        if (refundAmount > avail) {
+          throw new BusinessError('INVALID_PAYMENT', 'Espèces insuffisantes en caisse pour le remboursement.');
+        }
+      }
+    }
+
+    if (rec && creditReduction > 0) {
       const nextRem = rec.remaining_amount - creditReduction;
       db.prepare('UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?').run(
         nextRem,
         nextRem === 0 ? 'paid' : 'partial',
         rec.id
       );
-    }
-
-    if (refundAmount > 0 && input.refund_method_code === 'cash') {
-      const avail = getTheoreticalCash(db, session.id, session.opening_cash);
-      if (refundAmount > avail) {
-        throw new BusinessError('INVALID_PAYMENT', 'Espèces insuffisantes en caisse pour le remboursement.');
-      }
     }
 
     const retRef = nextSequence(db, 'RET');
@@ -948,7 +1004,7 @@ export async function createSaleReturn(
         .run(
           retRef,
           avoRef,
-          input.request_key,
+          requestKey,
           saleId,
           session.id,
           totalReturnAmount,
@@ -984,7 +1040,7 @@ export async function createSaleReturn(
          VALUES (?, ?, 'sale_refund', ?, 'out', ?, ?, ?)`
       ).run(
         session.id,
-        `ret-ref:${input.request_key}`,
+        `ret-ref:${requestKey}`,
         input.refund_method_code,
         refundAmount,
         `Avoir ${avoRef} sur vente ${sale.reference}`,

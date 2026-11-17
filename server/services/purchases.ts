@@ -284,12 +284,53 @@ export async function receivePurchaseOrder(
     }>;
   }
 ) {
-  if (!input.request_key?.trim()) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
+  if (!Number.isInteger(purchaseOrderId) || purchaseOrderId <= 0) {
+    throw new BusinessError('PURCHASE_NOT_FOUND', 'Bon de commande invalide.', 400);
+  }
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   if (!input.lines?.length) throw new BusinessError('VALIDATION_ERROR', 'Saisissez au moins une ligne reçue.');
 
+  const seenPoLines = new Set<number>();
+  const normalizedLines: Array<{
+    poLineId: number;
+    qtyMilli: number;
+    discrepancyReason: string | null;
+  }> = [];
+  for (const l of input.lines) {
+    const poLineId = Number(l.purchase_order_line_id);
+    if (!Number.isInteger(poLineId) || poLineId <= 0) {
+      throw new BusinessError('VALIDATION_ERROR', 'Identifiant de ligne de commande invalide.');
+    }
+    if (seenPoLines.has(poLineId)) {
+      throw new BusinessError(
+        'VALIDATION_ERROR',
+        `Ligne de commande #${poLineId} dupliquée dans la même demande de réception. Regroupez les quantités sur une seule ligne.`
+      );
+    }
+    seenPoLines.add(poLineId);
+    const qtyMilli = positiveMilli(l.received_quantity, 'Quantité réceptionnée');
+    normalizedLines.push({
+      poLineId,
+      qtyMilli,
+      discrepancyReason: l.discrepancy_reason?.trim() || null,
+    });
+  }
+
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM purchase_receipts WHERE request_key = ?').get(input.request_key);
-    if (dup) return dup;
+    const dup = db
+      .prepare('SELECT * FROM purchase_receipts WHERE request_key = ?')
+      .get(requestKey) as { id: number; purchase_order_id: number } | undefined;
+    if (dup) {
+      if (dup.purchase_order_id !== purchaseOrderId) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour un autre bon de commande.",
+          409
+        );
+      }
+      return dup;
+    }
 
     const po = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(purchaseOrderId) as
       | { id: number; reference: string; supplier_id: number; status: string }
@@ -314,11 +355,10 @@ export async function receivePurchaseOrder(
       discrepancyReason: string | null;
     }> = [];
 
-    for (const l of input.lines) {
-      const qtyMilli = positiveMilli(l.received_quantity, 'Quantité réceptionnée');
+    for (const l of normalizedLines) {
       const pol = db
         .prepare('SELECT * FROM purchase_order_lines WHERE id = ? AND purchase_order_id = ?')
-        .get(l.purchase_order_line_id, purchaseOrderId) as
+        .get(l.poLineId, purchaseOrderId) as
         | {
             id: number;
             product_id: number;
@@ -330,25 +370,31 @@ export async function receivePurchaseOrder(
         | undefined;
       if (!pol) throw new BusinessError('VALIDATION_ERROR', 'Ligne de commande introuvable.');
 
-      if (pol.received_quantity_milli + qtyMilli > pol.ordered_quantity_milli) {
+      if (pol.received_quantity_milli >= pol.ordered_quantity_milli) {
+        throw new BusinessError(
+          'INVALID_QUANTITY',
+          `La ligne de commande #${pol.id} a déjà été intégralement réceptionnée.`
+        );
+      }
+      if (pol.received_quantity_milli + l.qtyMilli > pol.ordered_quantity_milli) {
         throw new BusinessError(
           'INVALID_QUANTITY',
           'La quantité reçue dépasse la quantité commandée restante.'
         );
       }
 
-      const baseQtyMilli = multiplyQtyCoeffToBaseMilli(qtyMilli, pol.coefficient_milli);
-      const amount = computeLineTotalFcfa(qtyMilli, pol.unit_price);
+      const baseQtyMilli = multiplyQtyCoeffToBaseMilli(l.qtyMilli, pol.coefficient_milli);
+      const amount = computeLineTotalFcfa(l.qtyMilli, pol.unit_price);
       receiptTotal = checkedAddMoney(receiptTotal, amount, 'Total réception');
 
       preparedLines.push({
         poLineId: pol.id,
         productId: pol.product_id,
-        qtyMilli,
+        qtyMilli: l.qtyMilli,
         baseQtyMilli,
         unitPrice: pol.unit_price,
         amount,
-        discrepancyReason: l.discrepancy_reason?.trim() || null,
+        discrepancyReason: l.discrepancyReason,
       });
     }
 
@@ -358,18 +404,28 @@ export async function receivePurchaseOrder(
         .prepare(
           'INSERT INTO purchase_receipts (reference, request_key, purchase_order_id, total_amount, notes) VALUES (?, ?, ?, ?, ?)'
         )
-        .run(recRef, input.request_key, purchaseOrderId, receiptTotal, input.notes?.trim() || null).lastInsertRowid
+        .run(recRef, requestKey, purchaseOrderId, receiptTotal, input.notes?.trim() || null).lastInsertRowid
     );
 
     for (const pl of preparedLines) {
+      const upd = db
+        .prepare(
+          `UPDATE purchase_order_lines
+           SET received_quantity_milli = received_quantity_milli + ?
+           WHERE id = ? AND purchase_order_id = ? AND received_quantity_milli + ? <= ordered_quantity_milli`
+        )
+        .run(pl.qtyMilli, pl.poLineId, purchaseOrderId, pl.qtyMilli);
+      if (Number(upd.changes) !== 1) {
+        throw new BusinessError(
+          'INVALID_QUANTITY',
+          'La quantité reçue dépasse la quantité commandée restante.'
+        );
+      }
+
       db.prepare(
         `INSERT INTO purchase_receipt_lines (receipt_id, purchase_order_line_id, quantity_milli, base_quantity_milli, unit_price, amount, discrepancy_reason)
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       ).run(receiptId, pl.poLineId, pl.qtyMilli, pl.baseQtyMilli, pl.unitPrice, pl.amount, pl.discrepancyReason);
-
-      db.prepare(
-        'UPDATE purchase_order_lines SET received_quantity_milli = received_quantity_milli + ? WHERE id = ?'
-      ).run(pl.qtyMilli, pl.poLineId);
 
       // Mise à jour stock & coût moyen exact lorsque le coût unitaire de base est connu
       const prod = db
@@ -404,7 +460,8 @@ export async function receivePurchaseOrder(
         'UPDATE products SET stock_milli = ?, average_cost_num = ?, average_cost_den = ? WHERE id = ?'
       ).run(nextStock, nextCostNum, nextCostDen, pl.productId);
 
-      const unitBaseCost = pl.baseQtyMilli > 0 ? Math.round((pl.amount * 1000) / pl.baseQtyMilli) : null;
+      const unitBaseCost =
+        pl.baseQtyMilli > 0 ? Number((BigInt(pl.amount) * 1000n) / BigInt(pl.baseQtyMilli)) : null;
       db.prepare(
         `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, unit_cost, reason, reference_document)
          VALUES (?, 'purchase_in', ?, ?, ?, ?, ?, ?)`

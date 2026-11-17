@@ -1,4 +1,9 @@
-import { ApiError, type ApiClient } from './ApiClient.ts';
+import {
+  ApiError,
+  type ApiClient,
+  type CreateSaleReturnPayload,
+  type ReceivePurchaseOrderPayload,
+} from './ApiClient.ts';
 
 interface TauriInternals {
   invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
@@ -165,7 +170,7 @@ export class TauriApiClient implements ApiClient {
       payload: input,
     });
   }
-  createSaleReturn(saleId: number, input: Record<string, unknown>) {
+  createSaleReturn(saleId: number, input: CreateSaleReturnPayload) {
     return tauriInvoke<Awaited<ReturnType<ApiClient['createSaleReturn']>>>('create_sale_return', {
       token: getStoredToken(),
       saleId,
@@ -210,7 +215,7 @@ export class TauriApiClient implements ApiClient {
       payload: input,
     });
   }
-  receivePurchaseOrder(orderId: number, input: Record<string, unknown>) {
+  receivePurchaseOrder(orderId: number, input: ReceivePurchaseOrderPayload) {
     return tauriInvoke('receive_purchase_order', {
       token: getStoredToken(),
       purchaseOrderId: orderId,
