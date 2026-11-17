@@ -1,8 +1,6 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
-import path from 'node:path';
-import fs from 'node:fs';
 import { BusinessError } from './domain.ts';
-import { BACKUP_DIR, getDb } from './db.ts';
+import { getDb } from './db.ts';
 import {
   getAuthStatus,
   setupOwnerPin,
@@ -72,6 +70,7 @@ import {
   togglePaymentMethod,
   createBackup,
   listBackups,
+  readBackupFile,
   verifyBackup,
   restoreBackup,
 } from './services/reports.ts';
@@ -506,13 +505,8 @@ export function createApiApp() {
   );
   app.get('/api/backups/:name/verify', (req, res) => res.json(verifyBackup(req.params.name)));
   app.get('/api/backups/:name/download', (req, res) => {
-    const safe = path.basename(req.params.name);
-    const full = path.join(BACKUP_DIR, safe);
-    if (!fs.existsSync(full)) {
-      res.status(404).json({ code: 'BACKUP_ERROR', message: 'Sauvegarde introuvable.' });
-      return;
-    }
-    res.download(full, safe);
+    const { safeName, fullPath } = readBackupFile(req.params.name);
+    res.download(fullPath, safeName);
   });
   app.post(
     '/api/backups/:name/restore',

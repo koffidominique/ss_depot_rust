@@ -13,6 +13,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const DEFAULT_MIGRATIONS_DIR = path.resolve(__dirname, '..', 'migrations', 'sqlite');
+export const MIN_SUPPORTED_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export const DB_PATH = process.env.DEPOTPRO_DB_PATH
   ? path.resolve(process.env.DEPOTPRO_DB_PATH)

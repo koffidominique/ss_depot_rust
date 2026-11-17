@@ -2,6 +2,8 @@ import type {
   AppSettings,
   AuthStatus,
   BackupFile,
+  BackupRestoreResult,
+  BackupVerifyResult,
   CashStatus,
   Category,
   Client,
@@ -179,8 +181,8 @@ export interface ApiClient {
   togglePaymentMethod(code: string, active: boolean): Promise<PaymentMethodConfig>;
   listBackups(): Promise<BackupFile[]>;
   createBackup(): Promise<BackupFile>;
-  verifyBackup(name: string): Promise<{ name: string; integrity: string; foreignKeyErrors: number; schemaVersion: number }>;
-  restoreBackup(name: string): Promise<{ restored: string }>;
+  verifyBackup(name: string): Promise<BackupVerifyResult>;
+  restoreBackup(name: string): Promise<BackupRestoreResult>;
   downloadBackup(name: string): Promise<Uint8Array>;
   generateDocumentPdf(doc: Record<string, unknown>): Promise<Uint8Array>;
 }

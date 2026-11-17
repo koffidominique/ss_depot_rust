@@ -75,6 +75,7 @@ const { DashboardPage } = await import('../src/pages/DashboardPage.tsx');
 const { ExpensesPage } = await import('../src/pages/ExpensesPage.tsx');
 const { CashPage } = await import('../src/pages/CashPage.tsx');
 const { ConsignmentsPage } = await import('../src/pages/ConsignmentsPage.tsx');
+const { BackupsPage } = await import('../src/pages/BackupsPage.tsx');
 const { Header } = await import('../src/layouts/Header.tsx');
 const { apiClient } = await import('../src/services/api/createApiClient.ts');
 const { useUiStore } = await import('../src/stores/uiStore.ts');
@@ -3124,6 +3125,108 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       apiClient.getReports = origGetReports;
       apiClient.getSettings = origGetSettings;
       apiClient.updateSettings = origUpdateSettings;
+    }
+  });
+
+  it('Lot 5 — BackupsPage affiche SHA-256, vérification lecture seule, incompatibilité et restauration sécurisée', async () => {
+    const origListBackups = apiClient.listBackups;
+    const origVerifyBackup = apiClient.verifyBackup;
+    const origRestoreBackup = apiClient.restoreBackup;
+
+    apiClient.listBackups = async () => [
+      {
+        name: 'depotpro_backup_20261117120000_aaaaaa.db',
+        size: 163840,
+        createdAt: '2026-11-17T12:00:00Z',
+        sha256: 'a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20',
+      },
+      {
+        name: 'depotpro_backup_20261117110000_future.db',
+        size: 163840,
+        createdAt: '2026-11-17T11:00:00Z',
+        sha256: 'ffffffffffff0708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20',
+      },
+    ];
+    apiClient.verifyBackup = async (name) =>
+      name.includes('future')
+        ? {
+            name,
+            integrity: 'ok',
+            foreignKeyErrors: 0,
+            schemaVersion: 99,
+            compatible: false,
+            compatibilityReason: 'Version de schéma incompatible (v99 > v4).',
+          }
+        : {
+            name,
+            integrity: 'ok',
+            foreignKeyErrors: 0,
+            schemaVersion: 4,
+            compatible: true,
+            compatibilityReason: null,
+            sha256: 'a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20',
+          };
+    apiClient.restoreBackup = async (name) => ({
+      restored: name,
+      safetyBackup: 'depotpro_backup_20261117120500_safety.db',
+      counts: {
+        products: 5,
+        stockMovements: 8,
+        clients: 2,
+        suppliers: 1,
+        sales: 3,
+        salesReturns: 1,
+        customerReceivables: 1,
+        purchaseOrders: 1,
+        purchaseReceipts: 1,
+        supplierDebts: 1,
+        returnableStockMovements: 1,
+        cashMovements: 4,
+        expenses: 1,
+        auditLogs: 12,
+      },
+    });
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/backups'] },
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(BackupsPage))
+        )
+      );
+
+      await waitFor(() => assert.ok(screen.getByText(/a1b2c3d4e5f6…/i)));
+
+      fireEvent.click(screen.getAllByRole('button', { name: /^Vérifier$/i })[0]);
+      await waitFor(() =>
+        assert.ok(screen.getByText(/lecture seule.*compatible/i))
+      );
+
+      fireEvent.click(screen.getAllByRole('button', { name: /^Vérifier$/i })[1]);
+      await waitFor(() =>
+        assert.ok(screen.getByText(/incompatible.*v99 > v4/i))
+      );
+
+      fireEvent.click(screen.getAllByRole('button', { name: /^Restaurer$/i })[0]);
+      await waitFor(() =>
+        assert.ok(screen.getByRole('button', { name: /Restaurer cette sauvegarde/i }))
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Restaurer cette sauvegarde/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByText(/sauvegarde sécurité : depotpro_backup_20261117120500_safety\.db/i))
+      );
+    } finally {
+      qc.clear();
+      apiClient.listBackups = origListBackups;
+      apiClient.verifyBackup = origVerifyBackup;
+      apiClient.restoreBackup = origRestoreBackup;
     }
   });
 });

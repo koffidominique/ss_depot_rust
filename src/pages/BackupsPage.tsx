@@ -36,9 +36,13 @@ export function BackupsPage() {
   const verifyMut = useMutation({
     mutationFn: (name: string) => apiClient.verifyBackup(name),
     onSuccess: (res) => {
+      const ok = res.integrity === 'ok' && res.foreignKeyErrors === 0 && res.compatible !== false;
+      const hashHint = res.sha256 ? `, SHA-256 ${res.sha256.slice(0, 12)}…` : '';
       setStatusMsg({
-        type: res.integrity === 'ok' && res.foreignKeyErrors === 0 ? 'ok' : 'err',
-        text: `Vérification ${res.name} : intégrité=${res.integrity}, erreurs FK=${res.foreignKeyErrors}, schéma v${res.schemaVersion}`,
+        type: ok ? 'ok' : 'err',
+        text: ok
+          ? `Vérification ${res.name} (lecture seule) : intégrité=${res.integrity}, erreurs FK=${res.foreignKeyErrors}, schéma v${res.schemaVersion}${hashHint}, compatible.`
+          : `Sauvegarde ${res.name} incompatible : ${res.compatibilityReason || `intégrité=${res.integrity}, FK=${res.foreignKeyErrors}`}`,
       });
     },
     onError: (err) =>
@@ -50,13 +54,19 @@ export function BackupsPage() {
     onSuccess: (res) => {
       qc.invalidateQueries();
       setRestoreTarget(null);
+      const safetyHint = res.safetyBackup ? `sauvegarde sécurité : ${res.safetyBackup}` : 'pré-sauvegarde de sécurité conservée';
+      const summaryHint = res.counts
+        ? `, ${res.counts.products} produit(s), ${res.counts.sales} vente(s)`
+        : '';
       setStatusMsg({
         type: 'ok',
-        text: `Base restaurée depuis ${res.restored} (une pré-sauvegarde de sécurité a été conservée).`,
+        text: `Base restaurée depuis ${res.restored} (${safetyHint}${summaryHint}).`,
       });
     },
-    onError: (err) =>
-      setStatusMsg({ type: 'err', text: err instanceof Error ? err.message : 'Erreur restauration.' }),
+    onError: (err) => {
+      setRestoreTarget(null);
+      setStatusMsg({ type: 'err', text: err instanceof Error ? err.message : 'Erreur restauration.' });
+    },
   });
 
   const handleDownload = async (name: string) => {
@@ -94,6 +104,15 @@ export function BackupsPage() {
       accessorKey: 'size',
       header: 'Taille',
       cell: ({ row }) => <span className="font-mono-num text-xs">{formatBytes(row.original.size)}</span>,
+    },
+    {
+      accessorKey: 'sha256',
+      header: 'SHA-256',
+      cell: ({ row }) => (
+        <span className="font-mono-num text-xs text-[#667085] dark:text-slate-400">
+          {row.original.sha256 ? `${row.original.sha256.slice(0, 12)}…` : '—'}
+        </span>
+      ),
     },
     {
       id: 'actions',

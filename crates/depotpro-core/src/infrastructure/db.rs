@@ -46,6 +46,9 @@ pub const MIGRATIONS: &[MigrationDef] = &[
     },
 ];
 
+pub const MIN_SUPPORTED_SCHEMA_VERSION: i64 = 1;
+pub const CURRENT_SCHEMA_VERSION: i64 = 4;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MigrationRunReport {
     pub applied_versions: Vec<i64>,

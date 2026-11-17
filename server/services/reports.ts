@@ -1,9 +1,13 @@
 import { DatabaseSync } from 'node:sqlite';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
   BACKUP_DIR,
+  CURRENT_SCHEMA_VERSION,
   DB_PATH,
+  MIN_SUPPORTED_SCHEMA_VERSION,
+  closeDb,
   getDb,
   getTheoreticalCash,
   reloadDb,
@@ -433,21 +437,365 @@ export async function togglePaymentMethod(code: string, active: boolean) {
 }
 
 const MAX_RETAINED_BACKUPS = 30;
+export const BACKUP_FORMAT_V3 = 'sqlite3-depotpro-v3';
+export const MIN_APP_VERSION = '3.0.0';
+const SQLITE_HEADER_MAGIC = Buffer.from('SQLite format 3\0', 'ascii');
+const BACKUP_FILENAME_RE = /^depotpro_backup_\d{14}_[a-zA-Z0-9_-]{1,32}\.db$/;
+
+export const REQUIRED_CORE_TABLES = [
+  'schema_version',
+  'app_settings',
+  'owner_security',
+  'categories',
+  'payment_methods',
+  'suppliers',
+  'products',
+  'product_packagings',
+  'clients',
+  'sales',
+  'sale_lines',
+  'payments',
+  'payment_parts',
+  'sales_returns',
+  'customer_receivables',
+  'purchase_orders',
+  'purchase_order_lines',
+  'purchase_receipts',
+  'supplier_debts',
+  'stock_movements',
+  'cash_sessions',
+  'cash_movements',
+  'expenses',
+  'returnable_packaging_types',
+  'returnable_stock_movements',
+  'audit_logs',
+  'document_sequences',
+] as const;
+
+export interface BackupEntityCounts {
+  products: number;
+  stockMovements: number;
+  clients: number;
+  suppliers: number;
+  sales: number;
+  salesReturns: number;
+  customerReceivables: number;
+  purchaseOrders: number;
+  purchaseReceipts: number;
+  supplierDebts: number;
+  returnableStockMovements: number;
+  cashMovements: number;
+  expenses: number;
+  auditLogs: number;
+}
+
+export type RestoreFailureHook =
+  | 'before_atomic_replace'
+  | 'before_reconnect'
+  | 'after_reconnect_post_verify';
+
+export function computeFileSha256(filePath: string): string {
+  const hash = crypto.createHash('sha256');
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(65_536);
+    while (true) {
+      const read = fs.readSync(fd, buf, 0, buf.length, null);
+      if (read === 0) break;
+      hash.update(buf.subarray(0, read));
+    }
+    return hash.digest('hex');
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function fsyncFileSync(filePath: string): void {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function fsyncDirBestEffort(dirPath: string): void {
+  if (process.platform === 'win32') return;
+  try {
+    const fd = fs.openSync(dirPath, 'r');
+    try {
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    // Non supporté sur certains FS
+  }
+}
+
+export function isValidBackupFilename(filename: string): boolean {
+  if (!filename || filename.length > 128) return false;
+  if (
+    filename.includes('/') ||
+    filename.includes('\\') ||
+    filename.includes('\0') ||
+    filename.includes('..') ||
+    /\s/.test(filename)
+  ) {
+    return false;
+  }
+  return BACKUP_FILENAME_RE.test(filename);
+}
+
+export function resolveSafeBackupPath(filename: string): { safeName: string; fullPath: string } {
+  if (!isValidBackupFilename(filename)) {
+    throw new BusinessError('BACKUP_ERROR', 'Nom de fichier de sauvegarde non autorisé.', 400);
+  }
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const canonicalDir = fs.realpathSync(BACKUP_DIR);
+  const candidate = path.join(canonicalDir, filename);
+
+  let lstat: fs.Stats;
+  try {
+    lstat = fs.lstatSync(candidate);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new BusinessError('BACKUP_ERROR', 'Fichier de sauvegarde introuvable.', 404);
+    }
+    throw new BusinessError('BACKUP_ERROR', 'Accès sauvegarde refusé.', 400);
+  }
+
+  if (lstat.isSymbolicLink()) {
+    throw new BusinessError(
+      'BACKUP_ERROR',
+      'Lien symbolique interdit dans le répertoire de sauvegarde.',
+      400
+    );
+  }
+  if (!lstat.isFile()) {
+    throw new BusinessError(
+      'BACKUP_ERROR',
+      "L'entrée de sauvegarde ciblée n'est pas un fichier régulier.",
+      400
+    );
+  }
+
+  const canonicalFile = fs.realpathSync(candidate);
+  if (path.dirname(canonicalFile) !== canonicalDir) {
+    throw new BusinessError(
+      'BACKUP_ERROR',
+      'Accès à un fichier hors du répertoire de sauvegarde interdit.',
+      400
+    );
+  }
+  return { safeName: filename, fullPath: canonicalFile };
+}
+
+function validateSqliteArchiveHeader(filePath: string): void {
+  const lstat = fs.lstatSync(filePath);
+  if (lstat.isSymbolicLink() || !lstat.isFile()) {
+    throw new BusinessError(
+      'BACKUP_ERROR',
+      "L'archive doit être un fichier régulier non symbolique.",
+      400
+    );
+  }
+  if (lstat.size < 100) {
+    throw new BusinessError(
+      'BACKUP_ERROR',
+      'Archive SQLite invalide ou tronquée (taille insuffisante).',
+      400
+    );
+  }
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const header = Buffer.alloc(16);
+    const bytesRead = fs.readSync(fd, header, 0, 16, 0);
+    if (bytesRead < 16 || !header.equals(SQLITE_HEADER_MAGIC)) {
+      throw new BusinessError(
+        'BACKUP_ERROR',
+        'Archive invalide : en-tête SQLite format 3 absent ou fichier corrompu.',
+        400
+      );
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+export function openBackupReadOnly(filePath: string): DatabaseSync {
+  validateSqliteArchiveHeader(filePath);
+  let db: DatabaseSync | null = null;
+  try {
+    db = new DatabaseSync(filePath, { readOnly: true });
+    db.exec('PRAGMA query_only = ON;');
+    return db;
+  } catch (err) {
+    if (db) {
+      try {
+        db.close();
+      } catch {
+        // Ignore
+      }
+    }
+    if (err instanceof BusinessError) throw err;
+    throw new BusinessError(
+      'BACKUP_ERROR',
+      `Impossible d'ouvrir l'archive en lecture seule : ${err instanceof Error ? err.message : String(err)}`,
+      400
+    );
+  }
+}
+
+function tableHasColumnRo(db: DatabaseSync, table: string, column: string): boolean {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return cols.some((c) => c.name === column);
+}
+
+export function collectEntityCounts(db: DatabaseSync): BackupEntityCounts {
+  const count = (table: string): number =>
+    Number((db.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as { c: number }).c);
+  return {
+    products: count('products'),
+    stockMovements: count('stock_movements'),
+    clients: count('clients'),
+    suppliers: count('suppliers'),
+    sales: count('sales'),
+    salesReturns: count('sales_returns'),
+    customerReceivables: count('customer_receivables'),
+    purchaseOrders: count('purchase_orders'),
+    purchaseReceipts: count('purchase_receipts'),
+    supplierDebts: count('supplier_debts'),
+    returnableStockMovements: count('returnable_stock_movements'),
+    cashMovements: count('cash_movements'),
+    expenses: count('expenses'),
+    auditLogs: count('audit_logs'),
+  };
+}
+
+export function verifyBackupPathReadOnly(filePath: string, displayName: string) {
+  const sha256 = computeFileSha256(filePath);
+  const testDb = openBackupReadOnly(filePath);
+  try {
+    let integrityRows: Array<{ integrity_check: string }>;
+    try {
+      integrityRows = testDb.prepare('PRAGMA integrity_check').all() as Array<{
+        integrity_check: string;
+      }>;
+    } catch (err) {
+      throw new BusinessError(
+        'BACKUP_ERROR',
+        `Archive SQLite corrompue ou illisible : ${err instanceof Error ? err.message : String(err)}`,
+        400
+      );
+    }
+
+    const integrity =
+      integrityRows.length === 0
+        ? 'empty'
+        : integrityRows.length === 1
+          ? integrityRows[0].integrity_check
+          : integrityRows.map((r) => r.integrity_check).join('; ');
+
+    let foreignKeyErrors = 0;
+    if (integrity === 'ok') {
+      try {
+        foreignKeyErrors = testDb.prepare('PRAGMA foreign_key_check').all().length;
+      } catch (err) {
+        throw new BusinessError(
+          'BACKUP_ERROR',
+          `Contrôle des clés étrangères impossible : ${err instanceof Error ? err.message : String(err)}`,
+          400
+        );
+      }
+    }
+
+    const tables = (
+      testDb.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{
+        name: string;
+      }>
+    ).map((r) => r.name);
+    const tableSet = new Set(tables);
+    const missingTables = REQUIRED_CORE_TABLES.filter((t) => !tableSet.has(t));
+
+    let appliedVersions: number[] = [];
+    if (integrity === 'ok' && tableSet.has('schema_version')) {
+      appliedVersions = (
+        testDb.prepare('SELECT version FROM schema_version ORDER BY version ASC').all() as Array<{
+          version: number;
+        }>
+      ).map((r) => Number(r.version));
+    }
+
+    const schemaVersion = appliedVersions.length > 0 ? Math.max(...appliedVersions) : 0;
+
+    let compatibilityReason: string | null = null;
+    if (integrity !== 'ok') {
+      compatibilityReason = `Échec du contrôle d'intégrité SQLite : ${integrity}`;
+    } else if (foreignKeyErrors > 0) {
+      compatibilityReason = `Violations de clés étrangères détectées (${foreignKeyErrors}).`;
+    } else if (missingTables.length > 0) {
+      compatibilityReason = `Format d'archive incompatible : table(s) DEPOTPRO manquante(s) (${missingTables.join(', ')}).`;
+    } else if (appliedVersions.length === 0 || schemaVersion < MIN_SUPPORTED_SCHEMA_VERSION) {
+      compatibilityReason = 'Version de schéma absente ou invalide dans schema_version.';
+    } else if (schemaVersion > CURRENT_SCHEMA_VERSION) {
+      compatibilityReason = `Version de schéma incompatible (v${schemaVersion} > v${CURRENT_SCHEMA_VERSION}) : mise à jour de l'application requise.`;
+    } else if (appliedVersions.some((v) => v < 1)) {
+      compatibilityReason = 'Entrée de migration invalide (< 1) dans schema_version.';
+    } else if (appliedVersions.includes(2) && !tableHasColumnRo(testDb, 'app_settings', 'logo_path')) {
+      compatibilityReason = 'Incohérence de migration v2 : colonne app_settings.logo_path absente.';
+    } else if (appliedVersions.includes(3) && !tableHasColumnRo(testDb, 'expenses', 'receipt_path')) {
+      compatibilityReason = 'Incohérence de migration v3 : colonne expenses.receipt_path absente.';
+    } else if (
+      appliedVersions.includes(4) &&
+      !tableHasColumnRo(testDb, 'app_settings', 'setup_completed')
+    ) {
+      compatibilityReason =
+        'Incohérence de migration v4 : colonne app_settings.setup_completed absente.';
+    }
+
+    const compatible = compatibilityReason === null;
+    const counts = compatible ? collectEntityCounts(testDb) : null;
+
+    return {
+      name: displayName,
+      integrity,
+      foreignKeyErrors,
+      schemaVersion,
+      appliedVersions,
+      backupFormat: BACKUP_FORMAT_V3,
+      minAppVersion: MIN_APP_VERSION,
+      compatible,
+      compatibilityReason,
+      sha256,
+      counts,
+    };
+  } finally {
+    testDb.close();
+  }
+}
 
 function pruneOldBackups(keepCount = MAX_RETAINED_BACKUPS) {
   if (!fs.existsSync(BACKUP_DIR)) return;
   const files = fs
     .readdirSync(BACKUP_DIR)
-    .filter((f) => f.endsWith('.db') && f.startsWith('depotpro_backup_'))
-    .map((f) => ({
-      name: f,
-      mtime: fs.statSync(path.join(BACKUP_DIR, f)).mtimeMs,
-    }))
+    .filter((f) => isValidBackupFilename(f))
+    .map((f) => {
+      const fullPath = path.join(BACKUP_DIR, f);
+      try {
+        const lstat = fs.lstatSync(fullPath);
+        if (lstat.isSymbolicLink() || !lstat.isFile()) return null;
+        return { name: f, fullPath, mtime: lstat.mtimeMs };
+      } catch {
+        return null;
+      }
+    })
+    .filter((item): item is { name: string; fullPath: string; mtime: number } => item !== null)
     .sort((a, b) => b.mtime - a.mtime);
 
   for (const obsolete of files.slice(keepCount)) {
     try {
-      fs.unlinkSync(path.join(BACKUP_DIR, obsolete.name));
+      fs.unlinkSync(obsolete.fullPath);
     } catch {
       // Ignorer si le fichier est verrouillé
     }
@@ -458,7 +806,8 @@ export async function createBackup() {
   return runSerialized((db) => {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-    const filename = `depotpro_backup_${ts}_${Math.random().toString(36).slice(2, 8)}.db`;
+    const uid = crypto.randomBytes(3).toString('hex');
+    const filename = `depotpro_backup_${ts}_${uid}.db`;
     const dest = path.join(BACKUP_DIR, filename);
 
     // VACUUM INTO ne peut pas s'exécuter dans une transaction SQLite active,
@@ -466,18 +815,35 @@ export async function createBackup() {
     db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
     const escapedDest = dest.replace(/'/g, "''");
     db.exec(`VACUUM INTO '${escapedDest}';`);
+    fsyncFileSync(dest);
 
-    const checkDb = new DatabaseSync(dest, { readOnly: true });
+    let check;
     try {
-      const integrity = checkDb.prepare('PRAGMA integrity_check').get() as { integrity_check: string };
-      if (integrity.integrity_check !== 'ok') {
-        throw new BusinessError('BACKUP_ERROR', "La sauvegarde a échoué au contrôle d'intégrité.");
+      check = verifyBackupPathReadOnly(dest, filename);
+      if (!check.compatible || check.integrity !== 'ok' || check.foreignKeyErrors > 0) {
+        throw new BusinessError(
+          'BACKUP_ERROR',
+          check.compatibilityReason || "La sauvegarde a échoué au contrôle d'intégrité."
+        );
       }
-    } finally {
-      checkDb.close();
+    } catch (err) {
+      if (fs.existsSync(dest)) {
+        try {
+          fs.unlinkSync(dest);
+        } catch {
+          // Ignore
+        }
+      }
+      throw err;
     }
 
-    auditLog(db, 'CREATE_BACKUP', 'backups', filename, `Sauvegarde cohérente créée : ${filename}`);
+    auditLog(
+      db,
+      'CREATE_BACKUP',
+      'backups',
+      filename,
+      `Sauvegarde cohérente créée et vérifiée : ${filename} (sha256=${check.sha256.slice(0, 12)})`
+    );
     pruneOldBackups();
     const stat = fs.statSync(dest);
     return {
@@ -485,6 +851,7 @@ export async function createBackup() {
       size: stat.size,
       createdAt: stat.mtime.toISOString(),
       integrity: 'ok',
+      sha256: check.sha256,
     };
   });
 }
@@ -493,59 +860,245 @@ export function listBackups() {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   return fs
     .readdirSync(BACKUP_DIR)
-    .filter((f) => f.endsWith('.db') && f.startsWith('depotpro_backup_'))
+    .filter((f) => isValidBackupFilename(f))
     .map((f) => {
-      const stat = fs.statSync(path.join(BACKUP_DIR, f));
-      return {
-        name: f,
-        size: stat.size,
-        createdAt: stat.mtime.toISOString(),
-      };
+      const fullPath = path.join(BACKUP_DIR, f);
+      try {
+        const lstat = fs.lstatSync(fullPath);
+        if (lstat.isSymbolicLink() || !lstat.isFile()) return null;
+        return {
+          name: f,
+          size: lstat.size,
+          createdAt: lstat.mtime.toISOString(),
+          sha256: computeFileSha256(fullPath),
+        };
+      } catch {
+        return null;
+      }
     })
+    .filter(
+      (item): item is { name: string; size: number; createdAt: string; sha256: string } =>
+        item !== null
+    )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+export function readBackupFile(filename: string): { safeName: string; fullPath: string } {
+  return resolveSafeBackupPath(filename);
+}
+
 export function verifyBackup(filename: string) {
-  const safeName = path.basename(filename);
-  const fullPath = path.join(BACKUP_DIR, safeName);
-  if (!fs.existsSync(fullPath)) {
-    throw new BusinessError('BACKUP_ERROR', 'Fichier de sauvegarde introuvable.', 404);
-  }
-  const testDb = new DatabaseSync(fullPath, { readOnly: true });
-  try {
-    const integrity = testDb.prepare('PRAGMA integrity_check').get() as { integrity_check: string };
-    const fk = testDb.prepare('PRAGMA foreign_key_check').all();
-    const version = testDb.prepare('SELECT MAX(version) AS v FROM schema_version').get() as { v: number };
-    return {
-      name: safeName,
-      integrity: integrity.integrity_check,
-      foreignKeyErrors: fk.length,
-      schemaVersion: version.v,
-    };
-  } finally {
-    testDb.close();
+  const { safeName, fullPath } = resolveSafeBackupPath(filename);
+  return verifyBackupPathReadOnly(fullPath, safeName);
+}
+
+function removeSqliteSidecars(dbPath: string): void {
+  for (const suffix of ['-wal', '-shm', '-journal']) {
+    const sidecar = `${dbPath}${suffix}`;
+    if (fs.existsSync(sidecar)) {
+      fs.unlinkSync(sidecar);
+    }
   }
 }
 
-export async function restoreBackup(filename: string) {
-  const check = verifyBackup(filename);
-  if (check.integrity !== 'ok' || check.foreignKeyErrors > 0) {
-    throw new BusinessError('BACKUP_ERROR', 'Sauvegarde corrompue ou incohérente : restauration refusée.');
+export async function restoreBackup(
+  filename: string,
+  options?: { testSimulateFailure?: RestoreFailureHook }
+) {
+  // 1. Validation chemin + vérification en lecture seule de la sauvegarde source
+  const { safeName, fullPath: srcPath } = resolveSafeBackupPath(filename);
+  const check = verifyBackupPathReadOnly(srcPath, safeName);
+  if (!check.compatible || check.integrity !== 'ok' || check.foreignKeyErrors > 0) {
+    throw new BusinessError(
+      'BACKUP_ERROR',
+      check.compatibilityReason || 'Sauvegarde corrompue ou incompatible : restauration refusée.',
+      400
+    );
   }
-  // Pré-sauvegarde automatique de la base courante avant remplacement
-  await createBackup();
-  const safeName = path.basename(filename);
-  const srcPath = path.join(BACKUP_DIR, safeName);
 
-  // Fermeture propre des accès SQLite avant remplacement fichier + WAL/SHM
-  const { closeDb } = await import('../db.ts');
-  closeDb();
-  for (const suffix of ['-wal', '-shm']) {
-    if (fs.existsSync(`${DB_PATH}${suffix}`)) {
-      fs.unlinkSync(`${DB_PATH}${suffix}`);
-    }
+  // 2. Sauvegarde de sécurité de la base courante + 3. Vérification en lecture seule
+  const safetyBackup = await createBackup();
+  const { fullPath: safetyPath } = resolveSafeBackupPath(safetyBackup.name);
+  const safetyCheck = verifyBackupPathReadOnly(safetyPath, safetyBackup.name);
+  if (!safetyCheck.compatible || safetyCheck.integrity !== 'ok' || safetyCheck.foreignKeyErrors > 0) {
+    throw new BusinessError(
+      'BACKUP_ERROR',
+      'La sauvegarde de sécurité préalable a échoué au contrôle d’intégrité.',
+      500
+    );
   }
-  fs.copyFileSync(srcPath, DB_PATH);
-  reloadDb();
-  return { restored: safeName };
+
+  // 5. Copie dans un fichier temporaire sur le même système de fichiers + 6. Vérification + 7. Fsync
+  const destDir = path.dirname(DB_PATH);
+  fs.mkdirSync(destDir, { recursive: true });
+  const uid = crypto.randomBytes(4).toString('hex');
+  const stagingPath = path.join(destDir, `.depotpro_restore_tmp_${uid}.db`);
+  const rollbackPath = path.join(destDir, `.depotpro_restore_prev_${uid}.db`);
+
+  fs.copyFileSync(srcPath, stagingPath);
+  fsyncFileSync(stagingPath);
+
+  let stagedCheck;
+  try {
+    stagedCheck = verifyBackupPathReadOnly(stagingPath, safeName);
+    if (
+      !stagedCheck.compatible ||
+      stagedCheck.integrity !== 'ok' ||
+      stagedCheck.foreignKeyErrors > 0 ||
+      stagedCheck.sha256 !== check.sha256
+    ) {
+      throw new BusinessError(
+        'BACKUP_ERROR',
+        'Le fichier temporaire restauré est incohérent ou corrompu.',
+        500
+      );
+    }
+  } catch (err) {
+    if (fs.existsSync(stagingPath)) {
+      try {
+        fs.unlinkSync(stagingPath);
+      } catch {
+        // Ignore
+      }
+    }
+    throw err;
+  }
+
+  // 4 -> 11 sérialisés sur writeQueue avec récupération automatique en cas d'échec
+  return runSerialized((db) => {
+    try {
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+    } catch {
+      // Ignorer si déjà checkpointé
+    }
+
+    // 4. Fermeture propre de la connexion active
+    closeDb();
+
+    try {
+      removeSqliteSidecars(DB_PATH);
+
+      if (options?.testSimulateFailure === 'before_atomic_replace') {
+        throw new BusinessError(
+          'BACKUP_ERROR',
+          'Interruption simulée avant remplacement atomique.',
+          500
+        );
+      }
+
+      if (fs.existsSync(DB_PATH)) {
+        fs.renameSync(DB_PATH, rollbackPath);
+      }
+
+      // 8. Remplacement atomique sur le même système de fichiers + sync
+      fs.renameSync(stagingPath, DB_PATH);
+      fsyncFileSync(DB_PATH);
+      fsyncDirBestEffort(destDir);
+
+      if (options?.testSimulateFailure === 'before_reconnect') {
+        throw new BusinessError(
+          'BACKUP_ERROR',
+          'Échec simulé de reconnexion SQLite après remplacement.',
+          500
+        );
+      }
+
+      // 9. Reconnecter SQLite (exécute les PRAGMA et migrations v1..v3 -> v4 si nécessaire)
+      const restoredDb = reloadDb();
+
+      // 10. Vérification complète post-restauration
+      const integrityRows = restoredDb.prepare('PRAGMA integrity_check').all() as Array<{
+        integrity_check: string;
+      }>;
+      const integrity =
+        integrityRows.length === 1
+          ? integrityRows[0].integrity_check
+          : integrityRows.map((r) => r.integrity_check).join('; ');
+      const fkErrors = restoredDb.prepare('PRAGMA foreign_key_check').all().length;
+      if (integrity !== 'ok' || fkErrors > 0) {
+        throw new BusinessError(
+          'BACKUP_ERROR',
+          `Vérification post-restauration échouée (integrity=${integrity}, fk=${fkErrors}).`,
+          500
+        );
+      }
+
+      if (options?.testSimulateFailure === 'after_reconnect_post_verify') {
+        throw new BusinessError(
+          'BACKUP_ERROR',
+          'Échec simulé de vérification post-restauration.',
+          500
+        );
+      }
+
+      const schemaRow = restoredDb
+        .prepare('SELECT COALESCE(MAX(version), 0) AS v FROM schema_version')
+        .get() as { v: number };
+
+      restoredDb.exec('BEGIN IMMEDIATE;');
+      try {
+        auditLog(
+          restoredDb,
+          'RESTORE_BACKUP',
+          'backups',
+          safeName,
+          `Base restaurée depuis ${safeName} (sauvegarde sécurité : ${safetyBackup.name})`
+        );
+        restoredDb.exec('COMMIT;');
+      } catch (auditErr) {
+        try {
+          restoredDb.exec('ROLLBACK;');
+        } catch {
+          // Ignore
+        }
+        throw auditErr;
+      }
+
+      const counts = collectEntityCounts(restoredDb);
+
+      if (fs.existsSync(rollbackPath)) {
+        fs.unlinkSync(rollbackPath);
+      }
+
+      return {
+        restored: safeName,
+        safetyBackup: safetyBackup.name,
+        restoredSha256: stagedCheck.sha256,
+        integrity,
+        foreignKeyErrors: fkErrors,
+        schemaVersion: Number(schemaRow.v),
+        counts,
+      };
+    } catch (err) {
+      // Récupération garantie : rétablir l'ancienne base et rouvrir le pool SQLite
+      try {
+        closeDb();
+      } catch {
+        // Ignore
+      }
+      if (fs.existsSync(stagingPath)) {
+        try {
+          fs.unlinkSync(stagingPath);
+        } catch {
+          // Ignore
+        }
+      }
+      removeSqliteSidecars(DB_PATH);
+      if (fs.existsSync(rollbackPath)) {
+        if (fs.existsSync(DB_PATH)) {
+          try {
+            fs.unlinkSync(DB_PATH);
+          } catch {
+            // Ignore
+          }
+        }
+        fs.renameSync(rollbackPath, DB_PATH);
+      } else if (!fs.existsSync(DB_PATH) && fs.existsSync(safetyPath)) {
+        fs.copyFileSync(safetyPath, DB_PATH);
+      }
+      fsyncDirBestEffort(destDir);
+      reloadDb();
+      throw err;
+    }
+  });
 }

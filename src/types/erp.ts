@@ -388,6 +388,49 @@ export interface BackupFile {
   name: string;
   size: number;
   createdAt: string;
+  integrity?: string | null;
+  sha256?: string | null;
+}
+
+export interface BackupEntityCounts {
+  products: number;
+  stockMovements: number;
+  clients: number;
+  suppliers: number;
+  sales: number;
+  salesReturns: number;
+  customerReceivables: number;
+  purchaseOrders: number;
+  purchaseReceipts: number;
+  supplierDebts: number;
+  returnableStockMovements: number;
+  cashMovements: number;
+  expenses: number;
+  auditLogs: number;
+}
+
+export interface BackupVerifyResult {
+  name: string;
+  integrity: string;
+  foreignKeyErrors: number;
+  schemaVersion: number;
+  appliedVersions?: number[];
+  backupFormat?: string;
+  minAppVersion?: string;
+  compatible?: boolean;
+  compatibilityReason?: string | null;
+  sha256?: string;
+  counts?: BackupEntityCounts | null;
+}
+
+export interface BackupRestoreResult {
+  restored: string;
+  safetyBackup?: string;
+  restoredSha256?: string;
+  integrity?: string;
+  foreignKeyErrors?: number;
+  schemaVersion?: number;
+  counts?: BackupEntityCounts;
 }
 
 export interface DailySalePoint {
