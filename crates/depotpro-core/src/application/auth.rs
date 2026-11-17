@@ -42,15 +42,22 @@ pub async fn get_auth_status(db: &DepotDb) -> CoreResult<AuthStatusDto> {
 
 pub async fn setup_owner_pin(db: &DepotDb, pin: &str) -> CoreResult<()> {
     validate_pin_format(pin)?;
-    let (_guard, mut tx) = db.begin_write().await?;
     let existing: Option<(i64,)> = sqlx::query_as("SELECT id FROM owner_security WHERE id = 1")
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&db.pool)
         .await?;
     if existing.is_some() {
         return Err(CoreError::Validation("Le code PIN propriétaire est déjà configuré.".to_string()));
     }
     let hash = bcrypt::hash(pin, 10)
         .map_err(|e| CoreError::Internal(format!("Erreur hachage bcrypt : {e}")))?;
+
+    let (_guard, mut tx) = db.begin_write().await?;
+    let existing_tx: Option<(i64,)> = sqlx::query_as("SELECT id FROM owner_security WHERE id = 1")
+        .fetch_optional(&mut *tx)
+        .await?;
+    if existing_tx.is_some() {
+        return Err(CoreError::Validation("Le code PIN propriétaire est déjà configuré.".to_string()));
+    }
 
     sqlx::query("INSERT INTO owner_security (id, pin_hash, failed_attempts) VALUES (1, ?, 0)")
         .bind(hash)

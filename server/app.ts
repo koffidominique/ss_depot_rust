@@ -526,6 +526,13 @@ export function createApiApp() {
       return;
     }
     const msg = err instanceof Error ? err.message : 'Erreur interne.';
+    if (msg.includes('SQLITE_BUSY') || msg.toLowerCase().includes('database is locked')) {
+      res.status(503).json({
+        code: 'DATABASE_BUSY',
+        message: 'Base de données temporairement occupée par une autre opération (SQLITE_BUSY). Réessayez dans un instant.',
+      });
+      return;
+    }
     if (msg.includes('SQLITE_CONSTRAINT')) {
       res.status(409).json({ code: 'VALIDATION_ERROR', message: 'Contrainte d’intégrité ou doublon détecté.' });
       return;

@@ -148,6 +148,7 @@ fn map_err(err: CoreError) -> (StatusCode, Json<serde_json::Value>) {
         | CoreError::HistoricalImmutable(_)
         | CoreError::InvalidPayment(_) => StatusCode::BAD_REQUEST,
         CoreError::DuplicateOperation(_) => StatusCode::CONFLICT,
+        CoreError::DatabaseBusy(_) => StatusCode::SERVICE_UNAVAILABLE,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     };
     (status, Json(serde_json::to_value(err).unwrap_or_default()))

@@ -19,11 +19,38 @@ export const BACKUP_DIR = process.env.DEPOTPRO_BACKUP_DIR
 let dbInstance: DatabaseSync | null = null;
 let writeQueue: Promise<unknown> = Promise.resolve();
 
+function getBusyTimeoutMs(): number {
+  const raw = Number(process.env.DEPOTPRO_BUSY_TIMEOUT_MS);
+  if (Number.isInteger(raw) && raw >= 1 && raw <= 60_000) {
+    return raw;
+  }
+  return 5000;
+}
+
+export function isSqliteBusyError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const rec = err as { code?: unknown; errcode?: unknown; message?: unknown };
+  if (
+    rec.code === 'SQLITE_BUSY' ||
+    rec.errcode === 5 ||
+    rec.errcode === 261 ||
+    rec.errcode === 517
+  ) {
+    return true;
+  }
+  const msg = typeof rec.message === 'string' ? rec.message.toLowerCase() : '';
+  return (
+    msg.includes('database is locked') ||
+    msg.includes('database table is locked') ||
+    msg.includes('sqlite_busy')
+  );
+}
+
 function configurePragmas(db: DatabaseSync): void {
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA synchronous = FULL;');
-  db.exec('PRAGMA busy_timeout = 5000;');
+  db.exec(`PRAGMA busy_timeout = ${getBusyTimeoutMs()};`);
 }
 
 export function getDb(): DatabaseSync {
@@ -36,6 +63,19 @@ export function getDb(): DatabaseSync {
     seedIfEmpty(dbInstance);
   }
   return dbInstance;
+}
+
+export function verifyDbIntegrity(targetDb?: DatabaseSync): {
+  integrity: string;
+  foreignKeyErrors: number;
+} {
+  const db = targetDb ?? getDb();
+  const integrityRow = db.prepare('PRAGMA integrity_check').get() as { integrity_check: string };
+  const fkRows = db.prepare('PRAGMA foreign_key_check').all();
+  return {
+    integrity: integrityRow.integrity_check,
+    foreignKeyErrors: fkRows.length,
+  };
 }
 
 export function closeDb(): void {
@@ -51,37 +91,78 @@ export function reloadDb(): DatabaseSync {
 }
 
 function applyMigrations(db: DatabaseSync): void {
+  const hasSchemaTable = db
+    .prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'")
+    .get() as { c: number };
+  if (hasSchemaTable.c > 0) {
+    const v1 = db.prepare('SELECT version FROM schema_version WHERE version = 1').get() as
+      | { version: number }
+      | undefined;
+    const settingsCols = db.prepare('PRAGMA table_info(app_settings)').all() as Array<{ name: string }>;
+    const expenseCols = db.prepare('PRAGMA table_info(expenses)').all() as Array<{ name: string }>;
+    if (
+      v1 &&
+      settingsCols.some((c) => c.name === 'logo_path') &&
+      expenseCols.some((c) => c.name === 'receipt_path')
+    ) {
+      return;
+    }
+  }
+
   const sqlPath = path.resolve(process.cwd(), 'migrations/sqlite/0001_initial_v3.sql');
   const schemaSql = fs.readFileSync(sqlPath, 'utf-8');
-  db.exec(schemaSql);
+  db.exec('BEGIN IMMEDIATE;');
+  try {
+    db.exec(schemaSql);
 
-  const settingsCols = db.prepare('PRAGMA table_info(app_settings)').all() as Array<{ name: string }>;
-  if (!settingsCols.some((c) => c.name === 'logo_path')) {
-    db.exec('ALTER TABLE app_settings ADD COLUMN logo_path TEXT NULL;');
-  }
+    const settingsCols = db.prepare('PRAGMA table_info(app_settings)').all() as Array<{ name: string }>;
+    if (!settingsCols.some((c) => c.name === 'logo_path')) {
+      db.exec('ALTER TABLE app_settings ADD COLUMN logo_path TEXT NULL;');
+    }
 
-  const expenseCols = db.prepare('PRAGMA table_info(expenses)').all() as Array<{ name: string }>;
-  if (!expenseCols.some((c) => c.name === 'receipt_path')) {
-    db.exec('ALTER TABLE expenses ADD COLUMN receipt_path TEXT NULL;');
-  }
+    const expenseCols = db.prepare('PRAGMA table_info(expenses)').all() as Array<{ name: string }>;
+    if (!expenseCols.some((c) => c.name === 'receipt_path')) {
+      db.exec('ALTER TABLE expenses ADD COLUMN receipt_path TEXT NULL;');
+    }
 
-  const row = db.prepare('SELECT version FROM schema_version WHERE version = 1').get() as
-    | { version: number }
-    | undefined;
-  if (!row) {
-    db.prepare('INSERT INTO schema_version (version, name) VALUES (1, ?)').run(
-      '0001_initial_v3'
-    );
+    const row = db.prepare('SELECT version FROM schema_version WHERE version = 1').get() as
+      | { version: number }
+      | undefined;
+    if (!row) {
+      db.prepare('INSERT INTO schema_version (version, name) VALUES (1, ?)').run(
+        '0001_initial_v3'
+      );
+    }
+    db.exec('COMMIT;');
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK;');
+    } catch {
+      // Ignore rollback failure if not in transaction
+    }
+    throw err;
   }
 }
 
 /**
- * Exécute une opération d'écriture atomique sérialisée (SQLite single-writer).
+ * Exécute une opération d'écriture atomique sérialisée (SQLite single-writer)
+ * via BEGIN IMMEDIATE et gestion explicite des verrous SQLITE_BUSY.
  */
 export async function withWriteTx<T>(fn: (db: DatabaseSync) => T): Promise<T> {
   const task = writeQueue.then(() => {
     const db = getDb();
-    db.exec('BEGIN IMMEDIATE;');
+    try {
+      db.exec('BEGIN IMMEDIATE;');
+    } catch (err) {
+      if (isSqliteBusyError(err)) {
+        throw new BusinessError(
+          'DATABASE_BUSY',
+          'Base de données temporairement occupée par une autre opération (SQLITE_BUSY). Réessayez dans un instant.',
+          503
+        );
+      }
+      throw err;
+    }
     try {
       const result = fn(db);
       db.exec('COMMIT;');
@@ -91,6 +172,13 @@ export async function withWriteTx<T>(fn: (db: DatabaseSync) => T): Promise<T> {
         db.exec('ROLLBACK;');
       } catch {
         // Ignore rollback failure if connection rolled back automatically
+      }
+      if (isSqliteBusyError(err)) {
+        throw new BusinessError(
+          'DATABASE_BUSY',
+          'Base de données temporairement occupée par une autre opération (SQLITE_BUSY). Réessayez dans un instant.',
+          503
+        );
       }
       throw err;
     }
@@ -171,39 +259,42 @@ export function getTheoreticalCash(db: DatabaseSync, sessionId: number, openingC
 }
 
 function seedIfEmpty(db: DatabaseSync): void {
-  const settingsCount = (db.prepare('SELECT COUNT(*) as c FROM app_settings').get() as { c: number }).c;
-  if (settingsCount === 0) {
-    db.prepare(
-      `INSERT INTO app_settings (id, company_name, company_legal_name, address, phone, city, country, currency)
-       VALUES (1, 'DEPOTPRO Distribution', 'Dépôt Central Boissons & Consignes SARL', 'Zone Industrielle Koumassi', '+225 07 00 00 00 00', 'Abidjan', 'Côte d''Ivoire', 'FCFA')`
-    ).run();
-  }
-
-  const methodsCount = (db.prepare('SELECT COUNT(*) as c FROM payment_methods').get() as { c: number }).c;
-  if (methodsCount === 0) {
-    const insertMethod = db.prepare(
-      'INSERT INTO payment_methods (code, label, is_cash, active) VALUES (?, ?, ?, 1)'
-    );
-    insertMethod.run('cash', 'Espèces', 1);
-    insertMethod.run('wave', 'Wave Mobile Money', 0);
-    insertMethod.run('orange_money', 'Orange Money', 0);
-    insertMethod.run('mtn_money', 'MTN MoMo', 0);
-    insertMethod.run('transfer', 'Virement bancaire', 0);
-  }
-
-  const expCatCount = (db.prepare('SELECT COUNT(*) as c FROM expense_categories').get() as { c: number }).c;
-  if (expCatCount === 0) {
-    const insertExp = db.prepare('INSERT INTO expense_categories (name) VALUES (?)');
-    for (const c of ['Carburant & Livraison', 'Électricité & Eau', 'Maintenance & Réparation', 'Manutention', 'Fournitures', 'Divers']) {
-      insertExp.run(c);
-    }
-  }
-
-  const catCount = (db.prepare('SELECT COUNT(*) as c FROM categories').get() as { c: number }).c;
-  if (catCount > 0) return;
+  const settingsCountPre = (db.prepare('SELECT COUNT(*) as c FROM app_settings').get() as { c: number }).c;
+  const catCountPre = (db.prepare('SELECT COUNT(*) as c FROM categories').get() as { c: number }).c;
+  if (settingsCountPre > 0 && catCountPre > 0) return;
 
   db.exec('BEGIN IMMEDIATE;');
   try {
+    const settingsCount = (db.prepare('SELECT COUNT(*) as c FROM app_settings').get() as { c: number }).c;
+    if (settingsCount === 0) {
+      db.prepare(
+        `INSERT OR IGNORE INTO app_settings (id, company_name, company_legal_name, address, phone, city, country, currency)
+         VALUES (1, 'DEPOTPRO Distribution', 'Dépôt Central Boissons & Consignes SARL', 'Zone Industrielle Koumassi', '+225 07 00 00 00 00', 'Abidjan', 'Côte d''Ivoire', 'FCFA')`
+      ).run();
+    }
+
+    const methodsCount = (db.prepare('SELECT COUNT(*) as c FROM payment_methods').get() as { c: number }).c;
+    if (methodsCount === 0) {
+      const insertMethod = db.prepare(
+        'INSERT OR IGNORE INTO payment_methods (code, label, is_cash, active) VALUES (?, ?, ?, 1)'
+      );
+      insertMethod.run('cash', 'Espèces', 1);
+      insertMethod.run('wave', 'Wave Mobile Money', 0);
+      insertMethod.run('orange_money', 'Orange Money', 0);
+      insertMethod.run('mtn_money', 'MTN MoMo', 0);
+      insertMethod.run('transfer', 'Virement bancaire', 0);
+    }
+
+    const expCatCount = (db.prepare('SELECT COUNT(*) as c FROM expense_categories').get() as { c: number }).c;
+    if (expCatCount === 0) {
+      const insertExp = db.prepare('INSERT OR IGNORE INTO expense_categories (name) VALUES (?)');
+      for (const c of ['Carburant & Livraison', 'Électricité & Eau', 'Maintenance & Réparation', 'Manutention', 'Fournitures', 'Divers']) {
+        insertExp.run(c);
+      }
+    }
+
+    const catCount = (db.prepare('SELECT COUNT(*) as c FROM categories').get() as { c: number }).c;
+    if (catCount === 0) {
     const insertCat = db.prepare('INSERT INTO categories (name, description) VALUES (?, ?)');
     const cBiere = Number(insertCat.run('Bières', 'Bières locales et importées en casier et bouteille').lastInsertRowid);
     const cSoda = Number(insertCat.run('Boissons gazeuses', 'Sodas et boissons sucrées').lastInsertRowid);
@@ -327,10 +418,15 @@ function seedIfEmpty(db: DatabaseSync): void {
 
     const clHotel = Number(insertCli.run('CLI-003', 'Hôtel La Lagune', 'professionnel', '+225 01 02 33 44 55', 'Boulevard de Marseille', 'Abidjan').lastInsertRowid);
     insertCredit.run(clHotel, 'unlimited', null, 30);
+    }
 
     db.exec('COMMIT;');
   } catch (err) {
-    db.exec('ROLLBACK;');
+    try {
+      db.exec('ROLLBACK;');
+    } catch {
+      // Ignore rollback failure
+    }
     throw err;
   }
 }

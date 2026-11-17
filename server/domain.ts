@@ -26,6 +26,7 @@ export type ErrorCode =
   | 'INVALID_QUANTITY'
   | 'INVALID_MONEY'
   | 'HISTORICAL_IMMUTABLE'
+  | 'DATABASE_BUSY'
   | 'BACKUP_ERROR';
 
 export class BusinessError extends Error {
