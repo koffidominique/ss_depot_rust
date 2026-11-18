@@ -1,8 +1,4 @@
-Je te recommande de donner à ton agent IA une instruction ferme : Rust + Axum doit devenir l'unique backend serveur de DEPOTPRO PREMIUM. Node.js + Express doit être entièrement retiré après migration de ses fonctionnalités.
 
-Attention : il ne faut pas supprimer React, TypeScript, Vite ou Tauri. Ce ne sont pas des serveurs backend concurrents. Tauri est indispensable à l'application Windows/macOS et Vite sert au développement du frontend.
-
-Voici le prompt à transmettre à ton agent.
 DIRECTIVE ARCHITECTURALE MAJEURE
 DEPOTPRO PREMIUM V3 — UNIFICATION DU BACKEND AUTOUR DE RUST
 1. MISSION
