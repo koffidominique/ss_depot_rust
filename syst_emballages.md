@@ -1,22 +1,418 @@
-Je vais intégrer ces nouvelles informations dans le MASTER PROMPT de DEPOTPRO PREMIUM V3, en apportant une distinction importante : **toutes les boissons en bouteilles ne fonctionnent pas avec des casiers consignables, et tous les emballages ne sont pas réutilisables.**
+Je te recommande de donner à ton agent IA une instruction ferme : Rust + Axum doit devenir l'unique backend serveur de DEPOTPRO PREMIUM. Node.js + Express doit être entièrement retiré après migration de ses fonctionnalités.
 
-J'ai vérifié les formats commercialisés par SOLIBRA. Les sucreries en verre consigné utilisent effectivement les mêmes grandes familles de conditionnements que certaines bières : par exemple, Youki et Orangina existent en verre consigné de 30 cl en casier de 24 et de 50 cl en casier de 12. Les catalogues consultés montrent également des formats PET et des canettes vendus en packs ou cartons, qui ne doivent pas être traités comme des casiers consignables.&#x20;
+Attention : il ne faut pas supprimer React, TypeScript, Vite ou Tauri. Ce ne sont pas des serveurs backend concurrents. Tauri est indispensable à l'application Windows/macOS et Vite sert au développement du frontend.
 
-[image](https://www.google.com/s2/favicons?domain=https://www.solibra.ci\&sz=32)
+Voici le prompt à transmettre à ton agent.
+DIRECTIVE ARCHITECTURALE MAJEURE
+DEPOTPRO PREMIUM V3 — UNIFICATION DU BACKEND AUTOUR DE RUST
+1. MISSION
+Tu dois effectuer une refonte architecturale du projet DEPOTPRO PREMIUM V3 afin de conserver exclusivement Rust comme technologie backend serveur.
 
-Solibra+3
+L'objectif est de supprimer complètement l'ancien backend Node.js/Express et de faire de Rust/Axum l'unique serveur HTTP de l'application.
+
+L'architecture finale doit reposer sur :
+- React : interface utilisateur.
+- TypeScript : logique frontend et typage.
+- Tailwind CSS : interface graphique.
+- Rust : backend et moteur métier.
+- Axum : serveur HTTP et API REST.
+- SQLx : accès à la base SQLite.
+- SQLite : base de données.
+- Tauri 2 : application native Windows/macOS.
+- Vite : développement et compilation du frontend.
+Aucune nouvelle fonctionnalité métier ne doit être développée en Node.js ou Express.
+2. ARCHITECTURE CIBLE OBLIGATOIRE
+Mettre en place une architecture centralisée autour d'un cœur métier Rust partagé.
+Architecture générale
+React + TypeScript
+|
+| API REST HTTP
+|
+Rust + Axum
+|
+|
+depotpro-core
+|
+|
+SQLx + SQLite
+
+Pour l'application Desktop :
+
+React + TypeScript
+|
+| Tauri IPC
+|
+Tauri + Rust
+|
+|
+depotpro-core
+|
+|
+SQLx + SQLite
+
+Les deux modes doivent utiliser exactement les mêmes règles métier Rust.
+Responsabilités
+depotpro-core
+- Ventes.
+- Achats.
+- Gestion des produits.
+- Catalogue et conditionnements.
+- Gestion des stocks.
+- Emballages réutilisables.
+- Emballages jetables.
+- Comptes clients.
+- Comptes fournisseurs.
+- Trésorerie.
+- Authentification.
+- Rapports.
+- Sauvegardes.
+- Règles de validation métier.
+depotpro-server (Axum)
+- API REST.
+- Routes HTTP.
+- Authentification HTTP.
+- Middleware.
+- Gestion des sessions.
+- Validation des requêtes.
+- Appels au cœur métier Rust.
+- Gestion des erreurs HTTP.
+- Configuration du serveur.
+- Gestion des connexions à la base de données.
+src-tauri
+- Démarrage de l'application Desktop.
+- Communication IPC avec React.
+- Gestion de l'environnement natif.
+- Gestion du système de fichiers.
+- Gestion des fenêtres.
+- Appels aux services du cœur métier Rust.
+React + TypeScript
+- Affichage.
+- Formulaires.
+- Navigation.
+- Tableaux.
+- Graphiques.
+- Gestion des interactions.
+- Appels API en mode Web.
+- Appels Tauri IPC en mode Desktop.
+3. SUPPRESSION COMPLÈTE DU BACKEND NODE.JS/EXPRESS
+Tu dois identifier et supprimer progressivement toutes les fonctionnalités du backend Node.js qui auront été migrées vers Rust.
+
+Examiner notamment :
+- server.ts
+- server/app.ts
+- server/db.ts
+- server/domain.ts
+- server/services/
+- server/routes/, si présent
+- Tous les autres fichiers du backend Node.js.
+Identifier chaque route HTTP, service métier, requête SQL, règle métier et fonction de sécurité.
+
+Créer une matrice de correspondance :
+Fonctionnalité actuelle	Implémentation Node.js	Équivalent Rust	Statut
+Authentification	Express	Axum / core	À vérifier
+Ventes	Express	depotpro-core	À vérifier
+Achats	Express	depotpro-core	À vérifier
+Stocks	Express	depotpro-core	À vérifier
+Emballages	Express ou absent	depotpro-core	À vérifier
+Clients	Express	depotpro-core	À vérifier
+Fournisseurs	Express	depotpro-core	À vérifier
+Caisse	Express	depotpro-core	À vérifier
+Rapports	Express	depotpro-core	À vérifier
+Sauvegardes	Express	depotpro-core	À vérifierNe supprime aucun service Node.js avant d'avoir vérifié que son équivalent Rust existe, fonctionne et respecte les mêmes règles métier.
+
+La migration doit couvrir toutes les fonctionnalités, y compris celles qui seraient peu visibles dans l'interface.
+4. UNIFICATION DES RÈGLES MÉTIER
+Cette étape est obligatoire.
+
+Le backend Node.js et le backend Rust ne doivent plus contenir deux implémentations concurrentes des mêmes règles métier.
+
+Toutes les règles doivent résider dans :
+
+crates/depotpro-core/
+
+Axum et Tauri doivent appeler ce même cœur métier.
+
+Ne pas recopier les calculs dans les handlers Axum.
+
+Ne pas implémenter une deuxième version des calculs dans les commandes Tauri.
+
+Ne pas placer les règles financières ou de stock directement dans React.
+
+Un handler Axum doit principalement :
+1. Recevoir la requête.
+2. Vérifier l'identité et les permissions.
+3. Valider la structure des données.
+4. Appeler le service Rust.
+5. Transformer le résultat en réponse HTTP.
+Les commandes Tauri doivent suivre le même principe en appelant les services Rust.
+5. UNIFICATION DE SQLITE
+Conserver SQLite comme système de base de données.
+
+Utiliser SQLx avec Rust pour l'accès aux données.
+
+Le cœur métier doit utiliser une seule stratégie de connexion, de transactions et de migrations.
+
+Supprimer progressivement :
+- node:sqlite.
+- Les requêtes SQL exécutées par Node.js.
+- Les migrations propres à l'ancienne implémentation Node.js.
+- Les méthodes concurrentes d'accès à la base.
+IMPORTANT :
+
+Avant toute suppression :
+- Examiner les différences de schéma.
+- Comparer les migrations.
+- Identifier les tables et colonnes utilisées.
+- Préserver les bases de données existantes.
+- Effectuer une sauvegarde.
+- Vérifier la compatibilité des anciennes installations.
+Ne jamais réinitialiser une base utilisateur pour simplifier la migration.
+
+Conserver une seule source de vérité pour les migrations SQLite.
+6. MISE À JOUR DES CLIENTS API FRONTEND
+Examiner :
+- src/services/api/ApiClient.ts
+- src/services/api/HttpApiClient.ts
+- src/services/api/TauriApiClient.ts
+- src/services/api/createApiClient.ts
+Conserver une interface API commune côté frontend.
+
+En mode Web :
+- Le frontend communique avec l'API REST Axum.
+En mode Desktop :
+- Le frontend communique avec les commandes Tauri.
+- Les commandes Tauri appellent les mêmes services du cœur métier Rust.
+Les composants React ne doivent pas connaître les détails internes des deux implémentations.
+
+Le changement de mode doit être transparent pour les écrans.
+
+Ne pas conserver des appels vers les anciennes routes Express.
+
+Rechercher toutes les références à l'ancienne adresse et aux anciens endpoints.
+7. GESTION DES SERVEURS ET DÉMARRAGE
+Supprimer le démarrage du serveur Express.
+
+Examiner notamment :
+- package.json
+- src-tauri/tauri.conf.json
+- .github/workflows/
+- Les scripts de développement.
+- Les scripts de production.
+- La configuration du serveur HTTP.
+Remplacer les commandes de démarrage backend par celles de Rust/Axum.
+
+Prévoir des commandes distinctes :
+- Démarrage du frontend Vite.
+- Démarrage du serveur Axum.
+- Démarrage de l'application Tauri.
+- Compilation de l'application Desktop.
+- Construction de la version Web.
+IMPORTANT :
+
+Vite doit être conservé.
+
+Vite est un outil de développement et de compilation frontend. Il ne remplace pas Axum et ne constitue pas un backend métier.
+
+Tauri doit également être conservé.
+
+Tauri est l'environnement natif de l'application Desktop, pas un backend Node.js concurrent.
+
+Ne pas démarrer inutilement le serveur Axum et un autre backend dans le même mode d'exécution.
+
+En Desktop, utiliser directement le cœur métier via Tauri IPC.
+
+En Web, utiliser Axum comme serveur HTTP.
+8. SÉCURITÉ
+Vérifier et préserver :
+- Authentification.
+- Sessions.
+- Expiration des sessions.
+- Protection contre les tentatives répétées de connexion.
+- Vérification des permissions.
+- Validation des données.
+- Protection des endpoints.
+- Contrôle CORS et des origines.
+- Gestion des secrets.
+- Sauvegardes.
+- Contrôles des chemins de fichiers.
+Ne pas diminuer le niveau de sécurité pour accélérer la migration.
+
+Éviter de faire confiance aux informations transmises uniquement par le frontend.
+
+Toutes les opérations sensibles doivent être contrôlées dans Rust.
+9. MISE À JOUR DES DÉPENDANCES
+Examiner le fichier package.json.
+
+Supprimer les dépendances qui servent exclusivement à l'ancien backend Express, uniquement après vérification qu'elles ne sont pas utilisées ailleurs.
+
+Ne pas supprimer les dépendances frontend nécessaires à React, Vite, TypeScript, Tailwind ou Tauri.
+
+Examiner les dépendances Cargo et conserver uniquement celles réellement nécessaires aux composants Rust.
+
+Mettre à jour :
+- package.json
+- package-lock.json
+- Cargo.toml
+- Cargo.lock
+- Les scripts d'exécution.
+- Les fichiers CI/CD.
+Vérifier que les installations Windows et macOS restent fonctionnelles.
+10. MISE À JOUR DE LA CI/CD
+Modifier les workflows GitHub Actions pour ne plus construire ou démarrer le backend Node.js.
+
+La CI doit contrôler :
+1. Installation des dépendances frontend.
+2. TypeScript.
+3. Lint frontend.
+4. Tests React.
+5. Compilation Vite.
+6. Tests Rust.
+7. Clippy.
+8. Formatage Rust.
+9. Tests du cœur métier.
+10. Tests du serveur Axum.
+11. Tests SQLite et migrations.
+12. Tests Tauri.
+13. Tests E2E.
+14. Construction Windows.
+15. Construction macOS.
+Supprimer uniquement les étapes de test du backend Node.js après migration complète.
+
+Ne jamais désactiver une étape de test pour faire passer la CI.
+11. TESTS DE NON-RÉGRESSION
+Avant de retirer Node.js, établir une suite de tests couvrant les fonctionnalités utilisées par l'application.
+
+Tester notamment :
+- Connexion.
+- Déconnexion.
+- Gestion des sessions.
+- Création de clients.
+- Création de fournisseurs.
+- Création de produits.
+- Modification du catalogue.
+- Ventes.
+- Ventes à crédit.
+- Achats.
+- Réceptions.
+- Stocks.
+- Mouvements de caisse.
+- Retours et annulations.
+- Gestion des emballages.
+- Comptes emballages clients.
+- Comptes emballages fournisseurs.
+- Facturation.
+- Rapports.
+- Sauvegardes.
+- Restaurations.
+- Fonctionnement hors ligne.
+Vérifier que les résultats obtenus avec les nouvelles implémentations Rust correspondent aux comportements métier attendus.
+
+Exécuter aussi les tests de concurrence, d'idempotence et d'intégrité transactionnelle.
+12. PLAN D'EXÉCUTION OBLIGATOIRE
+Exécuter les opérations dans cet ordre.
+LOT 0 — AUDIT
+- Identifier toutes les fonctionnalités Node.js.
+- Identifier toutes les fonctionnalités Axum.
+- Identifier les fonctionnalités du cœur Rust.
+- Localiser tous les appels HTTP du frontend.
+- Inventorier les dépendances et scripts.
+- Préparer les sauvegardes et la branche de travail.
+Livrable : docs/RUST_BACKEND_MIGRATION_AUDIT.md.
+LOT 1 — COMPLÉTUDE DU BACKEND RUST
+- Migrer les fonctionnalités manquantes.
+- Compléter les services métier.
+- Compléter les routes Axum.
+- Compléter les commandes Tauri.
+- Unifier les validations.
+Livrable : docs/RUST_BACKEND_MIGRATION_LOT_01.md.
+LOT 2 — MIGRATION DES DONNÉES ET SQLITE
+- Unifier les migrations.
+- Unifier les accès SQL.
+- Préserver les anciennes bases.
+- Tester les sauvegardes et restaurations.
+Livrable : docs/RUST_BACKEND_MIGRATION_LOT_02.md.
+LOT 3 — MIGRATION DU FRONTEND
+- Reconfigurer le client HTTP sur Axum.
+- Vérifier les appels Tauri IPC.
+- Éliminer les endpoints Express.
+- Vérifier tous les écrans.
+Livrable : docs/RUST_BACKEND_MIGRATION_LOT_03.md.
+LOT 4 — SUPPRESSION NODE.JS/EXPRESS
+Après validation des lots précédents :
+- Supprimer le backend Express.
+- Supprimer les services Node.js devenus inutiles.
+- Supprimer les scripts de lancement Express.
+- Nettoyer les dépendances inutilisées.
+- Nettoyer les configurations associées.
+- Supprimer les anciennes références dans le code.
+- Mettre à jour la documentation.
+Livrable : docs/RUST_BACKEND_MIGRATION_LOT_04.md.
+LOT 5 — VALIDATION FINALE
+- Exécuter tous les tests.
+- Vérifier la compilation.
+- Tester le serveur Axum.
+- Tester l'application Tauri.
+- Tester le mode hors ligne.
+- Vérifier les bases de données existantes.
+- Tester les builds Windows et macOS.
+Livrable : docs/RUST_BACKEND_MIGRATION_FINAL_REPORT.md.
+13. CRITÈRES DE VALIDATION FINALE
+La migration est terminée uniquement lorsque :
+- Node.js/Express ne contient plus aucune fonctionnalité backend active.
+- Aucune route frontend ne dépend d'Express.
+- Axum est l'unique serveur HTTP backend.
+- Le cœur métier est centralisé en Rust.
+- Tauri utilise le même cœur métier.
+- Les accès SQLite métier sont gérés par Rust.
+- Les bases existantes restent compatibles.
+- Toutes les fonctionnalités historiques restent opérationnelles.
+- Les tests sont exécutés et réussis.
+- Les builds Windows et macOS fonctionnent.
+- Les sauvegardes et restaurations sont fonctionnelles.
+- La documentation est mise à jour.
+14. INTERDICTIONS ABSOLUES
+- Ne pas supprimer Node.js avant d'avoir migré ses fonctionnalités.
+- Ne pas supprimer React.
+- Ne pas supprimer TypeScript.
+- Ne pas supprimer Vite.
+- Ne pas supprimer Tauri.
+- Ne pas supprimer les API nécessaires au frontend.
+- Ne pas supprimer les données SQLite.
+- Ne pas réinitialiser la base utilisateur.
+- Ne pas créer un deuxième moteur métier.
+- Ne pas déplacer les règles métier dans React.
+- Ne pas conserver deux serveurs backend actifs.
+- Ne pas déclarer un lot terminé sans tests réels.
+- Ne pas modifier inutilement le design et les fonctionnalités existantes.
+INSTRUCTION FINALE À L'AGENT
+Tu dois effectuer cette migration dans le dépôt existant, et non simplement produire des recommandations.
+
+Travaille lot par lot.
+
+Avant toute suppression, démontre que la fonctionnalité correspondante est opérationnelle dans Rust.
+
+Fais un commit distinct à chaque lot validé.
+
+Préserve les données, les fonctionnalités, les factures, l'historique commercial et la compatibilité des installations existantes.
+
+ARCHITECTURE FINALE NON NÉGOCIABLE : REACT + TYPESCRIPT + RUST + AXUM + SQLITE + TAURI.
+
+Rust doit être l'unique technologie backend de DEPOTPRO PREMIUM V3.
 
 
 
-**Correction métier à intégrer :** on ne doit pas coder « B12 = tous les grands formats ». Un B12 de 50 cl, un B12 de 65 cl et un B12 de 100 cl peuvent avoir des géométries et des références d'emballages différentes. Le logiciel doit donc identifier le conditionnement exact, pas seulement le nombre de bouteilles.
 
-De même, les formats PET de 1 L ou 1,5 L vendus en packs ne deviennent pas des casiers réutilisables simplement parce qu'ils contiennent plusieurs bouteilles. Le système doit distinguer le contenant de vente, le support logistique et le caractère réutilisable ou jetable.
+Résultat architectural recherché
+Élément	Décision
+Node.js / Express	Supprimer
+Rust / Axum	Conserver — serveur Web unique
+Rust / depotpro-core	Conserver — moteur métier central
+Tauri	Conserver — Desktop
+React / TypeScript	Conserver
+Vite	Conserver — frontend
+SQLite / SQLx	Conserver — données
 
-# **MASTER PROMPT — DEPOTPRO PREMIUM V3**
-
-Mise à jour majeure : catalogue intelligent, conditionnements, casiers consignables et emballages jetables
-
-# DEPOTPRO PREMIUM V3
+Mon conseil : fais exécuter cette migration avant la grande mise à jour du catalogue, des casiers et des emballages. Tu auras ainsi une architecture backend unifiée pour accueillir les nouvelles fonctionnalités, sans devoir maintenir deux versions des mêmes règles métier.
 
 # MASTER PROMPT — REFONTE DU CATALOGUE PRODUITS ET DU SYSTÈME D'EMBALLAGES
 
