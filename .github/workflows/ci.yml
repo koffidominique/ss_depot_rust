@@ -192,26 +192,39 @@ jobs:
           cargo fmt --all -- --check 2>&1 | tee /tmp/fmt.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
-            python3 -c "
+            python3 - <<'PY'
           txt = open('/tmp/fmt.log', encoding='utf-8').read()
           lines = txt.splitlines()
-          chunk = []
+          chunks = []
+          cur = []
           size = 0
-          for idx, l in enumerate(lines):
+          for l in lines:
               esc = l.replace('%', '%25').replace('\r', '')
-              if size + len(esc) + 4 > 3500 and chunk:
-                  print('::error title=rustfmt::' + '%0A'.join(chunk))
-                  chunk = []
+              if size + len(esc) + 4 > 3800 and cur:
+                  chunks.append('%0A'.join(cur))
+                  cur = []
                   size = 0
-              chunk.append(esc)
+              cur.append(esc)
               size += len(esc) + 3
-              if idx > 4000:
-                  chunk.append('... (truncated)')
-                  break
-          if chunk:
-              print('::error title=rustfmt::' + '%0A'.join(chunk))
-          "
+          if cur:
+              chunks.append('%0A'.join(cur))
+          open('/tmp/fmt_chunks.txt', 'w').write('\n'.join(chunks))
+          for c in chunks[:9]:
+              print('::error title=rustfmt::' + c)
+          print(f'Total chunks={len(chunks)}, emitted=0..{min(len(chunks),9)}')
+          PY
             exit "$rc"
+          fi
+      - name: Détails formatage Rust (suite)
+        if: failure()
+        run: |
+          if [ -f /tmp/fmt_chunks.txt ]; then
+            python3 - <<'PY'
+          chunks = open('/tmp/fmt_chunks.txt', encoding='utf-8').read().splitlines()
+          for c in chunks[9:18]:
+              print('::error title=rustfmt-cont::' + c)
+          print(f'Emitted chunks 9..{min(len(chunks),18)} of {len(chunks)}')
+          PY
           fi
 
   tauri-windows:

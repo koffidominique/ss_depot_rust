@@ -4,6 +4,10 @@ version = "3.0.0"
 description = "DEPOTPRO ERP Desktop Application"
 edition = "2021"
 
+[lib]
+name = "depotpro_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

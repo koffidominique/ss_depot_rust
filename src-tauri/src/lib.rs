@@ -1,12 +1,12 @@
 mod commands;
 mod state;
 
+use depotpro_core::infrastructure::db::DepotDb;
+use state::DesktopState;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 use tauri::{Manager, RunEvent};
-use depotpro_core::infrastructure::db::DepotDb;
-use state::DesktopState;
 
 fn is_pid_alive(pid: u32) -> bool {
     #[cfg(unix)]

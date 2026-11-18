@@ -22,12 +22,11 @@ const VALID_DOC_TYPES: &[&str] = &[
 
 // Largeurs AFM standard Helvetica (en millièmes d'em) pour ASCII 32..126
 const HELVETICA_WIDTHS: [u16; 95] = [
-    278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278,
-    556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556,
-    1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778,
-    667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556,
-    333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556,
-    556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
+    278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556,
+    556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667,
+    611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667,
+    667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500,
+    222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
 ];
 
 #[derive(Debug, Clone, Deserialize)]
@@ -175,7 +174,9 @@ fn wrap_text(text: &str, max_width: f64, font_size: f64, bold: bool) -> Vec<Stri
                     for ch in word.chars() {
                         let mut test = chunk.clone();
                         test.push(ch);
-                        if measure_text_width(&test, font_size, bold) > max_width && !chunk.is_empty() {
+                        if measure_text_width(&test, font_size, bold) > max_width
+                            && !chunk.is_empty()
+                        {
                             lines.push(chunk);
                             chunk = ch.to_string();
                         } else {
@@ -304,7 +305,14 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
     };
 
     let draw_table_header = |cmds: &mut Vec<String>, y: &mut f64| {
-        draw_rect_fill(cmds, MARGIN, *y - 20.0, CONTENT_W, 20.0, (0.945, 0.961, 0.976));
+        draw_rect_fill(
+            cmds,
+            MARGIN,
+            *y - 20.0,
+            CONTENT_W,
+            20.0,
+            (0.945, 0.961, 0.976),
+        );
         draw_line(
             cmds,
             MARGIN,
@@ -315,8 +323,24 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
             0.9,
         );
         let muted = (0.4, 0.439, 0.522);
-        draw_text(cmds, MARGIN + 6.0, *y - 13.5, "Désignation", 8.5, true, muted);
-        draw_text_right(cmds, MARGIN + 345.0, *y - 13.5, "Quantité", 8.5, true, muted);
+        draw_text(
+            cmds,
+            MARGIN + 6.0,
+            *y - 13.5,
+            "Désignation",
+            8.5,
+            true,
+            muted,
+        );
+        draw_text_right(
+            cmds,
+            MARGIN + 345.0,
+            *y - 13.5,
+            "Quantité",
+            8.5,
+            true,
+            muted,
+        );
         draw_text_right(cmds, MARGIN + 425.0, *y - 13.5, "P.U.", 8.5, true, muted);
         draw_text_right(cmds, RIGHT - 6.0, *y - 13.5, "Montant", 8.5, true, muted);
         *y -= 24.0;
@@ -363,7 +387,15 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
 
         let comp_x = MARGIN + 44.0;
         let mut comp_y = header_top - 11.0;
-        draw_text(cmds, comp_x, comp_y, company_name, 14.0, true, (0.063, 0.106, 0.2));
+        draw_text(
+            cmds,
+            comp_x,
+            comp_y,
+            company_name,
+            14.0,
+            true,
+            (0.063, 0.106, 0.2),
+        );
         comp_y -= 12.0;
 
         let muted = (0.4, 0.439, 0.522);
@@ -395,7 +427,15 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
             }
         }
         if !contact_parts.is_empty() {
-            draw_text(cmds, comp_x, comp_y, &contact_parts.join(" · "), 8.0, false, muted);
+            draw_text(
+                cmds,
+                comp_x,
+                comp_y,
+                &contact_parts.join(" · "),
+                8.0,
+                false,
+                muted,
+            );
             comp_y -= 10.5;
         }
         if let Some(ref email) = company.email {
@@ -406,11 +446,35 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         }
 
         let mut right_y = header_top - 10.0;
-        draw_text_right(cmds, RIGHT, right_y, &doc.doc_type, 9.5, true, (0.145, 0.388, 0.922));
+        draw_text_right(
+            cmds,
+            RIGHT,
+            right_y,
+            &doc.doc_type,
+            9.5,
+            true,
+            (0.145, 0.388, 0.922),
+        );
         right_y -= 15.0;
-        draw_text_right(cmds, RIGHT, right_y, &doc.reference, 12.5, true, (0.063, 0.106, 0.2));
+        draw_text_right(
+            cmds,
+            RIGHT,
+            right_y,
+            &doc.reference,
+            12.5,
+            true,
+            (0.063, 0.106, 0.2),
+        );
         right_y -= 12.0;
-        draw_text_right(cmds, RIGHT, right_y, &format_date_french(&doc.date), 8.5, false, muted);
+        draw_text_right(
+            cmds,
+            RIGHT,
+            right_y,
+            &format_date_french(&doc.date),
+            8.5,
+            false,
+            muted,
+        );
         right_y -= 11.0;
         if let Some(ref status) = doc.status_label {
             if !status.trim().is_empty() {
@@ -500,7 +564,8 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
             .as_deref()
             .map(|s| wrap_text(s, 250.0, 7.5, false))
             .unwrap_or_default();
-        let row_h = (8.0 + label_lines.len() as f64 * 10.5 + sub_lines.len() as f64 * 9.5).max(20.0);
+        let row_h =
+            (8.0 + label_lines.len() as f64 * 10.5 + sub_lines.len() as f64 * 9.5).max(20.0);
 
         if y - row_h < 72.0 {
             start_page(&mut pages, &mut y);
@@ -509,7 +574,10 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
                 cmds,
                 MARGIN,
                 y - 10.0,
-                &format!("{company_name} · {} ({}) — Suite", doc.doc_type, doc.reference),
+                &format!(
+                    "{company_name} · {} ({}) — Suite",
+                    doc.doc_type, doc.reference
+                ),
                 9.0,
                 true,
                 (0.063, 0.106, 0.2),
@@ -536,17 +604,41 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         } else {
             line.quantity.as_str()
         };
-        draw_text_right(cmds, MARGIN + 345.0, y - 11.0, qty_txt, 8.5, false, (0.094, 0.133, 0.188));
+        draw_text_right(
+            cmds,
+            MARGIN + 345.0,
+            y - 11.0,
+            qty_txt,
+            8.5,
+            false,
+            (0.094, 0.133, 0.188),
+        );
         let unit_str = line
             .unit_price
             .map(format_fcfa_ascii)
             .unwrap_or_else(|| "—".to_string());
-        draw_text_right(cmds, MARGIN + 425.0, y - 11.0, &unit_str, 8.5, false, (0.094, 0.133, 0.188));
+        draw_text_right(
+            cmds,
+            MARGIN + 425.0,
+            y - 11.0,
+            &unit_str,
+            8.5,
+            false,
+            (0.094, 0.133, 0.188),
+        );
         let tot_str = line
             .total
             .map(format_fcfa_ascii)
             .unwrap_or_else(|| "—".to_string());
-        draw_text_right(cmds, RIGHT - 6.0, y - 11.0, &tot_str, 8.5, true, (0.094, 0.133, 0.188));
+        draw_text_right(
+            cmds,
+            RIGHT - 6.0,
+            y - 11.0,
+            &tot_str,
+            8.5,
+            true,
+            (0.094, 0.133, 0.188),
+        );
 
         y -= row_h;
         draw_line(cmds, MARGIN, y, RIGHT, y, (0.91, 0.933, 0.957), 0.6);
@@ -581,7 +673,10 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
             cmds,
             MARGIN,
             y - 10.0,
-            &format!("{company_name} · {} ({}) — Récapitulatif", doc.doc_type, doc.reference),
+            &format!(
+                "{company_name} · {} ({}) — Récapitulatif",
+                doc.doc_type, doc.reference
+            ),
             9.0,
             true,
             (0.063, 0.106, 0.2),
@@ -615,7 +710,15 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
             );
             let mut py = left_y - 26.0;
             for p in payments {
-                draw_text(cmds, MARGIN + 10.0, py, &p.label, 8.0, false, (0.4, 0.439, 0.522));
+                draw_text(
+                    cmds,
+                    MARGIN + 10.0,
+                    py,
+                    &p.label,
+                    8.0,
+                    false,
+                    (0.4, 0.439, 0.522),
+                );
                 draw_text_right(
                     cmds,
                     MARGIN + 238.0,
@@ -684,7 +787,15 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
             };
             let f_size = if sr.bold { 9.5 } else { 8.5 };
             draw_text(cmds, sum_x + 10.0, sy, &sr.label, f_size, sr.bold, tone);
-            draw_text_right(cmds, sum_x + sum_w - 10.0, sy, &sr.value, f_size, sr.bold, tone);
+            draw_text_right(
+                cmds,
+                sum_x + sum_w - 10.0,
+                sy,
+                &sr.value,
+                f_size,
+                sr.bold,
+                tone,
+            );
             sy -= 15.0;
         }
     }
@@ -858,14 +969,12 @@ mod tests {
                     party_name: Some("Maquis Le Palmier".to_string()),
                     party_details: Some("CLI-0001 · +225 07000000".to_string()),
                     lines,
-                    summary_rows: vec![
-                        DocumentPdfSummaryRow {
-                            label: "Total TTC".to_string(),
-                            value: "1 350 000 FCFA".to_string(),
-                            bold: true,
-                            tone: Some("success".to_string()),
-                        },
-                    ],
+                    summary_rows: vec![DocumentPdfSummaryRow {
+                        label: "Total TTC".to_string(),
+                        value: "1 350 000 FCFA".to_string(),
+                        bold: true,
+                        tone: Some("success".to_string()),
+                    }],
                     payments: Some(vec![DocumentPdfPayment {
                         label: "Espèces".to_string(),
                         amount: 1_350_000,

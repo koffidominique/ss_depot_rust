@@ -1,12 +1,12 @@
+use crate::error::{CoreError, CoreResult};
+use serde::{Deserialize, Serialize};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
+use sqlx::{Sqlite, SqlitePool, Transaction};
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use serde::{Deserialize, Serialize};
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
-use sqlx::{Sqlite, SqlitePool, Transaction};
 use tokio::sync::Mutex;
-use crate::error::{CoreError, CoreResult};
 
 pub const V3_SCHEMA_SQL: &str = include_str!("../../../../migrations/sqlite/0001_initial_v3.sql");
 pub const V3_MIGRATION_0002_SQL: &str =

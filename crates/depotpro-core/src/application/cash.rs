@@ -425,13 +425,15 @@ pub async fn pay_receivable(
     .await?;
 
     for (idx, (code, amt)) in valid_parts.iter().enumerate() {
-        let part_id = sqlx::query("INSERT INTO payment_parts (payment_id, method_code, amount) VALUES (?, ?, ?)")
-            .bind(payment_id)
-            .bind(code)
-            .bind(amt)
-            .execute(&mut *tx)
-            .await?
-            .last_insert_rowid();
+        let part_id = sqlx::query(
+            "INSERT INTO payment_parts (payment_id, method_code, amount) VALUES (?, ?, ?)",
+        )
+        .bind(payment_id)
+        .bind(code)
+        .bind(amt)
+        .execute(&mut *tx)
+        .await?
+        .last_insert_rowid();
 
         sqlx::query(
             "INSERT INTO cash_movements (session_id, request_key, payment_part_id, kind, method_code, direction, amount, description, reference_document)

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::error::{CoreError, CoreResult};
+use serde::{Deserialize, Serialize};
 
 /// Montant exact en FCFA entiers (XOF). Aucun float autorisé.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

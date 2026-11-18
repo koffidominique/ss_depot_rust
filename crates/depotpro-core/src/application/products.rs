@@ -1,11 +1,11 @@
-use serde::{Deserialize, Deserializer, Serialize};
-use sqlx::FromRow;
 use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::sales::audit_log_tx;
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
+use serde::{Deserialize, Deserializer, Serialize};
+use sqlx::FromRow;
 
 const ALLOWED_PACKAGING_NAMES: &[&str] = &["casier", "carton", "bouteille", "pack", "canette"];
 
@@ -424,7 +424,11 @@ async fn hydrate_products(
             .average_cost_num
             .as_deref()
             .and_then(|n| n.parse::<i128>().ok())
-            .zip(prod.average_cost_den.as_deref().and_then(|d| d.parse::<i128>().ok()))
+            .zip(
+                prod.average_cost_den
+                    .as_deref()
+                    .and_then(|d| d.parse::<i128>().ok()),
+            )
             .and_then(|(num, den)| {
                 if den > 0 {
                     Some(((num + den / 2) / den) as i64)
@@ -494,20 +498,32 @@ async fn get_product_by_id(db: &DepotDb, id: i64) -> CoreResult<ProductSummaryDt
         .ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))
 }
 
-pub async fn create_product(db: &DepotDb, input: CreateProductInput) -> CoreResult<ProductSummaryDto> {
+pub async fn create_product(
+    db: &DepotDb,
+    input: CreateProductInput,
+) -> CoreResult<ProductSummaryDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     let name = input.name.trim().to_string();
     let base_unit = input.base_unit.trim().to_string();
     if name.is_empty() {
-        return Err(CoreError::Validation("Le nom du produit est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le nom du produit est obligatoire.".to_string(),
+        ));
     }
     if base_unit.is_empty() {
-        return Err(CoreError::Validation("L'unité de base est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "L'unité de base est obligatoire.".to_string(),
+        ));
     }
 
-    let initial_stock = Quantity::parse_str(input.initial_stock.as_deref().unwrap_or("0"), "Stock initial")?;
-    let min_stock = Quantity::parse_str(input.min_stock.as_deref().unwrap_or("0"), "Stock minimum")?;
-    let max_stock = Quantity::parse_str(input.max_stock.as_deref().unwrap_or("0"), "Stock maximum")?;
+    let initial_stock = Quantity::parse_str(
+        input.initial_stock.as_deref().unwrap_or("0"),
+        "Stock initial",
+    )?;
+    let min_stock =
+        Quantity::parse_str(input.min_stock.as_deref().unwrap_or("0"), "Stock minimum")?;
+    let max_stock =
+        Quantity::parse_str(input.max_stock.as_deref().unwrap_or("0"), "Stock maximum")?;
 
     let purchase_price = input
         .purchase_price
@@ -544,11 +560,17 @@ pub async fn create_product(db: &DepotDb, input: CreateProductInput) -> CoreResu
             .await?
             .is_none()
         {
-            return Err(CoreError::Validation("Fournisseur introuvable.".to_string()));
+            return Err(CoreError::Validation(
+                "Fournisseur introuvable.".to_string(),
+            ));
         }
     }
 
-    let clean_barcode = input.barcode.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let clean_barcode = input
+        .barcode
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     if let Some(bc) = clean_barcode {
         let dup: Option<(i64,)> = sqlx::query_as(
             "SELECT id FROM products WHERE barcode = ? UNION SELECT id FROM product_packagings WHERE barcode = ?",
@@ -643,9 +665,15 @@ pub async fn create_product(db: &DepotDb, input: CreateProductInput) -> CoreResu
         }
         let coeff = Quantity::parse_str(&pkg.coefficient, &format!("Coefficient ({})", pkg.name))?;
         if coeff.milli_units <= 0 {
-            return Err(CoreError::Validation("Coefficient nul interdit.".to_string()));
+            return Err(CoreError::Validation(
+                "Coefficient nul interdit.".to_string(),
+            ));
         }
-        let pkg_bc = pkg.barcode.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let pkg_bc = pkg
+            .barcode
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
         if let Some(bc) = pkg_bc {
             let dup: Option<(i64,)> = sqlx::query_as(
                 "SELECT id FROM products WHERE barcode = ? UNION SELECT id FROM product_packagings WHERE barcode = ?",
@@ -769,7 +797,11 @@ pub async fn update_product(
     let barcode = match input.barcode {
         Some(b) => {
             let trimmed = b.trim().to_string();
-            if trimmed.is_empty() { None } else { Some(trimmed) }
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
         }
         None => cur.3.clone(),
     };
@@ -806,7 +838,10 @@ pub async fn update_product(
         Some(opt) => sanitize_image_path(opt.as_deref())?,
         None => cur.13.clone(),
     };
-    let is_active = input.is_active.map(|b| if b { 1_i64 } else { 0_i64 }).unwrap_or(cur.14);
+    let is_active = input
+        .is_active
+        .map(|b| if b { 1_i64 } else { 0_i64 })
+        .unwrap_or(cur.14);
 
     sqlx::query(
         "UPDATE products
@@ -858,17 +893,25 @@ pub async fn upsert_packaging(
     }
     let coeff = Quantity::parse_str(&pkg.coefficient, "Coefficient")?;
     if coeff.milli_units <= 0 {
-        return Err(CoreError::Validation("Coefficient nul interdit.".to_string()));
+        return Err(CoreError::Validation(
+            "Coefficient nul interdit.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    let base_unit: Option<(String,)> = sqlx::query_as("SELECT base_unit FROM products WHERE id = ?")
-        .bind(product_id)
-        .fetch_optional(&mut *tx)
-        .await?;
-    let (base_unit,) = base_unit.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
+    let base_unit: Option<(String,)> =
+        sqlx::query_as("SELECT base_unit FROM products WHERE id = ?")
+            .bind(product_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let (base_unit,) =
+        base_unit.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
 
-    let pkg_bc = pkg.barcode.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let pkg_bc = pkg
+        .barcode
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     if let Some(bc) = pkg_bc {
         let dup: Option<(i64,)> = sqlx::query_as(
             "SELECT id FROM products WHERE barcode = ? UNION SELECT id FROM product_packagings WHERE barcode = ? AND id != ?",
@@ -1075,7 +1118,11 @@ pub async fn export_products_csv(db: &DepotDb) -> CoreResult<String> {
 
 pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
     require_current_actor_permission(Permission::CatalogWrite)?;
-    let lines: Vec<&str> = csv.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let lines: Vec<&str> = csv
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
     if lines.len() < 2 {
         return Err(CoreError::Validation(
             "Le fichier CSV doit contenir un en-tête et au moins une ligne.".to_string(),
@@ -1087,7 +1134,10 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
             .map(|c| c.trim().trim_matches('"').replace("\"\"", "\""))
             .collect()
     };
-    let headers: Vec<String> = parse_row(lines[0]).into_iter().map(|h| h.to_lowercase()).collect();
+    let headers: Vec<String> = parse_row(lines[0])
+        .into_iter()
+        .map(|h| h.to_lowercase())
+        .collect();
     let idx = |name: &str| headers.iter().position(|h| h == name);
     let name_idx = idx("name").ok_or_else(|| {
         CoreError::Validation("Colonnes obligatoires manquantes : name, base_unit.".to_string())
@@ -1136,18 +1186,18 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
             .map(|s| s.trim())
             .filter(|s| !s.is_empty());
         if let Some(bc) = barcode {
-            let dup_prod = sqlx::query_scalar::<_, i64>("SELECT id FROM products WHERE barcode = ?")
-                .bind(bc)
-                .fetch_optional(&mut *tx)
-                .await?
-                .is_some();
-            let dup_pkg = sqlx::query_scalar::<_, i64>(
-                "SELECT id FROM product_packagings WHERE barcode = ?",
-            )
-            .bind(bc)
-            .fetch_optional(&mut *tx)
-            .await?
-            .is_some();
+            let dup_prod =
+                sqlx::query_scalar::<_, i64>("SELECT id FROM products WHERE barcode = ?")
+                    .bind(bc)
+                    .fetch_optional(&mut *tx)
+                    .await?
+                    .is_some();
+            let dup_pkg =
+                sqlx::query_scalar::<_, i64>("SELECT id FROM product_packagings WHERE barcode = ?")
+                    .bind(bc)
+                    .fetch_optional(&mut *tx)
+                    .await?
+                    .is_some();
             if dup_prod || dup_pkg {
                 return Err(CoreError::DuplicateOperation(format!(
                     "Ligne {} : code-barres {bc} déjà existant.",
@@ -1232,10 +1282,12 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
         .await?
         .last_insert_rowid();
 
-        sqlx::query("INSERT INTO deposit_packaging_profiles (packaging_id, mode) VALUES (?, 'none')")
-            .bind(pkg_id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "INSERT INTO deposit_packaging_profiles (packaging_id, mode) VALUES (?, 'none')",
+        )
+        .bind(pkg_id)
+        .execute(&mut *tx)
+        .await?;
 
         if stock_milli > 0 {
             sqlx::query(

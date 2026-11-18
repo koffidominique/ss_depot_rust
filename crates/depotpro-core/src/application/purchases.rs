@@ -170,7 +170,10 @@ pub struct PaySupplierDebtInput {
     pub note: Option<String>,
 }
 
-pub async fn list_suppliers(db: &DepotDb, search: Option<&str>) -> CoreResult<Vec<SupplierSummaryDto>> {
+pub async fn list_suppliers(
+    db: &DepotDb,
+    search: Option<&str>,
+) -> CoreResult<Vec<SupplierSummaryDto>> {
     require_current_actor_permission(Permission::PurchasesRead)?;
     let q = search.map(str::trim).filter(|s| !s.is_empty());
     let rows = match q {
@@ -205,16 +208,23 @@ pub async fn list_suppliers(db: &DepotDb, search: Option<&str>) -> CoreResult<Ve
     Ok(rows)
 }
 
-pub async fn create_supplier(db: &DepotDb, input: CreateSupplierInput) -> CoreResult<SupplierSummaryDto> {
+pub async fn create_supplier(
+    db: &DepotDb,
+    input: CreateSupplierInput,
+) -> CoreResult<SupplierSummaryDto> {
     require_current_actor_permission(Permission::PurchasesWrite)?;
     let name = input.name.trim().to_string();
     let phone = input.phone.trim().to_string();
     if name.is_empty() || phone.is_empty() {
-        return Err(CoreError::Validation("Nom et téléphone fournisseur obligatoires.".to_string()));
+        return Err(CoreError::Validation(
+            "Nom et téléphone fournisseur obligatoires.".to_string(),
+        ));
     }
     let terms = input.payment_terms_days.unwrap_or(0);
     if terms < 0 {
-        return Err(CoreError::Validation("Délai de paiement invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Délai de paiement invalide.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
@@ -235,7 +245,14 @@ pub async fn create_supplier(db: &DepotDb, input: CreateSupplierInput) -> CoreRe
     .await?
     .last_insert_rowid();
 
-    audit_log_tx(&mut tx, "CREATE_SUPPLIER", "suppliers", Some(sup_id.to_string()), &format!("{code} — {name}")).await?;
+    audit_log_tx(
+        &mut tx,
+        "CREATE_SUPPLIER",
+        "suppliers",
+        Some(sup_id.to_string()),
+        &format!("{code} — {name}"),
+    )
+    .await?;
     tx.commit().await?;
 
     list_suppliers(db, Some(&code))
@@ -271,14 +288,25 @@ pub async fn update_supplier(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let (code, prev_name, prev_company, prev_phone, prev_address, prev_email, prev_contact, prev_terms, prev_active) =
-        existing.ok_or_else(|| CoreError::Validation("Fournisseur introuvable.".to_string()))?;
+    let (
+        code,
+        prev_name,
+        prev_company,
+        prev_phone,
+        prev_address,
+        prev_email,
+        prev_contact,
+        prev_terms,
+        prev_active,
+    ) = existing.ok_or_else(|| CoreError::Validation("Fournisseur introuvable.".to_string()))?;
 
     let name = match input.name {
         Some(n) => {
             let clean = n.trim().to_string();
             if clean.is_empty() {
-                return Err(CoreError::Validation("Nom fournisseur obligatoire.".to_string()));
+                return Err(CoreError::Validation(
+                    "Nom fournisseur obligatoire.".to_string(),
+                ));
             }
             clean
         }
@@ -288,7 +316,9 @@ pub async fn update_supplier(
         Some(p) => {
             let clean = p.trim().to_string();
             if clean.is_empty() {
-                return Err(CoreError::Validation("Téléphone fournisseur obligatoire.".to_string()));
+                return Err(CoreError::Validation(
+                    "Téléphone fournisseur obligatoire.".to_string(),
+                ));
             }
             clean
         }
@@ -296,7 +326,9 @@ pub async fn update_supplier(
     };
     let terms = input.payment_terms_days.unwrap_or(prev_terms);
     if terms < 0 {
-        return Err(CoreError::Validation("Délai de paiement invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Délai de paiement invalide.".to_string(),
+        ));
     }
 
     let opt_text = |opt: Option<Option<String>>, prev: Option<String>| -> Option<String> {
@@ -305,7 +337,11 @@ pub async fn update_supplier(
             Some(None) => None,
             Some(Some(s)) => {
                 let t = s.trim().to_string();
-                if t.is_empty() { None } else { Some(t) }
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
             }
         }
     };
@@ -315,7 +351,13 @@ pub async fn update_supplier(
     let email = opt_text(input.email, prev_email);
     let contact_person = opt_text(input.contact_person, prev_contact);
     let is_active = match input.is_active {
-        Some(v) => if v { 1 } else { 0 },
+        Some(v) => {
+            if v {
+                1
+            } else {
+                0
+            }
+        }
         None => prev_active,
     };
 

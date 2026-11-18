@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::error::{CoreError, CoreResult};
+use serde::{Deserialize, Serialize};
 
 /// Quantité exacte en milli-unités (1 unité = 1000 milli-unités, max 3 décimales).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

@@ -134,7 +134,11 @@ pub async fn get_stock_overview(db: &DepotDb) -> CoreResult<StockOverviewDto> {
                 .average_cost_num
                 .as_deref()
                 .and_then(|n| n.parse::<i128>().ok())
-                .zip(p.average_cost_den.as_deref().and_then(|d| d.parse::<i128>().ok()));
+                .zip(
+                    p.average_cost_den
+                        .as_deref()
+                        .and_then(|d| d.parse::<i128>().ok()),
+                );
             let (avg_cost, valuation) = match parsed {
                 Some((num, den)) if den > 0 => {
                     let avg_i128 = (num + den / 2) / den;
@@ -176,7 +180,10 @@ pub async fn get_stock_overview(db: &DepotDb) -> CoreResult<StockOverviewDto> {
     .fetch_all(&db.pool)
     .await?;
 
-    Ok(StockOverviewDto { products, movements })
+    Ok(StockOverviewDto {
+        products,
+        movements,
+    })
 }
 
 pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<StockMovementDto> {
@@ -234,15 +241,22 @@ pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<S
         }
     }
 
-    type InventoryProductRow = (i64, String, String, i64, Option<String>, Option<String>, i64);
-    let prod: Option<InventoryProductRow> =
-        sqlx::query_as(
-            "SELECT id, name, base_unit, stock_milli, average_cost_num, average_cost_den, is_active
+    type InventoryProductRow = (
+        i64,
+        String,
+        String,
+        i64,
+        Option<String>,
+        Option<String>,
+        i64,
+    );
+    let prod: Option<InventoryProductRow> = sqlx::query_as(
+        "SELECT id, name, base_unit, stock_milli, average_cost_num, average_cost_den, is_active
              FROM products WHERE id = ?",
-        )
-        .bind(input.product_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+    )
+    .bind(input.product_id)
+    .fetch_optional(&mut *tx)
+    .await?;
 
     let (pid, prod_name, base_unit, stock_before, avg_num, avg_den, is_active) =
         prod.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
@@ -376,12 +390,13 @@ pub async fn create_inventory(db: &DepotDb, notes: Option<&str>) -> CoreResult<I
     let (_guard, mut tx) = db.begin_write().await?;
     let reference = DepotDb::next_sequence(&mut tx, "INV").await?;
     let clean_notes = notes.map(str::trim).filter(|s| !s.is_empty());
-    let inv_id = sqlx::query("INSERT INTO inventories (reference, status, notes) VALUES (?, 'draft', ?)")
-        .bind(&reference)
-        .bind(clean_notes)
-        .execute(&mut *tx)
-        .await?
-        .last_insert_rowid();
+    let inv_id =
+        sqlx::query("INSERT INTO inventories (reference, status, notes) VALUES (?, 'draft', ?)")
+            .bind(&reference)
+            .bind(clean_notes)
+            .execute(&mut *tx)
+            .await?
+            .last_insert_rowid();
 
     let prods: Vec<(i64, i64)> =
         sqlx::query_as("SELECT id, stock_milli FROM products WHERE is_active = 1")
@@ -464,7 +479,11 @@ pub async fn validate_inventory(
 
         sqlx::query("UPDATE inventory_lines SET counted_milli = ?, reason = ? WHERE id = ?")
             .bind(counted.milli_units)
-            .bind(if reason.is_empty() { None } else { Some(reason) })
+            .bind(if reason.is_empty() {
+                None
+            } else {
+                Some(reason)
+            })
             .bind(lid)
             .execute(&mut *tx)
             .await?;
@@ -491,10 +510,12 @@ pub async fn validate_inventory(
         }
     }
 
-    sqlx::query("UPDATE inventories SET status = 'validated', validated_at = datetime('now') WHERE id = ?")
-        .bind(inventory_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE inventories SET status = 'validated', validated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(inventory_id)
+    .execute(&mut *tx)
+    .await?;
     audit_log_tx(
         &mut tx,
         "VALIDATE_INVENTORY",

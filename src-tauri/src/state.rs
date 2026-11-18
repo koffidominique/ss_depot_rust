@@ -1,8 +1,8 @@
+use depotpro_core::application::auth::SessionStore;
+use depotpro_core::infrastructure::db::DepotDb;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use depotpro_core::application::auth::SessionStore;
-use depotpro_core::infrastructure::db::DepotDb;
 
 pub struct DesktopState {
     pub db: Arc<RwLock<DepotDb>>,

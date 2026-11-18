@@ -98,8 +98,8 @@ export function Header() {
   };
 
   return (
-    <header className="no-print flex h-16 items-center justify-between gap-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] px-6 shrink-0">
-      <div className="min-w-0">
+    <header className="no-print flex h-16 items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] px-6 shrink-0">
+      <div className="min-w-[160px] flex-1">
         <div className="flex items-center gap-2 text-xs text-[#667085] dark:text-slate-400">
           <span>DEPOTPRO</span>
           <span aria-hidden="true">/</span>
@@ -110,7 +110,7 @@ export function Header() {
         </h1>
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         {totalOverdue > 0 && (
           <Link
             to={overdueReceivables > 0 ? '/debts' : '/suppliers'}
@@ -129,7 +129,7 @@ export function Header() {
           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 text-xs text-[#667085] dark:text-slate-300 hover:border-[#2563EB] hover:text-[#182230] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
         >
           <Search className="h-3.5 w-3.5" />
-          <span className="hidden md:inline">Rechercher...</span>
+          <span className="hidden 2xl:inline">Rechercher...</span>
           <kbd className="hidden lg:inline-block rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 font-mono-num text-[10px]">
             Ctrl+K
           </kbd>
@@ -183,7 +183,7 @@ export function Header() {
         {currentUser && (
           <div
             title={`Connecté en tant que ${currentUser.displayName} (${currentUser.roleLabel})`}
-            className="hidden xl:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 whitespace-nowrap shrink-0"
+            className="hidden 2xl:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 whitespace-nowrap shrink-0"
           >
             <span className="truncate max-w-[120px]">{currentUser.displayName}</span>
             <span className="rounded bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 text-[10px] font-semibold text-[#2563EB] dark:text-[#60A5FA]">
