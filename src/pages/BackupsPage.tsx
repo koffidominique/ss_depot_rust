@@ -1,145 +1,75 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ColumnDef } from '@tanstack/react-table';
-import { CheckCircle2, DatabaseBackup, Download, RotateCcw, ShieldCheck } from 'lucide-react';
-import { apiClient } from '../services/api/createApiClient.ts';
-import { DataTable } from '../components/tables/DataTable.tsx';
+import { DatabaseBackup, Lock } from 'lucide-react';
 import { ConfirmationDialog } from '../components/common/ConfirmationDialog.tsx';
 import { FormTipsButton } from '../components/common/FormTipsButton.tsx';
+import { InlineAlert } from '../components/common/InlineAlert.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
-import type { BackupFile } from '../types/erp.ts';
-import { formatBytes, formatDateTime } from '../utils/format.ts';
+import {
+  useBackupsMutations,
+  useBackupsQuery,
+  type PassphraseAction,
+} from '../features/backups/hooks/useBackupsData.ts';
+import { BackupsTable } from '../features/backups/components/BackupsTable.tsx';
+import { BackupPassphraseModal } from '../features/backups/components/BackupPassphraseModal.tsx';
 
 export function BackupsPage() {
-  const qc = useQueryClient();
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
+  const [passphraseAction, setPassphraseAction] = useState<PassphraseAction>(null);
+  const [passphrase, setPassphrase] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-  const { data: backups, isLoading, error, refetch } = useQuery({
-    queryKey: ['backups'],
-    queryFn: () => apiClient.listBackups(),
-  });
+  const { data: backups, isLoading, error, refetch } = useBackupsQuery();
 
-  const createMut = useMutation({
-    mutationFn: () => apiClient.createBackup(),
-    onSuccess: (created) => {
-      qc.invalidateQueries({ queryKey: ['backups'] });
-      setStatusMsg({
-        type: 'ok',
-        text: `Sauvegarde cohérente créée et vérifiée : ${created.name}`,
-      });
-    },
-    onError: (err) =>
-      setStatusMsg({ type: 'err', text: err instanceof Error ? err.message : 'Erreur sauvegarde.' }),
-  });
+  const { createMut, createEncMut, verifyMut, restoreMut, downloadBackupFile } =
+    useBackupsMutations({
+      onStatus: setStatusMsg,
+      onClearPassphraseModal: () => {
+        setPassphraseAction(null);
+        setPassphrase('');
+      },
+      onClearRestoreTarget: () => setRestoreTarget(null),
+    });
 
-  const verifyMut = useMutation({
-    mutationFn: (name: string) => apiClient.verifyBackup(name),
-    onSuccess: (res) => {
-      setStatusMsg({
-        type: res.integrity === 'ok' && res.foreignKeyErrors === 0 ? 'ok' : 'err',
-        text: `Vérification ${res.name} : intégrité=${res.integrity}, erreurs FK=${res.foreignKeyErrors}, schéma v${res.schemaVersion}`,
-      });
-    },
-    onError: (err) =>
-      setStatusMsg({ type: 'err', text: err instanceof Error ? err.message : 'Erreur vérification.' }),
-  });
-
-  const restoreMut = useMutation({
-    mutationFn: (name: string) => apiClient.restoreBackup(name),
-    onSuccess: (res) => {
-      qc.invalidateQueries();
-      setRestoreTarget(null);
-      setStatusMsg({
-        type: 'ok',
-        text: `Base restaurée depuis ${res.restored} (une pré-sauvegarde de sécurité a été conservée).`,
-      });
-    },
-    onError: (err) =>
-      setStatusMsg({ type: 'err', text: err instanceof Error ? err.message : 'Erreur restauration.' }),
-  });
-
-  const handleDownload = async (name: string) => {
-    try {
-      const bytes = await apiClient.downloadBackup(name);
-      const blob = new Blob([new Uint8Array(bytes)], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setStatusMsg({
-        type: 'err',
-        text: err instanceof Error ? err.message : 'Erreur téléchargement.',
-      });
+  const handlePassphraseSubmit = () => {
+    if (!passphraseAction) return;
+    if (passphraseAction.mode === 'create') {
+      createEncMut.mutate(passphrase);
+    } else if (passphraseAction.mode === 'verify') {
+      verifyMut.mutate({ name: passphraseAction.name, secret: passphrase });
+    } else if (passphraseAction.mode === 'restore') {
+      restoreMut.mutate({ name: passphraseAction.name, secret: passphrase });
     }
   };
 
-  const columns: ColumnDef<BackupFile>[] = [
-    {
-      accessorKey: 'name',
-      header: 'Archive SQLite',
-      cell: ({ row }) => <span className="font-mono-num text-xs font-semibold">{row.original.name}</span>,
-    },
-    {
-      accessorKey: 'createdAt',
-      header: 'Date de création',
-      cell: ({ row }) => <span className="font-mono-num text-xs">{formatDateTime(row.original.createdAt)}</span>,
-    },
-    {
-      accessorKey: 'size',
-      header: 'Taille',
-      cell: ({ row }) => <span className="font-mono-num text-xs">{formatBytes(row.original.size)}</span>,
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      cell: ({ row }) => (
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => verifyMut.mutate(row.original.name)}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
-          >
-            <ShieldCheck className="h-3.5 w-3.5 text-[#16A36A]" />
-            Vérifier
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDownload(row.original.name)}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Exporter
-          </button>
-          <button
-            type="button"
-            onClick={() => setRestoreTarget(row.original.name)}
-            className="inline-flex items-center gap-1 rounded-md border border-rose-200 dark:border-rose-900/60 px-2.5 py-1 text-xs font-medium text-[#DC4545] hover:bg-rose-50 dark:hover:bg-rose-950/30"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Restaurer
-          </button>
-        </div>
-      ),
-    },
-  ];
+  const isEncryptedBusy =
+    createEncMut.isPending || verifyMut.isPending || restoreMut.isPending;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5">
         <div>
-          <h2 className="font-display text-sm font-semibold">Sauvegardes SQLite cohérentes (VACUUM INTO)</h2>
+          <h2 className="font-display text-sm font-semibold">
+            Sauvegardes SQLite cohérentes (VACUUM INTO)
+          </h2>
           <p className="mt-1 text-xs text-[#667085] dark:text-slate-400">
-            Chaque sauvegarde consolide le journal WAL, exécute PRAGMA integrity_check, conserve les 30 dernières archives et peut être vérifiée avant restauration.
+            Chaque sauvegarde consolide le journal WAL, exécute PRAGMA integrity_check, conserve
+            les 30 dernières archives et peut être chiffrée en AES-256-GCM (.dpbkp).
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <FormTipsButton topicId="backups" label="Aide sauvegarde" />
+          <button
+            type="button"
+            disabled={createEncMut.isPending}
+            onClick={() => {
+              setPassphrase('');
+              setPassphraseAction({ mode: 'create' });
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs font-semibold text-[#182230] dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap shrink-0"
+          >
+            <Lock className="h-3.5 w-3.5 text-amber-600" />
+            Sauvegarde chiffrée
+          </button>
           <button
             type="button"
             disabled={createMut.isPending}
@@ -153,16 +83,11 @@ export function BackupsPage() {
       </div>
 
       {statusMsg && (
-        <div
-          className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-medium ${
-            statusMsg.type === 'ok'
-              ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/30 text-[#16A36A]'
-              : 'border-rose-200 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-950/30 text-[#DC4545]'
-          }`}
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>{statusMsg.text}</span>
-        </div>
+        <InlineAlert
+          variant={statusMsg.type === 'ok' ? 'success' : 'error'}
+          message={statusMsg.text}
+          onDismiss={() => setStatusMsg(null)}
+        />
       )}
 
       {isLoading ? (
@@ -173,10 +98,19 @@ export function BackupsPage() {
           onRetry={() => refetch()}
         />
       ) : (
-        <DataTable
-          data={backups}
-          columns={columns as ColumnDef<BackupFile, unknown>[]}
-          emptyMessage="Aucune sauvegarde créée pour le moment."
+        <BackupsTable
+          backups={backups}
+          onVerify={(name, isEnc) =>
+            isEnc
+              ? (setPassphrase(''), setPassphraseAction({ mode: 'verify', name }))
+              : verifyMut.mutate({ name })
+          }
+          onDownload={(name) => void downloadBackupFile(name)}
+          onRestore={(name, isEnc) =>
+            isEnc
+              ? (setPassphrase(''), setPassphraseAction({ mode: 'restore', name }))
+              : setRestoreTarget(name)
+          }
         />
       )}
 
@@ -188,7 +122,19 @@ export function BackupsPage() {
         confirmLabel="Restaurer cette sauvegarde"
         destructive
         loading={restoreMut.isPending}
-        onConfirm={() => restoreTarget && restoreMut.mutate(restoreTarget)}
+        onConfirm={() => restoreTarget && restoreMut.mutate({ name: restoreTarget })}
+      />
+
+      <BackupPassphraseModal
+        action={passphraseAction}
+        passphrase={passphrase}
+        onChangePassphrase={setPassphrase}
+        onClose={() => {
+          setPassphraseAction(null);
+          setPassphrase('');
+        }}
+        isBusy={isEncryptedBusy}
+        onSubmit={handlePassphraseSubmit}
       />
     </div>
   );

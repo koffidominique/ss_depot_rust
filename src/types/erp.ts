@@ -1,12 +1,35 @@
 export type PackagingName = 'casier' | 'carton' | 'bouteille' | 'pack' | 'canette';
 export type PriceTier = 'wholesale' | 'semi_wholesale' | 'retail';
 export type CreditPolicy = 'forbidden' | 'limited' | 'unlimited';
+export type UserRole = 'owner' | 'admin' | 'manager' | 'cashier' | 'stock_manager' | 'accountant';
+
+export interface SessionUser {
+  userId: string;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  roleLabel: string;
+  permissions: string[];
+}
+
+export interface UserAccount {
+  id: number;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  roleLabel: string;
+  active: boolean;
+  failedAttempts: number;
+  lockedUntil: string | null;
+  createdAt: string;
+}
 
 export interface AuthStatus {
   needsSetup: boolean;
   lockedUntil: string | null;
   failedAttempts: number;
   authenticated?: boolean;
+  user?: SessionUser;
 }
 
 export interface Category {
@@ -366,6 +389,7 @@ export interface AppSettings {
   credit_note_prefix: string;
   theme: 'light' | 'dark';
   logo_path?: string | null;
+  setup_completed?: number;
 }
 
 export interface ExpenseItem {
@@ -387,6 +411,50 @@ export interface BackupFile {
   name: string;
   size: number;
   createdAt: string;
+  integrity?: string | null;
+  sha256?: string | null;
+  encrypted?: boolean;
+}
+
+export interface BackupEntityCounts {
+  products: number;
+  stockMovements: number;
+  clients: number;
+  suppliers: number;
+  sales: number;
+  salesReturns: number;
+  customerReceivables: number;
+  purchaseOrders: number;
+  purchaseReceipts: number;
+  supplierDebts: number;
+  returnableStockMovements: number;
+  cashMovements: number;
+  expenses: number;
+  auditLogs: number;
+}
+
+export interface BackupVerifyResult {
+  name: string;
+  integrity: string;
+  foreignKeyErrors: number;
+  schemaVersion: number;
+  appliedVersions?: number[];
+  backupFormat?: string;
+  minAppVersion?: string;
+  compatible?: boolean;
+  compatibilityReason?: string | null;
+  sha256?: string;
+  counts?: BackupEntityCounts | null;
+}
+
+export interface BackupRestoreResult {
+  restored: string;
+  safetyBackup?: string;
+  restoredSha256?: string;
+  integrity?: string;
+  foreignKeyErrors?: number;
+  schemaVersion?: number;
+  counts?: BackupEntityCounts;
 }
 
 export interface DailySalePoint {

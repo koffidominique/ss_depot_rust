@@ -18,6 +18,7 @@ import {
   DatabaseBackup,
   ChevronLeft,
   ChevronRight,
+  X,
 } from 'lucide-react';
 import { Logo } from '../components/common/Logo.tsx';
 import { useUiStore } from '../stores/uiStore.ts';
@@ -75,33 +76,45 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({
+  mobileOpen = false,
+  onCloseMobile,
+}: {
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
 
-  return (
-    <aside
-      className={cn(
-        'no-print flex h-screen flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] transition-[width] duration-200 shrink-0',
-        collapsed ? 'w-[70px]' : 'w-[248px]'
-      )}
-    >
+  const navContent = (isDrawer: boolean) => (
+    <>
       <div className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4">
-        <Logo collapsed={collapsed} />
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          aria-label={collapsed ? 'Déplier la barre latérale' : 'Réduire la barre latérale'}
-          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </button>
+        <Logo collapsed={!isDrawer && collapsed} />
+        {isDrawer ? (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            aria-label="Fermer le menu"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? 'Déplier la barre latérale' : 'Réduire la barre latérale'}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2.5 py-4 space-y-5" aria-label="Navigation principale">
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
-            {!collapsed && (
+            {(isDrawer || !collapsed) && (
               <div className="px-2.5 pb-1.5 text-[11px] font-semibold tracking-wide text-[#667085] dark:text-slate-500">
                 {group.label}
               </div>
@@ -114,7 +127,10 @@ export function Sidebar() {
                     key={item.to}
                     to={item.to}
                     end={item.to === '/' || item.to === '/sales'}
-                    title={collapsed ? item.label : undefined}
+                    title={!isDrawer && collapsed ? item.label : undefined}
+                    onClick={() => {
+                      if (isDrawer && onCloseMobile) onCloseMobile();
+                    }}
                     className={({ isActive }) =>
                       cn(
                         'flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors whitespace-nowrap',
@@ -125,7 +141,7 @@ export function Sidebar() {
                     }
                   >
                     <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {(isDrawer || !collapsed) && <span className="truncate">{item.label}</span>}
                   </NavLink>
                 );
               })}
@@ -133,6 +149,33 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      <aside
+        className={cn(
+          'no-print hidden md:flex h-screen flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] transition-[width] duration-200 shrink-0',
+          collapsed ? 'w-[70px]' : 'w-[248px]'
+        )}
+      >
+        {navContent(false)}
+      </aside>
+
+      {mobileOpen && (
+        <div className="no-print fixed inset-0 z-50 flex md:hidden">
+          <button
+            type="button"
+            aria-label="Fermer le menu latéral"
+            onClick={onCloseMobile}
+            className="fixed inset-0 bg-slate-950/50"
+          />
+          <aside className="relative z-10 flex h-screen w-[248px] flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] shadow-xl">
+            {navContent(true)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

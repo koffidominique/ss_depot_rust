@@ -49,7 +49,7 @@ for (const key of [
 }
 
 const React = await import('react');
-const { MemoryRouter } = await import('react-router-dom');
+const { MemoryRouter, Route, Routes } = await import('react-router-dom');
 const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
 const { cleanup, fireEvent, render, screen, waitFor } = await import('@testing-library/react');
 const { MoneyInput } = await import('../src/components/common/MoneyInput.tsx');
@@ -75,6 +75,8 @@ const { DashboardPage } = await import('../src/pages/DashboardPage.tsx');
 const { ExpensesPage } = await import('../src/pages/ExpensesPage.tsx');
 const { CashPage } = await import('../src/pages/CashPage.tsx');
 const { ConsignmentsPage } = await import('../src/pages/ConsignmentsPage.tsx');
+const { BackupsPage } = await import('../src/pages/BackupsPage.tsx');
+const { AppLayout } = await import('../src/layouts/AppLayout.tsx');
 const { Header } = await import('../src/layouts/Header.tsx');
 const { apiClient } = await import('../src/services/api/createApiClient.ts');
 const { useUiStore } = await import('../src/stores/uiStore.ts');
@@ -2583,6 +2585,1484 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       apiClient.setupPin = origSetup;
       apiClient.login = origLogin;
       useUiStore.getState().setToken(null);
+    }
+  });
+
+  it('SalesHistoryPage & PurchasesPage bloquent les dépassements de quantité côté UI et normalisent les saisies', async () => {
+    const origListSales = apiClient.listSales;
+    const origGetSaleDetail = apiClient.getSaleDetail;
+    const origCreateReturn = apiClient.createSaleReturn;
+    const origListPurchases = apiClient.listPurchases;
+    const origListSuppliers = apiClient.listSuppliers;
+    const origListProducts = apiClient.listProducts;
+    const origReceivePo = apiClient.receivePurchaseOrder;
+    const origGetSettings = apiClient.getSettings;
+
+    const returnCalls = [];
+    const receiveCalls = [];
+
+    apiClient.getSettings = async () => ({
+      settings: {
+        company_name: 'DEPOTPRO',
+        company_legal_name: null,
+        address: null,
+        phone: null,
+        email: null,
+        city: null,
+        country: "Côte d'Ivoire",
+        currency: 'FCFA',
+        allow_negative_stock: 0,
+        invoice_prefix: 'FAC',
+        sale_prefix: 'VTE',
+        purchase_prefix: 'ACH',
+        order_prefix: 'CMD',
+        receipt_prefix: 'REC',
+        credit_note_prefix: 'AVO',
+        theme: 'light',
+        logo_path: null,
+      },
+      paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+    });
+
+    const saleDetail = {
+      id: 91,
+      reference: 'VTE-2026-00091',
+      client_id: null,
+      client_name: 'Client Comptoir',
+      sale_type: 'cash',
+      price_tier: 'retail',
+      subtotal_merchandise: 3000,
+      discount_amount: 0,
+      total_merchandise: 3000,
+      total_deposit: 0,
+      total_amount: 3000,
+      paid_amount: 3000,
+      remaining_amount: 0,
+      payment_labels: 'Espèces',
+      status: 'partially_returned',
+      notes: null,
+      created_at: '2026-11-17T10:00:00Z',
+      client_code: null,
+      client_phone: null,
+      receivable_id: null,
+      due_date: null,
+      lines: [
+        {
+          id: 501,
+          sale_id: 91,
+          product_id: 1,
+          packaging_id: 1,
+          product_name: 'Flag 65cl',
+          packaging_name: 'bouteille',
+          base_unit: 'bouteille',
+          coefficient_milli: 1000,
+          quantity_milli: 5000,
+          base_quantity_milli: 5000,
+          unit_price: 600,
+          discount_amount: 0,
+          line_total: 3000,
+          returned_base_milli: 2000,
+        },
+        {
+          id: 502,
+          sale_id: 91,
+          product_id: 2,
+          packaging_id: 2,
+          product_name: 'Coca 33cl',
+          packaging_name: 'canette',
+          base_unit: 'canette',
+          coefficient_milli: 1000,
+          quantity_milli: 2000,
+          base_quantity_milli: 2000,
+          unit_price: 500,
+          discount_amount: 0,
+          line_total: 1000,
+          returned_base_milli: 2000,
+        },
+      ],
+      payments: [{ id: 1, reference: 'REC-1', method_code: 'cash', method_label: 'Espèces', part_amount: 3000, created_at: '2026-11-17T10:00:00Z' }],
+      deposits: [],
+      cancellation: null,
+      returns: [],
+    };
+    apiClient.listSales = async () => ({
+      items: [saleDetail],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+    apiClient.getSaleDetail = async () => saleDetail;
+    apiClient.createSaleReturn = async (saleId, input) => {
+      returnCalls.push({ saleId, input });
+      return saleDetail;
+    };
+
+    apiClient.listSuppliers = async () => [];
+    apiClient.listProducts = async () => ({ items: [], total: 0, page: 1, pageSize: 100, totalPages: 1 });
+    apiClient.listPurchases = async () => [
+      {
+        id: 77,
+        reference: 'CMD-2026-00077',
+        supplier_id: 1,
+        supplier_name: 'SOLIBRA',
+        supplier_code: 'FRN-001',
+        status: 'partial',
+        total_amount: 100000,
+        received_amount: 60000,
+        expected_date: null,
+        notes: null,
+        created_at: '2026-11-17T08:00:00Z',
+        lines: [
+          {
+            id: 901,
+            product_id: 1,
+            packaging_id: 1,
+            product_name: 'Flag 65cl',
+            packaging_name: 'casier',
+            base_unit: 'bouteille',
+            coefficient_milli: 24000,
+            ordered_quantity_milli: 10000,
+            received_quantity_milli: 6000,
+            unit_price: 10000,
+            line_total: 100000,
+          },
+        ],
+        receipts: [],
+      },
+    ];
+    apiClient.receivePurchaseOrder = async (orderId, input) => {
+      receiveCalls.push({ orderId, input });
+      return { id: 1 };
+    };
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      const shView = render(
+        React.createElement(QueryClientProvider, { client: qc }, React.createElement(SalesHistoryPage))
+      );
+      await waitFor(() => assert.ok(screen.getByText('VTE-2026-00091')));
+      fireEvent.click(screen.getByRole('button', { name: /Détails/i }));
+      await waitFor(() => assert.ok(screen.getByRole('button', { name: /Retour & Avoir/i })));
+      fireEvent.click(screen.getByRole('button', { name: /Retour & Avoir/i }));
+      await waitFor(() => assert.ok(screen.getByText(/Déjà intégralement retournée/i)));
+
+      const cocaInput = screen.getByLabelText('Quantité retour Coca 33cl');
+      assert.equal(cocaInput.hasAttribute('disabled'), true);
+
+      const flagInput = screen.getByLabelText('Quantité retour Flag 65cl');
+      fireEvent.change(flagInput, { target: { value: '5' } });
+      fireEvent.change(flagInput.closest('div.space-y-3').querySelector('input[type="text"]:not([aria-label])'), {
+        target: { value: 'Motif test' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Générer l'avoir/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByText(/Quantité retournée supérieure au solde restant/i))
+      );
+      assert.equal(returnCalls.length, 0);
+
+      fireEvent.change(flagInput, { target: { value: '1,5' } });
+      fireEvent.click(screen.getByRole('button', { name: /Générer l'avoir/i }));
+      await waitFor(() => assert.equal(returnCalls.length, 1));
+      assert.deepEqual(returnCalls[0].input.lines, [{ sale_line_id: 501, base_quantity: '1.5' }]);
+      shView.unmount();
+
+      render(
+        React.createElement(QueryClientProvider, { client: qc }, React.createElement(PurchasesPage))
+      );
+      await waitFor(() => assert.ok(screen.getByText('CMD-2026-00077')));
+      fireEvent.click(screen.getByRole('button', { name: /Réceptionner/i }));
+      await waitFor(() => assert.ok(screen.getByText(/Restant : 4 casier/i)));
+
+      const recInput = screen.getByLabelText('Quantité reçue');
+      fireEvent.change(recInput, { target: { value: '6' } });
+      fireEvent.click(screen.getByRole('button', { name: /Valider la réception en stock/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByText(/La quantité reçue dépasse le reliquat commandé/i))
+      );
+      assert.equal(receiveCalls.length, 0);
+
+      fireEvent.change(recInput, { target: { value: '2' } });
+      fireEvent.click(screen.getByRole('button', { name: /Valider la réception en stock/i }));
+      await waitFor(() => assert.equal(receiveCalls.length, 1));
+      assert.equal(receiveCalls[0].input.lines[0].purchase_order_line_id, 901);
+      assert.equal(receiveCalls[0].input.lines[0].received_quantity, '2');
+    } finally {
+      qc.clear();
+      apiClient.listSales = origListSales;
+      apiClient.getSaleDetail = origGetSaleDetail;
+      apiClient.createSaleReturn = origCreateReturn;
+      apiClient.listPurchases = origListPurchases;
+      apiClient.listSuppliers = origListSuppliers;
+      apiClient.listProducts = origListProducts;
+      apiClient.receivePurchaseOrder = origReceivePo;
+      apiClient.getSettings = origGetSettings;
+    }
+  });
+
+  it('Lot 2 — SalesPage calcule en BigInt exact, bloque les fractions invalides et conserve le panier après échec', async () => {
+    const origListProducts = apiClient.listProducts;
+    const origListClients = apiClient.listClients;
+    const origGetSettings = apiClient.getSettings;
+    const origGetCash = apiClient.getCashStatus;
+    const origCreateSale = apiClient.createSale;
+
+    apiClient.listProducts = async () => ({
+      items: [
+        {
+          id: 95,
+          reference: 'PRD-0095',
+          barcode: null,
+          name: 'Sirop Lot 2 UI',
+          brand: null,
+          category_id: 1,
+          category_name: 'Sirops',
+          supplier_id: null,
+          supplier_name: null,
+          description: null,
+          base_unit: 'litre',
+          stock_milli: 50_000,
+          min_stock_milli: 5_000,
+          max_stock_milli: 0,
+          purchase_price: 80,
+          wholesale_price: 90,
+          semi_wholesale_price: 95,
+          retail_price: 100,
+          average_cost_fcfa: null,
+          image_path: null,
+          is_active: 1,
+          packagings: [
+            {
+              id: 951,
+              product_id: 95,
+              name: 'bouteille',
+              base_unit: 'litre',
+              coefficient_milli: 1000,
+              purchase_price: 80,
+              wholesale_price: 90,
+              semi_wholesale_price: 95,
+              retail_price: 100,
+              barcode: null,
+              allow_fraction: 1,
+              is_active: 1,
+              deposit_mode: 'none',
+              components: [],
+            },
+          ],
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 50,
+      totalPages: 1,
+    });
+    apiClient.listClients = async () => [];
+    apiClient.getSettings = async () => ({
+      settings: {
+        company_name: 'DEPOTPRO',
+        company_legal_name: null,
+        address: null,
+        phone: null,
+        email: null,
+        city: null,
+        country: null,
+        currency: 'FCFA',
+        allow_negative_stock: 0,
+        invoice_prefix: 'FAC',
+        sale_prefix: 'VTE',
+        purchase_prefix: 'ACH',
+        order_prefix: 'CMD',
+        receipt_prefix: 'REC',
+        credit_note_prefix: 'AVO',
+        theme: 'light',
+      },
+      paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+    });
+    apiClient.getCashStatus = async () => ({
+      activeSession: {
+        id: 1,
+        reference: 'CAI-1',
+        opened_at: '2026-11-17T08:00:00Z',
+        closed_at: null,
+        status: 'open',
+        opening_cash: 0,
+        theoretical_cash: 0,
+        physical_cash: null,
+        difference: null,
+        closing_notes: null,
+      },
+      summary: null,
+      history: [],
+    });
+    apiClient.createSale = async () => {
+      throw new Error('Encaissement insuffisant côté serveur');
+    };
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      useUiStore.setState({ heldCarts: [], posCart: [], posClientId: null, posSaleType: 'cash' });
+
+      // Vérifie l'addition décimale exacte dans le store POS (0.1 + 0.2 === 0.3, sans 0.30000000000000004)
+      useUiStore.getState().addToCart({
+        key: '95-951',
+        productId: 95,
+        productName: 'Sirop Lot 2 UI',
+        reference: 'PRD-0095',
+        baseUnit: 'litre',
+        stockMilli: 50_000,
+        packagingId: 951,
+        packagingName: 'bouteille',
+        coefficientMilli: 1000,
+        allowFraction: true,
+        quantity: '0.1',
+        unitPrice: 100,
+        discountAmount: 0,
+        depositPerPack: 0,
+        depositMode: 'none',
+      });
+      useUiStore.getState().addToCart({
+        key: '95-951',
+        productId: 95,
+        productName: 'Sirop Lot 2 UI',
+        reference: 'PRD-0095',
+        baseUnit: 'litre',
+        stockMilli: 50_000,
+        packagingId: 951,
+        packagingName: 'bouteille',
+        coefficientMilli: 1000,
+        allowFraction: true,
+        quantity: '0.2',
+        unitPrice: 100,
+        discountAmount: 0,
+        depositPerPack: 0,
+        depositMode: 'none',
+      });
+      assert.equal(useUiStore.getState().posCart[0].quantity, '0.3');
+
+      render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/sales/new'] },
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(SalesPage))
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByText('Sirop Lot 2 UI')));
+
+      // Quantité 0.333 × 100 FCFA -> non entier FCFA : doit afficher erreur, masquer total exact et désactiver validation
+      const qtyInputs = screen.getAllByRole('textbox');
+      const lineQtyInput = qtyInputs.find((el) => el.value === '0.3');
+      assert.ok(lineQtyInput);
+      fireEvent.change(lineQtyInput, { target: { value: '0.333' } });
+
+      await waitFor(() => {
+        const alerts = screen.getAllByRole('alert');
+        assert.ok(
+          alerts.some((a) => /nombre entier de FCFA/i.test(a.textContent || ''))
+        );
+      });
+      const submitBtn = screen.getByRole('button', { name: /Valider la vente \(F9\)/i });
+      assert.equal(submitBtn.hasAttribute('disabled'), true);
+
+      // Quantité valide 0.5 × 100 = 50 FCFA exact
+      fireEvent.change(lineQtyInput, { target: { value: '0.5' } });
+      await waitFor(() => {
+        assert.equal(submitBtn.hasAttribute('disabled'), false);
+        assert.ok(screen.getAllByText(/50 FCFA/).length >= 1);
+      });
+
+      // Échec API : le message d'erreur s'affiche et le panier n'est PAS vidé
+      fireEvent.click(submitBtn);
+      await waitFor(() => {
+        assert.ok(screen.getByText(/Encaissement insuffisant côté serveur/i));
+      });
+      assert.equal(useUiStore.getState().posCart.length, 1);
+    } finally {
+      useUiStore.setState({ heldCarts: [], posCart: [], posClientId: null, posSaleType: 'cash' });
+      qc.clear();
+      apiClient.listProducts = origListProducts;
+      apiClient.listClients = origListClients;
+      apiClient.getSettings = origGetSettings;
+      apiClient.getCashStatus = origGetCash;
+      apiClient.createSale = origCreateSale;
+    }
+  });
+
+  it('Lot 4 — DashboardPage affiche l’assistant de première configuration quand setup_completed === 0', async () => {
+    const origGetDashboard = apiClient.getDashboard;
+    const origGetReports = apiClient.getReports;
+    const origGetSettings = apiClient.getSettings;
+    const origUpdateSettings = apiClient.updateSettings;
+    const savedCalls = [];
+
+    apiClient.getDashboard = async () => ({
+      kpis: {
+        revenueMerchandise: 0,
+        depositsTotal: 0,
+        salesCount: 0,
+        collectionsTotal: 0,
+        receivablesTotal: 0,
+        receivablesCount: 0,
+        supplierDebtsTotal: 0,
+        supplierDebtsCount: 0,
+        expensesTotal: 0,
+        cashSessionOpen: false,
+        cashSessionReference: null,
+        cashPhysicalTheoretical: 0,
+        digitalSessionTotal: 0,
+        lowStockCount: 0,
+        outOfStockCount: 0,
+      },
+      lowStockProducts: [],
+      topProducts: [],
+      salesSeries: [],
+      recentAudit: [],
+    });
+    apiClient.getReports = async () => ({
+      commercial: { count: 0, merchandise_revenue: 0, deposit_billed: 0, paid_amount: 0 },
+      profitability: {
+        knownCostTotal: 0,
+        knownCostRevenue: 0,
+        knownGrossMargin: 0,
+        unknownCostLines: 0,
+        expensesTotal: 0,
+        netKnownResult: 0,
+      },
+      paymentBreakdown: [],
+      stock: { product_count: 0, unknown_cost_products: 0, knownValuationFcfa: 0 },
+      dailySales: [],
+    });
+    apiClient.getSettings = async () => ({
+      settings: {
+        company_name: 'Mon Dépôt',
+        company_legal_name: null,
+        address: null,
+        phone: null,
+        email: null,
+        city: null,
+        country: null,
+        currency: 'FCFA',
+        allow_negative_stock: 0,
+        invoice_prefix: 'FAC',
+        sale_prefix: 'VTE',
+        purchase_prefix: 'ACH',
+        order_prefix: 'CMD',
+        receipt_prefix: 'REC',
+        credit_note_prefix: 'AVO',
+        theme: 'light',
+        logo_path: null,
+        setup_completed: 0,
+      },
+      paymentMethods: [],
+    });
+    apiClient.updateSettings = async (input) => {
+      savedCalls.push(input);
+      return {
+        settings: {
+          company_name: String(input.company_name || 'Mon Dépôt'),
+          company_legal_name: input.company_legal_name ?? null,
+          address: input.address ?? null,
+          phone: input.phone ?? null,
+          email: null,
+          city: input.city ?? null,
+          country: input.country ?? null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          logo_path: null,
+          setup_completed: 1,
+        },
+        paymentMethods: [],
+      };
+    };
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(DashboardPage))
+        )
+      );
+      await waitFor(() =>
+        assert.ok(screen.getByText(/Assistant de première configuration/i))
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Configurer mon dépôt/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByRole('heading', { name: /Identité de votre dépôt/i }))
+      );
+
+      const nameInput = screen.getByPlaceholderText(/Ex\. Dépôt Boissons Étoile/i);
+      fireEvent.change(nameInput, { target: { value: 'Dépôt Cocody Boissons' } });
+      fireEvent.click(screen.getByRole('button', { name: /Enregistrer et terminer/i }));
+
+      await waitFor(() => assert.equal(savedCalls.length, 1));
+      assert.equal(savedCalls[0].company_name, 'Dépôt Cocody Boissons');
+      assert.equal(savedCalls[0].setup_completed, true);
+    } finally {
+      qc.clear();
+      apiClient.getDashboard = origGetDashboard;
+      apiClient.getReports = origGetReports;
+      apiClient.getSettings = origGetSettings;
+      apiClient.updateSettings = origUpdateSettings;
+    }
+  });
+
+  it('Lot 5 — BackupsPage affiche SHA-256, vérification lecture seule, incompatibilité et restauration sécurisée', async () => {
+    const origListBackups = apiClient.listBackups;
+    const origVerifyBackup = apiClient.verifyBackup;
+    const origRestoreBackup = apiClient.restoreBackup;
+
+    apiClient.listBackups = async () => [
+      {
+        name: 'depotpro_backup_20261117120000_aaaaaa.db',
+        size: 163840,
+        createdAt: '2026-11-17T12:00:00Z',
+        sha256: 'a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20',
+      },
+      {
+        name: 'depotpro_backup_20261117110000_future.db',
+        size: 163840,
+        createdAt: '2026-11-17T11:00:00Z',
+        sha256: 'ffffffffffff0708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20',
+      },
+    ];
+    apiClient.verifyBackup = async (name) =>
+      name.includes('future')
+        ? {
+            name,
+            integrity: 'ok',
+            foreignKeyErrors: 0,
+            schemaVersion: 99,
+            compatible: false,
+            compatibilityReason: 'Version de schéma incompatible (v99 > v4).',
+          }
+        : {
+            name,
+            integrity: 'ok',
+            foreignKeyErrors: 0,
+            schemaVersion: 4,
+            compatible: true,
+            compatibilityReason: null,
+            sha256: 'a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20',
+          };
+    apiClient.restoreBackup = async (name) => ({
+      restored: name,
+      safetyBackup: 'depotpro_backup_20261117120500_safety.db',
+      counts: {
+        products: 5,
+        stockMovements: 8,
+        clients: 2,
+        suppliers: 1,
+        sales: 3,
+        salesReturns: 1,
+        customerReceivables: 1,
+        purchaseOrders: 1,
+        purchaseReceipts: 1,
+        supplierDebts: 1,
+        returnableStockMovements: 1,
+        cashMovements: 4,
+        expenses: 1,
+        auditLogs: 12,
+      },
+    });
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/backups'] },
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(BackupsPage))
+        )
+      );
+
+      await waitFor(() => assert.ok(screen.getByText(/a1b2c3d4e5f6…/i)));
+
+      fireEvent.click(screen.getAllByRole('button', { name: /^Vérifier$/i })[0]);
+      await waitFor(() =>
+        assert.ok(screen.getByText(/lecture seule.*compatible/i))
+      );
+
+      fireEvent.click(screen.getAllByRole('button', { name: /^Vérifier$/i })[1]);
+      await waitFor(() =>
+        assert.ok(screen.getByText(/incompatible.*v99 > v4/i))
+      );
+
+      fireEvent.click(screen.getAllByRole('button', { name: /^Restaurer$/i })[0]);
+      await waitFor(() =>
+        assert.ok(screen.getByRole('button', { name: /Restaurer cette sauvegarde/i }))
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Restaurer cette sauvegarde/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByText(/sauvegarde sécurité : depotpro_backup_20261117120500_safety\.db/i))
+      );
+    } finally {
+      qc.clear();
+      apiClient.listBackups = origListBackups;
+      apiClient.verifyBackup = origVerifyBackup;
+      apiClient.restoreBackup = origRestoreBackup;
+    }
+  });
+
+  it('Lot 6 — LoginPage multi-utilisateur, BackupsPage chiffrée AES-256 et SettingsPage RBAC', async () => {
+    const origStatus = apiClient.getAuthStatus;
+    const origLogin = apiClient.login;
+    const origListBackups = apiClient.listBackups;
+    const origCreateEnc = apiClient.createEncryptedBackup;
+    const origGetSettings = apiClient.getSettings;
+    const origListUsers = apiClient.listUsers;
+    const origCreateUser = apiClient.createUser;
+
+    const loginCalls = [];
+    apiClient.getAuthStatus = async () => ({
+      needsSetup: false,
+      lockedUntil: null,
+      failedAttempts: 0,
+    });
+    apiClient.login = async (pin, username) => {
+      loginCalls.push({ pin, username });
+      return {
+        token: 'tok-cashier',
+        user: {
+          userId: '2',
+          username: username || 'owner',
+          displayName: 'Mariam Caisse',
+          role: 'cashier',
+          roleLabel: 'Caissier',
+          permissions: ['sales:read', 'sales:write'],
+        },
+      };
+    };
+
+    try {
+      const { unmount } = render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/login'] },
+          React.createElement(LoginPage)
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByLabelText(/Identifiant/i)));
+      fireEvent.change(screen.getByLabelText(/Identifiant/i), { target: { value: 'caissier1' } });
+      for (const d of '112233') {
+        fireEvent.click(screen.getByRole('button', { name: d }));
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Déverrouiller' }));
+      await waitFor(() => {
+        assert.deepEqual(loginCalls, [{ pin: '112233', username: 'caissier1' }]);
+        assert.equal(useUiStore.getState().currentUser?.role, 'cashier');
+      });
+      unmount();
+
+      apiClient.listBackups = async () => [
+        {
+          name: 'depotpro_backup_20261117130000_enc001.dpbkp',
+          size: 81920,
+          createdAt: '2026-11-17T13:00:00Z',
+          sha256: '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+          encrypted: true,
+        },
+      ];
+      apiClient.createEncryptedBackup = async (passphrase) => ({
+        name: 'depotpro_backup_20261117130100_enc002.dpbkp',
+        size: 81920,
+        createdAt: '2026-11-17T13:01:00Z',
+        sha256: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+        encrypted: true,
+      });
+
+      const qc = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      const backupsRender = render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/backups'] },
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(BackupsPage))
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByText('AES-256')));
+      fireEvent.click(screen.getByRole('button', { name: /Sauvegarde chiffrée/i }));
+      await waitFor(() => assert.ok(screen.getByLabelText(/Phrase secrète de chiffrement/i)));
+      fireEvent.change(screen.getByLabelText(/Phrase secrète de chiffrement/i), {
+        target: { value: 'SecretKey2026!' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Chiffrer et sauvegarder/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByText(/Sauvegarde chiffrée AES-256-GCM créée/i))
+      );
+      backupsRender.unmount();
+
+      apiClient.getSettings = async () => ({
+        settings: {
+          company_name: 'DEPOTPRO Test',
+          company_legal_name: null,
+          address: null,
+          phone: null,
+          email: null,
+          city: null,
+          country: null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          setup_completed: 1,
+        },
+        paymentMethods: [],
+      });
+      apiClient.listUsers = async () => [
+        {
+          id: 1,
+          username: 'owner',
+          displayName: 'Propriétaire',
+          role: 'owner',
+          roleLabel: 'Propriétaire',
+          active: true,
+          failedAttempts: 0,
+          lockedUntil: null,
+          createdAt: '2026-11-17T10:00:00Z',
+        },
+      ];
+      const createdUsers = [];
+      apiClient.createUser = async (payload) => {
+        createdUsers.push(payload);
+        return {
+          id: 2,
+          username: payload.username,
+          displayName: payload.displayName,
+          role: payload.role,
+          roleLabel: 'Caissier',
+          active: true,
+          failedAttempts: 0,
+          lockedUntil: null,
+          createdAt: '2026-11-17T10:05:00Z',
+        };
+      };
+
+      const qc2 = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      const settingsRender = render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/settings'] },
+          React.createElement(QueryClientProvider, { client: qc2 }, React.createElement(SettingsPage))
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByText(/Opérateurs & Rôles \(RBAC\)/i)));
+      fireEvent.change(screen.getByPlaceholderText(/Identifiant/i), { target: { value: 'caisse_ui' } });
+      fireEvent.change(screen.getByPlaceholderText(/Nom affiché/i), { target: { value: 'Caisse UI' } });
+      fireEvent.change(screen.getByPlaceholderText(/PIN 6 chiffres/i), { target: { value: '445566' } });
+      fireEvent.click(screen.getByRole('button', { name: /Ajouter un compte opérateur/i }));
+      await waitFor(() => {
+        assert.equal(createdUsers.length, 1);
+        assert.equal(createdUsers[0].username, 'caisse_ui');
+      });
+      settingsRender.unmount();
+      qc.clear();
+      qc2.clear();
+    } finally {
+      useUiStore.getState().setToken(null);
+      apiClient.getAuthStatus = origStatus;
+      apiClient.login = origLogin;
+      apiClient.listBackups = origListBackups;
+      apiClient.createEncryptedBackup = origCreateEnc;
+      apiClient.getSettings = origGetSettings;
+      apiClient.listUsers = origListUsers;
+      apiClient.createUser = origCreateUser;
+    }
+  });
+
+  it('Lot 8 — Ouverture des 17 écrans, navigation inter-écrans, thème Header et menu mobile responsive', async () => {
+    const orig = {
+      getAuthStatus: apiClient.getAuthStatus,
+      getDashboard: apiClient.getDashboard,
+      getSettings: apiClient.getSettings,
+      getReports: apiClient.getReports,
+      getCashStatus: apiClient.getCashStatus,
+      listProducts: apiClient.listProducts,
+      listCategories: apiClient.listCategories,
+      listClients: apiClient.listClients,
+      listSales: apiClient.listSales,
+      listReceivables: apiClient.listReceivables,
+      getStockOverview: apiClient.getStockOverview,
+      listInventories: apiClient.listInventories,
+      getConsignmentsOverview: apiClient.getConsignmentsOverview,
+      listSuppliers: apiClient.listSuppliers,
+      listSupplierDebts: apiClient.listSupplierDebts,
+      listPurchases: apiClient.listPurchases,
+      listExpenses: apiClient.listExpenses,
+      listBackups: apiClient.listBackups,
+      listUsers: apiClient.listUsers,
+    };
+
+    try {
+      useUiStore.setState({
+        token: 'lot8-token',
+        theme: 'light',
+        sidebarCollapsed: false,
+        currentUser: {
+          id: 1,
+          username: 'owner',
+          displayName: 'Propriétaire',
+          role: 'owner',
+          roleLabel: 'Propriétaire',
+          active: true,
+        },
+      });
+
+      apiClient.getAuthStatus = async () => ({
+        needsSetup: false,
+        authenticated: false,
+        failedAttempts: 0,
+        lockedUntil: null,
+      });
+      apiClient.getDashboard = async () => ({
+        kpis: {
+          revenueMerchandise: 120000,
+          depositsTotal: 0,
+          salesCount: 2,
+          collectionsTotal: 120000,
+          receivablesTotal: 0,
+          receivablesCount: 0,
+          supplierDebtsTotal: 0,
+          supplierDebtsCount: 0,
+          expensesTotal: 0,
+          cashSessionOpen: false,
+          cashSessionReference: null,
+          cashPhysicalTheoretical: 0,
+          digitalSessionTotal: 0,
+          lowStockCount: 0,
+          outOfStockCount: 0,
+        },
+        lowStockProducts: [],
+        topProducts: [],
+        salesSeries: [],
+        recentAudit: [],
+      });
+      apiClient.getSettings = async () => ({
+        settings: {
+          company_name: 'DEPOTPRO Lot 8',
+          company_legal_name: null,
+          address: null,
+          phone: null,
+          email: null,
+          city: null,
+          country: null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          setup_completed: 1,
+        },
+        paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+      });
+      apiClient.getReports = async () => ({
+        commercial: { count: 0, merchandise_revenue: 0, deposit_billed: 0, total_amount: 0, paid_amount: 0 },
+        profitability: { knownCostRevenue: 0, knownCostTotal: 0, knownGrossMargin: 0, expensesTotal: 0, netKnownResult: 0, unknownCostLines: 0 },
+        stock: { product_count: 0, unknown_cost_products: 0, knownValuationFcfa: 0 },
+        paymentBreakdown: [],
+        dailySales: [],
+      });
+      apiClient.getCashStatus = async () => ({ activeSession: null, summary: null, history: [] });
+      apiClient.listProducts = async () => ({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 1 });
+      apiClient.listCategories = async () => [{ id: 1, name: 'Boissons', description: null }];
+      apiClient.listClients = async () => [];
+      apiClient.listSales = async () => ({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 1 });
+      apiClient.listReceivables = async () => [];
+      apiClient.getStockOverview = async () => ({ products: [], movements: [] });
+      apiClient.listInventories = async () => [];
+      apiClient.getConsignmentsOverview = async () => ({ types: [], clientBalances: [], movements: [] });
+      apiClient.listSuppliers = async () => [];
+      apiClient.listSupplierDebts = async () => [];
+      apiClient.listPurchases = async () => [];
+      apiClient.listExpenses = async () => ({ items: [], categories: [] });
+      apiClient.listBackups = async () => [];
+      apiClient.listUsers = async () => [];
+
+      const qc = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      const appTree = React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(
+            Routes,
+            null,
+            React.createElement(Route, { path: '/login', element: React.createElement(LoginPage) }),
+            React.createElement(
+              Route,
+              { element: React.createElement(AppLayout) },
+              React.createElement(Route, { path: '/', element: React.createElement(DashboardPage) }),
+              React.createElement(Route, { path: '/sales/new', element: React.createElement(SalesPage) }),
+              React.createElement(Route, { path: '/sales', element: React.createElement(SalesHistoryPage) }),
+              React.createElement(Route, { path: '/clients', element: React.createElement(ClientsPage) }),
+              React.createElement(Route, { path: '/debts', element: React.createElement(DebtsPage) }),
+              React.createElement(Route, { path: '/products', element: React.createElement(ProductsPage) }),
+              React.createElement(Route, { path: '/stock', element: React.createElement(StockPage) }),
+              React.createElement(Route, { path: '/inventories', element: React.createElement(InventoryPage) }),
+              React.createElement(Route, { path: '/consignments', element: React.createElement(ConsignmentsPage) }),
+              React.createElement(Route, { path: '/suppliers', element: React.createElement(SuppliersPage) }),
+              React.createElement(Route, { path: '/purchases', element: React.createElement(PurchasesPage) }),
+              React.createElement(Route, { path: '/cash', element: React.createElement(CashPage) }),
+              React.createElement(Route, { path: '/expenses', element: React.createElement(ExpensesPage) }),
+              React.createElement(Route, { path: '/reports', element: React.createElement(ReportsPage) }),
+              React.createElement(Route, { path: '/settings', element: React.createElement(SettingsPage) }),
+              React.createElement(Route, { path: '/backups', element: React.createElement(BackupsPage) })
+            )
+          )
+        )
+      );
+
+      render(appTree);
+      await waitFor(() =>
+        assert.ok(screen.getByRole('heading', { name: 'Tableau de bord', level: 1 }))
+      );
+
+      // Navigation inter-écrans via les liens de la Sidebar (couvre les 16 écrans authentifiés)
+      const navAssertions = [
+        ['Nouvelle vente', 'Nouvelle vente (Point de vente)'],
+        ['Historique ventes', 'Historique des ventes'],
+        ['Clients', 'Clients & Politiques de crédit'],
+        ['Créances', 'Créances clients'],
+        ['Produits', 'Catalogue produits & conditionnements'],
+        ['Stocks', 'Stocks & Mouvements'],
+        ['Inventaires', 'Inventaires physiques'],
+        ['Consignations', 'Consignations & Emballages vides'],
+        ['Fournisseurs', 'Fournisseurs'],
+        ['Approvisionnements', 'Approvisionnements & Réceptions'],
+        ['Caisse', 'Session de caisse'],
+        ['Dépenses', 'Dépenses'],
+        ['Rapports', 'Rapports & Indicateurs financiers'],
+        ['Paramètres', 'Paramètres généraux'],
+        ['Sauvegardes', 'Sauvegardes & Restauration'],
+        ['Tableau de bord', 'Tableau de bord'],
+      ];
+
+      for (const [linkName, headingName] of navAssertions) {
+        const navLinks = screen.getAllByRole('link', { name: linkName });
+        fireEvent.click(navLinks[0]);
+        await waitFor(() =>
+          assert.ok(screen.getByRole('heading', { name: headingName, level: 1 }))
+        );
+      }
+
+      // Changement de thème depuis le Header
+      assert.equal(useUiStore.getState().theme, 'light');
+      fireEvent.click(screen.getByRole('button', { name: /Activer le thème sombre/i }));
+      assert.equal(useUiStore.getState().theme, 'dark');
+      fireEvent.click(screen.getByRole('button', { name: /Activer le thème clair/i }));
+      assert.equal(useUiStore.getState().theme, 'light');
+
+      // Menu mobile responsive : ouverture puis fermeture du tiroir
+      fireEvent.click(screen.getByRole('button', { name: /Ouvrir le menu de navigation/i }));
+      assert.ok(screen.getByRole('button', { name: 'Fermer le menu' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Fermer le menu' }));
+      assert.equal(screen.queryByRole('button', { name: 'Fermer le menu' }), null);
+
+      cleanup();
+
+      // 17e écran : Connexion / PIN
+      useUiStore.getState().setToken(null);
+      render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/login'] },
+          React.createElement(LoginPage)
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Déverrouiller' })));
+      cleanup();
+      qc.clear();
+    } finally {
+      useUiStore.setState({ token: null, theme: 'light', sidebarCollapsed: false, currentUser: null });
+      Object.assign(apiClient, orig);
+    }
+  });
+
+  it('Lot 8 — États de chargement (LoadingState) et d’erreur (ErrorState + Réessayer)', async () => {
+    const origListProducts = apiClient.listProducts;
+    const origListCategories = apiClient.listCategories;
+    const origConsignments = apiClient.getConsignmentsOverview;
+    let shouldFail = true;
+    let resolvePending;
+
+    try {
+      apiClient.listCategories = async () => [];
+      apiClient.getConsignmentsOverview = async () => ({ types: [], clientBalances: [], movements: [] });
+      apiClient.listProducts = () =>
+        new Promise((resolve) => {
+          resolvePending = resolve;
+        });
+
+      const qcLoading = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      const { container, unmount } = render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(QueryClientProvider, { client: qcLoading }, React.createElement(ProductsPage))
+        )
+      );
+      assert.ok(container.querySelector('.animate-pulse'), 'Le squelette de chargement doit être affiché');
+      if (resolvePending) {
+        resolvePending({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 1 });
+      }
+      unmount();
+      qcLoading.clear();
+
+      apiClient.listProducts = async () => {
+        if (shouldFail) {
+          throw new Error('Connexion base locale interrompue');
+        }
+        return {
+          items: [
+            {
+              id: 77,
+              reference: 'PRD-077',
+              name: 'Eau Céleste 1.5L',
+              brand: null,
+              barcode: null,
+              category_id: 1,
+              category_name: 'Eaux',
+              base_unit: 'bouteille',
+              stock_milli: 12000,
+              min_stock_milli: 6000,
+              max_stock_milli: 0,
+              purchase_price: 250,
+              wholesale_price: 350,
+              semi_wholesale_price: 375,
+              retail_price: 400,
+              average_cost_fcfa: 250,
+              is_active: 1,
+              image_path: null,
+              packagings: [],
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+          totalPages: 1,
+        };
+      };
+
+      const qcError = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(QueryClientProvider, { client: qcError }, React.createElement(ProductsPage))
+        )
+      );
+
+      await waitFor(() => {
+        assert.ok(screen.getByText('Impossible de charger les données'));
+        assert.ok(screen.getByText('Connexion base locale interrompue'));
+      });
+
+      shouldFail = false;
+      fireEvent.click(screen.getByRole('button', { name: /Réessayer/i }));
+      await waitFor(() => {
+        assert.ok(screen.getByText('Eau Céleste 1.5L'));
+      });
+      qcError.clear();
+    } finally {
+      apiClient.listProducts = origListProducts;
+      apiClient.listCategories = origListCategories;
+      apiClient.getConsignmentsOverview = origConsignments;
+    }
+  });
+
+  it('Lot 8 — DataTable : tri par colonne, pagination Précédent/Suivant et état vide', () => {
+    const pagesVisited = [];
+    const rows = [
+      { id: 1, name: 'Zebra Cola', total: 3000 },
+      { id: 2, name: 'Alpha Jus', total: 1000 },
+    ];
+    const columns = [
+      { accessorKey: 'name', header: 'Nom' },
+      { accessorKey: 'total', header: 'Montant' },
+    ];
+
+    const { rerender } = render(
+      React.createElement(DataTable, {
+        data: rows,
+        columns,
+        page: 1,
+        totalPages: 3,
+        total: 50,
+        onPageChange: (p) => pagesVisited.push(p),
+      })
+    );
+
+    const beforeRows = screen.getAllByRole('row');
+    assert.ok(beforeRows[1].textContent.includes('Zebra Cola'));
+
+    // Tri par Nom croissant -> Alpha Jus en premier
+    fireEvent.click(screen.getByRole('button', { name: 'Nom' }));
+    const sortedAscRows = screen.getAllByRole('row');
+    assert.ok(sortedAscRows[1].textContent.includes('Alpha Jus'));
+
+    // Tri décroissant -> Zebra Cola en premier
+    fireEvent.click(screen.getByRole('button', { name: 'Nom' }));
+    const sortedDescRows = screen.getAllByRole('row');
+    assert.ok(sortedDescRows[1].textContent.includes('Zebra Cola'));
+
+    // Pagination
+    const prevBtn = screen.getByRole('button', { name: /Précédent/i });
+    const nextBtn = screen.getByRole('button', { name: /Suivant/i });
+    assert.equal(prevBtn.disabled, true);
+    assert.equal(nextBtn.disabled, false);
+    fireEvent.click(nextBtn);
+    assert.equal(pagesVisited[0], 2);
+
+    // État vide
+    rerender(
+      React.createElement(DataTable, {
+        data: [],
+        columns,
+        emptyMessage: 'Aucun résultat trouvé.',
+      })
+    );
+    assert.ok(screen.getByText('Aucun résultat trouvé.'));
+  });
+
+  it('Lot 8 — Dialogues ouverture/fermeture et formulaires valides/invalides (Fournisseurs)', async () => {
+    const origListSuppliers = apiClient.listSuppliers;
+    const origListDebts = apiClient.listSupplierDebts;
+    const origGetSettings = apiClient.getSettings;
+    const origCreateSupplier = apiClient.createSupplier;
+    const createdPayloads = [];
+
+    try {
+      apiClient.listSuppliers = async () => [];
+      apiClient.listSupplierDebts = async () => [];
+      apiClient.getSettings = async () => ({
+        settings: {
+          company_name: 'DEPOTPRO',
+          company_legal_name: null,
+          address: null,
+          phone: null,
+          email: null,
+          city: null,
+          country: null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          setup_completed: 1,
+        },
+        paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+      });
+      apiClient.createSupplier = async (payload) => {
+        createdPayloads.push(payload);
+        return {
+          id: 90,
+          code: 'FRN-090',
+          name: payload.name,
+          company_name: payload.company_name || null,
+          phone: payload.phone,
+          address: payload.address || null,
+          email: payload.email || null,
+          contact_person: payload.contact_person || null,
+          payment_terms_days: payload.payment_terms_days || 30,
+          total_purchases: 0,
+          balance_due: 0,
+          is_active: 1,
+        };
+      };
+
+      const qc = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(SuppliersPage))
+        )
+      );
+
+      await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Nouveau fournisseur' })));
+
+      // Ouverture puis fermeture par Annuler
+      fireEvent.click(screen.getByRole('button', { name: 'Nouveau fournisseur' }));
+      const dialog1 = await screen.findByRole('dialog');
+      assert.ok(dialog1);
+      fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+      await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
+
+      // Formulaire invalide (champs vides) -> erreurs Zod, aucune création
+      fireEvent.click(screen.getByRole('button', { name: 'Nouveau fournisseur' }));
+      await screen.findByRole('dialog');
+      fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+      await waitFor(() => {
+        assert.ok(screen.getByText('Le nom du fournisseur est obligatoire.'));
+        assert.ok(screen.getByText('Le téléphone du fournisseur est obligatoire.'));
+      });
+      assert.equal(createdPayloads.length, 0);
+
+      // Formulaire valide -> soumission réussie et fermeture
+      const inputs = screen.getByRole('dialog').querySelectorAll('input');
+      fireEvent.change(inputs[0], { target: { value: 'Brasserie Test' } });
+      fireEvent.change(inputs[2], { target: { value: '0707070707' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+
+      await waitFor(() => {
+        assert.equal(createdPayloads.length, 1);
+        assert.equal(createdPayloads[0].name, 'Brasserie Test');
+        assert.equal(screen.queryByRole('dialog'), null);
+      });
+      qc.clear();
+    } finally {
+      apiClient.listSuppliers = origListSuppliers;
+      apiClient.listSupplierDebts = origListDebts;
+      apiClient.getSettings = origGetSettings;
+      apiClient.createSupplier = origCreateSupplier;
+    }
+  });
+
+  it('Lot 8 — Raccourcis POS (F2 recherche, F9 validation, Escape) et recherche avec bouton effacer', async () => {
+    const origListProducts = apiClient.listProducts;
+    const origListClients = apiClient.listClients;
+    const origGetSettings = apiClient.getSettings;
+    const origGetCash = apiClient.getCashStatus;
+    const origCreateSale = apiClient.createSale;
+    const createdSales = [];
+    let qc;
+
+    try {
+      useUiStore.getState().clearCart();
+      apiClient.listProducts = async () => ({
+        items: [
+          {
+            id: 501,
+            reference: 'PRD-501',
+            name: 'Beaufort Lager 65cl',
+            brand: null,
+            barcode: '888000501',
+            category_id: 1,
+            category_name: 'Bières',
+            base_unit: 'bouteille',
+            stock_milli: 48000,
+            min_stock_milli: 6000,
+            max_stock_milli: 0,
+            purchase_price: 450,
+            wholesale_price: 550,
+            semi_wholesale_price: 600,
+            retail_price: 650,
+            average_cost_fcfa: 450,
+            is_active: 1,
+            image_path: null,
+            packagings: [
+              {
+                id: 5010,
+                product_id: 501,
+                name: 'bouteille',
+                coefficient_milli: 1000,
+                purchase_price: 450,
+                wholesale_price: 550,
+                semi_wholesale_price: 600,
+                retail_price: 650,
+                barcode: '888000501',
+                allow_fraction: 0,
+                is_default: 1,
+                is_active: 1,
+                returnable_type_id: null,
+                returnable_pieces: 0,
+                deposit_mode: 'none',
+              },
+            ],
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 50,
+        totalPages: 1,
+      });
+      apiClient.listClients = async () => [];
+      apiClient.getSettings = async () => ({
+        settings: {
+          company_name: 'DEPOTPRO',
+          company_legal_name: null,
+          address: null,
+          phone: null,
+          email: null,
+          city: null,
+          country: null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          setup_completed: 1,
+        },
+        paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+      });
+      apiClient.getCashStatus = async () => ({
+        activeSession: {
+          id: 1,
+          reference: 'CAI-2026-00001',
+          opened_at: '2026-11-17T08:00:00Z',
+          closed_at: null,
+          status: 'open',
+          opening_cash: 50000,
+          theoretical_cash: null,
+          physical_cash: null,
+          difference: null,
+          closing_notes: null,
+        },
+        summary: { theoreticalCash: 50000, byMethod: [], movements: [] },
+        history: [],
+      });
+      apiClient.createSale = async (payload) => {
+        createdSales.push(payload);
+        return {
+          id: 901,
+          reference: 'VTE-2026-00901',
+          created_at: '2026-11-17T10:00:00Z',
+          status: 'validated',
+          sale_type: 'cash',
+          client_id: null,
+          client_name: 'Client Comptoir',
+          client_code: null,
+          client_phone: null,
+          total_merchandise: 650,
+          total_deposit: 0,
+          total_amount: 650,
+          paid_amount: 650,
+          remaining_amount: 0,
+          due_date: null,
+          notes: null,
+          lines: [],
+          deposits: [],
+          payments: [],
+          returns: [],
+        };
+      };
+
+      qc = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(SalesPage))
+        )
+      );
+
+      await waitFor(() => assert.ok(screen.getByText('Beaufort Lager 65cl')));
+
+      // F2 focalise le champ de recherche
+      const scanInput = screen.getByPlaceholderText(/Scanner code-barres/i);
+      fireEvent.keyDown(window, { key: 'F2' });
+      assert.equal(document.activeElement, scanInput);
+
+      // Recherche puis effacement via le bouton SearchInput
+      fireEvent.change(scanInput, { target: { value: 'Beaufort' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Effacer la recherche' }));
+      assert.equal(scanInput.value, '');
+
+      // Ajout par scan + Entrée puis ouverture/fermeture rapide par Escape
+      fireEvent.change(scanInput, { target: { value: '888000501' } });
+      fireEvent.keyDown(scanInput, { key: 'Enter', code: 'Enter' });
+      await waitFor(() => assert.ok(screen.getByText(/Panier de vente \(1\)/)));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Créer rapidement un client' }));
+      await screen.findByRole('dialog');
+      fireEvent.keyDown(window, { key: 'Escape' });
+      await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
+
+      // Raccourci F9 déclenche la validation
+      fireEvent.keyDown(window, { key: 'F9' });
+      await waitFor(() => {
+        assert.equal(createdSales.length, 1);
+        assert.ok(screen.getByText(/Vente validée · VTE-2026-00901/i));
+      });
+    } finally {
+      qc?.clear();
+      cleanup();
+      useUiStore.getState().clearCart();
+      apiClient.listProducts = origListProducts;
+      apiClient.listClients = origListClients;
+      apiClient.getSettings = origGetSettings;
+      apiClient.getCashStatus = origGetCash;
+      apiClient.createSale = origCreateSale;
     }
   });
 });

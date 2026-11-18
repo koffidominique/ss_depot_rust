@@ -66,6 +66,32 @@ def migrate(source_path: Path, target_path: Path, schema_sql_path: Path, strict:
     schema_sql = schema_sql_path.read_text(encoding="utf-8")
     dst.executescript(schema_sql)
 
+    # Appliquer également les migrations SQL séquentielles suivantes (ex: 0004_onboarding_setup_state)
+    migrations_dir = schema_sql_path.parent
+    for mig_path in sorted(migrations_dir.glob("*.sql")):
+        stem = mig_path.stem
+        prefix = stem.split("_", 1)[0]
+        if not prefix.isdigit():
+            continue
+        ver = int(prefix)
+        if ver <= 1:
+            continue
+        if ver == 2:
+            cols = [r[1] for r in dst.execute("PRAGMA table_info(app_settings)").fetchall()]
+            if "logo_path" not in cols:
+                dst.executescript(mig_path.read_text(encoding="utf-8"))
+        elif ver == 3:
+            cols = [r[1] for r in dst.execute("PRAGMA table_info(expenses)").fetchall()]
+            if "receipt_path" not in cols:
+                dst.executescript(mig_path.read_text(encoding="utf-8"))
+        elif ver == 4:
+            cols = [r[1] for r in dst.execute("PRAGMA table_info(app_settings)").fetchall()]
+            if "setup_completed" not in cols:
+                dst.executescript(mig_path.read_text(encoding="utf-8"))
+        else:
+            dst.executescript(mig_path.read_text(encoding="utf-8"))
+        dst.execute("INSERT OR REPLACE INTO schema_version (version, name) VALUES (?, ?)", (ver, stem))
+
     anomalies = []
     report = {
         "source": str(source_path),
@@ -101,17 +127,21 @@ def migrate(source_path: Path, target_path: Path, schema_sql_path: Path, strict:
         if row:
             dst.execute(
                 """INSERT OR REPLACE INTO app_settings
-                   (id, company_name, phone, address, city, allow_negative_stock)
-                   VALUES (1, ?, ?, ?, ?, ?)""",
+                   (id, company_name, phone, address, city, allow_negative_stock, setup_completed)
+                   VALUES (1, ?, ?, ?, ?, ?, 1)""",
                 (
-                    row["company_name"] if "company_name" in row.keys() else "DEPOTPRO",
+                    row["company_name"] if "company_name" in row.keys() and row["company_name"] else "Mon Dépôt",
                     row["phone"] if "phone" in row.keys() else None,
                     row["address"] if "address" in row.keys() else None,
                     row["city"] if "city" in row.keys() else None,
                     int(bool(row["allow_negative_stock"])) if "allow_negative_stock" in row.keys() else 0,
                 ),
             )
-    dst.execute("INSERT OR IGNORE INTO app_settings (id, company_name) VALUES (1, 'DEPOTPRO')")
+    dst.execute(
+        """INSERT OR IGNORE INTO app_settings
+           (id, company_name, company_legal_name, address, phone, email, city, country, currency, setup_completed)
+           VALUES (1, 'Mon Dépôt', NULL, NULL, NULL, NULL, NULL, NULL, 'FCFA', 0)"""
+    )
 
     # Owner security (preserve existing bcrypt hash without default PIN)
     if table_exists(src, "owner_security"):

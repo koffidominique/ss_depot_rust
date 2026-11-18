@@ -26,7 +26,11 @@ export type ErrorCode =
   | 'INVALID_QUANTITY'
   | 'INVALID_MONEY'
   | 'HISTORICAL_IMMUTABLE'
-  | 'BACKUP_ERROR';
+  | 'DATABASE_BUSY'
+  | 'BACKUP_ERROR'
+  | 'FORBIDDEN'
+  | 'RATE_LIMITED'
+  | 'INTERNAL_ERROR';
 
 export class BusinessError extends Error {
   public readonly code: ErrorCode;
@@ -95,6 +99,52 @@ export function checkedAddMoney(a: number, b: number, field = 'Somme'): number {
     throw new BusinessError('INVALID_MONEY', `${field} dépasse la limite numérique.`);
   }
   return Number(sum);
+}
+
+export function checkedSubMoney(a: number, b: number, field = 'Différence'): number {
+  const diff = BigInt(fcfa(a, field)) - BigInt(fcfa(b, field));
+  if (diff > MAX_SAFE || diff < MIN_SAFE) {
+    throw new BusinessError('INVALID_MONEY', `${field} dépasse la limite numérique.`);
+  }
+  return Number(diff);
+}
+
+export function checkedSubNonNegativeMoney(a: number, b: number, field = 'Solde'): number {
+  const diff = checkedSubMoney(a, b, field);
+  if (diff < 0) {
+    throw new BusinessError('INVALID_MONEY', `${field} ne peut pas être négatif.`);
+  }
+  return diff;
+}
+
+export function checkedMulMoney(a: number, b: number, field = 'Produit'): number {
+  const prod = BigInt(fcfa(a, field)) * BigInt(fcfa(b, field));
+  if (prod > MAX_SAFE || prod < MIN_SAFE) {
+    throw new BusinessError('INVALID_MONEY', `${field} dépasse la limite numérique.`);
+  }
+  return Number(prod);
+}
+
+export function checkedAddMilli(a: number, b: number, field = 'Quantité'): number {
+  if (!Number.isSafeInteger(a) || !Number.isSafeInteger(b)) {
+    throw new BusinessError('INVALID_QUANTITY', `${field} invalide.`);
+  }
+  const sum = BigInt(a) + BigInt(b);
+  if (sum > MAX_SAFE || sum < MIN_SAFE) {
+    throw new BusinessError('INVALID_QUANTITY', `${field} dépasse la limite numérique.`);
+  }
+  return Number(sum);
+}
+
+export function checkedSubMilli(a: number, b: number, field = 'Quantité'): number {
+  if (!Number.isSafeInteger(a) || !Number.isSafeInteger(b)) {
+    throw new BusinessError('INVALID_QUANTITY', `${field} invalide.`);
+  }
+  const diff = BigInt(a) - BigInt(b);
+  if (diff > MAX_SAFE || diff < MIN_SAFE) {
+    throw new BusinessError('INVALID_QUANTITY', `${field} dépasse la limite numérique.`);
+  }
+  return Number(diff);
 }
 
 /**

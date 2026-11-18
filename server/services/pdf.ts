@@ -1,5 +1,6 @@
 import { getDb } from '../db.ts';
 import { BusinessError } from '../domain.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 
 export interface DocumentPdfLine {
   label: string;
@@ -533,6 +534,13 @@ export function renderDocumentPdfBuffer(company: CompanyInfo, doc: DocumentPdfIn
 }
 
 export function generateDocumentPdf(input: DocumentPdfInput): { filename: string; buffer: Buffer } {
+  const neededPerm =
+    input?.docType === 'BON_COMMANDE' || input?.docType === 'BON_RECEPTION'
+      ? 'purchases:read'
+      : input?.docType === 'CLOTURE_CAISSE'
+        ? 'cash:read'
+        : 'sales:read';
+  requireCurrentActorPermission(neededPerm);
   if (!input || !VALID_DOC_TYPES.has(input.docType)) {
     throw new BusinessError('VALIDATION_ERROR', 'Type de document PDF non reconnu.');
   }

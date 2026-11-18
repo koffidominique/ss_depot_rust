@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Sqlite, Transaction};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use crate::application::products::deserialize_nullable_opt;
+use crate::application::auth::{current_actor, require_current_actor_permission, Permission};
+use crate::application::products::{deserialize_nullable_opt, deserialize_qty_str};
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
@@ -48,6 +49,15 @@ pub struct UpdateCreditPolicyInput {
     pub payment_terms_days: Option<i64>,
 }
 
+#[derive(Debug, Serialize, FromRow)]
+pub struct ClientCreditSettingsDto {
+    pub client_id: i64,
+    pub policy: String,
+    pub credit_limit: Option<i64>,
+    pub payment_terms_days: i64,
+    pub updated_at: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UpdateClientInput {
     pub name: Option<String>,
@@ -69,6 +79,7 @@ pub struct UpdateClientInput {
 pub struct CreateSaleLineInput {
     pub product_id: i64,
     pub packaging_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub quantity: String,
     pub discount_amount: Option<i64>,
 }
@@ -102,6 +113,7 @@ pub struct CancelSaleInput {
 #[derive(Debug, Deserialize)]
 pub struct SaleReturnLineInput {
     pub sale_line_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub base_quantity: String,
 }
 
@@ -179,6 +191,7 @@ pub struct SaleDepositDto {
 pub struct SaleCancellationDto {
     pub id: i64,
     pub reason: String,
+    pub refund_method_code: Option<String>,
     pub refunded_amount: i64,
     pub created_at: String,
 }
@@ -227,13 +240,18 @@ pub(crate) async fn audit_log_tx(
     entity_id: Option<String>,
     details: &str,
 ) -> CoreResult<()> {
+    let actor = current_actor();
     sqlx::query(
-        "INSERT INTO audit_logs (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)",
+        "INSERT INTO audit_logs (action, entity_type, entity_id, details, actor_user_id, actor_name, actor_role)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(action)
     .bind(entity_type)
     .bind(entity_id)
     .bind(details)
+    .bind(actor.as_ref().map(|a| a.user_id.clone()))
+    .bind(actor.as_ref().map(|a| a.display_name.clone()))
+    .bind(actor.as_ref().map(|a| a.role.as_str().to_string()))
     .execute(&mut **tx)
     .await?;
     Ok(())
@@ -268,10 +286,13 @@ pub(crate) async fn get_theoretical_cash_tx(
     .bind(session_id)
     .fetch_one(&mut **tx)
     .await?;
-    Ok(opening_cash + net)
+    Money(opening_cash)
+        .checked_add(Money(net), "Solde théorique de caisse")
+        .map(Money::value)
 }
 
 pub async fn list_clients(db: &DepotDb, search: Option<&str>) -> CoreResult<Vec<ClientSummaryDto>> {
+    require_current_actor_permission(Permission::SalesRead)?;
     let q = search.map(str::trim).filter(|s| !s.is_empty());
     let pattern = q.map(|s| format!("%{s}%"));
     let rows = match pattern {
@@ -310,15 +331,25 @@ pub async fn list_clients(db: &DepotDb, search: Option<&str>) -> CoreResult<Vec<
 }
 
 pub async fn create_client(db: &DepotDb, input: CreateClientInput) -> CoreResult<ClientSummaryDto> {
+    require_current_actor_permission(Permission::SalesWrite)?;
     let name = input.name.trim().to_string();
     if name.is_empty() {
-        return Err(CoreError::Validation("Le nom du client est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le nom du client est obligatoire.".to_string(),
+        ));
     }
     if !matches!(input.client_type.as_str(), "particulier" | "professionnel") {
-        return Err(CoreError::Validation("Type de client invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Type de client invalide.".to_string(),
+        ));
     }
-    if !matches!(input.credit_policy.as_str(), "forbidden" | "limited" | "unlimited") {
-        return Err(CoreError::Validation("Politique de crédit explicite requise.".to_string()));
+    if !matches!(
+        input.credit_policy.as_str(),
+        "forbidden" | "limited" | "unlimited"
+    ) {
+        return Err(CoreError::Validation(
+            "Politique de crédit explicite requise.".to_string(),
+        ));
     }
     let limit = if input.credit_policy == "limited" {
         let raw = input.credit_limit.ok_or_else(|| {
@@ -330,7 +361,9 @@ pub async fn create_client(db: &DepotDb, input: CreateClientInput) -> CoreResult
     };
     let terms = input.payment_terms_days.unwrap_or(0);
     if terms < 0 {
-        return Err(CoreError::Validation("Délai de paiement invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Délai de paiement invalide.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
@@ -343,11 +376,41 @@ pub async fn create_client(db: &DepotDb, input: CreateClientInput) -> CoreResult
     .bind(&code)
     .bind(&name)
     .bind(&input.client_type)
-    .bind(input.phone.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(input.address.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(input.city.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(input.email.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(input.contact_person.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        input
+            .phone
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        input
+            .address
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        input
+            .city
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        input
+            .email
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        input
+            .contact_person
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
@@ -385,8 +448,8 @@ pub async fn update_client(
     client_id: i64,
     input: UpdateClientInput,
 ) -> CoreResult<ClientSummaryDto> {
-    let (_guard, mut tx) = db.begin_write().await?;
-    let existing: Option<(
+    require_current_actor_permission(Permission::SalesWrite)?;
+    type ExistingClientRow = (
         String,
         String,
         String,
@@ -396,7 +459,9 @@ pub async fn update_client(
         Option<String>,
         Option<String>,
         i64,
-    )> = sqlx::query_as(
+    );
+    let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<ExistingClientRow> = sqlx::query_as(
         "SELECT code, name, client_type, phone, address, city, email, contact_person, is_active
          FROM clients WHERE id = ?",
     )
@@ -404,14 +469,25 @@ pub async fn update_client(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let (code, prev_name, prev_type, prev_phone, prev_address, prev_city, prev_email, prev_contact, prev_active) =
-        existing.ok_or_else(|| CoreError::Validation("Client introuvable.".to_string()))?;
+    let (
+        code,
+        prev_name,
+        prev_type,
+        prev_phone,
+        prev_address,
+        prev_city,
+        prev_email,
+        prev_contact,
+        prev_active,
+    ) = existing.ok_or_else(|| CoreError::Validation("Client introuvable.".to_string()))?;
 
     let name = match input.name {
         Some(n) => {
             let clean = n.trim().to_string();
             if clean.is_empty() {
-                return Err(CoreError::Validation("Le nom du client est obligatoire.".to_string()));
+                return Err(CoreError::Validation(
+                    "Le nom du client est obligatoire.".to_string(),
+                ));
             }
             clean
         }
@@ -420,7 +496,9 @@ pub async fn update_client(
     let client_type = match input.client_type {
         Some(t) => {
             if !matches!(t.as_str(), "particulier" | "professionnel") {
-                return Err(CoreError::Validation("Type de client invalide.".to_string()));
+                return Err(CoreError::Validation(
+                    "Type de client invalide.".to_string(),
+                ));
             }
             t
         }
@@ -433,7 +511,11 @@ pub async fn update_client(
             Some(None) => None,
             Some(Some(s)) => {
                 let t = s.trim().to_string();
-                if t.is_empty() { None } else { Some(t) }
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
             }
         }
     };
@@ -444,7 +526,13 @@ pub async fn update_client(
     let email = opt_text(input.email, prev_email);
     let contact_person = opt_text(input.contact_person, prev_contact);
     let is_active = match input.is_active {
-        Some(v) => if v { 1 } else { 0 },
+        Some(v) => {
+            if v {
+                1
+            } else {
+                0
+            }
+        }
         None => prev_active,
     };
 
@@ -486,21 +574,29 @@ pub async fn update_client_credit_policy(
     db: &DepotDb,
     client_id: i64,
     input: UpdateCreditPolicyInput,
-) -> CoreResult<()> {
-    if !matches!(input.credit_policy.as_str(), "forbidden" | "limited" | "unlimited") {
-        return Err(CoreError::Validation("Politique de crédit explicite requise.".to_string()));
+) -> CoreResult<ClientCreditSettingsDto> {
+    require_current_actor_permission(Permission::SalesWrite)?;
+    if !matches!(
+        input.credit_policy.as_str(),
+        "forbidden" | "limited" | "unlimited"
+    ) {
+        return Err(CoreError::Validation(
+            "Politique de crédit explicite requise.".to_string(),
+        ));
     }
     let limit = if input.credit_policy == "limited" {
-        let raw = input.credit_limit.ok_or_else(|| {
-            CoreError::Validation("Plafond de crédit requis.".to_string())
-        })?;
+        let raw = input
+            .credit_limit
+            .ok_or_else(|| CoreError::Validation("Plafond de crédit requis.".to_string()))?;
         Some(Money::from_non_negative(raw, "Plafond de crédit")?.value())
     } else {
         None
     };
     let terms = input.payment_terms_days.unwrap_or(0);
     if terms < 0 {
-        return Err(CoreError::Validation("Délai de paiement invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Délai de paiement invalide.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
@@ -537,7 +633,15 @@ pub async fn update_client_credit_policy(
     )
     .await?;
     tx.commit().await?;
-    Ok(())
+
+    let updated = sqlx::query_as::<_, ClientCreditSettingsDto>(
+        "SELECT client_id, policy, credit_limit, payment_terms_days, updated_at
+         FROM client_credit_settings WHERE client_id = ?",
+    )
+    .bind(client_id)
+    .fetch_one(&db.pool)
+    .await?;
+    Ok(updated)
 }
 
 struct PreparedSaleLine {
@@ -558,6 +662,7 @@ struct PreparedSaleLine {
 }
 
 pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetailDto> {
+    require_current_actor_permission(Permission::SalesRead)?;
     let sale = sqlx::query_as::<_, SaleSummaryDto>(
         "SELECT s.id, s.reference, s.client_id, COALESCE(c.name, 'Client Comptoir') AS client_name,
                 s.sale_type, s.price_tier, s.subtotal_merchandise, s.discount_amount,
@@ -629,7 +734,7 @@ pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetai
     .await?;
 
     let cancellation = sqlx::query_as::<_, SaleCancellationDto>(
-        "SELECT id, reason, refunded_amount, created_at FROM sales_cancellations WHERE sale_id = ?",
+        "SELECT id, reason, refund_method_code, refunded_amount, created_at FROM sales_cancellations WHERE sale_id = ?",
     )
     .bind(sale_id)
     .fetch_optional(&db.pool)
@@ -666,6 +771,7 @@ pub async fn list_sales(
     limit: i64,
     offset: i64,
 ) -> CoreResult<PaginatedSalesDto> {
+    require_current_actor_permission(Permission::SalesRead)?;
     let ps = limit.clamp(1, 100);
     let page = (offset / ps) + 1;
     let pat = format!("%{}%", search.unwrap_or("").trim());
@@ -736,27 +842,39 @@ pub async fn list_sales(
 }
 
 pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<SaleDetailDto> {
+    require_current_actor_permission(Permission::SalesWrite)?;
     let request_key = input.request_key.trim().to_string();
     if request_key.is_empty() {
-        return Err(CoreError::Validation("Clé d'idempotence requise.".to_string()));
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
     }
     if input.lines.is_empty() {
-        return Err(CoreError::Validation("La vente doit comporter au moins une ligne.".to_string()));
+        return Err(CoreError::Validation(
+            "La vente doit comporter au moins une ligne.".to_string(),
+        ));
     }
     if !matches!(input.sale_type.as_str(), "cash" | "credit") {
         return Err(CoreError::Validation("Type de vente invalide.".to_string()));
     }
-    if !matches!(input.price_tier.as_str(), "wholesale" | "semi_wholesale" | "retail") {
-        return Err(CoreError::Validation("Grille tarifaire invalide.".to_string()));
+    if !matches!(
+        input.price_tier.as_str(),
+        "wholesale" | "semi_wholesale" | "retail"
+    ) {
+        return Err(CoreError::Validation(
+            "Grille tarifaire invalide.".to_string(),
+        ));
     }
-    let global_discount = Money::from_non_negative(input.discount_amount.unwrap_or(0), "Remise globale")?;
+    let global_discount =
+        Money::from_non_negative(input.discount_amount.unwrap_or(0), "Remise globale")?;
 
     let (_guard, mut tx) = db.begin_write().await?;
 
-    if let Some((existing_id,)) = sqlx::query_as::<_, (i64,)>("SELECT id FROM sales WHERE request_key = ?")
-        .bind(&request_key)
-        .fetch_optional(&mut *tx)
-        .await?
+    if let Some((existing_id,)) =
+        sqlx::query_as::<_, (i64,)>("SELECT id FROM sales WHERE request_key = ?")
+            .bind(&request_key)
+            .fetch_optional(&mut *tx)
+            .await?
     {
         tx.rollback().await?;
         return get_sale_detail(db, existing_id).await;
@@ -779,9 +897,12 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
                 .bind(cid)
                 .fetch_optional(&mut *tx)
                 .await?;
-        let (cname, active) = c_row.ok_or_else(|| CoreError::Validation("Client actif introuvable.".to_string()))?;
+        let (cname, active) =
+            c_row.ok_or_else(|| CoreError::Validation("Client actif introuvable.".to_string()))?;
         if active == 0 {
-            return Err(CoreError::Validation("Client archivé : vente impossible.".to_string()));
+            return Err(CoreError::Validation(
+                "Client archivé : vente impossible.".to_string(),
+            ));
         }
         client_name = cname;
         let cs: Option<(String, Option<i64>, i64)> = sqlx::query_as(
@@ -815,8 +936,11 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
     let mut subtotal_merchandise = Money::ZERO;
     let mut total_deposit = Money::ZERO;
 
+    type SaleProductRow = (i64, String, String, Option<String>, Option<String>, i64);
+    type SalePackagingRow = (i64, String, i64, Option<i64>, Option<i64>, Option<i64>, i64);
+
     for line in &input.lines {
-        let prod: Option<(i64, String, String, Option<String>, Option<String>, i64)> = sqlx::query_as(
+        let prod: Option<SaleProductRow> = sqlx::query_as(
             "SELECT id, name, base_unit, average_cost_num, average_cost_den, is_active FROM products WHERE id = ?",
         )
         .bind(line.product_id)
@@ -825,10 +949,12 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         let (pid, pname, base_unit, cost_num, cost_den, is_active) =
             prod.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
         if is_active == 0 {
-            return Err(CoreError::Validation(format!("Produit \"{pname}\" archivé.")));
+            return Err(CoreError::Validation(format!(
+                "Produit \"{pname}\" archivé."
+            )));
         }
 
-        let pkg: Option<(i64, String, i64, Option<i64>, Option<i64>, Option<i64>, i64)> = sqlx::query_as(
+        let pkg: Option<SalePackagingRow> = sqlx::query_as(
             "SELECT id, name, coefficient_milli, wholesale_price, semi_wholesale_price, retail_price, allow_fraction
              FROM product_packagings WHERE id = ? AND product_id = ? AND is_active = 1",
         )
@@ -836,12 +962,16 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         .bind(pid)
         .fetch_optional(&mut *tx)
         .await?;
-        let (pkg_id, pkg_name, coeff_milli, p_whole, p_semi, p_retail, allow_fraction) =
-            pkg.ok_or_else(|| CoreError::Validation(format!("Conditionnement invalide pour \"{pname}\".")))?;
+        let (pkg_id, pkg_name, coeff_milli, p_whole, p_semi, p_retail, allow_fraction) = pkg
+            .ok_or_else(|| {
+                CoreError::Validation(format!("Conditionnement invalide pour \"{pname}\"."))
+            })?;
 
         let qty = Quantity::parse_str(&line.quantity, &format!("Quantité ({pname})"))?;
         if qty.milli_units <= 0 {
-            return Err(CoreError::Validation(format!("La quantité ({pname}) doit être > 0.")));
+            return Err(CoreError::Validation(format!(
+                "La quantité ({pname}) doit être > 0."
+            )));
         }
         if allow_fraction == 0 && qty.milli_units % 1000 != 0 {
             return Err(CoreError::Validation(format!(
@@ -857,25 +987,30 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         };
         let unit_price = Money::from_non_negative(
             raw_price.ok_or_else(|| {
-                CoreError::Validation(format!("Tarif \"{}\" non configuré pour {pname} ({pkg_name}).", input.price_tier))
+                CoreError::Validation(format!(
+                    "Tarif \"{}\" non configuré pour {pname} ({pkg_name}).",
+                    input.price_tier
+                ))
             })?,
             &format!("Tarif {pname}"),
         )?;
 
         let gross_line = qty.compute_line_fcfa(unit_price.value())?;
-        let line_discount = Money::from_non_negative(line.discount_amount.unwrap_or(0), "Remise ligne")?;
+        let line_discount =
+            Money::from_non_negative(line.discount_amount.unwrap_or(0), "Remise ligne")?;
         if line_discount.value() > gross_line {
-            return Err(CoreError::Validation(format!("Remise supérieure au montant de la ligne ({pname}).")));
+            return Err(CoreError::Validation(format!(
+                "Remise supérieure au montant de la ligne ({pname})."
+            )));
         }
         let line_total = Money(gross_line - line_discount.value());
         subtotal_merchandise = subtotal_merchandise.checked_add(line_total, "Sous-total")?;
 
-        let dep_mode: Option<(String,)> = sqlx::query_as(
-            "SELECT mode FROM deposit_packaging_profiles WHERE packaging_id = ?",
-        )
-        .bind(pkg_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let dep_mode: Option<(String,)> =
+            sqlx::query_as("SELECT mode FROM deposit_packaging_profiles WHERE packaging_id = ?")
+                .bind(pkg_id)
+                .fetch_optional(&mut *tx)
+                .await?;
         let (mode,) = dep_mode.ok_or_else(|| {
             CoreError::Validation(format!(
                 "Le profil de consigne de \"{pname} ({pkg_name})\" n'est pas configuré."
@@ -905,14 +1040,20 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
                 )));
             }
             for (rid, ppp, dep_val) in comps {
-                let pieces = packs * ppp;
-                let amt = Money(pieces * dep_val);
+                let pieces = packs.checked_mul(ppp).ok_or_else(|| {
+                    CoreError::Validation("Débordement du nombre de pièces consignées.".to_string())
+                })?;
+                let amt = Money::from_non_negative(dep_val, "Tarif consigne")?
+                    .checked_mul(pieces, "Montant consigne")?;
                 total_deposit = total_deposit.checked_add(amt, "Total consignes")?;
                 deposit_items.push((rid, pieces, dep_val, amt.value()));
             }
         }
 
-        *product_deductions.entry(pid).or_insert(0) += base_qty.milli_units;
+        let current_deduction = product_deductions.entry(pid).or_insert(0);
+        *current_deduction = current_deduction
+            .checked_add(base_qty.milli_units)
+            .ok_or_else(|| CoreError::Validation("Débordement quantité déduite.".to_string()))?;
         prepared_lines.push(PreparedSaleLine {
             product_id: pid,
             product_name: pname,
@@ -932,7 +1073,9 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
     }
 
     if global_discount > subtotal_merchandise {
-        return Err(CoreError::Validation("La remise globale dépasse le sous-total marchandises.".to_string()));
+        return Err(CoreError::Validation(
+            "La remise globale dépasse le sous-total marchandises.".to_string(),
+        ));
     }
 
     for (pid, needed_milli) in &product_deductions {
@@ -948,10 +1091,13 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         }
     }
 
-    let total_merchandise = subtotal_merchandise.checked_sub(global_discount, "Total marchandises")?;
+    let total_merchandise =
+        subtotal_merchandise.checked_sub(global_discount, "Total marchandises")?;
     let total_amount = total_merchandise.checked_add(total_deposit, "Total vente")?;
     if total_amount.value() <= 0 {
-        return Err(CoreError::Validation("Le total de la vente doit être strictement positif.".to_string()));
+        return Err(CoreError::Validation(
+            "Le total de la vente doit être strictement positif.".to_string(),
+        ));
     }
 
     let mut normalized_payments: Vec<(String, i64)> = Vec::new();
@@ -967,7 +1113,9 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
             CoreError::InvalidPayment(format!("Moyen de paiement introuvable : {}", p.method_code))
         })?;
         if active == 0 {
-            return Err(CoreError::InvalidPayment(format!("Moyen de paiement inactif : {code}")));
+            return Err(CoreError::InvalidPayment(format!(
+                "Moyen de paiement inactif : {code}"
+            )));
         }
         paid_amount = paid_amount.checked_add(amt, "Total encaissé")?;
         normalized_payments.push((code, amt.value()));
@@ -986,7 +1134,9 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         ));
     }
 
-    let credit_amount = total_amount.value() - paid_amount.value();
+    let credit_amount = total_amount
+        .checked_sub_non_negative(paid_amount, "Solde crédit")?
+        .value();
     if input.sale_type == "credit" && credit_policy.as_deref() == Some("limited") {
         let cid = input.client_id.unwrap();
         let current_due: i64 = sqlx::query_scalar(
@@ -996,7 +1146,8 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         .fetch_one(&mut *tx)
         .await?;
         if let Some(lim) = credit_limit {
-            if current_due + credit_amount > lim {
+            let next_due = (current_due as i128) + (credit_amount as i128);
+            if next_due > (lim as i128) {
                 return Err(CoreError::CreditPolicyViolation(format!(
                     "Plafond de crédit dépassé pour \"{client_name}\"."
                 )));
@@ -1052,7 +1203,9 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
             .bind(line.product_id)
             .fetch_one(&mut *tx)
             .await?;
-        let next_stock = cur_stock - line.base_qty_milli;
+        let next_stock = cur_stock.checked_sub(line.base_qty_milli).ok_or_else(|| {
+            CoreError::Validation("Débordement stock lors de la vente.".to_string())
+        })?;
         sqlx::query("UPDATE products SET stock_milli = ? WHERE id = ?")
             .bind(next_stock)
             .bind(line.product_id)
@@ -1150,13 +1303,23 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
 
     if credit_amount > 0 {
         if let Some(cid) = input.client_id {
-            let due_date = input.due_date.clone().or_else(|| {
-                if payment_terms_days > 0 {
-                    Some((chrono::Utc::now() + chrono::Duration::days(payment_terms_days)).format("%Y-%m-%d").to_string())
-                } else {
-                    None
-                }
-            });
+            let due_date = input
+                .due_date
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .or_else(|| {
+                    if payment_terms_days > 0 {
+                        Some(
+                            (chrono::Utc::now() + chrono::Duration::days(payment_terms_days))
+                                .format("%Y-%m-%d")
+                                .to_string(),
+                        )
+                    } else {
+                        None
+                    }
+                });
             sqlx::query(
                 "INSERT INTO customer_receivables (sale_id, client_id, initial_amount, remaining_amount, due_date, status)
                  VALUES (?, ?, ?, ?, ?, ?)",
@@ -1185,19 +1348,38 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
     get_sale_detail(db, sale_id).await
 }
 
-pub async fn cancel_sale(db: &DepotDb, sale_id: i64, input: CancelSaleInput) -> CoreResult<SaleDetailDto> {
+pub async fn cancel_sale(
+    db: &DepotDb,
+    sale_id: i64,
+    input: CancelSaleInput,
+) -> CoreResult<SaleDetailDto> {
+    require_current_actor_permission(Permission::SalesCancelReturn)?;
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
+    }
     let reason = input.reason.trim().to_string();
     if reason.is_empty() {
-        return Err(CoreError::Validation("Le motif d'annulation est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le motif d'annulation est obligatoire.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    let dup: Option<(i64,)> = sqlx::query_as("SELECT id FROM sales_cancellations WHERE request_key = ?")
-        .bind(&input.request_key)
-        .fetch_optional(&mut *tx)
-        .await?;
-    if dup.is_some() {
+    let dup: Option<(i64, i64)> =
+        sqlx::query_as("SELECT id, sale_id FROM sales_cancellations WHERE request_key = ?")
+            .bind(&request_key)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if let Some((_dup_id, dup_sale_id)) = dup {
         tx.rollback().await?;
+        if dup_sale_id != sale_id {
+            return Err(CoreError::DuplicateOperation(
+                "Cette clé d'idempotence a déjà été utilisée pour une autre vente.".to_string(),
+            ));
+        }
         return get_sale_detail(db, sale_id).await;
     }
 
@@ -1210,7 +1392,9 @@ pub async fn cancel_sale(db: &DepotDb, sale_id: i64, input: CancelSaleInput) -> 
     let (_id, sale_ref, status) =
         sale.ok_or_else(|| CoreError::Validation("Vente introuvable.".to_string()))?;
     if status == "cancelled" {
-        return Err(CoreError::HistoricalImmutable("Cette vente est déjà annulée.".to_string()));
+        return Err(CoreError::HistoricalImmutable(
+            "Cette vente est déjà annulée.".to_string(),
+        ));
     }
     let ret_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sales_returns WHERE sale_id = ?")
         .bind(sale_id)
@@ -1218,7 +1402,8 @@ pub async fn cancel_sale(db: &DepotDb, sale_id: i64, input: CancelSaleInput) -> 
         .await?;
     if ret_count > 0 {
         return Err(CoreError::HistoricalImmutable(
-            "Impossible d'annuler une vente ayant déjà fait l'objet d'un retour partiel.".to_string(),
+            "Impossible d'annuler une vente ayant déjà fait l'objet d'un retour partiel."
+                .to_string(),
         ));
     }
 
@@ -1232,7 +1417,9 @@ pub async fn cancel_sale(db: &DepotDb, sale_id: i64, input: CancelSaleInput) -> 
             .bind(pid)
             .fetch_one(&mut *tx)
             .await?;
-        let next_stock = cur_stock + qty_milli;
+        let next_stock = cur_stock.checked_add(qty_milli).ok_or_else(|| {
+            CoreError::Validation("Débordement stock lors de l'annulation.".to_string())
+        })?;
         sqlx::query("UPDATE products SET stock_milli = ? WHERE id = ?")
             .bind(next_stock)
             .bind(pid)
@@ -1291,10 +1478,31 @@ pub async fn cancel_sale(db: &DepotDb, sale_id: i64, input: CancelSaleInput) -> 
     .bind(sale_id)
     .fetch_one(&mut *tx)
     .await?;
-    let refund_method = input.refund_method_code.unwrap_or_else(|| "cash".to_string());
+    let refund_method = input
+        .refund_method_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("cash")
+        .to_string();
 
     if refunded > 0 {
-        if refund_method == "cash" {
+        let pm: Option<(String, i64, i64)> =
+            sqlx::query_as("SELECT code, is_cash, active FROM payment_methods WHERE code = ?")
+                .bind(&refund_method)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let (pm_code, is_cash, active) = pm.ok_or_else(|| {
+            CoreError::InvalidPayment(format!(
+                "Moyen de remboursement introuvable : {refund_method}"
+            ))
+        })?;
+        if active == 0 {
+            return Err(CoreError::InvalidPayment(format!(
+                "Moyen de remboursement inactif : {pm_code}"
+            )));
+        }
+        if is_cash == 1 {
             let avail = get_theoretical_cash_tx(&mut tx, session_id, opening_cash).await?;
             if refunded > avail {
                 return Err(CoreError::InvalidPayment(
@@ -1307,8 +1515,8 @@ pub async fn cancel_sale(db: &DepotDb, sale_id: i64, input: CancelSaleInput) -> 
              VALUES (?, ?, 'sale_refund', ?, 'out', ?, ?, ?)",
         )
         .bind(session_id)
-        .bind(format!("cancel-ref:{}", input.request_key))
-        .bind(&refund_method)
+        .bind(format!("cancel-ref:{request_key}"))
+        .bind(&pm_code)
         .bind(refunded)
         .bind(format!("Annulation {sale_ref} — {reason}"))
         .bind(&sale_ref)
@@ -1322,7 +1530,7 @@ pub async fn cancel_sale(db: &DepotDb, sale_id: i64, input: CancelSaleInput) -> 
     )
     .bind(sale_id)
     .bind(session_id)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(&reason)
     .bind(if refunded > 0 { Some(refund_method) } else { None })
     .bind(refunded)
@@ -1352,21 +1560,66 @@ pub async fn create_sale_return(
     sale_id: i64,
     input: CreateSaleReturnInput,
 ) -> CoreResult<SaleDetailDto> {
+    require_current_actor_permission(Permission::SalesCancelReturn)?;
+    if sale_id <= 0 {
+        return Err(CoreError::Validation(
+            "Identifiant de vente invalide.".to_string(),
+        ));
+    }
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
+    }
     let reason = input.reason.trim().to_string();
     if reason.is_empty() {
-        return Err(CoreError::Validation("Le motif du retour est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le motif du retour est obligatoire.".to_string(),
+        ));
     }
     if input.lines.is_empty() {
-        return Err(CoreError::Validation("Sélectionnez au moins un article à retourner.".to_string()));
+        return Err(CoreError::Validation(
+            "Sélectionnez au moins un article à retourner.".to_string(),
+        ));
+    }
+
+    let mut seen_line_ids: HashSet<i64> = HashSet::with_capacity(input.lines.len());
+    let mut normalized_lines: Vec<(i64, Quantity)> = Vec::with_capacity(input.lines.len());
+    for l in &input.lines {
+        if l.sale_line_id <= 0 {
+            return Err(CoreError::Validation(
+                "Identifiant de ligne de vente invalide.".to_string(),
+            ));
+        }
+        if !seen_line_ids.insert(l.sale_line_id) {
+            return Err(CoreError::Validation(format!(
+                "Ligne de vente #{} dupliquée dans la même demande de retour. Regroupez les quantités sur une seule ligne.",
+                l.sale_line_id
+            )));
+        }
+        let base_qty = Quantity::parse_str(&l.base_quantity, "Quantité retournée")?;
+        if base_qty.milli_units <= 0 {
+            return Err(CoreError::Validation(
+                "La quantité retournée doit être > 0.".to_string(),
+            ));
+        }
+        normalized_lines.push((l.sale_line_id, base_qty));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    let dup: Option<(i64,)> = sqlx::query_as("SELECT id FROM sales_returns WHERE request_key = ?")
-        .bind(&input.request_key)
-        .fetch_optional(&mut *tx)
-        .await?;
-    if dup.is_some() {
+    let dup: Option<(i64, i64)> =
+        sqlx::query_as("SELECT id, sale_id FROM sales_returns WHERE request_key = ?")
+            .bind(&request_key)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if let Some((_ret_id, dup_sale_id)) = dup {
         tx.rollback().await?;
+        if dup_sale_id != sale_id {
+            return Err(CoreError::DuplicateOperation(
+                "Cette clé d'idempotence a déjà été utilisée pour une autre vente.".to_string(),
+            ));
+        }
         return get_sale_detail(db, sale_id).await;
     }
 
@@ -1379,25 +1632,24 @@ pub async fn create_sale_return(
     let (_id, sale_ref, status) =
         sale.ok_or_else(|| CoreError::Validation("Vente introuvable.".to_string()))?;
     if status == "cancelled" {
-        return Err(CoreError::HistoricalImmutable("Vente annulée : retour impossible.".to_string()));
+        return Err(CoreError::HistoricalImmutable(
+            "Vente annulée : retour impossible.".to_string(),
+        ));
     }
 
-    let avo_prefix: String = sqlx::query_scalar("SELECT credit_note_prefix FROM app_settings WHERE id = 1")
-        .fetch_one(&mut *tx)
-        .await?;
+    let avo_prefix: String =
+        sqlx::query_scalar("SELECT credit_note_prefix FROM app_settings WHERE id = 1")
+            .fetch_one(&mut *tx)
+            .await?;
 
     let mut total_return = Money::ZERO;
-    let mut prepared: Vec<(i64, i64, i64, i64)> = Vec::new();
+    let mut prepared: Vec<(i64, i64, i64, i64)> = Vec::with_capacity(normalized_lines.len());
 
-    for l in &input.lines {
-        let base_qty = Quantity::parse_str(&l.base_quantity, "Quantité retournée")?;
-        if base_qty.milli_units <= 0 {
-            return Err(CoreError::Validation("La quantité retournée doit être > 0.".to_string()));
-        }
+    for (sale_line_id, base_qty) in &normalized_lines {
         let sl: Option<(i64, i64, i64, i64)> = sqlx::query_as(
             "SELECT id, product_id, base_quantity_milli, line_total FROM sale_lines WHERE id = ? AND sale_id = ?",
         )
-        .bind(l.sale_line_id)
+        .bind(sale_line_id)
         .bind(sale_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -1411,7 +1663,15 @@ pub async fn create_sale_return(
         .fetch_one(&mut *tx)
         .await?;
 
-        if prev_ret + base_qty.milli_units > sold_base_milli {
+        if prev_ret >= sold_base_milli {
+            return Err(CoreError::Validation(format!(
+                "La ligne de vente #{sl_id} a déjà été intégralement retournée."
+            )));
+        }
+        let cum_ret = prev_ret
+            .checked_add(base_qty.milli_units)
+            .ok_or_else(|| CoreError::Validation("Débordement quantité retournée.".to_string()))?;
+        if cum_ret > sold_base_milli {
             return Err(CoreError::Validation(
                 "Quantité retournée supérieure à la quantité vendue restante.".to_string(),
             ));
@@ -1424,10 +1684,9 @@ pub async fn create_sale_return(
                 "La fraction retournée ne correspond pas à un nombre entier de FCFA.".to_string(),
             ));
         }
-        let line_amount = i64::try_from(exact_prod / denom)
-            .map_err(|_| CoreError::Validation("Débordement montant retour.".to_string()))?;
-        total_return = total_return.checked_add(Money(line_amount), "Total retour")?;
-        prepared.push((sl_id, pid, base_qty.milli_units, line_amount));
+        let line_amount = Money::from_i128(exact_prod / denom, "Montant retour ligne")?;
+        total_return = total_return.checked_add(line_amount, "Total retour")?;
+        prepared.push((sl_id, pid, base_qty.milli_units, line_amount.value()));
     }
 
     let mut credit_reduction: i64 = 0;
@@ -1439,26 +1698,62 @@ pub async fn create_sale_return(
     .fetch_optional(&mut *tx)
     .await?;
 
-    if let Some((rec_id, rem)) = rec {
+    if let Some((_rec_id, rem)) = rec {
         if rem > 0 {
             credit_reduction = rem.min(total_return.value());
-            refund_amount = total_return.value() - credit_reduction;
-            let next_rem = rem - credit_reduction;
-            sqlx::query("UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?")
-                .bind(next_rem)
-                .bind(if next_rem == 0 { "paid" } else { "partial" })
-                .bind(rec_id)
-                .execute(&mut *tx)
-                .await?;
+            refund_amount = total_return
+                .checked_sub_non_negative(Money(credit_reduction), "Remboursement retour")?
+                .value();
         }
     }
 
-    if refund_amount > 0 && input.refund_method_code == "cash" {
-        let avail = get_theoretical_cash_tx(&mut tx, session_id, opening_cash).await?;
-        if refund_amount > avail {
-            return Err(CoreError::InvalidPayment(
-                "Espèces insuffisantes en caisse pour le remboursement.".to_string(),
-            ));
+    let check_sum =
+        Money(credit_reduction).checked_add(Money(refund_amount), "Ventilation retour")?;
+    if check_sum != total_return {
+        return Err(CoreError::Internal(
+            "Incohérence interne dans la répartition du retour.".to_string(),
+        ));
+    }
+
+    if refund_amount > 0 {
+        let pm: Option<(String, i64, i64)> =
+            sqlx::query_as("SELECT code, is_cash, active FROM payment_methods WHERE code = ?")
+                .bind(&input.refund_method_code)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let (_code, is_cash, active) = pm.ok_or_else(|| {
+            CoreError::InvalidPayment(format!(
+                "Moyen de remboursement introuvable : {}",
+                input.refund_method_code
+            ))
+        })?;
+        if active == 0 {
+            return Err(CoreError::InvalidPayment(format!(
+                "Moyen de remboursement inactif : {}",
+                input.refund_method_code
+            )));
+        }
+        if is_cash == 1 {
+            let avail = get_theoretical_cash_tx(&mut tx, session_id, opening_cash).await?;
+            if refund_amount > avail {
+                return Err(CoreError::InvalidPayment(
+                    "Espèces insuffisantes en caisse pour le remboursement.".to_string(),
+                ));
+            }
+        }
+    }
+
+    if let Some((rec_id, rem)) = rec {
+        if credit_reduction > 0 {
+            let next_rem = rem - credit_reduction;
+            sqlx::query(
+                "UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?",
+            )
+            .bind(next_rem)
+            .bind(if next_rem == 0 { "paid" } else { "partial" })
+            .bind(rec_id)
+            .execute(&mut *tx)
+            .await?;
         }
     }
 
@@ -1471,13 +1766,17 @@ pub async fn create_sale_return(
     )
     .bind(&ret_ref)
     .bind(&avo_ref)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(sale_id)
     .bind(session_id)
     .bind(total_return.value())
     .bind(credit_reduction)
     .bind(refund_amount)
-    .bind(if refund_amount > 0 { Some(&input.refund_method_code) } else { None })
+    .bind(if refund_amount > 0 {
+        Some(&input.refund_method_code)
+    } else {
+        None
+    })
     .bind(if input.restock_approved { 1_i64 } else { 0_i64 })
     .bind(&reason)
     .execute(&mut *tx)
@@ -1497,11 +1796,14 @@ pub async fn create_sale_return(
         .await?;
 
         if input.restock_approved {
-            let cur_stock: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
-                .bind(pid)
-                .fetch_one(&mut *tx)
-                .await?;
-            let next_stock = cur_stock + base_qty_milli;
+            let cur_stock: i64 =
+                sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+                    .bind(pid)
+                    .fetch_one(&mut *tx)
+                    .await?;
+            let next_stock = cur_stock.checked_add(*base_qty_milli).ok_or_else(|| {
+                CoreError::Validation("Débordement stock lors du retour.".to_string())
+            })?;
             sqlx::query("UPDATE products SET stock_milli = ? WHERE id = ?")
                 .bind(next_stock)
                 .bind(pid)
@@ -1528,7 +1830,7 @@ pub async fn create_sale_return(
              VALUES (?, ?, 'sale_refund', ?, 'out', ?, ?, ?)",
         )
         .bind(session_id)
-        .bind(format!("ret-ref:{}", input.request_key))
+        .bind(format!("ret-ref:{request_key}"))
         .bind(&input.refund_method_code)
         .bind(refund_amount)
         .bind(format!("Avoir {avo_ref} sur vente {sale_ref}"))
@@ -1547,7 +1849,11 @@ pub async fn create_sale_return(
     .await?;
 
     sqlx::query("UPDATE sales SET status = ? WHERE id = ?")
-        .bind(if remaining_qty <= 0 { "returned" } else { "partially_returned" })
+        .bind(if remaining_qty <= 0 {
+            "returned"
+        } else {
+            "partially_returned"
+        })
         .bind(sale_id)
         .execute(&mut *tx)
         .await?;

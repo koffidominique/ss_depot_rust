@@ -2,6 +2,8 @@ import type {
   AppSettings,
   AuthStatus,
   BackupFile,
+  BackupRestoreResult,
+  BackupVerifyResult,
   CashStatus,
   Category,
   Client,
@@ -16,8 +18,11 @@ import type {
   ReportsOverview,
   SaleDetail,
   SaleSummary,
+  SessionUser,
   Supplier,
   SupplierDebt,
+  UserAccount,
+  UserRole,
 } from '../../types/erp.ts';
 
 export class ApiError extends Error {
@@ -32,13 +37,40 @@ export class ApiError extends Error {
   }
 }
 
+export interface CreateSaleReturnPayload {
+  request_key: string;
+  reason: string;
+  restock_approved: boolean;
+  refund_method_code: string;
+  lines: Array<{ sale_line_id: number; base_quantity: string | number }>;
+}
+
+export interface ReceivePurchaseOrderPayload {
+  request_key: string;
+  notes?: string;
+  lines: Array<{
+    purchase_order_line_id: number;
+    received_quantity: string | number;
+    discrepancy_reason?: string;
+  }>;
+}
+
 export interface ApiClient {
   // Auth
   getAuthStatus(): Promise<AuthStatus>;
-  setupPin(pin: string): Promise<{ token: string }>;
-  login(pin: string): Promise<{ token: string }>;
+  setupPin(pin: string): Promise<{ token: string; user?: SessionUser }>;
+  login(pin: string, username?: string): Promise<{ token: string; user?: SessionUser }>;
   lock(): Promise<void>;
   changePin(currentPin: string, newPin: string): Promise<void>;
+  getMe(): Promise<{ user: SessionUser }>;
+  listUsers(): Promise<UserAccount[]>;
+  createUser(input: {
+    username: string;
+    displayName: string;
+    role: UserRole;
+    pin: string;
+  }): Promise<UserAccount>;
+  toggleUser(userId: number, active: boolean): Promise<UserAccount>;
 
   // Dashboard
   getDashboard(): Promise<DashboardData>;
@@ -79,7 +111,7 @@ export interface ApiClient {
   getSaleDetail(saleId: number): Promise<SaleDetail>;
   createSale(input: Record<string, unknown>): Promise<SaleDetail>;
   cancelSale(saleId: number, input: { reason: string; refund_method_code?: string; request_key: string }): Promise<SaleDetail>;
-  createSaleReturn(saleId: number, input: Record<string, unknown>): Promise<SaleDetail>;
+  createSaleReturn(saleId: number, input: CreateSaleReturnPayload): Promise<SaleDetail>;
 
   // Receivables
   listReceivables(): Promise<Receivable[]>;
@@ -94,7 +126,7 @@ export interface ApiClient {
   updateSupplier(supplierId: number, input: Record<string, unknown>): Promise<Supplier>;
   listPurchases(): Promise<PurchaseOrder[]>;
   createPurchaseOrder(input: Record<string, unknown>): Promise<PurchaseOrder>;
-  receivePurchaseOrder(orderId: number, input: Record<string, unknown>): Promise<unknown>;
+  receivePurchaseOrder(orderId: number, input: ReceivePurchaseOrderPayload): Promise<unknown>;
   cancelPurchaseOrder(orderId: number, input: { reason: string }): Promise<PurchaseOrder>;
   listSupplierDebts(): Promise<SupplierDebt[]>;
   paySupplierDebt(
@@ -152,16 +184,20 @@ export interface ApiClient {
   getReports(from?: string, to?: string): Promise<ReportsOverview>;
   getSettings(): Promise<{ settings: AppSettings; paymentMethods: PaymentMethodConfig[] }>;
   updateSettings(
-    input: Partial<Omit<AppSettings, 'allow_negative_stock'>> & {
+    input: Partial<Omit<AppSettings, 'allow_negative_stock' | 'setup_completed'>> & {
       allow_negative_stock?: boolean | number;
+      setup_completed?: boolean | number;
     }
   ): Promise<{ settings: AppSettings; paymentMethods: PaymentMethodConfig[] }>;
   addPaymentMethod(label: string): Promise<PaymentMethodConfig>;
   togglePaymentMethod(code: string, active: boolean): Promise<PaymentMethodConfig>;
   listBackups(): Promise<BackupFile[]>;
   createBackup(): Promise<BackupFile>;
-  verifyBackup(name: string): Promise<{ name: string; integrity: string; foreignKeyErrors: number; schemaVersion: number }>;
-  restoreBackup(name: string): Promise<{ restored: string }>;
+  createEncryptedBackup(passphrase: string): Promise<BackupFile>;
+  verifyBackup(name: string): Promise<BackupVerifyResult>;
+  verifyEncryptedBackup(name: string, passphrase: string): Promise<BackupVerifyResult>;
+  restoreBackup(name: string): Promise<BackupRestoreResult>;
+  restoreEncryptedBackup(name: string, passphrase: string): Promise<BackupRestoreResult>;
   downloadBackup(name: string): Promise<Uint8Array>;
   generateDocumentPdf(doc: Record<string, unknown>): Promise<Uint8Array>;
 }

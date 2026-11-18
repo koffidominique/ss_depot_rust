@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::application::products::{deserialize_nullable_opt, sanitize_image_path};
+use crate::application::auth::{require_current_actor_permission, Permission};
+use crate::application::products::{
+    deserialize_nullable_opt, deserialize_opt_bool_or_int, sanitize_image_path,
+};
 use crate::application::sales::audit_log_tx;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
@@ -63,6 +66,9 @@ pub struct RecentAuditDto {
     pub action: String,
     pub entity_type: String,
     pub details: String,
+    pub actor_user_id: Option<String>,
+    pub actor_name: Option<String>,
+    pub actor_role: Option<String>,
     pub created_at: String,
 }
 
@@ -151,6 +157,7 @@ pub struct AppSettingsDto {
     pub credit_note_prefix: String,
     pub theme: String,
     pub logo_path: Option<String>,
+    pub setup_completed: i64,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -177,6 +184,7 @@ pub struct UpdateSettingsInput {
     pub email: Option<String>,
     pub city: Option<String>,
     pub country: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
     pub allow_negative_stock: Option<bool>,
     pub invoice_prefix: Option<String>,
     pub sale_prefix: Option<String>,
@@ -187,9 +195,12 @@ pub struct UpdateSettingsInput {
     pub theme: Option<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_opt")]
     pub logo_path: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
+    pub setup_completed: Option<bool>,
 }
 
 pub async fn get_dashboard_kpis(db: &DepotDb) -> CoreResult<DashboardKpisDto> {
+    require_current_actor_permission(Permission::CatalogRead)?;
     let (sales_count, revenue_merchandise, deposits_total): (i64, i64, i64) = sqlx::query_as(
         "SELECT COUNT(*), COALESCE(SUM(total_merchandise), 0), COALESCE(SUM(total_deposit), 0)
          FROM sales WHERE status != 'cancelled'",
@@ -197,10 +208,11 @@ pub async fn get_dashboard_kpis(db: &DepotDb) -> CoreResult<DashboardKpisDto> {
     .fetch_one(&db.pool)
     .await?;
 
-    let collections_total: i64 =
-        sqlx::query_scalar("SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE direction = 'in'")
-            .fetch_one(&db.pool)
-            .await?;
+    let collections_total: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE direction = 'in'",
+    )
+    .fetch_one(&db.pool)
+    .await?;
 
     let (receivables_total, receivables_count): (i64, i64) = sqlx::query_as(
         "SELECT COALESCE(SUM(remaining_amount), 0), COUNT(*) FROM customer_receivables WHERE status IN ('open', 'partial')",
@@ -265,10 +277,11 @@ pub async fn get_dashboard_kpis(db: &DepotDb) -> CoreResult<DashboardKpisDto> {
         .await?;
     }
 
-    let out_of_stock_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_milli <= 0")
-            .fetch_one(&db.pool)
-            .await?;
+    let out_of_stock_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_milli <= 0",
+    )
+    .fetch_one(&db.pool)
+    .await?;
 
     let low_stock_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_milli > 0 AND stock_milli <= min_stock_milli",
@@ -339,7 +352,7 @@ pub async fn get_dashboard_data(db: &DepotDb) -> CoreResult<DashboardDataDto> {
     .await?;
 
     let recent_audit = sqlx::query_as::<_, RecentAuditDto>(
-        "SELECT id, action, entity_type, details, created_at
+        "SELECT id, action, entity_type, details, actor_user_id, actor_name, actor_role, created_at
          FROM audit_logs ORDER BY id DESC LIMIT 8",
     )
     .fetch_all(&db.pool)
@@ -359,14 +372,19 @@ pub async fn get_reports_overview(
     from_date: Option<&str>,
     to_date: Option<&str>,
 ) -> CoreResult<ReportsOverviewDto> {
-    let from = from_date.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("");
+    require_current_actor_permission(Permission::ReportsRead)?;
+    let from = from_date
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("");
     let to = to_date
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .unwrap_or("9999-12-31");
 
-    let (commercial_count, merchandise_revenue, deposit_billed, paid_amount): (i64, i64, i64, i64) = sqlx::query_as(
-        "SELECT COUNT(*),
+    let (commercial_count, merchandise_revenue, deposit_billed, paid_amount): (i64, i64, i64, i64) =
+        sqlx::query_as(
+            "SELECT COUNT(*),
                 COALESCE(SUM(total_merchandise), 0),
                 COALESCE(SUM(total_deposit), 0),
                 COALESCE(SUM(paid_amount), 0)
@@ -374,11 +392,11 @@ pub async fn get_reports_overview(
          WHERE status != 'cancelled'
            AND substr(created_at, 1, 10) >= ?
            AND substr(created_at, 1, 10) <= ?",
-    )
-    .bind(from)
-    .bind(to)
-    .fetch_one(&db.pool)
-    .await?;
+        )
+        .bind(from)
+        .bind(to)
+        .fetch_one(&db.pool)
+        .await?;
 
     let lines: Vec<(i64, i64, Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT sl.base_quantity_milli, sl.line_total, sl.cost_num, sl.cost_den
@@ -435,7 +453,7 @@ pub async fn get_reports_overview(
            AND substr(cm.created_at, 1, 10) >= ?
            AND substr(cm.created_at, 1, 10) <= ?
          GROUP BY pm.code, pm.label, pm.is_cash
-         ORDER BY total_in DESC",
+         ORDER BY total_in DESC, pm.code ASC",
     )
     .bind(from)
     .bind(to)
@@ -512,10 +530,11 @@ pub async fn get_reports_overview(
 }
 
 pub async fn get_settings(db: &DepotDb) -> CoreResult<AppSettingsDto> {
+    require_current_actor_permission(Permission::SettingsRead)?;
     let row = sqlx::query_as::<_, AppSettingsDto>(
         "SELECT company_name, company_legal_name, address, phone, email, city, country, currency,
                 allow_negative_stock, invoice_prefix, sale_prefix, purchase_prefix, order_prefix,
-                receipt_prefix, credit_note_prefix, theme, logo_path
+                receipt_prefix, credit_note_prefix, theme, logo_path, setup_completed
          FROM app_settings WHERE id = 1",
     )
     .fetch_one(&db.pool)
@@ -540,6 +559,7 @@ pub async fn update_settings(
     db: &DepotDb,
     input: UpdateSettingsInput,
 ) -> CoreResult<SettingsBundleDto> {
+    require_current_actor_permission(Permission::SettingsWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
     let cur = get_settings(db).await?;
 
@@ -563,7 +583,11 @@ pub async fn update_settings(
         match next {
             Some(v) => {
                 let t = v.trim().to_string();
-                if t.is_empty() { None } else { Some(t) }
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
             }
             None => prev,
         }
@@ -576,6 +600,20 @@ pub async fn update_settings(
             .unwrap_or(prev)
     };
 
+    let has_identity_update = input.company_name.is_some()
+        || input.company_legal_name.is_some()
+        || input.address.is_some()
+        || input.phone.is_some()
+        || input.email.is_some()
+        || input.city.is_some()
+        || input.country.is_some()
+        || input.logo_path.is_some();
+    let next_setup_completed = match input.setup_completed {
+        Some(v) => i64::from(v),
+        None if has_identity_update => 1,
+        None => cur.setup_completed,
+    };
+
     let next_logo_path = match input.logo_path {
         Some(opt) => sanitize_image_path(opt.as_deref())?,
         None => cur.logo_path,
@@ -585,7 +623,7 @@ pub async fn update_settings(
         "UPDATE app_settings
          SET company_name = ?, company_legal_name = ?, address = ?, phone = ?, email = ?, city = ?, country = ?,
              allow_negative_stock = ?, invoice_prefix = ?, sale_prefix = ?, purchase_prefix = ?, order_prefix = ?,
-             receipt_prefix = ?, credit_note_prefix = ?, theme = ?, logo_path = ?, updated_at = datetime('now')
+             receipt_prefix = ?, credit_note_prefix = ?, theme = ?, logo_path = ?, setup_completed = ?, updated_at = datetime('now')
          WHERE id = 1",
     )
     .bind(&next_name)
@@ -604,6 +642,7 @@ pub async fn update_settings(
     .bind(prefix_or(input.credit_note_prefix, cur.credit_note_prefix))
     .bind(next_theme)
     .bind(next_logo_path)
+    .bind(next_setup_completed)
     .execute(&mut *tx)
     .await?;
 
@@ -620,6 +659,7 @@ pub async fn update_settings(
 }
 
 pub async fn add_payment_method(db: &DepotDb, label: &str) -> CoreResult<PaymentMethodDto> {
+    require_current_actor_permission(Permission::SettingsWrite)?;
     let clean = label.trim();
     if clean.is_empty() {
         return Err(CoreError::Validation(
@@ -667,6 +707,7 @@ pub async fn toggle_payment_method(
     code: &str,
     active: bool,
 ) -> CoreResult<PaymentMethodDto> {
+    require_current_actor_permission(Permission::SettingsWrite)?;
     if code == "cash" && !active {
         return Err(CoreError::Validation(
             "Le moyen Espèces (cash) ne peut jamais être désactivé.".to_string(),

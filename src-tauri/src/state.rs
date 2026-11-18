@@ -1,14 +1,14 @@
-use std::collections::HashSet;
+use depotpro_core::application::auth::SessionStore;
+use depotpro_core::infrastructure::db::DepotDb;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use depotpro_core::infrastructure::db::DepotDb;
 
 pub struct DesktopState {
     pub db: Arc<RwLock<DepotDb>>,
     pub backup_dir: PathBuf,
     pub lock_path: PathBuf,
-    pub tokens: Arc<RwLock<HashSet<String>>>,
+    pub sessions: Arc<RwLock<SessionStore>>,
 }
 
 impl DesktopState {
@@ -17,7 +17,7 @@ impl DesktopState {
             db: Arc::new(RwLock::new(db)),
             backup_dir,
             lock_path,
-            tokens: Arc::new(RwLock::new(HashSet::new())),
+            sessions: Arc::new(RwLock::new(SessionStore::default())),
         }
     }
 

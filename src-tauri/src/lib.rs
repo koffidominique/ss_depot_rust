@@ -1,12 +1,12 @@
 mod commands;
 mod state;
 
+use depotpro_core::infrastructure::db::DepotDb;
+use state::DesktopState;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 use tauri::{Manager, RunEvent};
-use depotpro_core::infrastructure::db::DepotDb;
-use state::DesktopState;
 
 fn is_pid_alive(pid: u32) -> bool {
     #[cfg(unix)]
@@ -32,8 +32,12 @@ fn is_pid_alive(pid: u32) -> bool {
     }
 }
 
-fn acquire_single_instance_lock(lock_path: &PathBuf) -> std::io::Result<()> {
-    match OpenOptions::new().write(true).create_new(true).open(lock_path) {
+fn acquire_single_instance_lock(lock_path: &std::path::Path) -> std::io::Result<()> {
+    match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(lock_path)
+    {
         Ok(mut f) => {
             let _ = writeln!(f, "pid={}", std::process::id());
             Ok(())
@@ -50,7 +54,10 @@ fn acquire_single_instance_lock(lock_path: &PathBuf) -> std::io::Result<()> {
                 .unwrap_or(false);
             if stale {
                 let _ = std::fs::remove_file(lock_path);
-                let mut f = OpenOptions::new().write(true).create_new(true).open(lock_path)?;
+                let mut f = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(lock_path)?;
                 let _ = writeln!(f, "pid={}", std::process::id());
                 return Ok(());
             }
@@ -90,8 +97,12 @@ pub fn run() {
             commands::auth_status,
             commands::auth_setup_pin,
             commands::auth_login,
+            commands::auth_me,
             commands::auth_lock,
             commands::change_owner_pin,
+            commands::auth_list_users,
+            commands::auth_create_user,
+            commands::auth_toggle_user,
             commands::list_categories,
             commands::create_category,
             commands::list_products,
@@ -143,9 +154,12 @@ pub fn run() {
             commands::generate_document_pdf,
             commands::list_backups,
             commands::create_backup,
+            commands::create_encrypted_backup,
             commands::verify_backup,
+            commands::verify_encrypted_backup,
             commands::download_backup,
             commands::restore_backup,
+            commands::restore_encrypted_backup,
         ])
         .build(tauri::generate_context!())
         .expect("Erreur fatale au démarrage de DEPOTPRO Desktop");

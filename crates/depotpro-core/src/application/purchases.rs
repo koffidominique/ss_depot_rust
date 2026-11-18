@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::collections::HashSet;
 
-use crate::application::products::deserialize_nullable_opt;
+use crate::application::auth::{require_current_actor_permission, Permission};
+use crate::application::products::{deserialize_nullable_opt, deserialize_qty_str};
 use crate::application::sales::{audit_log_tx, get_theoretical_cash_tx, require_open_session_tx};
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
@@ -69,6 +71,7 @@ pub struct PurchaseOrderDto {
     pub created_at: String,
     pub lines: Vec<PurchaseOrderLineDto>,
     pub receipts: Vec<PurchaseReceiptDto>,
+    pub debts: Vec<SupplierDebtDto>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -128,6 +131,7 @@ pub struct UpdateSupplierInput {
 pub struct PurchaseOrderLineInput {
     pub product_id: i64,
     pub packaging_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub quantity: String,
     pub unit_price: i64,
 }
@@ -144,6 +148,7 @@ pub struct CreatePurchaseOrderInput {
 #[derive(Debug, Deserialize)]
 pub struct ReceiveLineInput {
     pub purchase_order_line_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub received_quantity: String,
     pub discrepancy_reason: Option<String>,
 }
@@ -168,7 +173,11 @@ pub struct PaySupplierDebtInput {
     pub note: Option<String>,
 }
 
-pub async fn list_suppliers(db: &DepotDb, search: Option<&str>) -> CoreResult<Vec<SupplierSummaryDto>> {
+pub async fn list_suppliers(
+    db: &DepotDb,
+    search: Option<&str>,
+) -> CoreResult<Vec<SupplierSummaryDto>> {
+    require_current_actor_permission(Permission::PurchasesRead)?;
     let q = search.map(str::trim).filter(|s| !s.is_empty());
     let rows = match q {
         Some(s) => {
@@ -202,15 +211,23 @@ pub async fn list_suppliers(db: &DepotDb, search: Option<&str>) -> CoreResult<Ve
     Ok(rows)
 }
 
-pub async fn create_supplier(db: &DepotDb, input: CreateSupplierInput) -> CoreResult<SupplierSummaryDto> {
+pub async fn create_supplier(
+    db: &DepotDb,
+    input: CreateSupplierInput,
+) -> CoreResult<SupplierSummaryDto> {
+    require_current_actor_permission(Permission::PurchasesWrite)?;
     let name = input.name.trim().to_string();
     let phone = input.phone.trim().to_string();
     if name.is_empty() || phone.is_empty() {
-        return Err(CoreError::Validation("Nom et téléphone fournisseur obligatoires.".to_string()));
+        return Err(CoreError::Validation(
+            "Nom et téléphone fournisseur obligatoires.".to_string(),
+        ));
     }
     let terms = input.payment_terms_days.unwrap_or(0);
     if terms < 0 {
-        return Err(CoreError::Validation("Délai de paiement invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Délai de paiement invalide.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
@@ -231,7 +248,14 @@ pub async fn create_supplier(db: &DepotDb, input: CreateSupplierInput) -> CoreRe
     .await?
     .last_insert_rowid();
 
-    audit_log_tx(&mut tx, "CREATE_SUPPLIER", "suppliers", Some(sup_id.to_string()), &format!("{code} — {name}")).await?;
+    audit_log_tx(
+        &mut tx,
+        "CREATE_SUPPLIER",
+        "suppliers",
+        Some(sup_id.to_string()),
+        &format!("{code} — {name}"),
+    )
+    .await?;
     tx.commit().await?;
 
     list_suppliers(db, Some(&code))
@@ -246,18 +270,20 @@ pub async fn update_supplier(
     supplier_id: i64,
     input: UpdateSupplierInput,
 ) -> CoreResult<SupplierSummaryDto> {
+    require_current_actor_permission(Permission::PurchasesWrite)?;
+    type ExistingSupplierRow = (
+        String,
+        String,
+        Option<String>,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        i64,
+        i64,
+    );
     let (_guard, mut tx) = db.begin_write().await?;
-    let existing: Option<(
-        String,
-        String,
-        Option<String>,
-        String,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        i64,
-        i64,
-    )> = sqlx::query_as(
+    let existing: Option<ExistingSupplierRow> = sqlx::query_as(
         "SELECT code, name, company_name, phone, address, email, contact_person, payment_terms_days, is_active
          FROM suppliers WHERE id = ?",
     )
@@ -265,14 +291,25 @@ pub async fn update_supplier(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let (code, prev_name, prev_company, prev_phone, prev_address, prev_email, prev_contact, prev_terms, prev_active) =
-        existing.ok_or_else(|| CoreError::Validation("Fournisseur introuvable.".to_string()))?;
+    let (
+        code,
+        prev_name,
+        prev_company,
+        prev_phone,
+        prev_address,
+        prev_email,
+        prev_contact,
+        prev_terms,
+        prev_active,
+    ) = existing.ok_or_else(|| CoreError::Validation("Fournisseur introuvable.".to_string()))?;
 
     let name = match input.name {
         Some(n) => {
             let clean = n.trim().to_string();
             if clean.is_empty() {
-                return Err(CoreError::Validation("Nom fournisseur obligatoire.".to_string()));
+                return Err(CoreError::Validation(
+                    "Nom fournisseur obligatoire.".to_string(),
+                ));
             }
             clean
         }
@@ -282,7 +319,9 @@ pub async fn update_supplier(
         Some(p) => {
             let clean = p.trim().to_string();
             if clean.is_empty() {
-                return Err(CoreError::Validation("Téléphone fournisseur obligatoire.".to_string()));
+                return Err(CoreError::Validation(
+                    "Téléphone fournisseur obligatoire.".to_string(),
+                ));
             }
             clean
         }
@@ -290,7 +329,9 @@ pub async fn update_supplier(
     };
     let terms = input.payment_terms_days.unwrap_or(prev_terms);
     if terms < 0 {
-        return Err(CoreError::Validation("Délai de paiement invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Délai de paiement invalide.".to_string(),
+        ));
     }
 
     let opt_text = |opt: Option<Option<String>>, prev: Option<String>| -> Option<String> {
@@ -299,7 +340,11 @@ pub async fn update_supplier(
             Some(None) => None,
             Some(Some(s)) => {
                 let t = s.trim().to_string();
-                if t.is_empty() { None } else { Some(t) }
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
             }
         }
     };
@@ -309,7 +354,13 @@ pub async fn update_supplier(
     let email = opt_text(input.email, prev_email);
     let contact_person = opt_text(input.contact_person, prev_contact);
     let is_active = match input.is_active {
-        Some(v) => if v { 1 } else { 0 },
+        Some(v) => {
+            if v {
+                1
+            } else {
+                0
+            }
+        }
         None => prev_active,
     };
 
@@ -344,10 +395,13 @@ pub async fn update_supplier(
         .await?
         .into_iter()
         .find(|s| s.id == supplier_id)
-        .ok_or_else(|| CoreError::Internal("Fournisseur introuvable après mise à jour.".to_string()))
+        .ok_or_else(|| {
+            CoreError::Internal("Fournisseur introuvable après mise à jour.".to_string())
+        })
 }
 
 pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderDto>> {
+    require_current_actor_permission(Permission::PurchasesRead)?;
     let rows = sqlx::query_as::<_, PurchaseOrderRow>(
         "SELECT po.id, po.reference, po.supplier_id, s.name AS supplier_name, s.code AS supplier_code,
                 po.status, po.total_amount, po.received_amount, po.expected_date, po.notes, po.created_at
@@ -381,6 +435,21 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
         .fetch_all(&db.pool)
         .await?;
 
+        let debts = sqlx::query_as::<_, SupplierDebtDto>(
+            "SELECT sd.id, sd.receipt_id, sd.supplier_id, s.name AS supplier_name, s.code AS supplier_code,
+                    pr.reference AS receipt_reference, po.reference AS order_reference,
+                    sd.initial_amount, sd.remaining_amount, sd.due_date, sd.status, sd.created_at
+             FROM supplier_debts sd
+             JOIN suppliers s ON s.id = sd.supplier_id
+             JOIN purchase_receipts pr ON pr.id = sd.receipt_id
+             JOIN purchase_orders po ON po.id = pr.purchase_order_id
+             WHERE pr.purchase_order_id = ?
+             ORDER BY sd.id DESC",
+        )
+        .bind(po.id)
+        .fetch_all(&db.pool)
+        .await?;
+
         result.push(PurchaseOrderDto {
             id: po.id,
             reference: po.reference,
@@ -395,23 +464,33 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
             created_at: po.created_at,
             lines,
             receipts,
+            debts,
         });
     }
     Ok(result)
 }
 
-pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput) -> CoreResult<PurchaseOrderDto> {
-    if input.request_key.trim().is_empty() {
-        return Err(CoreError::Validation("Clé d'idempotence requise.".to_string()));
+pub async fn create_purchase_order(
+    db: &DepotDb,
+    input: CreatePurchaseOrderInput,
+) -> CoreResult<PurchaseOrderDto> {
+    require_current_actor_permission(Permission::PurchasesWrite)?;
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
     }
     if input.lines.is_empty() {
-        return Err(CoreError::Validation("Ajoutez au moins une ligne de commande.".to_string()));
+        return Err(CoreError::Validation(
+            "Ajoutez au moins une ligne de commande.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
     if let Some((existing_id,)) =
         sqlx::query_as::<_, (i64,)>("SELECT id FROM purchase_orders WHERE request_key = ?")
-            .bind(&input.request_key)
+            .bind(&request_key)
             .fetch_optional(&mut *tx)
             .await?
     {
@@ -428,11 +507,14 @@ pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput
         .fetch_optional(&mut *tx)
         .await?;
     if sup.is_none() {
-        return Err(CoreError::Validation("Fournisseur introuvable.".to_string()));
+        return Err(CoreError::Validation(
+            "Fournisseur introuvable.".to_string(),
+        ));
     }
 
+    type PreparedPurchaseOrderLine = (i64, i64, String, String, String, i64, i64, i64, i64);
     let mut total_amount = Money::ZERO;
-    let mut prepared: Vec<(i64, i64, String, String, String, i64, i64, i64, i64)> = Vec::new();
+    let mut prepared: Vec<PreparedPurchaseOrderLine> = Vec::new();
 
     for l in &input.lines {
         let prod: Option<(i64, String, String)> =
@@ -455,7 +537,9 @@ pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput
 
         let qty = Quantity::parse_str(&l.quantity, &format!("Quantité commandée ({pname})"))?;
         if qty.milli_units <= 0 {
-            return Err(CoreError::Validation("La quantité commandée doit être > 0.".to_string()));
+            return Err(CoreError::Validation(
+                "La quantité commandée doit être > 0.".to_string(),
+            ));
         }
         let unit_price = Money::from_non_negative(l.unit_price, &format!("Prix achat ({pname})"))?;
         let line_total = Money(qty.compute_line_fcfa(unit_price.value())?);
@@ -475,15 +559,20 @@ pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput
     }
 
     let reference = DepotDb::next_sequence(&mut tx, "CMD").await?;
+    let expected_date = input
+        .expected_date
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     let po_id = sqlx::query(
         "INSERT INTO purchase_orders (reference, request_key, supplier_id, status, total_amount, expected_date, notes)
          VALUES (?, ?, ?, 'confirmed', ?, ?, ?)",
     )
     .bind(&reference)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(input.supplier_id)
     .bind(total_amount.value())
-    .bind(input.expected_date.as_deref())
+    .bind(expected_date)
     .bind(input.notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .execute(&mut *tx)
     .await?
@@ -531,22 +620,69 @@ pub async fn receive_purchase_order(
     purchase_order_id: i64,
     input: ReceivePurchaseOrderInput,
 ) -> CoreResult<PurchaseReceiptDto> {
-    if input.request_key.trim().is_empty() {
-        return Err(CoreError::Validation("Clé d'idempotence requise.".to_string()));
+    require_current_actor_permission(Permission::PurchasesWrite)?;
+    if purchase_order_id <= 0 {
+        return Err(CoreError::Validation(
+            "Identifiant de bon de commande invalide.".to_string(),
+        ));
+    }
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
     }
     if input.lines.is_empty() {
-        return Err(CoreError::Validation("Saisissez au moins une ligne reçue.".to_string()));
+        return Err(CoreError::Validation(
+            "Saisissez au moins une ligne reçue.".to_string(),
+        ));
+    }
+
+    let mut seen_po_lines: HashSet<i64> = HashSet::with_capacity(input.lines.len());
+    let mut normalized_lines: Vec<(i64, Quantity, Option<String>)> =
+        Vec::with_capacity(input.lines.len());
+    for l in &input.lines {
+        if l.purchase_order_line_id <= 0 {
+            return Err(CoreError::Validation(
+                "Identifiant de ligne de commande invalide.".to_string(),
+            ));
+        }
+        if !seen_po_lines.insert(l.purchase_order_line_id) {
+            return Err(CoreError::Validation(format!(
+                "Ligne de commande #{} dupliquée dans la même demande de réception. Regroupez les quantités sur une seule ligne.",
+                l.purchase_order_line_id
+            )));
+        }
+        let qty = Quantity::parse_str(&l.received_quantity, "Quantité réceptionnée")?;
+        if qty.milli_units <= 0 {
+            return Err(CoreError::Validation(
+                "La quantité reçue doit être > 0.".to_string(),
+            ));
+        }
+        let disc_reason = l
+            .discrepancy_reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+        normalized_lines.push((l.purchase_order_line_id, qty, disc_reason));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
     if let Some(existing) = sqlx::query_as::<_, PurchaseReceiptDto>(
         "SELECT id, reference, purchase_order_id, total_amount, notes, created_at FROM purchase_receipts WHERE request_key = ?",
     )
-    .bind(&input.request_key)
+    .bind(&request_key)
     .fetch_optional(&mut *tx)
     .await?
     {
         tx.rollback().await?;
+        if existing.purchase_order_id != purchase_order_id {
+            return Err(CoreError::DuplicateOperation(
+                "Cette clé d'idempotence a déjà été utilisée pour un autre bon de commande."
+                    .to_string(),
+            ));
+        }
         return Ok(existing);
     }
 
@@ -564,31 +700,37 @@ pub async fn receive_purchase_order(
         ));
     }
 
-    let payment_terms_days: i64 = sqlx::query_scalar("SELECT payment_terms_days FROM suppliers WHERE id = ?")
-        .bind(supplier_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    let payment_terms_days: i64 =
+        sqlx::query_scalar("SELECT payment_terms_days FROM suppliers WHERE id = ?")
+            .bind(supplier_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
+    type PreparedReceiptLine = (i64, i64, i64, i64, i64, i64, Option<String>);
     let mut receipt_total = Money::ZERO;
-    let mut prepared: Vec<(i64, i64, i64, i64, i64, i64, Option<String>)> = Vec::new();
+    let mut prepared: Vec<PreparedReceiptLine> = Vec::with_capacity(normalized_lines.len());
 
-    for l in &input.lines {
-        let qty = Quantity::parse_str(&l.received_quantity, "Quantité réceptionnée")?;
-        if qty.milli_units <= 0 {
-            return Err(CoreError::Validation("La quantité reçue doit être > 0.".to_string()));
-        }
+    for (po_line_id, qty, disc_reason) in &normalized_lines {
         let pol: Option<(i64, i64, i64, i64, i64, i64)> = sqlx::query_as(
             "SELECT id, product_id, coefficient_milli, ordered_quantity_milli, received_quantity_milli, unit_price
              FROM purchase_order_lines WHERE id = ? AND purchase_order_id = ?",
         )
-        .bind(l.purchase_order_line_id)
+        .bind(po_line_id)
         .bind(purchase_order_id)
         .fetch_optional(&mut *tx)
         .await?;
         let (pol_id, pid, coeff_milli, ordered_milli, received_milli, unit_price) =
             pol.ok_or_else(|| CoreError::Validation("Ligne de commande introuvable.".to_string()))?;
 
-        if received_milli + qty.milli_units > ordered_milli {
+        if received_milli >= ordered_milli {
+            return Err(CoreError::Validation(format!(
+                "La ligne de commande #{pol_id} a déjà été intégralement réceptionnée."
+            )));
+        }
+        let cum_received = received_milli.checked_add(qty.milli_units).ok_or_else(|| {
+            CoreError::Validation("Débordement quantité réceptionnée.".to_string())
+        })?;
+        if cum_received > ordered_milli {
             return Err(CoreError::Validation(
                 "La quantité reçue dépasse la quantité commandée restante.".to_string(),
             ));
@@ -603,7 +745,7 @@ pub async fn receive_purchase_order(
             base_qty.milli_units,
             unit_price,
             amount.value(),
-            l.discrepancy_reason.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string),
+            disc_reason.clone(),
         ));
     }
 
@@ -613,7 +755,7 @@ pub async fn receive_purchase_order(
          VALUES (?, ?, ?, ?, ?)",
     )
     .bind(&rec_ref)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(purchase_order_id)
     .bind(receipt_total.value())
     .bind(input.notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
@@ -622,6 +764,23 @@ pub async fn receive_purchase_order(
     .last_insert_rowid();
 
     for (pol_id, pid, qty_milli, base_qty_milli, unit_price, amount, disc_reason) in &prepared {
+        let updated = sqlx::query(
+            "UPDATE purchase_order_lines
+             SET received_quantity_milli = received_quantity_milli + ?
+             WHERE id = ? AND purchase_order_id = ? AND received_quantity_milli + ? <= ordered_quantity_milli",
+        )
+        .bind(qty_milli)
+        .bind(pol_id)
+        .bind(purchase_order_id)
+        .bind(qty_milli)
+        .execute(&mut *tx)
+        .await?;
+        if updated.rows_affected() != 1 {
+            return Err(CoreError::Validation(
+                "La quantité reçue dépasse la quantité commandée restante.".to_string(),
+            ));
+        }
+
         sqlx::query(
             "INSERT INTO purchase_receipt_lines (receipt_id, purchase_order_line_id, quantity_milli, base_quantity_milli, unit_price, amount, discrepancy_reason)
              VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -636,12 +795,6 @@ pub async fn receive_purchase_order(
         .execute(&mut *tx)
         .await?;
 
-        sqlx::query("UPDATE purchase_order_lines SET received_quantity_milli = received_quantity_milli + ? WHERE id = ?")
-            .bind(qty_milli)
-            .bind(pol_id)
-            .execute(&mut *tx)
-            .await?;
-
         let (cur_stock, avg_num, avg_den): (i64, Option<String>, Option<String>) = sqlx::query_as(
             "SELECT stock_milli, average_cost_num, average_cost_den FROM products WHERE id = ?",
         )
@@ -649,13 +802,22 @@ pub async fn receive_purchase_order(
         .fetch_one(&mut *tx)
         .await?;
 
-        let next_stock = cur_stock + base_qty_milli;
+        let next_stock = cur_stock
+            .checked_add(*base_qty_milli)
+            .ok_or_else(|| CoreError::Validation("Débordement du stock produit.".to_string()))?;
         let mut next_num = avg_num.clone();
         let mut next_den = avg_den.clone();
 
-        if *amount >= 0 && *base_qty_milli > 0 && (cur_stock == 0 || (avg_num.is_some() && avg_den.is_some())) {
+        if *amount >= 0
+            && *base_qty_milli > 0
+            && (cur_stock == 0 || (avg_num.is_some() && avg_den.is_some()))
+        {
             let old_num: i128 = avg_num.as_deref().and_then(|s| s.parse().ok()).unwrap_or(0);
-            let old_den: i128 = avg_den.as_deref().and_then(|s| s.parse().ok()).unwrap_or(1).max(1);
+            let old_den: i128 = avg_den
+                .as_deref()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1)
+                .max(1);
             let old_val_scaled = ((cur_stock as i128) * old_num) / old_den;
             let added_val_scaled = (*amount as i128) * 1000_i128;
             let total_num = old_val_scaled + added_val_scaled;
@@ -675,7 +837,11 @@ pub async fn receive_purchase_order(
             .await?;
 
         let unit_base_cost = if *base_qty_milli > 0 {
-            Some(((*amount as i128 * 1000) / (*base_qty_milli as i128)) as i64)
+            Some(
+                i64::try_from((*amount as i128 * 1000) / (*base_qty_milli as i128)).map_err(
+                    |_| CoreError::Validation("Débordement du coût unitaire de base.".to_string()),
+                )?,
+            )
         } else {
             None
         };
@@ -696,7 +862,11 @@ pub async fn receive_purchase_order(
     }
 
     let due_date = if payment_terms_days > 0 {
-        Some((chrono::Utc::now() + chrono::Duration::days(payment_terms_days)).format("%Y-%m-%d").to_string())
+        Some(
+            (chrono::Utc::now() + chrono::Duration::days(payment_terms_days))
+                .format("%Y-%m-%d")
+                .to_string(),
+        )
     } else {
         None
     };
@@ -720,19 +890,24 @@ pub async fn receive_purchase_order(
     .fetch_one(&mut *tx)
     .await?;
 
-    sqlx::query("UPDATE purchase_orders SET received_amount = received_amount + ?, status = ? WHERE id = ?")
-        .bind(receipt_total.value())
-        .bind(if rem == 0 { "received" } else { "partial" })
-        .bind(purchase_order_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE purchase_orders SET received_amount = received_amount + ?, status = ? WHERE id = ?",
+    )
+    .bind(receipt_total.value())
+    .bind(if rem == 0 { "received" } else { "partial" })
+    .bind(purchase_order_id)
+    .execute(&mut *tx)
+    .await?;
 
     audit_log_tx(
         &mut tx,
         "RECEIVE_PO",
         "purchase_receipts",
         Some(receipt_id.to_string()),
-        &format!("Réception {rec_ref} sur {po_ref} — {} FCFA", receipt_total.value()),
+        &format!(
+            "Réception {rec_ref} sur {po_ref} — {} FCFA",
+            receipt_total.value()
+        ),
     )
     .await?;
     tx.commit().await?;
@@ -751,12 +926,17 @@ pub async fn cancel_purchase_order(
     purchase_order_id: i64,
     input: CancelPurchaseOrderInput,
 ) -> CoreResult<PurchaseOrderDto> {
+    require_current_actor_permission(Permission::PurchasesWrite)?;
     if purchase_order_id <= 0 {
-        return Err(CoreError::Validation("Bon de commande invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Bon de commande invalide.".to_string(),
+        ));
     }
     let reason = input.reason.trim();
     if reason.is_empty() {
-        return Err(CoreError::Validation("Le motif d'annulation est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le motif d'annulation est obligatoire.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
@@ -812,10 +992,13 @@ pub async fn cancel_purchase_order(
         .await?
         .into_iter()
         .find(|o| o.id == purchase_order_id)
-        .ok_or_else(|| CoreError::Internal("Bon de commande introuvable après annulation.".to_string()))
+        .ok_or_else(|| {
+            CoreError::Internal("Bon de commande introuvable après annulation.".to_string())
+        })
 }
 
 pub async fn list_supplier_debts(db: &DepotDb) -> CoreResult<Vec<SupplierDebtDto>> {
+    require_current_actor_permission(Permission::PurchasesRead)?;
     let rows = sqlx::query_as::<_, SupplierDebtDto>(
         "SELECT sd.id, sd.receipt_id, sd.supplier_id, s.name AS supplier_name, s.code AS supplier_code,
                 pr.reference AS receipt_reference, po.reference AS order_reference,
@@ -835,18 +1018,40 @@ pub async fn pay_supplier_debt(
     db: &DepotDb,
     debt_id: i64,
     input: PaySupplierDebtInput,
-) -> CoreResult<()> {
+) -> CoreResult<SupplierDebtDto> {
+    require_current_actor_permission(Permission::SupplierDebtsPay)?;
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
+    }
     let amount = Money::from_positive(input.amount, "Montant règlement fournisseur")?;
     let (_guard, mut tx) = db.begin_write().await?;
 
-    if sqlx::query_scalar::<_, i64>("SELECT id FROM payments WHERE request_key = ?")
-        .bind(&input.request_key)
-        .fetch_optional(&mut *tx)
-        .await?
-        .is_some()
-    {
+    let existing_pay: Option<(i64, String)> =
+        sqlx::query_as("SELECT id, payment_kind FROM payments WHERE request_key = ?")
+            .bind(&request_key)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if let Some((_pay_id, kind)) = existing_pay {
+        let expected_desc = format!("Règlement fournisseur dette #{debt_id}");
+        let cm_desc: Option<String> =
+            sqlx::query_scalar("SELECT description FROM cash_movements WHERE request_key = ?")
+                .bind(format!("cm-sup:{request_key}"))
+                .fetch_optional(&mut *tx)
+                .await?;
         tx.rollback().await?;
-        return Ok(());
+        if kind != "supplier_debt" || cm_desc.as_deref() != Some(expected_desc.as_str()) {
+            return Err(CoreError::DuplicateOperation(
+                "Cette clé d'idempotence a déjà été utilisée pour une autre opération.".to_string(),
+            ));
+        }
+        return list_supplier_debts(db)
+            .await?
+            .into_iter()
+            .find(|d| d.id == debt_id)
+            .ok_or_else(|| CoreError::Validation("Dette fournisseur introuvable.".to_string()));
     }
 
     let (session_id, _sref, opening_cash) = require_open_session_tx(&mut tx).await?;
@@ -855,7 +1060,8 @@ pub async fn pay_supplier_debt(
             .bind(debt_id)
             .fetch_optional(&mut *tx)
             .await?;
-    let (_id, rem) = debt.ok_or_else(|| CoreError::Validation("Dette fournisseur introuvable.".to_string()))?;
+    let (_id, rem) =
+        debt.ok_or_else(|| CoreError::Validation("Dette fournisseur introuvable.".to_string()))?;
     if amount.value() > rem {
         return Err(CoreError::InvalidPayment(
             "Le règlement dépasse le solde fournisseur restant.".to_string(),
@@ -870,7 +1076,9 @@ pub async fn pay_supplier_debt(
     let (pm_code, is_cash, active) =
         pm.ok_or_else(|| CoreError::InvalidPayment("Moyen de paiement invalide.".to_string()))?;
     if active == 0 {
-        return Err(CoreError::InvalidPayment("Moyen de paiement inactif.".to_string()));
+        return Err(CoreError::InvalidPayment(
+            "Moyen de paiement inactif.".to_string(),
+        ));
     }
 
     if is_cash == 1 {
@@ -888,27 +1096,34 @@ pub async fn pay_supplier_debt(
          VALUES (?, ?, 'supplier_debt', ?, ?)",
     )
     .bind(&pay_ref)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(amount.value())
-    .bind(input.note.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        input
+            .note
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
 
-    let part_id = sqlx::query("INSERT INTO payment_parts (payment_id, method_code, amount) VALUES (?, ?, ?)")
-        .bind(payment_id)
-        .bind(&pm_code)
-        .bind(amount.value())
-        .execute(&mut *tx)
-        .await?
-        .last_insert_rowid();
+    let part_id =
+        sqlx::query("INSERT INTO payment_parts (payment_id, method_code, amount) VALUES (?, ?, ?)")
+            .bind(payment_id)
+            .bind(&pm_code)
+            .bind(amount.value())
+            .execute(&mut *tx)
+            .await?
+            .last_insert_rowid();
 
     sqlx::query(
         "INSERT INTO cash_movements (session_id, request_key, payment_part_id, kind, method_code, direction, amount, description, reference_document)
          VALUES (?, ?, ?, 'supplier_payment', ?, 'out', ?, ?, ?)",
     )
     .bind(session_id)
-    .bind(format!("cm-sup:{}", input.request_key))
+    .bind(format!("cm-sup:{request_key}"))
     .bind(part_id)
     .bind(&pm_code)
     .bind(amount.value())
@@ -934,5 +1149,10 @@ pub async fn pay_supplier_debt(
     )
     .await?;
     tx.commit().await?;
-    Ok(())
+
+    list_supplier_debts(db)
+        .await?
+        .into_iter()
+        .find(|d| d.id == debt_id)
+        .ok_or_else(|| CoreError::Internal("Dette fournisseur introuvable.".to_string()))
 }

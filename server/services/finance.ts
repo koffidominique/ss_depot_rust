@@ -8,7 +8,10 @@ import {
 } from '../db.ts';
 import {
   BusinessError,
+  checkedAddMilli,
   checkedAddMoney,
+  checkedSubMoney,
+  checkedSubNonNegativeMoney,
   formatMilli,
   nonNegativeFcfa,
   nonNegativeMilli,
@@ -16,8 +19,10 @@ import {
   positiveMilli,
 } from '../domain.ts';
 import { sanitizeImagePath } from './catalog.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 
 export function getCashStatus() {
+  requireCurrentActorPermission('cash:read');
   const db = getDb();
   const activeSession = db
     .prepare("SELECT * FROM cash_sessions WHERE status = 'open' LIMIT 1")
@@ -57,9 +62,12 @@ export function getCashStatus() {
 }
 
 export async function openCashSession(input: { opening_cash: number; request_key: string }) {
+  requireCurrentActorPermission('cash:operate');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const openingCash = nonNegativeFcfa(input.opening_cash, 'Fond de caisse initial');
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM cash_sessions WHERE opening_key = ?').get(input.request_key);
+    const dup = db.prepare('SELECT * FROM cash_sessions WHERE opening_key = ?').get(requestKey);
     if (dup) return dup;
     const open = db.prepare("SELECT id FROM cash_sessions WHERE status = 'open' LIMIT 1").get();
     if (open) {
@@ -71,7 +79,7 @@ export async function openCashSession(input: { opening_cash: number; request_key
         .prepare(
           "INSERT INTO cash_sessions (reference, opening_key, status, opening_cash) VALUES (?, ?, 'open', ?)"
         )
-        .run(ref, input.request_key, openingCash).lastInsertRowid
+        .run(ref, requestKey, openingCash).lastInsertRowid
     );
     auditLog(db, 'OPEN_CASH', 'cash_sessions', id, `Ouverture ${ref} — Fond ${openingCash} FCFA`);
     return db.prepare('SELECT * FROM cash_sessions WHERE id = ?').get(id);
@@ -84,12 +92,26 @@ export async function closeCashSession(input: {
   closing_notes?: string;
   request_key: string;
 }) {
+  requireCurrentActorPermission('cash:operate');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const physicalCash = nonNegativeFcfa(input.physical_cash, 'Montant physique compté');
   const notes = (input.closing_notes || '').trim();
 
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM cash_sessions WHERE closing_key = ?').get(input.request_key);
-    if (dup) return dup;
+    const dup = db.prepare('SELECT * FROM cash_sessions WHERE closing_key = ?').get(requestKey) as
+      | { id: number }
+      | undefined;
+    if (dup) {
+      if (dup.id !== input.session_id) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour une autre session.",
+          409
+        );
+      }
+      return dup;
+    }
 
     const session = db
       .prepare("SELECT * FROM cash_sessions WHERE id = ? AND status = 'open'")
@@ -97,7 +119,7 @@ export async function closeCashSession(input: {
     if (!session) throw new BusinessError('SESSION_NOT_OPEN', 'Session ouverte introuvable.');
 
     const theoretical = getTheoreticalCash(db, session.id, session.opening_cash);
-    const difference = physicalCash - theoretical;
+    const difference = checkedSubMoney(physicalCash, theoretical, 'Écart de clôture');
     if (difference !== 0 && !notes) {
       throw new BusinessError(
         'VALIDATION_ERROR',
@@ -110,7 +132,7 @@ export async function closeCashSession(input: {
        SET status = 'closed', closing_key = ?, closed_at = datetime('now'),
            theoretical_cash = ?, physical_cash = ?, difference = ?, closing_notes = ?
        WHERE id = ?`
-    ).run(input.request_key, theoretical, physicalCash, difference, notes || null, session.id);
+    ).run(requestKey, theoretical, physicalCash, difference, notes || null, session.id);
 
     auditLog(
       db,
@@ -124,6 +146,7 @@ export async function closeCashSession(input: {
 }
 
 export function listReceivables() {
+  requireCurrentActorPermission('receivables:read');
   const db = getDb();
   return db
     .prepare(
@@ -145,12 +168,41 @@ export async function payReceivable(
     parts: Array<{ method_code: string; amount: number }>;
   }
 ) {
+  requireCurrentActorPermission('receivables:pay');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   if (!input.parts?.length) {
     throw new BusinessError('INVALID_PAYMENT', 'Indiquez au moins un moyen de paiement.');
   }
+  const fetchReceivableDto = (db: ReturnType<typeof getDb>, id: number) =>
+    db
+      .prepare(
+        `SELECT cr.*, s.reference AS sale_reference, s.created_at AS sale_date, s.total_amount AS sale_total,
+                c.name AS client_name, c.code AS client_code, c.phone AS client_phone
+         FROM customer_receivables cr
+         JOIN sales s ON s.id = cr.sale_id
+         JOIN clients c ON c.id = cr.client_id
+         WHERE cr.id = ?`
+      )
+      .get(id);
+
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM payments WHERE request_key = ?').get(input.request_key);
-    if (dup) return db.prepare('SELECT * FROM customer_receivables WHERE id = ?').get(receivableId);
+    const dup = db
+      .prepare('SELECT id, payment_kind FROM payments WHERE request_key = ?')
+      .get(requestKey) as { id: number; payment_kind: string } | undefined;
+    if (dup) {
+      const alloc = db
+        .prepare('SELECT receivable_id FROM payment_allocations WHERE payment_id = ?')
+        .get(dup.id) as { receivable_id: number } | undefined;
+      if (dup.payment_kind !== 'receivable' || alloc?.receivable_id !== receivableId) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour une autre opération.",
+          409
+        );
+      }
+      return fetchReceivableDto(db, receivableId);
+    }
 
     const session = requireOpenSession(db);
     const rec = db.prepare('SELECT * FROM customer_receivables WHERE id = ?').get(receivableId) as
@@ -187,7 +239,7 @@ export async function payReceivable(
           `INSERT INTO payments (reference, request_key, sale_id, client_id, payment_kind, total_amount, note)
            VALUES (?, ?, ?, ?, 'receivable', ?, ?)`
         )
-        .run(payRef, input.request_key, rec.sale_id, rec.client_id, totalPaid, input.note?.trim() || null)
+        .run(payRef, requestKey, rec.sale_id, rec.client_id, totalPaid, input.note?.trim() || null)
         .lastInsertRowid
     );
 
@@ -208,7 +260,7 @@ export async function payReceivable(
          VALUES (?, ?, ?, 'receivable', ?, 'in', ?, ?, ?)`
       ).run(
         session.id,
-        `cm-rec:${input.request_key}:${idx}`,
+        `cm-rec:${requestKey}:${idx}`,
         partId,
         p.methodCode,
         p.amount,
@@ -217,7 +269,11 @@ export async function payReceivable(
       );
     });
 
-    const nextRem = rec.remaining_amount - totalPaid;
+    const nextRem = checkedSubNonNegativeMoney(
+      rec.remaining_amount,
+      totalPaid,
+      'Solde restant créance'
+    );
     db.prepare('UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?').run(
       nextRem,
       nextRem === 0 ? 'paid' : 'partial',
@@ -226,11 +282,12 @@ export async function payReceivable(
     db.prepare('UPDATE sales SET paid_amount = paid_amount + ? WHERE id = ?').run(totalPaid, rec.sale_id);
 
     auditLog(db, 'PAY_RECEIVABLE', 'customer_receivables', rec.id, `${payRef} — ${totalPaid} FCFA`);
-    return db.prepare('SELECT * FROM customer_receivables WHERE id = ?').get(rec.id);
+    return fetchReceivableDto(db, rec.id);
   });
 }
 
 export function listExpenses() {
+  requireCurrentActorPermission('cash:read');
   const db = getDb();
   const categories = db.prepare('SELECT * FROM expense_categories ORDER BY name').all();
   const items = db
@@ -254,14 +311,29 @@ export async function createExpense(input: {
   receipt_path?: string | null;
   expense_date?: string;
 }) {
+  requireCurrentActorPermission('expenses:write');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const category = (input.category || '').trim();
   if (!category) throw new BusinessError('VALIDATION_ERROR', 'La catégorie est obligatoire.');
   const amount = positiveFcfa(input.amount, 'Montant dépense');
   const receiptPath = sanitizeImagePath(input.receipt_path);
 
+  const fetchExpenseDto = (db: ReturnType<typeof getDb>, id: number) =>
+    db
+      .prepare(
+        `SELECT e.*, pm.label AS method_label
+         FROM expenses e
+         JOIN payment_methods pm ON pm.code = e.method_code
+         WHERE e.id = ?`
+      )
+      .get(id);
+
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM expenses WHERE request_key = ?').get(input.request_key);
-    if (dup) return dup;
+    const dup = db.prepare('SELECT id FROM expenses WHERE request_key = ?').get(requestKey) as
+      | { id: number }
+      | undefined;
+    if (dup) return fetchExpenseDto(db, dup.id);
 
     const session = requireOpenSession(db);
     const pm = db.prepare('SELECT code, is_cash, active FROM payment_methods WHERE code = ?').get(input.method_code) as
@@ -277,6 +349,7 @@ export async function createExpense(input: {
     }
 
     const ref = nextSequence(db, 'DEP');
+    const expenseDate = input.expense_date?.trim() || new Date().toISOString();
     const expId = Number(
       db
         .prepare(
@@ -285,7 +358,7 @@ export async function createExpense(input: {
         )
         .run(
           ref,
-          input.request_key,
+          requestKey,
           category,
           amount,
           pm.code,
@@ -293,21 +366,22 @@ export async function createExpense(input: {
           input.beneficiary?.trim() || null,
           input.notes?.trim() || null,
           receiptPath,
-          input.expense_date || new Date().toISOString()
+          expenseDate
         ).lastInsertRowid
     );
 
     db.prepare(
       `INSERT INTO cash_movements (session_id, request_key, kind, method_code, direction, amount, description, reference_document)
        VALUES (?, ?, 'expense', ?, 'out', ?, ?, ?)`
-    ).run(session.id, `cm-exp:${input.request_key}`, pm.code, amount, `Dépense ${category} (${ref})`, ref);
+    ).run(session.id, `cm-exp:${requestKey}`, pm.code, amount, `Dépense ${category} (${ref})`, ref);
 
     auditLog(db, 'CREATE_EXPENSE', 'expenses', expId, `${ref} — ${category} : ${amount} FCFA`);
-    return db.prepare('SELECT * FROM expenses WHERE id = ?').get(expId);
+    return fetchExpenseDto(db, expId);
   });
 }
 
 export function getStockOverview() {
+  requireCurrentActorPermission('stock:read');
   const db = getDb();
   const products = db
     .prepare(
@@ -321,10 +395,21 @@ export function getStockOverview() {
     .all() as Array<Record<string, unknown>>;
 
   const enriched = products.map((p) => {
-    const hasKnownCost = Boolean(p.average_cost_num && p.average_cost_den && Number(p.average_cost_den) > 0);
-    const avgCost = hasKnownCost ? Math.round(Number(p.average_cost_num) / Number(p.average_cost_den)) : null;
-    const valuation =
-      hasKnownCost && avgCost !== null ? Math.round((Number(p.stock_milli) * avgCost) / 1000) : null;
+    const hasKnownCost = Boolean(
+      p.average_cost_num && p.average_cost_den && BigInt(String(p.average_cost_den)) > 0n
+    );
+    let avgCost: number | null = null;
+    let valuation: number | null = null;
+    if (hasKnownCost) {
+      const num = BigInt(String(p.average_cost_num));
+      const den = BigInt(String(p.average_cost_den));
+      const avgBig = (num + den / 2n) / den;
+      const valBig = (BigInt(Number(p.stock_milli)) * avgBig + 500n) / 1000n;
+      const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
+      avgCost = avgBig <= maxSafe && avgBig >= -maxSafe ? Number(avgBig) : null;
+      valuation =
+        avgCost !== null && valBig <= maxSafe && valBig >= -maxSafe ? Number(valBig) : null;
+    }
     return {
       ...p,
       average_cost_fcfa: avgCost,
@@ -351,6 +436,7 @@ export async function adjustStock(input: {
   reason: string;
   request_key: string;
 }) {
+  requireCurrentActorPermission('stock:adjust');
   const productId = Number(input.product_id);
   if (!Number.isInteger(productId) || productId <= 0) {
     throw new BusinessError('PRODUCT_NOT_FOUND', 'Produit invalide.', 400);
@@ -417,7 +503,7 @@ export async function adjustStock(input: {
     }
 
     const delta = input.direction === 'out' ? -qtyMilli : qtyMilli;
-    const stockAfter = prod.stock_milli + delta;
+    const stockAfter = checkedAddMilli(prod.stock_milli, delta, 'Stock après ajustement');
     const settings = db
       .prepare('SELECT allow_negative_stock FROM app_settings WHERE id = 1')
       .get() as { allow_negative_stock: number } | undefined;
@@ -465,6 +551,7 @@ export async function adjustStock(input: {
 }
 
 export function listInventories() {
+  requireCurrentActorPermission('stock:read');
   const db = getDb();
   const invs = db.prepare('SELECT * FROM inventories ORDER BY id DESC').all() as Array<
     Record<string, unknown> & { id: number }
@@ -480,6 +567,7 @@ export function listInventories() {
 }
 
 export async function createInventory(notes?: string) {
+  requireCurrentActorPermission('inventory:validate');
   return withWriteTx((db) => {
     const ref = nextSequence(db, 'INV');
     const invId = Number(
@@ -507,6 +595,17 @@ export async function validateInventory(
   inventoryId: number,
   lines: Array<{ product_id: number; counted_quantity: string | number; reason?: string }>
 ) {
+  requireCurrentActorPermission('inventory:validate');
+  const seenProducts = new Set<number>();
+  for (const l of lines) {
+    if (seenProducts.has(l.product_id)) {
+      throw new BusinessError(
+        'VALIDATION_ERROR',
+        `Produit #${l.product_id} dupliqué dans le même inventaire.`
+      );
+    }
+    seenProducts.add(l.product_id);
+  }
   return withWriteTx((db) => {
     const inv = db.prepare('SELECT * FROM inventories WHERE id = ?').get(inventoryId) as
       | { id: number; reference: string; status: string }

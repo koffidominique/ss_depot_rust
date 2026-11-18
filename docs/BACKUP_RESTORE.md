@@ -6,34 +6,47 @@ SQLite fonctionne en mode `WAL` (`PRAGMA synchronous = FULL; PRAGMA foreign_keys
 
 1. **Sérialisation sur la file d'écriture** (`runSerialized` en Node / `db.lock_write().await` en Rust) pour garantir qu'aucune transaction n'est ouverte simultanément.
 2. **Checkpoint WAL complet** : `PRAGMA wal_checkpoint(TRUNCATE);` rapatrie les journaux et réinitialise le WAL.
-3. **Snapshot autonome** : `VACUUM INTO '<chemin_sauvegarde>'` produit un fichier `.db` compacté, cohérent et indépendant.
-4. **Contrôle automatique post-création** : la sauvegarde nouvellement produite est immédiatement ouverte en lecture seule avec `PRAGMA integrity_check` (`ok` obligatoire).
-5. **Rétention automatique** : après validation de la nouvelle sauvegarde, les archives les plus anciennes au-delà des **30 dernières sauvegardes** (`MAX_RETAINED_BACKUPS = 30`, Node & Rust) sont automatiquement purgées.
+3. **Snapshot autonome** : `VACUUM INTO '<chemin_sauvegarde>'` produit un fichier `.db` compacté, cohérent et indépendant, puis `sync_all()` / `fsyncSync()` synchronise l'archive sur disque.
+4. **Contrôle automatique post-création en lecture seule** : la sauvegarde nouvellement produite est immédiatement ouverte via `open_backup_read_only` (`read_only = true`, `create_if_missing = false`, `PRAGMA query_only = ON`) — aucune migration ni sidecar WAL/SHM n'est créé.
+5. **Rétention automatique** : après validation de la nouvelle sauvegarde, les archives les plus anciennes au-delà des **30 dernières sauvegardes** (`MAX_RETAINED_BACKUPS = 30`, Node & Rust) sont automatiquement purgées (liens symboliques et fichiers hors format strict ignorés).
 
-## Emplacement des sauvegardes
+## Sécurisation des chemins et nommage
 
-- **Serveur Node/Express (`server/db.ts`)** : par défaut `<DATA_DIR>/Sauvegardes` (c.-à-d. `data/Sauvegardes`), surchargeable par la variable d'environnement `DEPOTPRO_BACKUP_DIR`.
-- **Desktop Tauri 2 (`src-tauri/src/lib.rs`)** : `<app_data_dir>/backups` (répertoire applicatif utilisateur OS, hors dossier d'installation).
-- **Nommage** : `depotpro_backup_YYYYMMDDHHMMSS_<suffixe>.db`.
+- **Emplacement Node/Express (`server/db.ts`)** : `<DATA_DIR>/Sauvegardes` (ou `DEPOTPRO_BACKUP_DIR`).
+- **Emplacement Desktop Tauri 2 (`src-tauri/src/lib.rs`)** : `<app_data_dir>/backups`.
+- **Nommage autorisé strict** : `^depotpro_backup_\d{14}_[a-zA-Z0-9_-]{1,32}\.db$`.
+- **Protection contre la traversée et les liens symboliques (`resolve_safe_backup_path` / `resolveSafeBackupPath`)** :
+  - Rejet immédiat de `/`, `\`, `..`, octets nuls et espaces.
+  - Refus explicite des liens symboliques (`symlink_metadata` / `lstatSync`).
+  - Vérification de confinement canonique (`canonicalize` / `realpathSync`) à l'intérieur du dossier de sauvegarde résolu.
 
-## Vérification d'une sauvegarde
+## Vérification en lecture seule et compatibilité
 
-Avant toute restauration (ou à la demande depuis **Sauvegardes** -> `Vérifier`), `verifyBackup(filename)` exécute en lecture seule :
-- `PRAGMA integrity_check` -> doit retourner `ok`
-- `PRAGMA foreign_key_check` -> doit retourner `0` erreur
-- `SELECT MAX(version) FROM schema_version` -> vérifie la présence et le niveau du schéma V3.
+Avant toute restauration (ou via **Sauvegardes** -> `Vérifier`), `verify_backup` / `verifyBackup` ouvre le fichier **strictement en lecture seule** (sans modifier un seul octet — empreinte **SHA-256** identique avant/après) et contrôle :
+1. En-tête magique `SQLite format 3\0` et taille valide.
+2. `PRAGMA integrity_check` == `ok`.
+3. `PRAGMA foreign_key_check` == `0` erreur.
+4. Présence des tables obligatoires DEPOTPRO (`schema_version`, `app_settings`, `products`, `sales`, `cash_sessions`, etc.).
+5. Compatibilité du schéma : `1 <= schema_version <= 4` et cohérence des colonnes de migration (`logo_path`, `receipt_path`, `setup_completed`).
+6. Calcul des compteurs des 14 entités métier et empreinte SHA-256.
 
-## Procédure de restauration (`server/services/reports.ts`)
+Toute archive corrompue ou incompatible (ex. schéma futur `> 4` ou base étrangère sans tables DEPOTPRO) est refusée avant restauration.
 
-Lors d'une restauration depuis l'écran **Sauvegardes** (`POST /api/backups/:name/restore`) :
-1. Vérification préalable (`integrity_check == 'ok'` et `foreignKeyErrors == 0`) — toute sauvegarde invalide est refusée avant modification.
-2. **Pré-sauvegarde automatique** de la base courante avant remplacement (`await createBackup()`).
-3. Fermeture propre de la connexion SQLite active (`closeDb()`).
-4. Suppression des fichiers auxiliaires `-wal` et `-shm` de l'ancienne base.
-5. Copie du fichier vérifié vers `DB_PATH`, puis réouverture (`reloadDb()`).
+## Procédure de restauration atomique et résilience (11 étapes)
 
-## Bonnes pratiques d'exploitation
+Lors d'une restauration (`POST /api/backups/:name/restore` / Tauri `restore_backup`) :
+1. Vérifier l'archive source en lecture seule (`integrity == 'ok'`, `foreignKeyErrors == 0`, `compatible == true`).
+2. Créer une **sauvegarde de sécurité** de la base active (`VACUUM INTO`).
+3. Vérifier cette sauvegarde de sécurité en lecture seule.
+4. Copier l'archive source vers un fichier temporaire `.depotpro_restore_tmp_*.db` sur le **même système de fichiers** que la base active, synchroniser (`fsync`) et vérifier son SHA-256 + intégrité + compatibilité en lecture seule avant toute fermeture du pool actif.
+5. Exécuter `PRAGMA wal_checkpoint(TRUNCATE)` puis **fermer proprement** le pool / la connexion SQLite active.
+6. Supprimer les anciens fichiers `-wal`, `-shm` et `-journal`, puis déplacer l'ancienne base vers un fichier de repli `.depotpro_restore_prev_*.db` sur le même système de fichiers.
+7. Effectuer le **remplacement atomique** (`rename` temporaire → base active) et synchroniser (`fsync` fichier + répertoire parent sous Unix).
+8. Reconnecter SQLite (`DepotDb::connect` / `reloadDb`), en appliquant si besoin les migrations v1..v3 → v4.
+9. Exécuter la **vérification post-restauration** (`integrity_check`, `foreign_key_check`, enregistrement `RESTORE_BACKUP` dans `audit_logs`, contrôle des 14 tables métier : produits, mouvements de stock, clients, fournisseurs, ventes, retours, paiements créances, achats, réceptions, paiements fournisseurs, consignations, mouvements de caisse, dépenses, audit).
+10. Supprimer le fichier de repli `.depotpro_restore_prev_*.db` (la sauvegarde de sécurité dans `Sauvegardes/` reste conservée).
+11. **Récupération sur échec** : si une erreur ou interruption survient après fermeture du pool (étapes 5 à 9), l'ancienne base est rétablie depuis `.depotpro_restore_prev_*.db` (ou la sauvegarde de sécurité) et le pool SQLite est immédiatement rouvert afin de ne jamais laisser l'application avec un pool définitivement fermé.
 
-- Effectuer une sauvegarde avant chaque mise à jour de l'application ou migration V2 -> V3.
-- Copier régulièrement les fichiers `depotpro_backup_*.db` du dossier `Sauvegardes` vers un support externe (clé USB chiffrée ou disque externe hors site).
-- Ne jamais ouvrir ou copier manuellement la base active pendant qu'une instance de DEPOTPRO est ouverte ; sous Tauri Desktop, le verrou `depotpro.lock` empêche l'ouverture concurrente de la même base.
+## Chiffrement des sauvegardes
+
+Voir la conception détaillée dans [`docs/BACKUP_ENCRYPTION_DESIGN.md`](BACKUP_ENCRYPTION_DESIGN.md).

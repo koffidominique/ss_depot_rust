@@ -1,7 +1,10 @@
 import { getDb, withWriteTx, nextSequence, requireOpenSession, getTheoreticalCash, auditLog } from '../db.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 import {
   BusinessError,
+  checkedAddMilli,
   checkedAddMoney,
+  checkedSubNonNegativeMoney,
   computeLineTotalFcfa,
   multiplyQtyCoeffToBaseMilli,
   nonNegativeFcfa,
@@ -10,6 +13,7 @@ import {
 } from '../domain.ts';
 
 export function listSuppliers(search?: string) {
+  requireCurrentActorPermission('purchases:read');
   const db = getDb();
   const q = search?.trim() ? `%${search.trim()}%` : null;
   const where = q ? 'WHERE (s.name LIKE ? OR s.code LIKE ? OR s.phone LIKE ?)' : '';
@@ -35,6 +39,7 @@ export async function createSupplier(input: {
   contact_person?: string;
   payment_terms_days?: number;
 }) {
+  requireCurrentActorPermission('purchases:write');
   const name = (input.name || '').trim();
   const phone = (input.phone || '').trim();
   if (!name || !phone) throw new BusinessError('VALIDATION_ERROR', 'Nom et téléphone fournisseur obligatoires.');
@@ -89,6 +94,7 @@ export async function updateSupplier(
   if (!Number.isInteger(supplierId) || supplierId <= 0) {
     throw new BusinessError('SUPPLIER_NOT_FOUND', 'Fournisseur invalide.', 400);
   }
+  requireCurrentActorPermission('purchases:write');
   return withWriteTx((db) => {
     const existing = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplierId) as
       | {
@@ -145,6 +151,7 @@ export async function updateSupplier(
 }
 
 export function listPurchaseOrders() {
+  requireCurrentActorPermission('purchases:read');
   const db = getDb();
   const orders = db
     .prepare(
@@ -158,9 +165,14 @@ export function listPurchaseOrders() {
   const lineStmt = db.prepare('SELECT * FROM purchase_order_lines WHERE purchase_order_id = ?');
   const receiptStmt = db.prepare('SELECT * FROM purchase_receipts WHERE purchase_order_id = ? ORDER BY id DESC');
   const debtStmt = db.prepare(
-    `SELECT sd.* FROM supplier_debts sd
+    `SELECT sd.*, s.name AS supplier_name, s.code AS supplier_code,
+            pr.reference AS receipt_reference, po.reference AS order_reference
+     FROM supplier_debts sd
+     JOIN suppliers s ON s.id = sd.supplier_id
      JOIN purchase_receipts pr ON pr.id = sd.receipt_id
-     WHERE pr.purchase_order_id = ?`
+     JOIN purchase_orders po ON po.id = pr.purchase_order_id
+     WHERE pr.purchase_order_id = ?
+     ORDER BY sd.id DESC`
   );
 
   return orders.map((po) => ({
@@ -183,11 +195,13 @@ export async function createPurchaseOrder(input: {
     unit_price: number;
   }>;
 }) {
-  if (!input.request_key?.trim()) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
+  requireCurrentActorPermission('purchases:write');
   if (!input.lines?.length) throw new BusinessError('VALIDATION_ERROR', 'Ajoutez au moins une ligne de commande.');
 
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT id FROM purchase_orders WHERE request_key = ?').get(input.request_key);
+    const dup = db.prepare('SELECT id FROM purchase_orders WHERE request_key = ?').get(requestKey);
     if (dup) return listPurchaseOrders().find((o) => o.id === (dup as { id: number }).id);
 
     const sup = db.prepare('SELECT id, name FROM suppliers WHERE id = ?').get(input.supplier_id) as
@@ -238,13 +252,14 @@ export async function createPurchaseOrder(input: {
     }
 
     const ref = nextSequence(db, 'CMD');
+    const expectedDate = input.expected_date?.trim() || null;
     const poId = Number(
       db
         .prepare(
           `INSERT INTO purchase_orders (reference, request_key, supplier_id, status, total_amount, expected_date, notes)
            VALUES (?, ?, ?, 'confirmed', ?, ?, ?)`
         )
-        .run(ref, input.request_key, sup.id, totalAmount, input.expected_date || null, input.notes?.trim() || null)
+        .run(ref, requestKey, sup.id, totalAmount, expectedDate, input.notes?.trim() || null)
         .lastInsertRowid
     );
 
@@ -284,12 +299,54 @@ export async function receivePurchaseOrder(
     }>;
   }
 ) {
-  if (!input.request_key?.trim()) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
+  requireCurrentActorPermission('purchases:write');
+  if (!Number.isInteger(purchaseOrderId) || purchaseOrderId <= 0) {
+    throw new BusinessError('PURCHASE_NOT_FOUND', 'Bon de commande invalide.', 400);
+  }
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   if (!input.lines?.length) throw new BusinessError('VALIDATION_ERROR', 'Saisissez au moins une ligne reçue.');
 
+  const seenPoLines = new Set<number>();
+  const normalizedLines: Array<{
+    poLineId: number;
+    qtyMilli: number;
+    discrepancyReason: string | null;
+  }> = [];
+  for (const l of input.lines) {
+    const poLineId = Number(l.purchase_order_line_id);
+    if (!Number.isInteger(poLineId) || poLineId <= 0) {
+      throw new BusinessError('VALIDATION_ERROR', 'Identifiant de ligne de commande invalide.');
+    }
+    if (seenPoLines.has(poLineId)) {
+      throw new BusinessError(
+        'VALIDATION_ERROR',
+        `Ligne de commande #${poLineId} dupliquée dans la même demande de réception. Regroupez les quantités sur une seule ligne.`
+      );
+    }
+    seenPoLines.add(poLineId);
+    const qtyMilli = positiveMilli(l.received_quantity, 'Quantité réceptionnée');
+    normalizedLines.push({
+      poLineId,
+      qtyMilli,
+      discrepancyReason: l.discrepancy_reason?.trim() || null,
+    });
+  }
+
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM purchase_receipts WHERE request_key = ?').get(input.request_key);
-    if (dup) return dup;
+    const dup = db
+      .prepare('SELECT * FROM purchase_receipts WHERE request_key = ?')
+      .get(requestKey) as { id: number; purchase_order_id: number } | undefined;
+    if (dup) {
+      if (dup.purchase_order_id !== purchaseOrderId) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour un autre bon de commande.",
+          409
+        );
+      }
+      return dup;
+    }
 
     const po = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(purchaseOrderId) as
       | { id: number; reference: string; supplier_id: number; status: string }
@@ -314,11 +371,10 @@ export async function receivePurchaseOrder(
       discrepancyReason: string | null;
     }> = [];
 
-    for (const l of input.lines) {
-      const qtyMilli = positiveMilli(l.received_quantity, 'Quantité réceptionnée');
+    for (const l of normalizedLines) {
       const pol = db
         .prepare('SELECT * FROM purchase_order_lines WHERE id = ? AND purchase_order_id = ?')
-        .get(l.purchase_order_line_id, purchaseOrderId) as
+        .get(l.poLineId, purchaseOrderId) as
         | {
             id: number;
             product_id: number;
@@ -330,25 +386,31 @@ export async function receivePurchaseOrder(
         | undefined;
       if (!pol) throw new BusinessError('VALIDATION_ERROR', 'Ligne de commande introuvable.');
 
-      if (pol.received_quantity_milli + qtyMilli > pol.ordered_quantity_milli) {
+      if (pol.received_quantity_milli >= pol.ordered_quantity_milli) {
+        throw new BusinessError(
+          'INVALID_QUANTITY',
+          `La ligne de commande #${pol.id} a déjà été intégralement réceptionnée.`
+        );
+      }
+      if (pol.received_quantity_milli + l.qtyMilli > pol.ordered_quantity_milli) {
         throw new BusinessError(
           'INVALID_QUANTITY',
           'La quantité reçue dépasse la quantité commandée restante.'
         );
       }
 
-      const baseQtyMilli = multiplyQtyCoeffToBaseMilli(qtyMilli, pol.coefficient_milli);
-      const amount = computeLineTotalFcfa(qtyMilli, pol.unit_price);
+      const baseQtyMilli = multiplyQtyCoeffToBaseMilli(l.qtyMilli, pol.coefficient_milli);
+      const amount = computeLineTotalFcfa(l.qtyMilli, pol.unit_price);
       receiptTotal = checkedAddMoney(receiptTotal, amount, 'Total réception');
 
       preparedLines.push({
         poLineId: pol.id,
         productId: pol.product_id,
-        qtyMilli,
+        qtyMilli: l.qtyMilli,
         baseQtyMilli,
         unitPrice: pol.unit_price,
         amount,
-        discrepancyReason: l.discrepancy_reason?.trim() || null,
+        discrepancyReason: l.discrepancyReason,
       });
     }
 
@@ -358,18 +420,28 @@ export async function receivePurchaseOrder(
         .prepare(
           'INSERT INTO purchase_receipts (reference, request_key, purchase_order_id, total_amount, notes) VALUES (?, ?, ?, ?, ?)'
         )
-        .run(recRef, input.request_key, purchaseOrderId, receiptTotal, input.notes?.trim() || null).lastInsertRowid
+        .run(recRef, requestKey, purchaseOrderId, receiptTotal, input.notes?.trim() || null).lastInsertRowid
     );
 
     for (const pl of preparedLines) {
+      const upd = db
+        .prepare(
+          `UPDATE purchase_order_lines
+           SET received_quantity_milli = received_quantity_milli + ?
+           WHERE id = ? AND purchase_order_id = ? AND received_quantity_milli + ? <= ordered_quantity_milli`
+        )
+        .run(pl.qtyMilli, pl.poLineId, purchaseOrderId, pl.qtyMilli);
+      if (Number(upd.changes) !== 1) {
+        throw new BusinessError(
+          'INVALID_QUANTITY',
+          'La quantité reçue dépasse la quantité commandée restante.'
+        );
+      }
+
       db.prepare(
         `INSERT INTO purchase_receipt_lines (receipt_id, purchase_order_line_id, quantity_milli, base_quantity_milli, unit_price, amount, discrepancy_reason)
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       ).run(receiptId, pl.poLineId, pl.qtyMilli, pl.baseQtyMilli, pl.unitPrice, pl.amount, pl.discrepancyReason);
-
-      db.prepare(
-        'UPDATE purchase_order_lines SET received_quantity_milli = received_quantity_milli + ? WHERE id = ?'
-      ).run(pl.qtyMilli, pl.poLineId);
 
       // Mise à jour stock & coût moyen exact lorsque le coût unitaire de base est connu
       const prod = db
@@ -380,7 +452,7 @@ export async function receivePurchaseOrder(
         average_cost_den: string | null;
       };
 
-      const nextStock = prod.stock_milli + pl.baseQtyMilli;
+      const nextStock = checkedAddMilli(prod.stock_milli, pl.baseQtyMilli, 'Stock après réception');
       // Calcul du coût moyen pondéré en unité de base (FCFA / 1 unité)
       let nextCostNum = prod.average_cost_num;
       let nextCostDen = prod.average_cost_den;
@@ -404,7 +476,14 @@ export async function receivePurchaseOrder(
         'UPDATE products SET stock_milli = ?, average_cost_num = ?, average_cost_den = ? WHERE id = ?'
       ).run(nextStock, nextCostNum, nextCostDen, pl.productId);
 
-      const unitBaseCost = pl.baseQtyMilli > 0 ? Math.round((pl.amount * 1000) / pl.baseQtyMilli) : null;
+      let unitBaseCost: number | null = null;
+      if (pl.baseQtyMilli > 0) {
+        const unitCostBig = (BigInt(pl.amount) * 1000n) / BigInt(pl.baseQtyMilli);
+        if (unitCostBig > BigInt(Number.MAX_SAFE_INTEGER)) {
+          throw new BusinessError('INVALID_MONEY', 'Débordement du coût unitaire de base.');
+        }
+        unitBaseCost = Number(unitCostBig);
+      }
       db.prepare(
         `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, unit_cost, reason, reference_document)
          VALUES (?, 'purchase_in', ?, ?, ?, ?, ?, ?)`
@@ -422,9 +501,9 @@ export async function receivePurchaseOrder(
     // Création dette fournisseur sur quantité réellement reçue
     let dueDate: string | null = null;
     if (sup.payment_terms_days > 0) {
-      const d = new Date();
-      d.setDate(d.getDate() + sup.payment_terms_days);
-      dueDate = d.toISOString().slice(0, 10);
+      dueDate = new Date(Date.now() + sup.payment_terms_days * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
     }
     db.prepare(
       `INSERT INTO supplier_debts (receipt_id, supplier_id, initial_amount, remaining_amount, due_date, status)
@@ -450,6 +529,7 @@ export async function cancelPurchaseOrder(
   purchaseOrderId: number,
   input: { reason?: string }
 ) {
+  requireCurrentActorPermission('purchases:write');
   if (!Number.isInteger(purchaseOrderId) || purchaseOrderId <= 0) {
     throw new BusinessError('PURCHASE_NOT_FOUND', 'Bon de commande invalide.', 400);
   }
@@ -498,10 +578,42 @@ export async function paySupplierDebt(
   debtId: number,
   input: { method_code: string; amount: number; request_key: string; note?: string }
 ) {
+  requireCurrentActorPermission('supplier_debts:pay');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const amount = positiveFcfa(input.amount, 'Montant règlement fournisseur');
+
+  const fetchDebtDto = (db: ReturnType<typeof getDb>, id: number) =>
+    db
+      .prepare(
+        `SELECT sd.*, s.name AS supplier_name, s.code AS supplier_code, pr.reference AS receipt_reference, po.reference AS order_reference
+         FROM supplier_debts sd
+         JOIN suppliers s ON s.id = sd.supplier_id
+         JOIN purchase_receipts pr ON pr.id = sd.receipt_id
+         JOIN purchase_orders po ON po.id = pr.purchase_order_id
+         WHERE sd.id = ?`
+      )
+      .get(id);
+
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM payments WHERE request_key = ?').get(input.request_key);
-    if (dup) return dup;
+    const dup = db
+      .prepare('SELECT id, payment_kind FROM payments WHERE request_key = ?')
+      .get(requestKey) as { id: number; payment_kind: string } | undefined;
+    if (dup) {
+      const cm = db
+        .prepare('SELECT description FROM cash_movements WHERE request_key = ?')
+        .get(`cm-sup:${requestKey}`) as { description: string } | undefined;
+      if (dup.payment_kind !== 'supplier_debt' || cm?.description !== `Règlement fournisseur dette #${debtId}`) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour une autre opération.",
+          409
+        );
+      }
+      const existingDebt = fetchDebtDto(db, debtId);
+      if (!existingDebt) throw new BusinessError('VALIDATION_ERROR', 'Dette fournisseur introuvable.');
+      return existingDebt;
+    }
 
     const session = requireOpenSession(db);
     const debt = db.prepare('SELECT * FROM supplier_debts WHERE id = ?').get(debtId) as
@@ -531,7 +643,7 @@ export async function paySupplierDebt(
           `INSERT INTO payments (reference, request_key, payment_kind, total_amount, note)
            VALUES (?, ?, 'supplier_debt', ?, ?)`
         )
-        .run(payRef, input.request_key, amount, input.note?.trim() || null).lastInsertRowid
+        .run(payRef, requestKey, amount, input.note?.trim() || null).lastInsertRowid
     );
     const partId = Number(
       db.prepare('INSERT INTO payment_parts (payment_id, method_code, amount) VALUES (?, ?, ?)').run(
@@ -545,7 +657,7 @@ export async function paySupplierDebt(
        VALUES (?, ?, ?, 'supplier_payment', ?, 'out', ?, ?, ?)`
     ).run(
       session.id,
-      `cm-sup:${input.request_key}`,
+      `cm-sup:${requestKey}`,
       partId,
       pm.code,
       amount,
@@ -553,7 +665,11 @@ export async function paySupplierDebt(
       payRef
     );
 
-    const nextRem = debt.remaining_amount - amount;
+    const nextRem = checkedSubNonNegativeMoney(
+      debt.remaining_amount,
+      amount,
+      'Solde dette fournisseur'
+    );
     db.prepare('UPDATE supplier_debts SET remaining_amount = ?, status = ? WHERE id = ?').run(
       nextRem,
       nextRem === 0 ? 'paid' : 'partial',
@@ -561,11 +677,12 @@ export async function paySupplierDebt(
     );
 
     auditLog(db, 'PAY_SUPPLIER_DEBT', 'supplier_debts', debt.id, `${payRef} — ${amount} FCFA`);
-    return db.prepare('SELECT * FROM supplier_debts WHERE id = ?').get(debt.id);
+    return fetchDebtDto(db, debt.id);
   });
 }
 
 export function listSupplierDebts() {
+  requireCurrentActorPermission('purchases:read');
   const db = getDb();
   return db
     .prepare(

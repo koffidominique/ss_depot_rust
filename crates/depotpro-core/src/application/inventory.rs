@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::collections::HashSet;
 
+use crate::application::auth::{require_current_actor_permission, Permission};
+use crate::application::products::deserialize_qty_str;
 use crate::application::sales::audit_log_tx;
 use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
@@ -100,6 +103,7 @@ pub struct InventoryDto {
 #[derive(Debug, Deserialize)]
 pub struct ValidateInventoryLineInput {
     pub product_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub counted_quantity: String,
     pub reason: Option<String>,
 }
@@ -108,12 +112,14 @@ pub struct ValidateInventoryLineInput {
 pub struct AdjustStockInput {
     pub product_id: i64,
     pub direction: String,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub quantity: String,
     pub reason: String,
     pub request_key: String,
 }
 
 pub async fn get_stock_overview(db: &DepotDb) -> CoreResult<StockOverviewDto> {
+    require_current_actor_permission(Permission::StockRead)?;
     let rows = sqlx::query_as::<_, StockProductDto>(
         "SELECT p.id, p.reference, p.name, p.brand, c.name AS category_name, p.base_unit,
                 p.stock_milli, p.min_stock_milli, p.max_stock_milli, p.average_cost_num, p.average_cost_den, p.is_active
@@ -132,12 +138,19 @@ pub async fn get_stock_overview(db: &DepotDb) -> CoreResult<StockOverviewDto> {
                 .average_cost_num
                 .as_deref()
                 .and_then(|n| n.parse::<i128>().ok())
-                .zip(p.average_cost_den.as_deref().and_then(|d| d.parse::<i128>().ok()));
+                .zip(
+                    p.average_cost_den
+                        .as_deref()
+                        .and_then(|d| d.parse::<i128>().ok()),
+                );
             let (avg_cost, valuation) = match parsed {
                 Some((num, den)) if den > 0 => {
-                    let avg = ((num + den / 2) / den) as i64;
-                    let val = (((p.stock_milli as i128) * (avg as i128) + 500) / 1000) as i64;
-                    (Some(avg), Some(val))
+                    let avg_i128 = (num + den / 2) / den;
+                    let avg = i64::try_from(avg_i128).ok();
+                    let val = avg.and_then(|a| {
+                        i64::try_from(((p.stock_milli as i128) * (a as i128) + 500) / 1000).ok()
+                    });
+                    (avg, val)
                 }
                 _ => (None, None),
             };
@@ -171,10 +184,14 @@ pub async fn get_stock_overview(db: &DepotDb) -> CoreResult<StockOverviewDto> {
     .fetch_all(&db.pool)
     .await?;
 
-    Ok(StockOverviewDto { products, movements })
+    Ok(StockOverviewDto {
+        products,
+        movements,
+    })
 }
 
 pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<StockMovementDto> {
+    require_current_actor_permission(Permission::StockAdjust)?;
     if input.direction != "in" && input.direction != "out" {
         return Err(CoreError::Validation(
             "Le sens d'ajustement doit être 'in' ou 'out'.".to_string(),
@@ -228,14 +245,22 @@ pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<S
         }
     }
 
-    let prod: Option<(i64, String, String, i64, Option<String>, Option<String>, i64)> =
-        sqlx::query_as(
-            "SELECT id, name, base_unit, stock_milli, average_cost_num, average_cost_den, is_active
+    type InventoryProductRow = (
+        i64,
+        String,
+        String,
+        i64,
+        Option<String>,
+        Option<String>,
+        i64,
+    );
+    let prod: Option<InventoryProductRow> = sqlx::query_as(
+        "SELECT id, name, base_unit, stock_milli, average_cost_num, average_cost_den, is_active
              FROM products WHERE id = ?",
-        )
-        .bind(input.product_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+    )
+    .bind(input.product_id)
+    .fetch_optional(&mut *tx)
+    .await?;
 
     let (pid, prod_name, base_unit, stock_before, avg_num, avg_den, is_active) =
         prod.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
@@ -269,7 +294,7 @@ pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<S
         avg_num.as_deref().and_then(|n| n.parse::<i128>().ok()),
         avg_den.as_deref().and_then(|d| d.parse::<i128>().ok()),
     ) {
-        (Some(n), Some(d)) if d > 0 => Some(((n + d / 2) / d) as i64),
+        (Some(n), Some(d)) if d > 0 => i64::try_from((n + d / 2) / d).ok(),
         _ => None,
     };
 
@@ -330,6 +355,7 @@ pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<S
 }
 
 pub async fn list_inventories(db: &DepotDb) -> CoreResult<Vec<InventoryDto>> {
+    require_current_actor_permission(Permission::StockRead)?;
     let invs = sqlx::query_as::<_, InventoryRow>(
         "SELECT id, reference, status, notes, created_at, validated_at FROM inventories ORDER BY id DESC",
     )
@@ -364,15 +390,17 @@ pub async fn list_inventories(db: &DepotDb) -> CoreResult<Vec<InventoryDto>> {
 }
 
 pub async fn create_inventory(db: &DepotDb, notes: Option<&str>) -> CoreResult<InventoryDto> {
+    require_current_actor_permission(Permission::InventoryValidate)?;
     let (_guard, mut tx) = db.begin_write().await?;
     let reference = DepotDb::next_sequence(&mut tx, "INV").await?;
     let clean_notes = notes.map(str::trim).filter(|s| !s.is_empty());
-    let inv_id = sqlx::query("INSERT INTO inventories (reference, status, notes) VALUES (?, 'draft', ?)")
-        .bind(&reference)
-        .bind(clean_notes)
-        .execute(&mut *tx)
-        .await?
-        .last_insert_rowid();
+    let inv_id =
+        sqlx::query("INSERT INTO inventories (reference, status, notes) VALUES (?, 'draft', ?)")
+            .bind(&reference)
+            .bind(clean_notes)
+            .execute(&mut *tx)
+            .await?
+            .last_insert_rowid();
 
     let prods: Vec<(i64, i64)> =
         sqlx::query_as("SELECT id, stock_milli FROM products WHERE is_active = 1")
@@ -412,6 +440,16 @@ pub async fn validate_inventory(
     inventory_id: i64,
     lines: Vec<ValidateInventoryLineInput>,
 ) -> CoreResult<InventoryDto> {
+    require_current_actor_permission(Permission::InventoryValidate)?;
+    let mut seen_products = HashSet::with_capacity(lines.len());
+    for l in &lines {
+        if !seen_products.insert(l.product_id) {
+            return Err(CoreError::Validation(format!(
+                "Produit #{} dupliqué dans le même inventaire.",
+                l.product_id
+            )));
+        }
+    }
     let (_guard, mut tx) = db.begin_write().await?;
     let inv: Option<(i64, String, String)> =
         sqlx::query_as("SELECT id, reference, status FROM inventories WHERE id = ?")
@@ -454,7 +492,11 @@ pub async fn validate_inventory(
 
         sqlx::query("UPDATE inventory_lines SET counted_milli = ?, reason = ? WHERE id = ?")
             .bind(counted.milli_units)
-            .bind(if reason.is_empty() { None } else { Some(reason) })
+            .bind(if reason.is_empty() {
+                None
+            } else {
+                Some(reason)
+            })
             .bind(lid)
             .execute(&mut *tx)
             .await?;
@@ -481,10 +523,12 @@ pub async fn validate_inventory(
         }
     }
 
-    sqlx::query("UPDATE inventories SET status = 'validated', validated_at = datetime('now') WHERE id = ?")
-        .bind(inventory_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE inventories SET status = 'validated', validated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(inventory_id)
+    .execute(&mut *tx)
+    .await?;
     audit_log_tx(
         &mut tx,
         "VALIDATE_INVENTORY",

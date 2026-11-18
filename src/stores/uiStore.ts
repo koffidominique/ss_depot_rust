@@ -1,5 +1,13 @@
 import { create } from 'zustand';
-import type { PriceTier } from '../types/erp.ts';
+import type { PriceTier, SessionUser } from '../types/erp.ts';
+import { parseQtyInputToMilliBigInt } from '../features/sales/utils/saleCalculations.ts';
+
+function formatDotMilli(milli: bigint): string {
+  const intPart = milli / 1000n;
+  const fracPart = milli % 1000n;
+  if (fracPart === 0n) return intPart.toString();
+  return `${intPart.toString()}.${fracPart.toString().padStart(3, '0').replace(/0+$/, '')}`;
+}
 
 export interface CartItem {
   key: string;
@@ -32,6 +40,7 @@ export interface HeldCart {
 
 interface UiState {
   token: string | null;
+  currentUser: SessionUser | null;
   theme: 'light' | 'dark';
   sidebarCollapsed: boolean;
   posCart: CartItem[];
@@ -42,6 +51,7 @@ interface UiState {
   tipsOpen: boolean;
   tipsTopicId: string | null;
   setToken: (token: string | null) => void;
+  setCurrentUser: (user: SessionUser | null) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
   toggleSidebar: () => void;
@@ -108,6 +118,7 @@ applyThemeClass(initTheme);
 
 export const useUiStore = create<UiState>((set, get) => ({
   token: getInitialToken(),
+  currentUser: null,
   theme: initTheme,
   sidebarCollapsed: false,
   posCart: [],
@@ -125,8 +136,10 @@ export const useUiStore = create<UiState>((set, get) => ({
     } catch {
       // ignore
     }
-    set({ token });
+    set((state) => ({ token, currentUser: token ? state.currentUser : null }));
   },
+
+  setCurrentUser: (currentUser) => set({ currentUser }),
 
   setTheme: (theme) => {
     try {
@@ -164,12 +177,19 @@ export const useUiStore = create<UiState>((set, get) => ({
     set((state) => {
       const existing = state.posCart.find((c) => c.key === item.key);
       if (existing) {
-        const nextQty = Number(existing.quantity || '0') + Number(item.quantity || '1');
-        return {
-          posCart: state.posCart.map((c) =>
-            c.key === item.key ? { ...c, quantity: String(nextQty) } : c
-          ),
-        };
+        const curMilli = parseQtyInputToMilliBigInt(existing.quantity || '0');
+        const addMilli = parseQtyInputToMilliBigInt(item.quantity || '1');
+        if (curMilli.ok && addMilli.ok) {
+          const nextMilli = curMilli.milli + addMilli.milli;
+          if (nextMilli <= BigInt(Number.MAX_SAFE_INTEGER)) {
+            return {
+              posCart: state.posCart.map((c) =>
+                c.key === item.key ? { ...c, quantity: formatDotMilli(nextMilli) } : c
+              ),
+            };
+          }
+        }
+        return state;
       }
       return { posCart: [...state.posCart, item] };
     }),

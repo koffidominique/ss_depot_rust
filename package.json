@@ -13,7 +13,8 @@
     "lint": "eslint . --max-warnings 0",
     "test": "tsx --test tests/*.test.mjs",
     "test:e2e": "playwright test",
-    "benchmark": "tsx scripts/benchmark_perf.ts"
+    "benchmark": "tsx scripts/benchmark_perf.ts",
+    "seed:demo": "tsx scripts/seed_demo.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -48,6 +49,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.65.1",
+    "@tauri-apps/cli": "^2.12.5",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/express": "^4.17.21",

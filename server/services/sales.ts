@@ -6,9 +6,14 @@ import {
   getTheoreticalCash,
   auditLog,
 } from '../db.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 import {
   BusinessError,
+  checkedAddMilli,
   checkedAddMoney,
+  checkedMulMoney,
+  checkedSubMilli,
+  checkedSubNonNegativeMoney,
   computeLineTotalFcfa,
   multiplyQtyCoeffToBaseMilli,
   nonNegativeFcfa,
@@ -17,6 +22,7 @@ import {
 } from '../domain.ts';
 
 export function listClients(search?: string) {
+  requireCurrentActorPermission('sales:read');
   const db = getDb();
   const q = search?.trim() ? `%${search.trim()}%` : null;
   const where = q ? 'WHERE (c.name LIKE ? OR c.code LIKE ? OR COALESCE(c.phone, \'\') LIKE ?)' : '';
@@ -46,6 +52,7 @@ export async function createClient(input: {
   credit_limit?: number | null;
   payment_terms_days?: number;
 }) {
+  requireCurrentActorPermission('sales:write');
   const name = (input.name || '').trim();
   if (!name) throw new BusinessError('VALIDATION_ERROR', 'Le nom du client est obligatoire.');
   if (!['particulier', 'professionnel'].includes(input.client_type)) {
@@ -111,6 +118,7 @@ export async function updateClient(
   if (!Number.isInteger(clientId) || clientId <= 0) {
     throw new BusinessError('CLIENT_NOT_FOUND', 'Client invalide.', 400);
   }
+  requireCurrentActorPermission('sales:write');
   return withWriteTx((db) => {
     const existing = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId) as
       | {
@@ -174,6 +182,10 @@ export async function updateClientCreditPolicy(
     payment_terms_days?: number;
   }
 ) {
+  requireCurrentActorPermission('sales:write');
+  if (!['forbidden', 'limited', 'unlimited'].includes(input.credit_policy)) {
+    throw new BusinessError('VALIDATION_ERROR', 'Politique de crédit explicite requise.');
+  }
   let limit: number | null = null;
   if (input.credit_policy === 'limited') {
     limit = nonNegativeFcfa(input.credit_limit, 'Plafond de crédit');
@@ -221,6 +233,7 @@ export interface CreateSaleInput {
 }
 
 export async function createSale(input: CreateSaleInput) {
+  requireCurrentActorPermission('sales:write');
   const requestKey = (input.request_key || '').trim();
   if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   if (!input.lines?.length) {
@@ -377,8 +390,8 @@ export async function createSale(input: CreateSaleInput) {
           );
         }
         for (const comp of comps) {
-          const pieces = packs * comp.pieces_per_pack;
-          const amt = pieces * comp.deposit_value;
+          const pieces = checkedMulMoney(packs, comp.pieces_per_pack, 'Nombre de pièces consignées');
+          const amt = checkedMulMoney(pieces, comp.deposit_value, 'Montant consigne');
           totalDeposit = checkedAddMoney(totalDeposit, amt, 'Total consignes');
           depositItems.push({
             returnableId: comp.returnable_id,
@@ -391,7 +404,7 @@ export async function createSale(input: CreateSaleInput) {
 
       productDeductions.set(
         Number(prod.id),
-        (productDeductions.get(Number(prod.id)) || 0) + baseQtyMilli
+        checkedAddMilli(productDeductions.get(Number(prod.id)) || 0, baseQtyMilli, 'Total quantité déduite')
       );
 
       preparedLines.push({
@@ -429,7 +442,11 @@ export async function createSale(input: CreateSaleInput) {
       }
     }
 
-    const totalMerchandise = subtotalMerchandise - globalDiscount;
+    const totalMerchandise = checkedSubNonNegativeMoney(
+      subtotalMerchandise,
+      globalDiscount,
+      'Total marchandises'
+    );
     const totalAmount = checkedAddMoney(totalMerchandise, totalDeposit, 'Total vente');
     if (totalAmount <= 0) {
       throw new BusinessError('INVALID_MONEY', 'Le total de la vente doit être strictement positif.');
@@ -463,18 +480,18 @@ export async function createSale(input: CreateSaleInput) {
       );
     }
 
-    const creditAmount = totalAmount - paidAmount;
+    const creditAmount = checkedSubNonNegativeMoney(totalAmount, paidAmount, 'Solde crédit');
     if (input.sale_type === 'credit' && creditSetting?.policy === 'limited') {
       const currentDebtRow = db
         .prepare(
-          "SELECT COALESCE(SUM(remaining_amount), 0) AS due FROM customer_receivables WHERE client_id = ? AND status IN ('open', 'partial')"
+          "SELECT CAST(COALESCE(SUM(remaining_amount), 0) AS TEXT) AS due FROM customer_receivables WHERE client_id = ? AND status IN ('open', 'partial')"
         )
-        .get(client!.id) as { due: number };
-      const nextTotalDebt = currentDebtRow.due + creditAmount;
-      if (creditSetting.credit_limit !== null && nextTotalDebt > creditSetting.credit_limit) {
+        .get(client!.id) as { due: string };
+      const nextTotalDebt = BigInt(currentDebtRow.due) + BigInt(creditAmount);
+      if (creditSetting.credit_limit !== null && nextTotalDebt > BigInt(creditSetting.credit_limit)) {
         throw new BusinessError(
           'CREDIT_LIMIT_EXCEEDED',
-          `Plafond de crédit dépassé pour "${client!.name}" (encours après vente : ${nextTotalDebt} FCFA > plafond ${creditSetting.credit_limit} FCFA).`
+          `Plafond de crédit dépassé pour "${client!.name}" (encours après vente : ${nextTotalDebt.toString()} FCFA > plafond ${creditSetting.credit_limit} FCFA).`
         );
       }
     }
@@ -531,7 +548,7 @@ export async function createSale(input: CreateSaleInput) {
       const prod = db.prepare('SELECT stock_milli FROM products WHERE id = ?').get(line.productId) as {
         stock_milli: number;
       };
-      const nextStock = prod.stock_milli - line.baseQtyMilli;
+      const nextStock = checkedSubMilli(prod.stock_milli, line.baseQtyMilli, 'Stock après vente');
       db.prepare('UPDATE products SET stock_milli = ? WHERE id = ?').run(nextStock, line.productId);
       db.prepare(
         `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
@@ -600,11 +617,11 @@ export async function createSale(input: CreateSaleInput) {
 
     // Créance client si vente à crédit
     if (creditAmount > 0 && client) {
-      let dueDate = input.due_date || null;
+      let dueDate = input.due_date?.trim() || null;
       if (!dueDate && creditSetting && creditSetting.payment_terms_days > 0) {
-        const d = new Date();
-        d.setDate(d.getDate() + creditSetting.payment_terms_days);
-        dueDate = d.toISOString().slice(0, 10);
+        dueDate = new Date(Date.now() + creditSetting.payment_terms_days * 86_400_000)
+          .toISOString()
+          .slice(0, 10);
       }
       db.prepare(
         `INSERT INTO customer_receivables (sale_id, client_id, initial_amount, remaining_amount, due_date, status)
@@ -634,6 +651,7 @@ export function listSales(
     pageSize?: number;
   } = {}
 ) {
+  requireCurrentActorPermission('sales:read');
   const db = getDb();
   const page = Math.max(1, Number(filter.page || 1));
   const pageSize = Math.min(100, Math.max(1, Number(filter.pageSize || 25)));
@@ -681,6 +699,7 @@ export function listSales(
 }
 
 export function getSaleDetail(saleId: number) {
+  requireCurrentActorPermission('sales:read');
   const db = getDb();
   const sale = db
     .prepare(
@@ -727,12 +746,26 @@ export async function cancelSale(
   saleId: number,
   input: { reason: string; refund_method_code?: string; request_key: string }
 ) {
+  requireCurrentActorPermission('sales:cancel_return');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const reason = (input.reason || '').trim();
   if (!reason) throw new BusinessError('VALIDATION_ERROR', "Le motif d'annulation est obligatoire.");
 
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM sales_cancellations WHERE request_key = ?').get(input.request_key);
-    if (dup) return getSaleDetail(saleId);
+    const dup = db
+      .prepare('SELECT id, sale_id FROM sales_cancellations WHERE request_key = ?')
+      .get(requestKey) as { id: number; sale_id: number } | undefined;
+    if (dup) {
+      if (dup.sale_id !== saleId) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour une autre vente.",
+          409
+        );
+      }
+      return getSaleDetail(saleId);
+    }
 
     const session = requireOpenSession(db);
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId) as
@@ -762,7 +795,7 @@ export async function cancelSale(
       const prod = db.prepare('SELECT stock_milli FROM products WHERE id = ?').get(line.product_id) as {
         stock_milli: number;
       };
-      const nextStock = prod.stock_milli + line.base_quantity_milli;
+      const nextStock = checkedAddMilli(prod.stock_milli, line.base_quantity_milli, 'Stock après annulation vente');
       db.prepare('UPDATE products SET stock_milli = ? WHERE id = ?').run(nextStock, line.product_id);
       db.prepare(
         `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
@@ -812,22 +845,33 @@ export async function cancelSale(
       .prepare("SELECT COALESCE(SUM(total_amount), 0) AS s FROM payments WHERE sale_id = ? AND payment_kind IN ('sale', 'receivable')")
       .get(saleId) as { s: number };
     const refundedAmount = totalPaidRow.s;
-    const refundMethod = input.refund_method_code || 'cash';
+    const refundMethod = input.refund_method_code?.trim() || 'cash';
+    let finalRefundMethod: string | null = null;
 
     if (refundedAmount > 0) {
-      if (refundMethod === 'cash') {
+      const pm = db
+        .prepare('SELECT code, is_cash, active FROM payment_methods WHERE code = ?')
+        .get(refundMethod) as { code: string; is_cash: number; active: number } | undefined;
+      if (!pm || !pm.active) {
+        throw new BusinessError(
+          'INVALID_PAYMENT',
+          `Moyen de remboursement inactif ou introuvable : ${refundMethod}`
+        );
+      }
+      if (pm.is_cash === 1) {
         const avail = getTheoreticalCash(db, session.id, session.opening_cash);
         if (refundedAmount > avail) {
           throw new BusinessError('INVALID_PAYMENT', 'Espèces insuffisantes en caisse pour rembourser cette vente.');
         }
       }
+      finalRefundMethod = pm.code;
       db.prepare(
         `INSERT INTO cash_movements (session_id, request_key, kind, method_code, direction, amount, description, reference_document)
          VALUES (?, ?, 'sale_refund', ?, 'out', ?, ?, ?)`
       ).run(
         session.id,
-        `cancel-ref:${input.request_key}`,
-        refundMethod,
+        `cancel-ref:${requestKey}`,
+        pm.code,
         refundedAmount,
         `Annulation ${sale.reference} — ${reason}`,
         sale.reference
@@ -837,7 +881,7 @@ export async function cancelSale(
     db.prepare(
       `INSERT INTO sales_cancellations (sale_id, session_id, request_key, reason, refund_method_code, refunded_amount)
        VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(saleId, session.id, input.request_key, reason, refundedAmount > 0 ? refundMethod : null, refundedAmount);
+    ).run(saleId, session.id, requestKey, reason, finalRefundMethod, refundedAmount);
 
     db.prepare("UPDATE sales SET status = 'cancelled' WHERE id = ?").run(saleId);
     auditLog(db, 'CANCEL_SALE', 'sales', saleId, `Annulation ${sale.reference} (${reason})`);
@@ -855,13 +899,47 @@ export async function createSaleReturn(
     lines: Array<{ sale_line_id: number; base_quantity: string | number }>;
   }
 ) {
+  requireCurrentActorPermission('sales:cancel_return');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const reason = (input.reason || '').trim();
   if (!reason) throw new BusinessError('VALIDATION_ERROR', 'Le motif du retour est obligatoire.');
-  if (!input.lines?.length) throw new BusinessError('VALIDATION_ERROR', 'Sélectionnez au moins un article à retourner.');
+  if (!input.lines?.length) {
+    throw new BusinessError('VALIDATION_ERROR', 'Sélectionnez au moins un article à retourner.');
+  }
+
+  const seenLineIds = new Set<number>();
+  const normalizedLines: Array<{ saleLineId: number; baseQtyMilli: number }> = [];
+  for (const l of input.lines) {
+    const saleLineId = Number(l.sale_line_id);
+    if (!Number.isInteger(saleLineId) || saleLineId <= 0) {
+      throw new BusinessError('VALIDATION_ERROR', 'Identifiant de ligne de vente invalide.');
+    }
+    if (seenLineIds.has(saleLineId)) {
+      throw new BusinessError(
+        'VALIDATION_ERROR',
+        `Ligne de vente #${saleLineId} dupliquée dans la même demande de retour. Regroupez les quantités sur une seule ligne.`
+      );
+    }
+    seenLineIds.add(saleLineId);
+    const baseQtyMilli = positiveMilli(l.base_quantity, 'Quantité retournée');
+    normalizedLines.push({ saleLineId, baseQtyMilli });
+  }
 
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM sales_returns WHERE request_key = ?').get(input.request_key);
-    if (dup) return getSaleDetail(saleId);
+    const dup = db
+      .prepare('SELECT id, sale_id FROM sales_returns WHERE request_key = ?')
+      .get(requestKey) as { id: number; sale_id: number } | undefined;
+    if (dup) {
+      if (dup.sale_id !== saleId) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour une autre vente.",
+          409
+        );
+      }
+      return getSaleDetail(saleId);
+    }
 
     const session = requireOpenSession(db);
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId) as
@@ -879,9 +957,8 @@ export async function createSaleReturn(
     let totalReturnAmount = 0;
     const prepared: Array<{ saleLineId: number; productId: number; baseQtyMilli: number; amount: number }> = [];
 
-    for (const l of input.lines) {
-      const baseQtyMilli = positiveMilli(l.base_quantity, 'Quantité retournée');
-      const sl = db.prepare('SELECT * FROM sale_lines WHERE id = ? AND sale_id = ?').get(l.sale_line_id, saleId) as
+    for (const l of normalizedLines) {
+      const sl = db.prepare('SELECT * FROM sale_lines WHERE id = ? AND sale_id = ?').get(l.saleLineId, saleId) as
         | {
             id: number;
             product_id: number;
@@ -895,11 +972,17 @@ export async function createSaleReturn(
         .prepare('SELECT COALESCE(SUM(base_quantity_milli), 0) AS s FROM sales_return_lines WHERE sale_line_id = ?')
         .get(sl.id) as { s: number };
 
-      if (prevRet.s + baseQtyMilli > sl.base_quantity_milli) {
+      if (prevRet.s >= sl.base_quantity_milli) {
+        throw new BusinessError(
+          'INVALID_QUANTITY',
+          `La ligne de vente #${sl.id} a déjà été intégralement retournée.`
+        );
+      }
+      if (checkedAddMilli(prevRet.s, l.baseQtyMilli, 'Cumul quantité retournée') > sl.base_quantity_milli) {
         throw new BusinessError('INVALID_QUANTITY', 'Quantité retournée supérieure à la quantité vendue restante.');
       }
 
-      const exactProd = BigInt(sl.line_total) * BigInt(baseQtyMilli);
+      const exactProd = BigInt(sl.line_total) * BigInt(l.baseQtyMilli);
       const denom = BigInt(sl.base_quantity_milli);
       if (exactProd % denom !== 0n) {
         throw new BusinessError(
@@ -909,7 +992,7 @@ export async function createSaleReturn(
       }
       const lineAmount = Number(exactProd / denom);
       totalReturnAmount = checkedAddMoney(totalReturnAmount, lineAmount, 'Total retour');
-      prepared.push({ saleLineId: sl.id, productId: sl.product_id, baseQtyMilli, amount: lineAmount });
+      prepared.push({ saleLineId: sl.id, productId: sl.product_id, baseQtyMilli: l.baseQtyMilli, amount: lineAmount });
     }
 
     // Répartition : réduction créance d'abord, puis remboursement en caisse
@@ -921,19 +1004,37 @@ export async function createSaleReturn(
     if (rec && rec.remaining_amount > 0) {
       creditReduction = Math.min(rec.remaining_amount, totalReturnAmount);
       refundAmount = totalReturnAmount - creditReduction;
+    }
+
+    if (creditReduction + refundAmount !== totalReturnAmount) {
+      throw new BusinessError('VALIDATION_ERROR', 'Incohérence interne dans la répartition du retour.');
+    }
+
+    if (refundAmount > 0) {
+      const pm = db
+        .prepare('SELECT code, is_cash, active FROM payment_methods WHERE code = ?')
+        .get(input.refund_method_code) as { code: string; is_cash: number; active: number } | undefined;
+      if (!pm || !pm.active) {
+        throw new BusinessError(
+          'INVALID_PAYMENT',
+          `Moyen de remboursement inactif ou introuvable : ${input.refund_method_code}`
+        );
+      }
+      if (pm.is_cash === 1) {
+        const avail = getTheoreticalCash(db, session.id, session.opening_cash);
+        if (refundAmount > avail) {
+          throw new BusinessError('INVALID_PAYMENT', 'Espèces insuffisantes en caisse pour le remboursement.');
+        }
+      }
+    }
+
+    if (rec && creditReduction > 0) {
       const nextRem = rec.remaining_amount - creditReduction;
       db.prepare('UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?').run(
         nextRem,
         nextRem === 0 ? 'paid' : 'partial',
         rec.id
       );
-    }
-
-    if (refundAmount > 0 && input.refund_method_code === 'cash') {
-      const avail = getTheoreticalCash(db, session.id, session.opening_cash);
-      if (refundAmount > avail) {
-        throw new BusinessError('INVALID_PAYMENT', 'Espèces insuffisantes en caisse pour le remboursement.');
-      }
     }
 
     const retRef = nextSequence(db, 'RET');
@@ -948,7 +1049,7 @@ export async function createSaleReturn(
         .run(
           retRef,
           avoRef,
-          input.request_key,
+          requestKey,
           saleId,
           session.id,
           totalReturnAmount,
@@ -969,7 +1070,7 @@ export async function createSaleReturn(
         const prod = db.prepare('SELECT stock_milli FROM products WHERE id = ?').get(p.productId) as {
           stock_milli: number;
         };
-        const nextStock = prod.stock_milli + p.baseQtyMilli;
+        const nextStock = checkedAddMilli(prod.stock_milli, p.baseQtyMilli, 'Stock après retour client');
         db.prepare('UPDATE products SET stock_milli = ? WHERE id = ?').run(nextStock, p.productId);
         db.prepare(
           `INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
@@ -984,7 +1085,7 @@ export async function createSaleReturn(
          VALUES (?, ?, 'sale_refund', ?, 'out', ?, ?, ?)`
       ).run(
         session.id,
-        `ret-ref:${input.request_key}`,
+        `ret-ref:${requestKey}`,
         input.refund_method_code,
         refundAmount,
         `Avoir ${avoRef} sur vente ${sale.reference}`,
