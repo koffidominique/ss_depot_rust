@@ -17,6 +17,8 @@ pub const V3_MIGRATION_0004_SQL: &str =
     include_str!("../../../../migrations/sqlite/0004_onboarding_setup_state.sql");
 pub const V3_MIGRATION_0005_SQL: &str =
     include_str!("../../../../migrations/sqlite/0005_security_roles_users.sql");
+pub const V3_MIGRATION_0006_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0006_catalogue_v3.sql");
 
 #[derive(Debug, Clone, Copy)]
 pub struct MigrationDef {
@@ -51,10 +53,15 @@ pub const MIGRATIONS: &[MigrationDef] = &[
         name: "0005_security_roles_users",
         sql: V3_MIGRATION_0005_SQL,
     },
+    MigrationDef {
+        version: 6,
+        name: "0006_catalogue_v3",
+        sql: V3_MIGRATION_0006_SQL,
+    },
 ];
 
 pub const MIN_SUPPORTED_SCHEMA_VERSION: i64 = 1;
-pub const CURRENT_SCHEMA_VERSION: i64 = 5;
+pub const CURRENT_SCHEMA_VERSION: i64 = 6;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MigrationRunReport {
@@ -415,6 +422,7 @@ impl DepotDb {
                 ("orange_money", "Orange Money", 0_i64),
                 ("mtn_money", "MTN MoMo", 0_i64),
                 ("transfer", "Virement bancaire", 0_i64),
+                ("cheque", "Chèque", 0_i64),
             ] {
                 sqlx::query(
                     "INSERT OR IGNORE INTO payment_methods (code, label, is_cash, active) VALUES (?, ?, ?, 1)",

@@ -90,7 +90,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
         .fetch_one(&db.pool)
         .await
         .unwrap();
-    assert_eq!(pm_count, 5);
+    assert_eq!(pm_count, 6);
     assert_eq!(exp_cat_count, 6);
     assert_eq!(cat_count, 4);
 
@@ -111,7 +111,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
     // 5. Rejeu idempotent
     let replay = DepotDb::apply_migrations(&db.pool).await.unwrap();
     assert!(replay.applied_versions.is_empty());
-    assert_eq!(replay.latest_version, 5);
+    assert_eq!(replay.latest_version, 6);
 
     let _ = std::fs::remove_file(&db_path);
     let _ = std::fs::remove_file(format!("{}-wal", db_path.display()));
@@ -280,7 +280,7 @@ async fn lot4_interrupted_migration_rolls_back_and_partial_migration_recovers() 
         .await
         .unwrap();
     let report = DepotDb::apply_migrations(&pool_p).await.unwrap();
-    assert_eq!(report.applied_versions, vec![2, 3, 4, 5]);
+    assert_eq!(report.applied_versions, vec![2, 3, 4, 5, 6]);
     assert_eq!(report.skipped_legacy_columns_for, vec![2]);
     pool_p.close().await;
 
