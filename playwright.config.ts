@@ -15,14 +15,15 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm run start',
+    // The single business backend is the Axum server, serving the built SPA + /api.
+    // We build dist first, then run Axum which serves ./dist with SPA fallback.
+    command: 'npm run build && cargo run -p depotpro-server',
     url: 'http://127.0.0.1:3100/api/health',
     reuseExistingServer: false,
-    timeout: 60_000,
+    timeout: 240_000,
     env: {
       PORT: '3100',
       HOST: '127.0.0.1',
-      NODE_ENV: 'production',
       DEPOTPRO_DB_PATH: tempDb,
     },
   },

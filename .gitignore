@@ -13,3 +13,7 @@ data/
 *.db-wal
 *.db-shm
 *.db-journal
+
+# Rust / Tauri build artifacts
+target/
+src-tauri/gen/

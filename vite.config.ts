@@ -54,6 +54,14 @@ export default defineConfig(() => {
     },
     server: {
       allowedHosts: true,
+      // In dev, the Axum server (depotpro-server) is the single business backend.
+      // Vite only serves the SPA and proxies /api to Axum.
+      proxy: {
+        '/api': {
+          target: 'http://127.0.0.1:3000',
+          changeOrigin: true,
+        },
+      },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
