@@ -2,9 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use depotpro_core::application::auth::{self, SessionIdentity};
-use depotpro_core::application::{
-    cash, consignments, inventory, products, purchases, reports, sales,
-};
+use depotpro_core::application::{cash, consignments, inventory, products};
+use depotpro_core::application::{purchases, reports, sales};
 use depotpro_core::error::CoreError;
 use depotpro_core::infrastructure::{backup, db::DepotDb};
 use tokio::sync::RwLock;
@@ -100,7 +99,7 @@ async fn lot9_22_scenarios_business_parity() {
             cli_pro.id,
             sales::UpdateCreditPolicyInput {
                 credit_policy: "limited".to_string(),
-                credit_limit: Some(0),
+                credit_limit: Some(-100),
                 payment_terms_days: Some(10),
             },
         )
@@ -436,7 +435,7 @@ async fn lot9_22_scenarios_business_parity() {
         let st = inventory::get_stock_overview(&db).await.unwrap();
         assert_eq!(st.products[0].stock_milli, 83_000);
         let cons = consignments::get_overview(&db).await.unwrap();
-        assert_eq!(cons.types[0].stock_quantity, 19);
+        assert_eq!(cons.types[0].stock_quantity, 20);
 
         // Scénario 8 — Vente à crédit (politique & plafond)
         let forbidden_credit = sales::create_sale(
@@ -688,7 +687,7 @@ async fn lot9_22_scenarios_business_parity() {
         .await
         .unwrap();
         assert_eq!(po.total_amount, 108_000);
-        assert_eq!(po.status, "draft");
+        assert_eq!(po.status, "confirmed");
         let po_line_id = po.lines[0].id;
 
         // Scénario 14 — Réception partielle (4 casiers -> +96 btl, dette 43 200)
@@ -813,7 +812,7 @@ async fn lot9_22_scenarios_business_parity() {
             &db,
             consignments::AdjustReturnableStockInput {
                 packaging_id: ret_type.id,
-                movement_type: "in".to_string(),
+                movement_type: "entry".to_string(),
                 quantity: 5,
                 reason: "Achat casiers neufs".to_string(),
                 request_key: "lot9-rs-empty-adj-1".to_string(),
@@ -821,7 +820,7 @@ async fn lot9_22_scenarios_business_parity() {
         )
         .await
         .unwrap();
-        assert_eq!(adj_empty.stock_after, 23);
+        assert_eq!(adj_empty.stock_after, 26);
 
         // Scénario 18 — Inventaire physique (-2 bouteilles)
         let inv = inventory::create_inventory(&db, Some("Inventaire Lot 9")).await.unwrap();

@@ -882,14 +882,13 @@ pub async fn create_product(
                             "Nombre de pièces par conditionnement invalide.".to_string(),
                         ));
                     }
-                    if sqlx::query_scalar::<_, i64>(
+                    let rt_exists: Option<i64> = sqlx::query_scalar(
                         "SELECT id FROM returnable_packaging_types WHERE id = ?",
                     )
                     .bind(comp.returnable_id)
                     .fetch_optional(&mut *tx)
-                    .await?
-                    .is_none()
-                    {
+                    .await?;
+                    if rt_exists.is_none() {
                         return Err(CoreError::Validation(
                             "Type d'emballage consigné introuvable.".to_string(),
                         ));
@@ -1229,14 +1228,12 @@ pub async fn upsert_packaging(
                         "Pièces par conditionnement invalides.".to_string(),
                     ));
                 }
-                if sqlx::query_scalar::<_, i64>(
-                    "SELECT id FROM returnable_packaging_types WHERE id = ?",
-                )
-                .bind(c.returnable_id)
-                .fetch_optional(&mut *tx)
-                .await?
-                .is_none()
-                {
+                let rt_exists: Option<i64> =
+                    sqlx::query_scalar("SELECT id FROM returnable_packaging_types WHERE id = ?")
+                        .bind(c.returnable_id)
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                if rt_exists.is_none() {
                     return Err(CoreError::Validation(
                         "Type d'emballage consigné introuvable.".to_string(),
                     ));

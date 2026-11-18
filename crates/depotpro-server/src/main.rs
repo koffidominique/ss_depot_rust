@@ -275,25 +275,22 @@ struct TogglePaymentMethodPayload {
 }
 
 fn map_err(err: CoreError) -> (StatusCode, Json<serde_json::Value>) {
-    let (status, code, message) = match err {
-        CoreError::Unauthorized(m) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", m),
-        CoreError::Forbidden(m) => (StatusCode::FORBIDDEN, "FORBIDDEN", m),
-        CoreError::RateLimited(m) => (StatusCode::TOO_MANY_REQUESTS, "RATE_LIMITED", m),
-        CoreError::Validation(m) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", m),
-        CoreError::InsufficientStock(m) => (StatusCode::BAD_REQUEST, "INSUFFICIENT_STOCK", m),
-        CoreError::CreditPolicyViolation(m) => {
-            (StatusCode::BAD_REQUEST, "CREDIT_POLICY_VIOLATION", m)
-        }
-        CoreError::SessionNotOpen(m) => (StatusCode::BAD_REQUEST, "SESSION_NOT_OPEN", m),
-        CoreError::SessionAlreadyOpen(m) => (StatusCode::BAD_REQUEST, "SESSION_ALREADY_OPEN", m),
-        CoreError::HistoricalImmutable(m) => {
-            (StatusCode::BAD_REQUEST, "HISTORICAL_IMMUTABLE", m)
-        }
-        CoreError::InvalidPayment(m) => (StatusCode::BAD_REQUEST, "INVALID_PAYMENT", m),
-        CoreError::DuplicateOperation(m) => (StatusCode::CONFLICT, "DUPLICATE_OPERATION", m),
-        CoreError::DatabaseBusy(m) => (StatusCode::SERVICE_UNAVAILABLE, "DATABASE_BUSY", m),
-        CoreError::Database(m) => (StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_ERROR", m),
-        CoreError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", m),
+    let message = err.to_string();
+    let (status, code) = match &err {
+        CoreError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED"),
+        CoreError::Forbidden(_) => (StatusCode::FORBIDDEN, "FORBIDDEN"),
+        CoreError::RateLimited(_) => (StatusCode::TOO_MANY_REQUESTS, "RATE_LIMITED"),
+        CoreError::Validation(_) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR"),
+        CoreError::InsufficientStock(_) => (StatusCode::BAD_REQUEST, "INSUFFICIENT_STOCK"),
+        CoreError::CreditPolicyViolation(_) => (StatusCode::BAD_REQUEST, "CREDIT_POLICY_VIOLATION"),
+        CoreError::SessionNotOpen(_) => (StatusCode::BAD_REQUEST, "SESSION_NOT_OPEN"),
+        CoreError::SessionAlreadyOpen(_) => (StatusCode::BAD_REQUEST, "SESSION_ALREADY_OPEN"),
+        CoreError::HistoricalImmutable(_) => (StatusCode::BAD_REQUEST, "HISTORICAL_IMMUTABLE"),
+        CoreError::InvalidPayment(_) => (StatusCode::BAD_REQUEST, "INVALID_PAYMENT"),
+        CoreError::DuplicateOperation(_) => (StatusCode::CONFLICT, "DUPLICATE_OPERATION"),
+        CoreError::DatabaseBusy(_) => (StatusCode::SERVICE_UNAVAILABLE, "DATABASE_BUSY"),
+        CoreError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_ERROR"),
+        CoreError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
     };
     (
         status,
