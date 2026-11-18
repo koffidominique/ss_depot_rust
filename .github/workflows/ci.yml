@@ -8,8 +8,80 @@ on:
   workflow_dispatch:
 
 jobs:
-  web-and-migration:
-    name: Web API, Frontend UI, Benchmark & Migration Python
+  typecheck:
+    name: 1. TypeScript (typecheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  lint:
+    name: 2. ESLint (max-warnings 0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  node-tests:
+    name: 3. Tests Node, API, Contrats & UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test
+
+  vite-build:
+    name: 4. Build production Vite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  playwright-e2e:
+    name: 5. Tests Playwright E2E
+    needs: [vite-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install chromium --with-deps
+      - name: Tests Playwright E2E
+        run: |
+          set +e
+          NO_COLOR=1 npm run test:e2e 2>&1 | tee /tmp/e2e.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            MSG=$(tail -n 60 /tmp/e2e.log | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
+            echo "::error title=e2e::$MSG"
+            exit "$rc"
+          fi
+
+  sqlite-migration:
+    name: 6. Migration SQLite V2->V3 & Benchmark 10k/100k
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,16 +92,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Installer les dépendances Node
-        run: npm ci
-      - name: Typecheck TypeScript
-        run: npm run typecheck
-      - name: Lint ESLint
-        run: npm run lint
-      - name: Tests unitaires, API, UI & Contrats
-        run: npm run test
-      - name: Build production Vite
-        run: npm run build
+      - run: npm ci
       - name: Benchmark charge SQLite (10k produits / 100k lignes)
         run: npm run benchmark
       - name: Vérification migration V2 -> V3 (--strict)
@@ -55,51 +118,56 @@ jobs:
               subprocess.run(['python3', 'scripts/migrate_v2_to_v3.py', '--source', v2, '--target', v3, '--strict'], check=True)
           PY
 
-  playwright-e2e:
-    name: Playwright E2E Navigateur
-    needs: web-and-migration
+  rust-core-tests:
+    name: 7. Tests Rust Core (depotpro-core)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: npx playwright install chromium --with-deps
-      - name: Tests Playwright E2E
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Tests depotpro-core
         run: |
           set +e
-          NO_COLOR=1 npm run test:e2e 2>&1 | tee /tmp/e2e.log
+          CARGO_TERM_COLOR=never cargo test -p depotpro-core 2>&1 | tee /tmp/rust_core_test.log
           rc=${PIPESTATUS[0]}
+          MSG=$(grep -v -E '^\s*(Compiling|Checking|Downloading|Downloaded|Updating|Locking) ' /tmp/rust_core_test.log | tail -n 60 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
           if [ "$rc" -ne 0 ]; then
-            MSG=$(tail -n 60 /tmp/e2e.log | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
-            echo "::error title=e2e::$MSG"
+            echo "::error title=cargo-test-core::$MSG"
             exit "$rc"
+          else
+            echo "::notice title=cargo-test-core::$MSG"
           fi
 
-  rust-core-and-server:
-    name: Rust Core & Axum Server (fmt, clippy, test)
+  rust-server-tests:
+    name: 8. Tests Axum (depotpro-server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Tests depotpro-server
+        run: |
+          set +e
+          CARGO_TERM_COLOR=never cargo test -p depotpro-server 2>&1 | tee /tmp/rust_server_test.log
+          rc=${PIPESTATUS[0]}
+          MSG=$(grep -v -E '^\s*(Compiling|Checking|Downloading|Downloaded|Updating|Locking) ' /tmp/rust_server_test.log | tail -n 60 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
+          if [ "$rc" -ne 0 ]; then
+            echo "::error title=cargo-test-server::$MSG"
+            exit "$rc"
+          else
+            echo "::notice title=cargo-test-server::$MSG"
+          fi
+
+  rust-clippy:
+    name: 9. Clippy Rust (-D warnings)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: Vérification formatage Rust (rustfmt)
-        run: |
-          set +e
-          cargo fmt --all -- --check 2>&1 | tee /tmp/fmt.log
-          rc=${PIPESTATUS[0]}
-          if [ "$rc" -ne 0 ]; then
-            MSG=$(grep -E '^Diff in ' /tmp/fmt.log | head -n 40 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
-            echo "::error title=rustfmt::$MSG"
-            exit "$rc"
-          fi
       - name: Analyse statique Rust (clippy)
-        if: ${{ !cancelled() }}
         run: |
           set +e
           CARGO_TERM_COLOR=never cargo clippy -p depotpro-core -p depotpro-server --all-targets -- -D warnings 2>&1 | tee /tmp/clippy.log
@@ -109,28 +177,47 @@ jobs:
             echo "::error title=clippy::$MSG"
             exit "$rc"
           fi
-      - name: Tests unitaires et d'intégration Rust
-        if: ${{ !cancelled() }}
+
+  rustfmt:
+    name: 10. Formatage Rust (cargo fmt --check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Vérification formatage Rust (rustfmt)
         run: |
           set +e
-          CARGO_TERM_COLOR=never cargo test -p depotpro-core -p depotpro-server 2>&1 | tee /tmp/rust_test.log
+          cargo fmt --all -- --check 2>&1 | tee /tmp/fmt.log
           rc=${PIPESTATUS[0]}
-          MSG=$(grep -v -E '^\s*(Compiling|Checking|Downloading|Downloaded|Updating|Locking) ' /tmp/rust_test.log | tail -n 60 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
           if [ "$rc" -ne 0 ]; then
-            echo "::error title=cargo-test::$MSG"
+            python3 -c "
+          txt = open('/tmp/fmt.log', encoding='utf-8').read()
+          lines = txt.splitlines()
+          chunk = []
+          size = 0
+          for idx, l in enumerate(lines):
+              esc = l.replace('%', '%25').replace('\r', '')
+              if size + len(esc) + 4 > 3500 and chunk:
+                  print('::error title=rustfmt::' + '%0A'.join(chunk))
+                  chunk = []
+                  size = 0
+              chunk.append(esc)
+              size += len(esc) + 3
+              if idx > 500:
+                  chunk.append('... (truncated)')
+                  break
+          if chunk:
+              print('::error title=rustfmt::' + '%0A'.join(chunk))
+          "
             exit "$rc"
-          else
-            echo "::notice title=cargo-test::$MSG"
           fi
 
-  desktop-tauri-bundle:
-    name: Tauri 2 Desktop (${{ matrix.os }})
-    needs: web-and-migration
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  tauri-windows:
+    name: 11. Compilation Tauri Windows (.msi / .exe)
+    needs: [typecheck, lint, vite-build]
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -138,9 +225,66 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
-      - name: Vérification compilation Tauri & génération installateur
-        run: npx tauri build
-        env:
-          TAURI_BUNDLER_TOOLS_GITHUB_MIRROR: ''
+      - name: Vérification CLI Tauri
+        run: npm exec tauri -- --version
+      - name: Analyse statique Rust Desktop (clippy)
+        run: cargo clippy -p depotpro-desktop --all-targets -- -D warnings
+      - name: Compilation Tauri Windows & génération installateurs
+        run: npm exec tauri -- build --ci --bundles msi,nsis
+      - name: Vérification présence réelle des installateurs Windows
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter "*.msi" -ErrorAction SilentlyContinue
+          $nsis = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" -ErrorAction SilentlyContinue
+          if (-not $msi -or -not $nsis) {
+            Write-Error "Installateur Windows manquant (.msi ou .exe)"
+            exit 1
+          }
+          $msi | Select-Object Name, Length
+          $nsis | Select-Object Name, Length
+      - name: Upload artefacts Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: depotpro-desktop-windows
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+
+  tauri-macos:
+    name: 12. Compilation Tauri macOS (.app / .dmg)
+    needs: [typecheck, lint, vite-build]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - name: Vérification CLI Tauri
+        run: npm exec tauri -- --version
+      - name: Analyse statique Rust Desktop (clippy)
+        run: cargo clippy -p depotpro-desktop --all-targets -- -D warnings
+      - name: Compilation Tauri macOS & génération bundle
+        run: npm exec tauri -- build --ci --bundles app,dmg
+      - name: Vérification présence réelle des artefacts macOS
+        run: |
+          ls -lh src-tauri/target/release/bundle/dmg/*.dmg
+          ls -ld src-tauri/target/release/bundle/macos/*.app
+      - name: Upload artefacts macOS
+        uses: actions/upload-artifact@v4
+        with:
+          name: depotpro-desktop-macos
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app

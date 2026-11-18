@@ -32,7 +32,7 @@ fn is_pid_alive(pid: u32) -> bool {
     }
 }
 
-fn acquire_single_instance_lock(lock_path: &PathBuf) -> std::io::Result<()> {
+fn acquire_single_instance_lock(lock_path: &std::path::Path) -> std::io::Result<()> {
     match OpenOptions::new().write(true).create_new(true).open(lock_path) {
         Ok(mut f) => {
             let _ = writeln!(f, "pid={}", std::process::id());

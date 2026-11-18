@@ -35,7 +35,7 @@ pub async fn auth_status(state: State<'_, DesktopState>) -> Result<serde_json::V
     let res = auth::get_auth_status(&db)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -106,7 +106,7 @@ pub async fn auth_list_users(
     let users = auth::with_actor(actor, auth::list_users(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(users).map_err(|e| e.to_string())?)
+    serde_json::to_value(users).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -120,7 +120,7 @@ pub async fn auth_create_user(
     let user = auth::with_actor(actor, auth::create_user(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(user).map_err(|e| e.to_string())?)
+    serde_json::to_value(user).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -142,7 +142,7 @@ pub async fn auth_toggle_user(
             .await
             .revoke_user_sessions(&user.id.to_string());
     }
-    Ok(serde_json::to_value(user).map_err(|e| e.to_string())?)
+    serde_json::to_value(user).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -155,7 +155,7 @@ pub async fn list_categories(
     let items = auth::with_actor(actor, products::list_categories(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
+    serde_json::to_value(items).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -173,9 +173,10 @@ pub async fn create_category(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(cat).map_err(|e| e.to_string())?)
+    serde_json::to_value(cat).map_err(|e| e.to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn list_products(
     state: State<'_, DesktopState>,
@@ -203,7 +204,7 @@ pub async fn list_products(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -217,7 +218,7 @@ pub async fn create_product(
     let prod = auth::with_actor(actor, products::create_product(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(prod).map_err(|e| e.to_string())?)
+    serde_json::to_value(prod).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -232,7 +233,7 @@ pub async fn update_product(
     let prod = auth::with_actor(actor, products::update_product(&db, id, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(prod).map_err(|e| e.to_string())?)
+    serde_json::to_value(prod).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -247,7 +248,7 @@ pub async fn upsert_packaging(
     let res = auth::with_actor(actor, products::upsert_packaging(&db, product_id, pkg))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -287,7 +288,7 @@ pub async fn list_clients(
     let clients = auth::with_actor(actor, sales::list_clients(&db, search.as_deref()))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(clients).map_err(|e| e.to_string())?)
+    serde_json::to_value(clients).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -301,7 +302,7 @@ pub async fn create_client(
     let client = auth::with_actor(actor, sales::create_client(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(client).map_err(|e| e.to_string())?)
+    serde_json::to_value(client).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -316,7 +317,7 @@ pub async fn update_client(
     let client = auth::with_actor(actor, sales::update_client(&db, client_id, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(client).map_err(|e| e.to_string())?)
+    serde_json::to_value(client).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -334,6 +335,7 @@ pub async fn update_client_credit(
     Ok(serde_json::json!({ "ok": true }))
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn list_sales(
     state: State<'_, DesktopState>,
@@ -363,7 +365,7 @@ pub async fn list_sales(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -377,7 +379,7 @@ pub async fn get_sale_detail(
     let detail = auth::with_actor(actor, sales::get_sale_detail(&db, sale_id))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(detail).map_err(|e| e.to_string())?)
+    serde_json::to_value(detail).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -391,7 +393,7 @@ pub async fn create_sale(
     let sale = auth::with_actor(actor, sales::create_sale(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(sale).map_err(|e| e.to_string())?)
+    serde_json::to_value(sale).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -406,7 +408,7 @@ pub async fn cancel_sale(
     let sale = auth::with_actor(actor, sales::cancel_sale(&db, sale_id, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(sale).map_err(|e| e.to_string())?)
+    serde_json::to_value(sale).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -421,7 +423,7 @@ pub async fn create_sale_return(
     let sale = auth::with_actor(actor, sales::create_sale_return(&db, sale_id, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(sale).map_err(|e| e.to_string())?)
+    serde_json::to_value(sale).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -434,7 +436,7 @@ pub async fn list_receivables(
     let items = auth::with_actor(actor, cash::list_receivables(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
+    serde_json::to_value(items).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -449,7 +451,7 @@ pub async fn pay_receivable(
     let rec = auth::with_actor(actor, cash::pay_receivable(&db, receivable_id, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(rec).map_err(|e| e.to_string())?)
+    serde_json::to_value(rec).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -463,7 +465,7 @@ pub async fn list_suppliers(
     let items = auth::with_actor(actor, purchases::list_suppliers(&db, search.as_deref()))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
+    serde_json::to_value(items).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -477,7 +479,7 @@ pub async fn create_supplier(
     let s = auth::with_actor(actor, purchases::create_supplier(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
+    serde_json::to_value(s).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -492,7 +494,7 @@ pub async fn update_supplier(
     let s = auth::with_actor(actor, purchases::update_supplier(&db, supplier_id, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
+    serde_json::to_value(s).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -505,7 +507,7 @@ pub async fn list_purchases(
     let items = auth::with_actor(actor, purchases::list_purchase_orders(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
+    serde_json::to_value(items).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -519,7 +521,7 @@ pub async fn create_purchase_order(
     let po = auth::with_actor(actor, purchases::create_purchase_order(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(po).map_err(|e| e.to_string())?)
+    serde_json::to_value(po).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -537,7 +539,7 @@ pub async fn receive_purchase_order(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(rec).map_err(|e| e.to_string())?)
+    serde_json::to_value(rec).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -555,7 +557,7 @@ pub async fn cancel_purchase_order(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(po).map_err(|e| e.to_string())?)
+    serde_json::to_value(po).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -568,7 +570,7 @@ pub async fn list_supplier_debts(
     let items = auth::with_actor(actor, purchases::list_supplier_debts(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
+    serde_json::to_value(items).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -596,7 +598,7 @@ pub async fn get_stock_overview(
     let ov = auth::with_actor(actor, inventory::get_stock_overview(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(ov).map_err(|e| e.to_string())?)
+    serde_json::to_value(ov).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -610,7 +612,7 @@ pub async fn adjust_stock(
     let mv = auth::with_actor(actor, inventory::adjust_stock(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(mv).map_err(|e| e.to_string())?)
+    serde_json::to_value(mv).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -623,7 +625,7 @@ pub async fn list_inventories(
     let items = auth::with_actor(actor, inventory::list_inventories(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
+    serde_json::to_value(items).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -637,7 +639,7 @@ pub async fn create_inventory(
     let inv = auth::with_actor(actor, inventory::create_inventory(&db, notes.as_deref()))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(inv).map_err(|e| e.to_string())?)
+    serde_json::to_value(inv).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -655,7 +657,7 @@ pub async fn validate_inventory(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(inv).map_err(|e| e.to_string())?)
+    serde_json::to_value(inv).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -668,7 +670,7 @@ pub async fn get_consignments_overview(
     let ov = auth::with_actor(actor, consignments::get_overview(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(ov).map_err(|e| e.to_string())?)
+    serde_json::to_value(ov).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -682,7 +684,7 @@ pub async fn create_returnable_type(
     let rt = auth::with_actor(actor, consignments::create_returnable_type(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(rt).map_err(|e| e.to_string())?)
+    serde_json::to_value(rt).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -723,7 +725,7 @@ pub async fn get_cash_status(
     let s = auth::with_actor(actor, cash::get_cash_status(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
+    serde_json::to_value(s).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -737,7 +739,7 @@ pub async fn open_cash_session(
     let s = auth::with_actor(actor, cash::open_cash_session(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
+    serde_json::to_value(s).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -751,7 +753,7 @@ pub async fn close_cash_session(
     let s = auth::with_actor(actor, cash::close_cash_session(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(s).map_err(|e| e.to_string())?)
+    serde_json::to_value(s).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -764,7 +766,7 @@ pub async fn list_expenses(
     let ov = auth::with_actor(actor, cash::list_expenses(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(ov).map_err(|e| e.to_string())?)
+    serde_json::to_value(ov).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -791,7 +793,7 @@ pub async fn get_dashboard(
     let data = auth::with_actor(actor, reports::get_dashboard_data(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(data).map_err(|e| e.to_string())?)
+    serde_json::to_value(data).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -809,7 +811,7 @@ pub async fn get_reports(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(rep).map_err(|e| e.to_string())?)
+    serde_json::to_value(rep).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -822,7 +824,7 @@ pub async fn get_settings(
     let bundle = auth::with_actor(actor, reports::get_settings_bundle(&db))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(bundle).map_err(|e| e.to_string())?)
+    serde_json::to_value(bundle).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -836,7 +838,7 @@ pub async fn update_settings(
     let bundle = auth::with_actor(actor, reports::update_settings(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(bundle).map_err(|e| e.to_string())?)
+    serde_json::to_value(bundle).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -850,7 +852,7 @@ pub async fn add_payment_method(
     let pm = auth::with_actor(actor, reports::add_payment_method(&db, &label))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(pm).map_err(|e| e.to_string())?)
+    serde_json::to_value(pm).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -865,7 +867,7 @@ pub async fn toggle_payment_method(
     let pm = auth::with_actor(actor, reports::toggle_payment_method(&db, &code, active))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(pm).map_err(|e| e.to_string())?)
+    serde_json::to_value(pm).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -897,7 +899,7 @@ pub async fn list_backups(
     let items = auth::with_actor(actor, async move { backup::list_backups(&dir) })
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(items).map_err(|e| e.to_string())?)
+    serde_json::to_value(items).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -910,7 +912,7 @@ pub async fn create_backup(
     let summary = auth::with_actor(actor, backup::create_backup_summary(&db, &state.backup_dir))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(summary).map_err(|e| e.to_string())?)
+    serde_json::to_value(summary).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -927,7 +929,7 @@ pub async fn create_encrypted_backup(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(summary).map_err(|e| e.to_string())?)
+    serde_json::to_value(summary).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -940,7 +942,7 @@ pub async fn verify_backup(
     let res = auth::with_actor(actor, backup::verify_backup(&state.backup_dir, &name))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -957,7 +959,7 @@ pub async fn verify_encrypted_backup(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -987,7 +989,7 @@ pub async fn restore_backup(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1009,5 +1011,5 @@ pub async fn restore_encrypted_backup(
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(res).map_err(|e| e.to_string())?)
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }
