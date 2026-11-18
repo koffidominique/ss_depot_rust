@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +15,24 @@ const __dirname = path.dirname(__filename);
 
 export const DEFAULT_MIGRATIONS_DIR = path.resolve(__dirname, '..', 'migrations', 'sqlite');
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1;
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
+
+export interface ActorContext {
+  userId: string;
+  username: string;
+  displayName: string;
+  role: string;
+}
+
+const actorStorage = new AsyncLocalStorage<ActorContext>();
+
+export function runWithActor<T>(actor: ActorContext, fn: () => T): T {
+  return actorStorage.run(actor, fn);
+}
+
+export function getCurrentActor(): ActorContext | undefined {
+  return actorStorage.getStore();
+}
 
 export const DB_PATH = process.env.DEPOTPRO_DB_PATH
   ? path.resolve(process.env.DEPOTPRO_DB_PATH)
@@ -215,6 +233,14 @@ function shouldSkipSqlBecauseColumnAlreadyExists(db: DatabaseSync, migration: Sq
   }
   if (migration.version === 4 || migration.name === '0004_onboarding_setup_state') {
     return columnExists(db, 'app_settings', 'setup_completed');
+  }
+  if (migration.version === 5 || migration.name === '0005_security_roles_users') {
+    return (
+      tableExists(db, 'users') &&
+      columnExists(db, 'audit_logs', 'actor_user_id') &&
+      columnExists(db, 'audit_logs', 'actor_name') &&
+      columnExists(db, 'audit_logs', 'actor_role')
+    );
   }
   return false;
 }
@@ -539,9 +565,18 @@ export function auditLog(
   entityId: string | number | null,
   details: string
 ): void {
+  const actor = getCurrentActor();
   db.prepare(
-    'INSERT INTO audit_logs (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)'
-  ).run(action, entityType, entityId !== null ? String(entityId) : null, details);
+    'INSERT INTO audit_logs (action, entity_type, entity_id, details, actor_user_id, actor_name, actor_role) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    action,
+    entityType,
+    entityId !== null ? String(entityId) : null,
+    details,
+    actor?.userId ?? null,
+    actor?.displayName ?? null,
+    actor?.role ?? null
+  );
 }
 
 export function requireOpenSession(db: DatabaseSync): { id: number; reference: string; opening_cash: number } {

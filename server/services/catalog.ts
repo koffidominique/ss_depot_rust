@@ -1,4 +1,5 @@
 import { getDb, withWriteTx, nextSequence, auditLog } from '../db.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 import {
   BusinessError,
   nonNegativeFcfa,
@@ -18,11 +19,13 @@ export interface ProductFilter {
 }
 
 export function listCategories() {
+  requireCurrentActorPermission('catalog:read');
   const db = getDb();
   return db.prepare('SELECT id, name, description, is_active FROM categories ORDER BY name').all();
 }
 
 export async function createCategory(name: string, description?: string) {
+  requireCurrentActorPermission('catalog:write');
   const clean = (name || '').trim();
   if (!clean) throw new BusinessError('VALIDATION_ERROR', 'Le nom de la catégorie est obligatoire.');
   return withWriteTx((db) => {
@@ -36,6 +39,7 @@ export async function createCategory(name: string, description?: string) {
 }
 
 export function listProducts(filter: ProductFilter = {}) {
+  requireCurrentActorPermission('catalog:read');
   const db = getDb();
   const page = Math.max(1, Number(filter.page || 1));
   const pageSize = Math.min(100, Math.max(1, Number(filter.pageSize || 25)));
@@ -170,6 +174,7 @@ export function sanitizeImagePath(raw?: string | null): string | null {
 }
 
 export async function createProduct(input: CreateProductInput) {
+  requireCurrentActorPermission('catalog:write');
   const name = (input.name || '').trim();
   const baseUnit = (input.base_unit || 'bouteille').trim();
   if (!name) throw new BusinessError('VALIDATION_ERROR', 'Le nom du produit est obligatoire.');
@@ -331,6 +336,7 @@ export async function updateProduct(
   id: number,
   input: Partial<CreateProductInput> & { is_active?: boolean }
 ) {
+  requireCurrentActorPermission('catalog:write');
   return withWriteTx((db) => {
     const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(id) as
       | Record<string, unknown>
@@ -440,6 +446,7 @@ export async function addOrUpdatePackaging(
   if (!ALLOWED_PACKAGING_NAMES.has(pkg.name)) {
     throw new BusinessError('INVALID_PACKAGING', 'Type de conditionnement invalide.');
   }
+  requireCurrentActorPermission('catalog:write');
   const coeffMilli = positiveMilli(pkg.coefficient, 'Coefficient');
 
   return withWriteTx((db) => {
@@ -535,6 +542,7 @@ export async function addOrUpdatePackaging(
 }
 
 export function exportProductsCsv(): string {
+  requireCurrentActorPermission('catalog:read');
   const db = getDb();
   const rows = db
     .prepare(
@@ -589,6 +597,7 @@ export function exportProductsCsv(): string {
 }
 
 export async function importProductsCsv(csvContent: string) {
+  requireCurrentActorPermission('catalog:write');
   const lines = csvContent
     .split(/\r?\n/)
     .map((l) => l.trim())

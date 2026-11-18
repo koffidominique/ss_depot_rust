@@ -90,8 +90,11 @@ describe('DEPOTPRO PREMIUM V3 — Contrats Frontend / Rust / Tauri & Précision'
       '/api/auth/status',
       '/api/auth/setup',
       '/api/auth/login',
+      '/api/auth/me',
       '/api/auth/lock',
       '/api/auth/change-pin',
+      '/api/auth/users',
+      '/api/auth/users/:id/status',
       '/api/dashboard',
       '/api/categories',
       '/api/products',
@@ -114,7 +117,10 @@ describe('DEPOTPRO PREMIUM V3 — Contrats Frontend / Rust / Tauri & Précision'
       '/api/payment-methods',
       '/api/documents/pdf',
       '/api/backups',
+      '/api/backups/encrypted',
+      '/api/backups/:name/verify-encrypted',
       '/api/backups/:name/download',
+      '/api/backups/:name/restore-encrypted',
     ];
 
     for (const route of criticalPaths) {

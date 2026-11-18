@@ -1,4 +1,5 @@
 import { useUiStore } from '../../stores/uiStore.ts';
+import type { SessionUser } from '../../types/erp.ts';
 import {
   ApiError,
   type ApiClient,
@@ -76,10 +77,16 @@ export class HttpApiClient implements ApiClient {
     return request<ReturnType<ApiClient['getAuthStatus']> extends Promise<infer R> ? R : never>('/api/auth/status');
   }
   setupPin(pin: string) {
-    return request<{ token: string }>('/api/auth/setup', { method: 'POST', body: JSON.stringify({ pin }) });
+    return request<{ token: string; user?: SessionUser }>('/api/auth/setup', {
+      method: 'POST',
+      body: JSON.stringify({ pin }),
+    });
   }
-  login(pin: string) {
-    return request<{ token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ pin }) });
+  login(pin: string, username?: string) {
+    return request<{ token: string; user?: SessionUser }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ pin, username }),
+    });
   }
   async lock() {
     try {
@@ -92,6 +99,24 @@ export class HttpApiClient implements ApiClient {
     await request('/api/auth/change-pin', {
       method: 'POST',
       body: JSON.stringify({ currentPin, newPin }),
+    });
+  }
+  getMe() {
+    return request<Awaited<ReturnType<ApiClient['getMe']>>>('/api/auth/me');
+  }
+  listUsers() {
+    return request<Awaited<ReturnType<ApiClient['listUsers']>>>('/api/auth/users');
+  }
+  createUser(input: Parameters<ApiClient['createUser']>[0]) {
+    return request<Awaited<ReturnType<ApiClient['createUser']>>>('/api/auth/users', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+  toggleUser(userId: number, active: boolean) {
+    return request<Awaited<ReturnType<ApiClient['toggleUser']>>>(`/api/auth/users/${userId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ active }),
     });
   }
 
@@ -332,13 +357,37 @@ export class HttpApiClient implements ApiClient {
   createBackup() {
     return request<Awaited<ReturnType<ApiClient['createBackup']>>>('/api/backups', { method: 'POST' });
   }
+  createEncryptedBackup(passphrase: string) {
+    return request<Awaited<ReturnType<ApiClient['createEncryptedBackup']>>>('/api/backups/encrypted', {
+      method: 'POST',
+      body: JSON.stringify({ passphrase }),
+    });
+  }
   verifyBackup(name: string) {
     return request<Awaited<ReturnType<ApiClient['verifyBackup']>>>(`/api/backups/${encodeURIComponent(name)}/verify`);
+  }
+  verifyEncryptedBackup(name: string, passphrase: string) {
+    return request<Awaited<ReturnType<ApiClient['verifyEncryptedBackup']>>>(
+      `/api/backups/${encodeURIComponent(name)}/verify-encrypted`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ passphrase }),
+      }
+    );
   }
   restoreBackup(name: string) {
     return request<Awaited<ReturnType<ApiClient['restoreBackup']>>>(`/api/backups/${encodeURIComponent(name)}/restore`, {
       method: 'POST',
     });
+  }
+  restoreEncryptedBackup(name: string, passphrase: string) {
+    return request<Awaited<ReturnType<ApiClient['restoreEncryptedBackup']>>>(
+      `/api/backups/${encodeURIComponent(name)}/restore-encrypted`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ passphrase }),
+      }
+    );
   }
   downloadBackup(name: string) {
     return requestBytes(`/api/backups/${encodeURIComponent(name)}/download`);

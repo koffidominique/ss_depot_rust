@@ -3229,4 +3229,184 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       apiClient.restoreBackup = origRestoreBackup;
     }
   });
+
+  it('Lot 6 — LoginPage multi-utilisateur, BackupsPage chiffrée AES-256 et SettingsPage RBAC', async () => {
+    const origStatus = apiClient.getAuthStatus;
+    const origLogin = apiClient.login;
+    const origListBackups = apiClient.listBackups;
+    const origCreateEnc = apiClient.createEncryptedBackup;
+    const origGetSettings = apiClient.getSettings;
+    const origListUsers = apiClient.listUsers;
+    const origCreateUser = apiClient.createUser;
+
+    const loginCalls = [];
+    apiClient.getAuthStatus = async () => ({
+      needsSetup: false,
+      lockedUntil: null,
+      failedAttempts: 0,
+    });
+    apiClient.login = async (pin, username) => {
+      loginCalls.push({ pin, username });
+      return {
+        token: 'tok-cashier',
+        user: {
+          userId: '2',
+          username: username || 'owner',
+          displayName: 'Mariam Caisse',
+          role: 'cashier',
+          roleLabel: 'Caissier',
+          permissions: ['sales:read', 'sales:write'],
+        },
+      };
+    };
+
+    try {
+      const { unmount } = render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/login'] },
+          React.createElement(LoginPage)
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByLabelText(/Identifiant/i)));
+      fireEvent.change(screen.getByLabelText(/Identifiant/i), { target: { value: 'caissier1' } });
+      for (const d of '112233') {
+        fireEvent.click(screen.getByRole('button', { name: d }));
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Déverrouiller' }));
+      await waitFor(() => {
+        assert.deepEqual(loginCalls, [{ pin: '112233', username: 'caissier1' }]);
+        assert.equal(useUiStore.getState().currentUser?.role, 'cashier');
+      });
+      unmount();
+
+      apiClient.listBackups = async () => [
+        {
+          name: 'depotpro_backup_20261117130000_enc001.dpbkp',
+          size: 81920,
+          createdAt: '2026-11-17T13:00:00Z',
+          sha256: '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+          encrypted: true,
+        },
+      ];
+      apiClient.createEncryptedBackup = async (passphrase) => ({
+        name: 'depotpro_backup_20261117130100_enc002.dpbkp',
+        size: 81920,
+        createdAt: '2026-11-17T13:01:00Z',
+        sha256: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+        encrypted: true,
+      });
+
+      const qc = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      const backupsRender = render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/backups'] },
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(BackupsPage))
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByText('AES-256')));
+      fireEvent.click(screen.getByRole('button', { name: /Sauvegarde chiffrée/i }));
+      await waitFor(() => assert.ok(screen.getByLabelText(/Phrase secrète de chiffrement/i)));
+      fireEvent.change(screen.getByLabelText(/Phrase secrète de chiffrement/i), {
+        target: { value: 'SecretKey2026!' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Chiffrer et sauvegarder/i }));
+      await waitFor(() =>
+        assert.ok(screen.getByText(/Sauvegarde chiffrée AES-256-GCM créée/i))
+      );
+      backupsRender.unmount();
+
+      apiClient.getSettings = async () => ({
+        settings: {
+          company_name: 'DEPOTPRO Test',
+          company_legal_name: null,
+          address: null,
+          phone: null,
+          email: null,
+          city: null,
+          country: null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          setup_completed: 1,
+        },
+        paymentMethods: [],
+      });
+      apiClient.listUsers = async () => [
+        {
+          id: 1,
+          username: 'owner',
+          displayName: 'Propriétaire',
+          role: 'owner',
+          roleLabel: 'Propriétaire',
+          active: true,
+          failedAttempts: 0,
+          lockedUntil: null,
+          createdAt: '2026-11-17T10:00:00Z',
+        },
+      ];
+      const createdUsers = [];
+      apiClient.createUser = async (payload) => {
+        createdUsers.push(payload);
+        return {
+          id: 2,
+          username: payload.username,
+          displayName: payload.displayName,
+          role: payload.role,
+          roleLabel: 'Caissier',
+          active: true,
+          failedAttempts: 0,
+          lockedUntil: null,
+          createdAt: '2026-11-17T10:05:00Z',
+        };
+      };
+
+      const qc2 = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      const settingsRender = render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/settings'] },
+          React.createElement(QueryClientProvider, { client: qc2 }, React.createElement(SettingsPage))
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByText(/Opérateurs & Rôles \(RBAC\)/i)));
+      fireEvent.change(screen.getByPlaceholderText(/Identifiant/i), { target: { value: 'caisse_ui' } });
+      fireEvent.change(screen.getByPlaceholderText(/Nom affiché/i), { target: { value: 'Caisse UI' } });
+      fireEvent.change(screen.getByPlaceholderText(/PIN 6 chiffres/i), { target: { value: '445566' } });
+      fireEvent.click(screen.getByRole('button', { name: /Ajouter un compte opérateur/i }));
+      await waitFor(() => {
+        assert.equal(createdUsers.length, 1);
+        assert.equal(createdUsers[0].username, 'caisse_ui');
+      });
+      settingsRender.unmount();
+      qc.clear();
+      qc2.clear();
+    } finally {
+      useUiStore.getState().setToken(null);
+      apiClient.getAuthStatus = origStatus;
+      apiClient.login = origLogin;
+      apiClient.listBackups = origListBackups;
+      apiClient.createEncryptedBackup = origCreateEnc;
+      apiClient.getSettings = origGetSettings;
+      apiClient.listUsers = origListUsers;
+      apiClient.createUser = origCreateUser;
+    }
+  });
 });

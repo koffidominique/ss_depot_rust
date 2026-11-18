@@ -60,6 +60,7 @@ describe('LOT 4 — Migrations versionnées, initialisation neutre et parité No
         [2, '0002_app_settings_logo_path'],
         [3, '0003_expense_receipt_path'],
         [4, '0004_onboarding_setup_state'],
+        [5, '0005_security_roles_users'],
       ]
     );
 
@@ -103,7 +104,7 @@ describe('LOT 4 — Migrations versionnées, initialisation neutre et parité No
     try {
       configurePragmas(db);
       const firstRun = applyMigrations(db);
-      assert.deepEqual(firstRun.appliedVersions, [1, 2, 3, 4]);
+      assert.deepEqual(firstRun.appliedVersions, [1, 2, 3, 4, 5]);
       ensureNeutralDefaults(db);
 
       db.prepare(
@@ -112,13 +113,13 @@ describe('LOT 4 — Migrations versionnées, initialisation neutre et parité No
 
       const replay = applyMigrations(db);
       assert.deepEqual(replay.appliedVersions, []);
-      assert.equal(replay.latestVersion, 4);
+      assert.equal(replay.latestVersion, 5);
       ensureNeutralDefaults(db);
 
       const supCount = db.prepare('SELECT COUNT(*) AS c FROM suppliers').get().c;
       assert.equal(supCount, 1);
       const svCount = db.prepare('SELECT COUNT(*) AS c FROM schema_version').get().c;
-      assert.equal(svCount, 4);
+      assert.equal(svCount, 5);
     } finally {
       db.close();
     }
@@ -142,7 +143,7 @@ describe('LOT 4 — Migrations versionnées, initialisation neutre et parité No
       ).run();
 
       const run = applyMigrations(db);
-      assert.deepEqual(run.appliedVersions, [2, 3, 4]);
+      assert.deepEqual(run.appliedVersions, [2, 3, 4, 5]);
       assert.deepEqual(run.skippedLegacyColumnsFor, [2, 3]);
 
       const settings = db.prepare('SELECT company_name, logo_path, setup_completed FROM app_settings WHERE id = 1').get();
@@ -174,7 +175,7 @@ describe('LOT 4 — Migrations versionnées, initialisation neutre et parité No
       ).run();
 
       const run = applyMigrations(db);
-      assert.deepEqual(run.appliedVersions, [2, 3, 4]);
+      assert.deepEqual(run.appliedVersions, [2, 3, 4, 5]);
       assert.deepEqual(run.skippedLegacyColumnsFor, []);
 
       const settings = db.prepare('SELECT company_name, phone, logo_path, setup_completed FROM app_settings WHERE id = 1').get();
@@ -188,7 +189,7 @@ describe('LOT 4 — Migrations versionnées, initialisation neutre et parité No
       assert.equal(exp.receipt_path, null);
 
       const expected = JSON.parse(
-        fs.readFileSync(path.resolve('migrations/sqlite/expected_schema_v4.json'), 'utf8')
+        fs.readFileSync(path.resolve('migrations/sqlite/expected_schema_v5.json'), 'utf8')
       );
       assert.deepEqual(
         normalizeSchemaByColumnName(extractSchemaSnapshot(db)),
@@ -235,11 +236,11 @@ describe('LOT 4 — Migrations versionnées, initialisation neutre et parité No
       const sv99 = db.prepare('SELECT COUNT(*) AS c FROM schema_version WHERE version = 99').get().c;
       assert.equal(sv99, 0);
 
-      // Les migrations 1..4 déjà commitées sont intactes
-      assert.equal(db.prepare('SELECT MAX(version) AS v FROM schema_version').get().v, 4);
+      // Les migrations 1..5 déjà commitées sont intactes
+      assert.equal(db.prepare('SELECT MAX(version) AS v FROM schema_version').get().v, 5);
 
       // Cas partiel : base avec seulement logo_path déjà posée manuellement sans entrée v2,
-      // et sans receipt_path ni setup_completed -> reprise propre vers v4
+      // et sans receipt_path ni setup_completed -> reprise propre vers v5
       const partialPath = path.join(testDir, 'partial_legacy.db');
       const partialDb = new DatabaseSync(partialPath);
       try {
@@ -249,7 +250,7 @@ describe('LOT 4 — Migrations versionnées, initialisation neutre et parité No
         partialDb.prepare("INSERT INTO schema_version (version, name) VALUES (1, '0001_initial_v3')").run();
 
         const recovery = applyMigrations(partialDb);
-        assert.deepEqual(recovery.appliedVersions, [2, 3, 4]);
+        assert.deepEqual(recovery.appliedVersions, [2, 3, 4, 5]);
         assert.deepEqual(recovery.skippedLegacyColumnsFor, [2]);
         assert.equal(verifyDbIntegrity(partialDb).integrity, 'ok');
       } finally {
@@ -268,7 +269,7 @@ describe('LOT 4 — Migrations versionnées, initialisation neutre et parité No
       applyMigrations(db);
       const snapshot = extractSchemaSnapshot(db);
       const expected = JSON.parse(
-        fs.readFileSync(path.resolve('migrations/sqlite/expected_schema_v4.json'), 'utf8')
+        fs.readFileSync(path.resolve('migrations/sqlite/expected_schema_v5.json'), 'utf8')
       );
       assert.deepEqual(snapshot, expected);
 

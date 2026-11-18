@@ -1,4 +1,5 @@
 import { getDb, withWriteTx, nextSequence, requireOpenSession, getTheoreticalCash, auditLog } from '../db.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 import {
   BusinessError,
   checkedAddMilli,
@@ -12,6 +13,7 @@ import {
 } from '../domain.ts';
 
 export function listSuppliers(search?: string) {
+  requireCurrentActorPermission('purchases:read');
   const db = getDb();
   const q = search?.trim() ? `%${search.trim()}%` : null;
   const where = q ? 'WHERE (s.name LIKE ? OR s.code LIKE ? OR s.phone LIKE ?)' : '';
@@ -37,6 +39,7 @@ export async function createSupplier(input: {
   contact_person?: string;
   payment_terms_days?: number;
 }) {
+  requireCurrentActorPermission('purchases:write');
   const name = (input.name || '').trim();
   const phone = (input.phone || '').trim();
   if (!name || !phone) throw new BusinessError('VALIDATION_ERROR', 'Nom et téléphone fournisseur obligatoires.');
@@ -91,6 +94,7 @@ export async function updateSupplier(
   if (!Number.isInteger(supplierId) || supplierId <= 0) {
     throw new BusinessError('SUPPLIER_NOT_FOUND', 'Fournisseur invalide.', 400);
   }
+  requireCurrentActorPermission('purchases:write');
   return withWriteTx((db) => {
     const existing = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplierId) as
       | {
@@ -147,6 +151,7 @@ export async function updateSupplier(
 }
 
 export function listPurchaseOrders() {
+  requireCurrentActorPermission('purchases:read');
   const db = getDb();
   const orders = db
     .prepare(
@@ -186,6 +191,7 @@ export async function createPurchaseOrder(input: {
   }>;
 }) {
   if (!input.request_key?.trim()) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
+  requireCurrentActorPermission('purchases:write');
   if (!input.lines?.length) throw new BusinessError('VALIDATION_ERROR', 'Ajoutez au moins une ligne de commande.');
 
   return withWriteTx((db) => {
@@ -286,6 +292,7 @@ export async function receivePurchaseOrder(
     }>;
   }
 ) {
+  requireCurrentActorPermission('purchases:write');
   if (!Number.isInteger(purchaseOrderId) || purchaseOrderId <= 0) {
     throw new BusinessError('PURCHASE_NOT_FOUND', 'Bon de commande invalide.', 400);
   }
@@ -515,6 +522,7 @@ export async function cancelPurchaseOrder(
   purchaseOrderId: number,
   input: { reason?: string }
 ) {
+  requireCurrentActorPermission('purchases:write');
   if (!Number.isInteger(purchaseOrderId) || purchaseOrderId <= 0) {
     throw new BusinessError('PURCHASE_NOT_FOUND', 'Bon de commande invalide.', 400);
   }
@@ -563,6 +571,7 @@ export async function paySupplierDebt(
   debtId: number,
   input: { method_code: string; amount: number; request_key: string; note?: string }
 ) {
+  requireCurrentActorPermission('supplier_debts:pay');
   const amount = positiveFcfa(input.amount, 'Montant règlement fournisseur');
   return withWriteTx((db) => {
     const dup = db.prepare('SELECT * FROM payments WHERE request_key = ?').get(input.request_key);
@@ -635,6 +644,7 @@ export async function paySupplierDebt(
 }
 
 export function listSupplierDebts() {
+  requireCurrentActorPermission('purchases:read');
   const db = getDb();
   return db
     .prepare(

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::collections::HashSet;
 
+use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::products::deserialize_nullable_opt;
 use crate::application::sales::{audit_log_tx, get_theoretical_cash_tx, require_open_session_tx};
 use crate::domain::money::Money;
@@ -170,6 +171,7 @@ pub struct PaySupplierDebtInput {
 }
 
 pub async fn list_suppliers(db: &DepotDb, search: Option<&str>) -> CoreResult<Vec<SupplierSummaryDto>> {
+    require_current_actor_permission(Permission::PurchasesRead)?;
     let q = search.map(str::trim).filter(|s| !s.is_empty());
     let rows = match q {
         Some(s) => {
@@ -204,6 +206,7 @@ pub async fn list_suppliers(db: &DepotDb, search: Option<&str>) -> CoreResult<Ve
 }
 
 pub async fn create_supplier(db: &DepotDb, input: CreateSupplierInput) -> CoreResult<SupplierSummaryDto> {
+    require_current_actor_permission(Permission::PurchasesWrite)?;
     let name = input.name.trim().to_string();
     let phone = input.phone.trim().to_string();
     if name.is_empty() || phone.is_empty() {
@@ -247,6 +250,7 @@ pub async fn update_supplier(
     supplier_id: i64,
     input: UpdateSupplierInput,
 ) -> CoreResult<SupplierSummaryDto> {
+    require_current_actor_permission(Permission::PurchasesWrite)?;
     type ExistingSupplierRow = (
         String,
         String,
@@ -350,6 +354,7 @@ pub async fn update_supplier(
 }
 
 pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderDto>> {
+    require_current_actor_permission(Permission::PurchasesRead)?;
     let rows = sqlx::query_as::<_, PurchaseOrderRow>(
         "SELECT po.id, po.reference, po.supplier_id, s.name AS supplier_name, s.code AS supplier_code,
                 po.status, po.total_amount, po.received_amount, po.expected_date, po.notes, po.created_at
@@ -403,6 +408,7 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
 }
 
 pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput) -> CoreResult<PurchaseOrderDto> {
+    require_current_actor_permission(Permission::PurchasesWrite)?;
     if input.request_key.trim().is_empty() {
         return Err(CoreError::Validation("Clé d'idempotence requise.".to_string()));
     }
@@ -534,6 +540,7 @@ pub async fn receive_purchase_order(
     purchase_order_id: i64,
     input: ReceivePurchaseOrderInput,
 ) -> CoreResult<PurchaseReceiptDto> {
+    require_current_actor_permission(Permission::PurchasesWrite)?;
     if purchase_order_id <= 0 {
         return Err(CoreError::Validation(
             "Identifiant de bon de commande invalide.".to_string(),
@@ -823,6 +830,7 @@ pub async fn cancel_purchase_order(
     purchase_order_id: i64,
     input: CancelPurchaseOrderInput,
 ) -> CoreResult<PurchaseOrderDto> {
+    require_current_actor_permission(Permission::PurchasesWrite)?;
     if purchase_order_id <= 0 {
         return Err(CoreError::Validation("Bon de commande invalide.".to_string()));
     }
@@ -888,6 +896,7 @@ pub async fn cancel_purchase_order(
 }
 
 pub async fn list_supplier_debts(db: &DepotDb) -> CoreResult<Vec<SupplierDebtDto>> {
+    require_current_actor_permission(Permission::PurchasesRead)?;
     let rows = sqlx::query_as::<_, SupplierDebtDto>(
         "SELECT sd.id, sd.receipt_id, sd.supplier_id, s.name AS supplier_name, s.code AS supplier_code,
                 pr.reference AS receipt_reference, po.reference AS order_reference,
@@ -908,6 +917,7 @@ pub async fn pay_supplier_debt(
     debt_id: i64,
     input: PaySupplierDebtInput,
 ) -> CoreResult<()> {
+    require_current_actor_permission(Permission::SupplierDebtsPay)?;
     let amount = Money::from_positive(input.amount, "Montant règlement fournisseur")?;
     let (_guard, mut tx) = db.begin_write().await?;
 

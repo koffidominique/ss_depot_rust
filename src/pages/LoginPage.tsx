@@ -9,6 +9,7 @@ import { useUiStore } from '../stores/uiStore.ts';
 export function LoginPage() {
   const navigate = useNavigate();
   const setToken = useUiStore((s) => s.setToken);
+  const setCurrentUser = useUiStore((s) => s.setCurrentUser);
   const theme = useUiStore((s) => s.theme);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
 
@@ -16,6 +17,7 @@ export function LoginPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusReloadTick, setStatusReloadTick] = useState(0);
   const [remainingLockSeconds, setRemainingLockSeconds] = useState(0);
+  const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [setupStep, setSetupStep] = useState<'enter' | 'confirm'>('enter');
@@ -31,6 +33,7 @@ export function LoginPage() {
         if (s.authenticated === true) {
           const currentToken = useUiStore.getState().token;
           setToken(currentToken || 'cookie-session');
+          if (s.user) setCurrentUser(s.user);
           navigate('/', { replace: true });
           return;
         }
@@ -54,7 +57,7 @@ export function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [navigate, setToken, statusReloadTick]);
+  }, [navigate, setCurrentUser, setToken, statusReloadTick]);
 
   useEffect(() => {
     if (remainingLockSeconds <= 0) return;
@@ -111,6 +114,7 @@ export function LoginPage() {
       try {
         const res = await apiClient.setupPin(pin);
         setToken(res.token);
+        if (res.user) setCurrentUser(res.user);
         navigate('/', { replace: true });
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Erreur lors de la configuration.');
@@ -127,8 +131,12 @@ export function LoginPage() {
 
     setLoading(true);
     try {
-      const res = await apiClient.login(pin);
+      const cleanUser = username.trim();
+      const res = cleanUser
+        ? await apiClient.login(pin, cleanUser)
+        : await apiClient.login(pin);
       setToken(res.token);
+      if (res.user) setCurrentUser(res.user);
       navigate('/', { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.code === 'PIN_NOT_CONFIGURED') {
@@ -147,7 +155,7 @@ export function LoginPage() {
     } finally {
       setLoading(false);
     }
-  }, [confirmPin, loading, navigate, needsSetup, pin, setToken, setupStep]);
+  }, [confirmPin, loading, navigate, needsSetup, pin, setCurrentUser, setToken, setupStep, username]);
 
   const handlersRef = useRef({ handleDigit, handleBackspace, handleSubmit });
   useEffect(() => {
@@ -157,6 +165,13 @@ export function LoginPage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
       if (
         e.target instanceof HTMLButtonElement &&
         e.target.getAttribute('aria-label') === 'Changer de thème'
@@ -222,6 +237,23 @@ export function LoginPage() {
               : 'Saisissez votre code PIN à 6 chiffres pour déverrouiller la gestion du dépôt.'}
           </p>
         </div>
+
+        {needsSetup === false && (
+          <div className="mt-4">
+            <label htmlFor="login-username" className="block text-[11px] font-medium text-[#667085] dark:text-slate-400">
+              Identifiant (optionnel — propriétaire par défaut)
+            </label>
+            <input
+              id="login-username"
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="owner, caissier, magasinier..."
+              className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 px-3 py-2 text-xs text-[#182230] dark:text-slate-100 placeholder:text-slate-400"
+            />
+          </div>
+        )}
 
         {/* 6 indicateurs PIN */}
         <div className="mt-6 flex justify-center gap-3" aria-label="Indicateur de code PIN">

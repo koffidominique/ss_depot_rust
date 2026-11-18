@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::products::{deserialize_nullable_opt, sanitize_image_path};
 use crate::application::sales::audit_log_tx;
 use crate::error::{CoreError, CoreResult};
@@ -63,6 +64,9 @@ pub struct RecentAuditDto {
     pub action: String,
     pub entity_type: String,
     pub details: String,
+    pub actor_user_id: Option<String>,
+    pub actor_name: Option<String>,
+    pub actor_role: Option<String>,
     pub created_at: String,
 }
 
@@ -192,6 +196,7 @@ pub struct UpdateSettingsInput {
 }
 
 pub async fn get_dashboard_kpis(db: &DepotDb) -> CoreResult<DashboardKpisDto> {
+    require_current_actor_permission(Permission::CatalogRead)?;
     let (sales_count, revenue_merchandise, deposits_total): (i64, i64, i64) = sqlx::query_as(
         "SELECT COUNT(*), COALESCE(SUM(total_merchandise), 0), COALESCE(SUM(total_deposit), 0)
          FROM sales WHERE status != 'cancelled'",
@@ -341,7 +346,7 @@ pub async fn get_dashboard_data(db: &DepotDb) -> CoreResult<DashboardDataDto> {
     .await?;
 
     let recent_audit = sqlx::query_as::<_, RecentAuditDto>(
-        "SELECT id, action, entity_type, details, created_at
+        "SELECT id, action, entity_type, details, actor_user_id, actor_name, actor_role, created_at
          FROM audit_logs ORDER BY id DESC LIMIT 8",
     )
     .fetch_all(&db.pool)
@@ -361,6 +366,7 @@ pub async fn get_reports_overview(
     from_date: Option<&str>,
     to_date: Option<&str>,
 ) -> CoreResult<ReportsOverviewDto> {
+    require_current_actor_permission(Permission::ReportsRead)?;
     let from = from_date.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("");
     let to = to_date
         .map(str::trim)
@@ -514,6 +520,7 @@ pub async fn get_reports_overview(
 }
 
 pub async fn get_settings(db: &DepotDb) -> CoreResult<AppSettingsDto> {
+    require_current_actor_permission(Permission::SettingsRead)?;
     let row = sqlx::query_as::<_, AppSettingsDto>(
         "SELECT company_name, company_legal_name, address, phone, email, city, country, currency,
                 allow_negative_stock, invoice_prefix, sale_prefix, purchase_prefix, order_prefix,
@@ -542,6 +549,7 @@ pub async fn update_settings(
     db: &DepotDb,
     input: UpdateSettingsInput,
 ) -> CoreResult<SettingsBundleDto> {
+    require_current_actor_permission(Permission::SettingsWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
     let cur = get_settings(db).await?;
 
@@ -637,6 +645,7 @@ pub async fn update_settings(
 }
 
 pub async fn add_payment_method(db: &DepotDb, label: &str) -> CoreResult<PaymentMethodDto> {
+    require_current_actor_permission(Permission::SettingsWrite)?;
     let clean = label.trim();
     if clean.is_empty() {
         return Err(CoreError::Validation(
@@ -684,6 +693,7 @@ pub async fn toggle_payment_method(
     code: &str,
     active: bool,
 ) -> CoreResult<PaymentMethodDto> {
+    require_current_actor_permission(Permission::SettingsWrite)?;
     if code == "cash" && !active {
         return Err(CoreError::Validation(
             "Le moyen Espèces (cash) ne peut jamais être désactivé.".to_string(),

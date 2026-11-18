@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::sales::{audit_log_tx, get_theoretical_cash_tx, require_open_session_tx};
 use crate::domain::money::Money;
 use crate::error::{CoreError, CoreResult};
@@ -121,6 +122,7 @@ pub struct ReturnClientEmptiesInput {
 }
 
 pub async fn get_overview(db: &DepotDb) -> CoreResult<ConsignmentsOverviewDto> {
+    require_current_actor_permission(Permission::ConsignmentsRead)?;
     let types = sqlx::query_as::<_, ReturnableTypeDto>(
         "SELECT rpt.id, rpt.code, rpt.name, rpt.producer, rpt.kind, rpt.description, rpt.deposit_value,
                 COALESCE(rsb.quantity, 0) AS stock_quantity
@@ -195,6 +197,7 @@ pub async fn create_returnable_type(
     db: &DepotDb,
     input: CreateReturnableTypeInput,
 ) -> CoreResult<ReturnableTypeDto> {
+    require_current_actor_permission(Permission::ConsignmentsWrite)?;
     let code = input.code.trim().to_uppercase();
     let name = input.name.trim().to_string();
     let producer = input.producer.trim().to_string();
@@ -290,6 +293,7 @@ pub async fn adjust_returnable_stock(
     db: &DepotDb,
     input: AdjustReturnableStockInput,
 ) -> CoreResult<()> {
+    require_current_actor_permission(Permission::ConsignmentsWrite)?;
     if input.quantity <= 0 {
         return Err(CoreError::Validation(
             "La quantité doit être un entier strictement positif.".to_string(),
@@ -383,6 +387,7 @@ pub async fn return_client_empties(
     db: &DepotDb,
     input: ReturnClientEmptiesInput,
 ) -> CoreResult<String> {
+    require_current_actor_permission(Permission::ConsignmentsWrite)?;
     if input.pieces <= 0 {
         return Err(CoreError::Validation("Nombre de pièces retournées invalide.".to_string()));
     }

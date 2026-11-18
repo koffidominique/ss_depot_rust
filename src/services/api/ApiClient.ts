@@ -18,8 +18,11 @@ import type {
   ReportsOverview,
   SaleDetail,
   SaleSummary,
+  SessionUser,
   Supplier,
   SupplierDebt,
+  UserAccount,
+  UserRole,
 } from '../../types/erp.ts';
 
 export class ApiError extends Error {
@@ -55,10 +58,19 @@ export interface ReceivePurchaseOrderPayload {
 export interface ApiClient {
   // Auth
   getAuthStatus(): Promise<AuthStatus>;
-  setupPin(pin: string): Promise<{ token: string }>;
-  login(pin: string): Promise<{ token: string }>;
+  setupPin(pin: string): Promise<{ token: string; user?: SessionUser }>;
+  login(pin: string, username?: string): Promise<{ token: string; user?: SessionUser }>;
   lock(): Promise<void>;
   changePin(currentPin: string, newPin: string): Promise<void>;
+  getMe(): Promise<{ user: SessionUser }>;
+  listUsers(): Promise<UserAccount[]>;
+  createUser(input: {
+    username: string;
+    displayName: string;
+    role: UserRole;
+    pin: string;
+  }): Promise<UserAccount>;
+  toggleUser(userId: number, active: boolean): Promise<UserAccount>;
 
   // Dashboard
   getDashboard(): Promise<DashboardData>;
@@ -181,8 +193,11 @@ export interface ApiClient {
   togglePaymentMethod(code: string, active: boolean): Promise<PaymentMethodConfig>;
   listBackups(): Promise<BackupFile[]>;
   createBackup(): Promise<BackupFile>;
+  createEncryptedBackup(passphrase: string): Promise<BackupFile>;
   verifyBackup(name: string): Promise<BackupVerifyResult>;
+  verifyEncryptedBackup(name: string, passphrase: string): Promise<BackupVerifyResult>;
   restoreBackup(name: string): Promise<BackupRestoreResult>;
+  restoreEncryptedBackup(name: string, passphrase: string): Promise<BackupRestoreResult>;
   downloadBackup(name: string): Promise<Uint8Array>;
   generateDocumentPdf(doc: Record<string, unknown>): Promise<Uint8Array>;
 }

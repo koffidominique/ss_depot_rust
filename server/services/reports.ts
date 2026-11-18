@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   BACKUP_DIR,
@@ -17,8 +18,10 @@ import {
 } from '../db.ts';
 import { BusinessError } from '../domain.ts';
 import { sanitizeImagePath } from './catalog.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 
 export function getDashboardData() {
+  requireCurrentActorPermission('catalog:read');
   const db = getDb();
 
   const salesAgg = db
@@ -171,6 +174,7 @@ export function getDashboardData() {
 }
 
 export function getReportsOverview(fromDate?: string, toDate?: string) {
+  requireCurrentActorPermission('reports:read');
   const db = getDb();
   const clauses = ["s.status != 'cancelled'"];
   const params: string[] = [];
@@ -329,6 +333,7 @@ export function getReportsOverview(fromDate?: string, toDate?: string) {
 }
 
 export function getSettings() {
+  requireCurrentActorPermission('settings:read');
   const db = getDb();
   const settings = db.prepare('SELECT * FROM app_settings WHERE id = 1').get();
   const paymentMethods = db.prepare('SELECT * FROM payment_methods ORDER BY is_cash DESC, label ASC').all();
@@ -354,6 +359,7 @@ export async function updateSettings(input: {
   logo_path?: string | null;
   setup_completed?: boolean | number;
 }) {
+  requireCurrentActorPermission('settings:write');
   return withWriteTx((db) => {
     const cur = db.prepare('SELECT * FROM app_settings WHERE id = 1').get() as Record<string, string | number | null>;
     const nextLogoPath =
@@ -406,6 +412,7 @@ export async function updateSettings(input: {
 }
 
 export async function addPaymentMethod(label: string) {
+  requireCurrentActorPermission('settings:write');
   const clean = (label || '').trim();
   if (!clean) throw new BusinessError('VALIDATION_ERROR', 'Le libellé du moyen de paiement est requis.');
   const baseSlug = clean
@@ -426,6 +433,7 @@ export async function addPaymentMethod(label: string) {
 }
 
 export async function togglePaymentMethod(code: string, active: boolean) {
+  requireCurrentActorPermission('settings:write');
   if (code === 'cash' && !active) {
     throw new BusinessError('VALIDATION_ERROR', 'Le moyen Espèces (cash) ne peut jamais être désactivé.');
   }
@@ -440,7 +448,11 @@ const MAX_RETAINED_BACKUPS = 30;
 export const BACKUP_FORMAT_V3 = 'sqlite3-depotpro-v3';
 export const MIN_APP_VERSION = '3.0.0';
 const SQLITE_HEADER_MAGIC = Buffer.from('SQLite format 3\0', 'ascii');
-const BACKUP_FILENAME_RE = /^depotpro_backup_\d{14}_[a-zA-Z0-9_-]{1,32}\.db$/;
+const ENCRYPTED_BACKUP_MAGIC = Buffer.from('DPBKP01\0', 'ascii');
+const ENCRYPTED_BACKUP_VERSION = 1;
+const ENCRYPTED_PBKDF2_ITERATIONS = 100_000;
+const MIN_BACKUP_PASSPHRASE_LEN = 8;
+const BACKUP_FILENAME_RE = /^depotpro_backup_\d{14}_[a-zA-Z0-9_-]{1,32}\.(db|dpbkp)$/;
 
 export const REQUIRED_CORE_TABLES = [
   'schema_version',
@@ -611,6 +623,13 @@ function validateSqliteArchiveHeader(filePath: string): void {
   try {
     const header = Buffer.alloc(16);
     const bytesRead = fs.readSync(fd, header, 0, 16, 0);
+    if (bytesRead >= 8 && header.subarray(0, 8).equals(ENCRYPTED_BACKUP_MAGIC)) {
+      throw new BusinessError(
+        'BACKUP_ERROR',
+        'Archive chiffrée (.dpbkp) : fournissez la clé de déchiffrement.',
+        400
+      );
+    }
     if (bytesRead < 16 || !header.equals(SQLITE_HEADER_MAGIC)) {
       throw new BusinessError(
         'BACKUP_ERROR',
@@ -752,6 +771,12 @@ export function verifyBackupPathReadOnly(filePath: string, displayName: string) 
     ) {
       compatibilityReason =
         'Incohérence de migration v4 : colonne app_settings.setup_completed absente.';
+    } else if (
+      appliedVersions.includes(5) &&
+      (!tableSet.has('users') || !tableHasColumnRo(testDb, 'audit_logs', 'actor_user_id'))
+    ) {
+      compatibilityReason =
+        'Incohérence de migration v5 : table users ou colonne audit_logs.actor_user_id absente.';
     }
 
     const compatible = compatibilityReason === null;
@@ -803,6 +828,11 @@ function pruneOldBackups(keepCount = MAX_RETAINED_BACKUPS) {
 }
 
 export async function createBackup() {
+  requireCurrentActorPermission('backups:create');
+  return createPlainBackupInternal();
+}
+
+async function createPlainBackupInternal() {
   return runSerialized((db) => {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
@@ -852,11 +882,13 @@ export async function createBackup() {
       createdAt: stat.mtime.toISOString(),
       integrity: 'ok',
       sha256: check.sha256,
+      encrypted: false,
     };
   });
 }
 
 export function listBackups() {
+  requireCurrentActorPermission('backups:read');
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   return fs
     .readdirSync(BACKUP_DIR)
@@ -871,23 +903,26 @@ export function listBackups() {
           size: lstat.size,
           createdAt: lstat.mtime.toISOString(),
           sha256: computeFileSha256(fullPath),
+          encrypted: f.endsWith('.dpbkp'),
         };
       } catch {
         return null;
       }
     })
     .filter(
-      (item): item is { name: string; size: number; createdAt: string; sha256: string } =>
+      (item): item is { name: string; size: number; createdAt: string; sha256: string; encrypted: boolean } =>
         item !== null
     )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function readBackupFile(filename: string): { safeName: string; fullPath: string } {
+  requireCurrentActorPermission('backups:read');
   return resolveSafeBackupPath(filename);
 }
 
 export function verifyBackup(filename: string) {
+  requireCurrentActorPermission('backups:read');
   const { safeName, fullPath } = resolveSafeBackupPath(filename);
   return verifyBackupPathReadOnly(fullPath, safeName);
 }
@@ -905,8 +940,18 @@ export async function restoreBackup(
   filename: string,
   options?: { testSimulateFailure?: RestoreFailureHook }
 ) {
+  requireCurrentActorPermission('backups:restore');
   // 1. Validation chemin + vérification en lecture seule de la sauvegarde source
   const { safeName, fullPath: srcPath } = resolveSafeBackupPath(filename);
+  return restoreFromPlainPath(srcPath, safeName, options);
+}
+
+async function restoreFromPlainPath(
+  srcPath: string,
+  displayName: string,
+  options?: { testSimulateFailure?: RestoreFailureHook }
+) {
+  const safeName = displayName;
   const check = verifyBackupPathReadOnly(srcPath, safeName);
   if (!check.compatible || check.integrity !== 'ok' || check.foreignKeyErrors > 0) {
     throw new BusinessError(
@@ -917,7 +962,7 @@ export async function restoreBackup(
   }
 
   // 2. Sauvegarde de sécurité de la base courante + 3. Vérification en lecture seule
-  const safetyBackup = await createBackup();
+  const safetyBackup = await createPlainBackupInternal();
   const { fullPath: safetyPath } = resolveSafeBackupPath(safetyBackup.name);
   const safetyCheck = verifyBackupPathReadOnly(safetyPath, safetyBackup.name);
   if (!safetyCheck.compatible || safetyCheck.integrity !== 'ok' || safetyCheck.foreignKeyErrors > 0) {
@@ -1101,4 +1146,232 @@ export async function restoreBackup(
       throw err;
     }
   });
+}
+
+function validateBackupPassphrase(passphrase: string): void {
+  if (typeof passphrase !== 'string' || passphrase.length < MIN_BACKUP_PASSPHRASE_LEN) {
+    throw new BusinessError(
+      'VALIDATION_ERROR',
+      `La clé de chiffrement doit contenir au moins ${MIN_BACKUP_PASSPHRASE_LEN} caractères.`
+    );
+  }
+}
+
+export function encryptBackupBuffer(plaintext: Buffer, passphrase: string): Buffer {
+  validateBackupPassphrase(passphrase);
+  const salt = crypto.randomBytes(16);
+  const nonce = crypto.randomBytes(12);
+  const key = crypto.pbkdf2Sync(passphrase, salt, ENCRYPTED_PBKDF2_ITERATIONS, 32, 'sha256');
+  const plaintextSha256 = crypto.createHash('sha256').update(plaintext).digest('hex');
+
+  const headerObj = {
+    v: ENCRYPTED_BACKUP_VERSION,
+    cipher: 'aes-256-gcm',
+    kdf: 'pbkdf2-hmac-sha256',
+    iterations: ENCRYPTED_PBKDF2_ITERATIONS,
+    saltB64: salt.toString('base64'),
+    nonceB64: nonce.toString('base64'),
+    plaintextSha256,
+  };
+  const headerBuf = Buffer.from(JSON.stringify(headerObj), 'utf8');
+  const verBuf = Buffer.allocUnsafe(2);
+  verBuf.writeUInt16LE(ENCRYPTED_BACKUP_VERSION, 0);
+  const lenBuf = Buffer.allocUnsafe(4);
+  lenBuf.writeUInt32LE(headerBuf.length, 0);
+
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, nonce);
+  cipher.setAAD(headerBuf);
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return Buffer.concat([ENCRYPTED_BACKUP_MAGIC, verBuf, lenBuf, headerBuf, ciphertext, tag]);
+}
+
+export function decryptBackupBuffer(
+  blob: Buffer,
+  passphrase: string
+): { plaintext: Buffer; plaintextSha256: string } {
+  validateBackupPassphrase(passphrase);
+  if (blob.length < 14 + 16 || !blob.subarray(0, 8).equals(ENCRYPTED_BACKUP_MAGIC)) {
+    throw new BusinessError(
+      'BACKUP_ERROR',
+      'Enveloppe de sauvegarde chiffrée invalide (magique DPBKP01 absent).',
+      400
+    );
+  }
+  const ver = blob.readUInt16LE(8);
+  if (ver !== ENCRYPTED_BACKUP_VERSION) {
+    throw new BusinessError('BACKUP_ERROR', `Version d'enveloppe chiffrée non supportée : ${ver}.`, 400);
+  }
+  const headerLen = blob.readUInt32LE(10);
+  if (headerLen === 0 || 14 + headerLen + 16 > blob.length) {
+    throw new BusinessError('BACKUP_ERROR', "En-tête d'enveloppe chiffrée corrompu ou tronqué.", 400);
+  }
+  const headerBuf = blob.subarray(14, 14 + headerLen);
+  const ciphertextAndTag = blob.subarray(14 + headerLen);
+  if (ciphertextAndTag.length < 16) {
+    throw new BusinessError('BACKUP_ERROR', 'Charge utile chiffrée tronquée.', 400);
+  }
+  const ciphertext = ciphertextAndTag.subarray(0, ciphertextAndTag.length - 16);
+  const tag = ciphertextAndTag.subarray(ciphertextAndTag.length - 16);
+
+  let header: {
+    v: number;
+    cipher: string;
+    kdf: string;
+    iterations: number;
+    saltB64: string;
+    nonceB64: string;
+    plaintextSha256: string;
+  };
+  try {
+    header = JSON.parse(headerBuf.toString('utf8'));
+  } catch {
+    throw new BusinessError('BACKUP_ERROR', 'Métadonnées de sauvegarde chiffrée invalides.', 400);
+  }
+
+  if (
+    header.cipher !== 'aes-256-gcm' ||
+    header.kdf !== 'pbkdf2-hmac-sha256' ||
+    !Number.isInteger(header.iterations) ||
+    header.iterations < 10_000
+  ) {
+    throw new BusinessError('BACKUP_ERROR', 'Algorithme de chiffrement non supporté.', 400);
+  }
+
+  const salt = Buffer.from(header.saltB64 || '', 'base64');
+  const nonce = Buffer.from(header.nonceB64 || '', 'base64');
+  if (nonce.length !== 12 || salt.length < 8) {
+    throw new BusinessError('BACKUP_ERROR', 'Paramètres cryptographiques invalides.', 400);
+  }
+
+  const key = crypto.pbkdf2Sync(passphrase, salt, header.iterations, 32, 'sha256');
+  let plaintext: Buffer;
+  try {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
+    decipher.setAAD(headerBuf);
+    decipher.setAuthTag(tag);
+    plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  } catch {
+    throw new BusinessError(
+      'UNAUTHORIZED',
+      'Clé de déchiffrement invalide ou archive chiffrée altérée.',
+      401
+    );
+  }
+
+  const actualSha = crypto.createHash('sha256').update(plaintext).digest('hex');
+  if (actualSha !== header.plaintextSha256) {
+    throw new BusinessError('BACKUP_ERROR', 'Empreinte SHA-256 post-déchiffrement incohérente.', 400);
+  }
+  return { plaintext, plaintextSha256: actualSha };
+}
+
+export async function createEncryptedBackup(passphrase: string) {
+  requireCurrentActorPermission('backups:create');
+  validateBackupPassphrase(passphrase);
+  return runSerialized((db) => {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+    const uid = crypto.randomBytes(3).toString('hex');
+    const encFilename = `depotpro_backup_${ts}_${uid}.dpbkp`;
+    const encDest = path.join(BACKUP_DIR, encFilename);
+    const tempPlain = path.join(BACKUP_DIR, `.depotpro_enc_stage_${crypto.randomBytes(6).toString('hex')}.db`);
+
+    try {
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+      const escapedTemp = tempPlain.replace(/'/g, "''");
+      db.exec(`VACUUM INTO '${escapedTemp}';`);
+      fsyncFileSync(tempPlain);
+
+      const check = verifyBackupPathReadOnly(tempPlain, encFilename);
+      if (!check.compatible || check.integrity !== 'ok' || check.foreignKeyErrors > 0) {
+        throw new BusinessError(
+          'BACKUP_ERROR',
+          check.compatibilityReason || "La sauvegarde a échoué au contrôle d'intégrité."
+        );
+      }
+
+      const plainBytes = fs.readFileSync(tempPlain);
+      const encryptedBlob = encryptBackupBuffer(plainBytes, passphrase);
+      fs.writeFileSync(encDest, encryptedBlob, { mode: 0o600 });
+      fsyncFileSync(encDest);
+      fsyncDirBestEffort(BACKUP_DIR);
+
+      const archiveSha = computeFileSha256(encDest);
+      auditLog(
+        db,
+        'CREATE_ENCRYPTED_BACKUP',
+        'backups',
+        encFilename,
+        `Sauvegarde chiffrée AES-256-GCM créée : ${encFilename} (sha256=${archiveSha.slice(0, 12)})`
+      );
+      pruneOldBackups();
+      const stat = fs.statSync(encDest);
+      return {
+        name: encFilename,
+        size: stat.size,
+        createdAt: stat.mtime.toISOString(),
+        integrity: 'ok',
+        sha256: archiveSha,
+        encrypted: true,
+      };
+    } finally {
+      if (fs.existsSync(tempPlain)) {
+        try {
+          fs.unlinkSync(tempPlain);
+        } catch {
+          // Ignore
+        }
+      }
+      removeSqliteSidecars(tempPlain);
+    }
+  });
+}
+
+export function verifyEncryptedBackup(filename: string, passphrase: string) {
+  requireCurrentActorPermission('backups:read');
+  const { safeName, fullPath } = resolveSafeBackupPath(filename);
+  const blob = fs.readFileSync(fullPath);
+  const { plaintext } = decryptBackupBuffer(blob, passphrase);
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'depotpro-dec-verify-'));
+  const tempPlain = path.join(tempDir, 'archive.db');
+  try {
+    fs.writeFileSync(tempPlain, plaintext, { mode: 0o600 });
+    return verifyBackupPathReadOnly(tempPlain, safeName);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+export async function restoreEncryptedBackup(
+  filename: string,
+  passphrase: string,
+  options?: { testSimulateFailure?: RestoreFailureHook }
+) {
+  requireCurrentActorPermission('backups:restore');
+  const { safeName, fullPath } = resolveSafeBackupPath(filename);
+  const blob = fs.readFileSync(fullPath);
+  const { plaintext } = decryptBackupBuffer(blob, passphrase);
+
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const tempPlain = path.join(
+    BACKUP_DIR,
+    `.depotpro_restore_dec_${crypto.randomBytes(6).toString('hex')}.db`
+  );
+  try {
+    fs.writeFileSync(tempPlain, plaintext, { mode: 0o600 });
+    fsyncFileSync(tempPlain);
+    return await restoreFromPlainPath(tempPlain, safeName, options);
+  } finally {
+    if (fs.existsSync(tempPlain)) {
+      try {
+        fs.unlinkSync(tempPlain);
+      } catch {
+        // Ignore
+      }
+    }
+    removeSqliteSidecars(tempPlain);
+  }
 }

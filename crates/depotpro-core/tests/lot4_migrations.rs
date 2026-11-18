@@ -5,8 +5,8 @@ use depotpro_core::infrastructure::db::{
 };
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
-const EXPECTED_SCHEMA_V4_JSON: &str =
-    include_str!("../../../migrations/sqlite/expected_schema_v4.json");
+const EXPECTED_SCHEMA_V5_JSON: &str =
+    include_str!("../../../migrations/sqlite/expected_schema_v5.json");
 
 fn temp_db_path(tag: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
@@ -38,12 +38,12 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
     let db_path = temp_db_path("fresh_parity");
     let db = DepotDb::connect(&db_path).await.expect("connect fresh db");
 
-    // 1. Vérifier les versions 1..4 appliquées dans l'ordre
+    // 1. Vérifier les versions 1..5 appliquées dans l'ordre
     let snapshot = DepotDb::extract_schema_snapshot(&db.pool)
         .await
         .expect("extract schema");
     let expected: SchemaSnapshot =
-        serde_json::from_str(EXPECTED_SCHEMA_V4_JSON).expect("parse expected_schema_v4.json");
+        serde_json::from_str(EXPECTED_SCHEMA_V5_JSON).expect("parse expected_schema_v5.json");
     assert_eq!(
         snapshot, expected,
         "Le schéma Rust doit correspondre exactement au schéma Node attendu"
@@ -111,7 +111,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
     // 5. Rejeu idempotent
     let replay = DepotDb::apply_migrations(&db.pool).await.unwrap();
     assert!(replay.applied_versions.is_empty());
-    assert_eq!(replay.latest_version, 4);
+    assert_eq!(replay.latest_version, 5);
 
     let _ = std::fs::remove_file(&db_path);
     let _ = std::fs::remove_file(format!("{}-wal", db_path.display()));
@@ -207,7 +207,7 @@ async fn lot4_existing_columns_and_missing_columns_upgrade_cleanly() {
     assert_eq!(settings_b.setup_completed, 0);
 
     let snap_b = DepotDb::extract_schema_snapshot(&db_b.pool).await.unwrap();
-    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V4_JSON).unwrap();
+    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V5_JSON).unwrap();
     assert_eq!(normalize_snapshot(snap_b), normalize_snapshot(expected));
 
     let _ = std::fs::remove_file(&existing_cols_path);
@@ -278,7 +278,7 @@ async fn lot4_interrupted_migration_rolls_back_and_partial_migration_recovers() 
         .await
         .unwrap();
     let report = DepotDb::apply_migrations(&pool_p).await.unwrap();
-    assert_eq!(report.applied_versions, vec![2, 3, 4]);
+    assert_eq!(report.applied_versions, vec![2, 3, 4, 5]);
     assert_eq!(report.skipped_legacy_columns_for, vec![2]);
     pool_p.close().await;
 

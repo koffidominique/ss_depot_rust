@@ -27,7 +27,10 @@ export type ErrorCode =
   | 'INVALID_MONEY'
   | 'HISTORICAL_IMMUTABLE'
   | 'DATABASE_BUSY'
-  | 'BACKUP_ERROR';
+  | 'BACKUP_ERROR'
+  | 'FORBIDDEN'
+  | 'RATE_LIMITED'
+  | 'INTERNAL_ERROR';
 
 export class BusinessError extends Error {
   public readonly code: ErrorCode;

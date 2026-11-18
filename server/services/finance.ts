@@ -19,8 +19,10 @@ import {
   positiveMilli,
 } from '../domain.ts';
 import { sanitizeImagePath } from './catalog.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 
 export function getCashStatus() {
+  requireCurrentActorPermission('cash:read');
   const db = getDb();
   const activeSession = db
     .prepare("SELECT * FROM cash_sessions WHERE status = 'open' LIMIT 1")
@@ -60,6 +62,7 @@ export function getCashStatus() {
 }
 
 export async function openCashSession(input: { opening_cash: number; request_key: string }) {
+  requireCurrentActorPermission('cash:operate');
   const openingCash = nonNegativeFcfa(input.opening_cash, 'Fond de caisse initial');
   return withWriteTx((db) => {
     const dup = db.prepare('SELECT * FROM cash_sessions WHERE opening_key = ?').get(input.request_key);
@@ -87,6 +90,7 @@ export async function closeCashSession(input: {
   closing_notes?: string;
   request_key: string;
 }) {
+  requireCurrentActorPermission('cash:operate');
   const physicalCash = nonNegativeFcfa(input.physical_cash, 'Montant physique compté');
   const notes = (input.closing_notes || '').trim();
 
@@ -127,6 +131,7 @@ export async function closeCashSession(input: {
 }
 
 export function listReceivables() {
+  requireCurrentActorPermission('receivables:read');
   const db = getDb();
   return db
     .prepare(
@@ -148,6 +153,7 @@ export async function payReceivable(
     parts: Array<{ method_code: string; amount: number }>;
   }
 ) {
+  requireCurrentActorPermission('receivables:pay');
   if (!input.parts?.length) {
     throw new BusinessError('INVALID_PAYMENT', 'Indiquez au moins un moyen de paiement.');
   }
@@ -238,6 +244,7 @@ export async function payReceivable(
 }
 
 export function listExpenses() {
+  requireCurrentActorPermission('cash:read');
   const db = getDb();
   const categories = db.prepare('SELECT * FROM expense_categories ORDER BY name').all();
   const items = db
@@ -261,6 +268,7 @@ export async function createExpense(input: {
   receipt_path?: string | null;
   expense_date?: string;
 }) {
+  requireCurrentActorPermission('expenses:write');
   const category = (input.category || '').trim();
   if (!category) throw new BusinessError('VALIDATION_ERROR', 'La catégorie est obligatoire.');
   const amount = positiveFcfa(input.amount, 'Montant dépense');
@@ -315,6 +323,7 @@ export async function createExpense(input: {
 }
 
 export function getStockOverview() {
+  requireCurrentActorPermission('stock:read');
   const db = getDb();
   const products = db
     .prepare(
@@ -369,6 +378,7 @@ export async function adjustStock(input: {
   reason: string;
   request_key: string;
 }) {
+  requireCurrentActorPermission('stock:adjust');
   const productId = Number(input.product_id);
   if (!Number.isInteger(productId) || productId <= 0) {
     throw new BusinessError('PRODUCT_NOT_FOUND', 'Produit invalide.', 400);
@@ -483,6 +493,7 @@ export async function adjustStock(input: {
 }
 
 export function listInventories() {
+  requireCurrentActorPermission('stock:read');
   const db = getDb();
   const invs = db.prepare('SELECT * FROM inventories ORDER BY id DESC').all() as Array<
     Record<string, unknown> & { id: number }
@@ -498,6 +509,7 @@ export function listInventories() {
 }
 
 export async function createInventory(notes?: string) {
+  requireCurrentActorPermission('inventory:validate');
   return withWriteTx((db) => {
     const ref = nextSequence(db, 'INV');
     const invId = Number(
@@ -525,6 +537,7 @@ export async function validateInventory(
   inventoryId: number,
   lines: Array<{ product_id: number; counted_quantity: string | number; reason?: string }>
 ) {
+  requireCurrentActorPermission('inventory:validate');
   return withWriteTx((db) => {
     const inv = db.prepare('SELECT * FROM inventories WHERE id = ?').get(inventoryId) as
       | { id: number; reference: string; status: string }

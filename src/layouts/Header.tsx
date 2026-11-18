@@ -32,9 +32,28 @@ export function Header() {
   const navigate = useNavigate();
   const theme = useUiStore((s) => s.theme);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
+  const token = useUiStore((s) => s.token);
+  const currentUser = useUiStore((s) => s.currentUser);
+  const setCurrentUser = useUiStore((s) => s.setCurrentUser);
   const setToken = useUiStore((s) => s.setToken);
   const openTips = useUiStore((s) => s.openTips);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    if (!token || currentUser || typeof apiClient.getMe !== 'function') return;
+    let cancelled = false;
+    apiClient
+      .getMe()
+      .then((res) => {
+        if (!cancelled && res?.user) setCurrentUser(res.user);
+      })
+      .catch(() => {
+        // ignore in mock environments or unauthorized checks handled elsewhere
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, currentUser, setCurrentUser]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -160,6 +179,18 @@ export function Header() {
         >
           <Settings className="h-4 w-4" />
         </Link>
+
+        {currentUser && (
+          <div
+            title={`Connecté en tant que ${currentUser.displayName} (${currentUser.roleLabel})`}
+            className="hidden xl:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 whitespace-nowrap shrink-0"
+          >
+            <span className="truncate max-w-[120px]">{currentUser.displayName}</span>
+            <span className="rounded bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 text-[10px] font-semibold text-[#2563EB] dark:text-[#60A5FA]">
+              {currentUser.roleLabel}
+            </span>
+          </div>
+        )}
 
         <button
           type="button"

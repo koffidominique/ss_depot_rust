@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PriceTier } from '../types/erp.ts';
+import type { PriceTier, SessionUser } from '../types/erp.ts';
 import { parseQtyInputToMilliBigInt } from '../features/sales/utils/saleCalculations.ts';
 
 function formatDotMilli(milli: bigint): string {
@@ -40,6 +40,7 @@ export interface HeldCart {
 
 interface UiState {
   token: string | null;
+  currentUser: SessionUser | null;
   theme: 'light' | 'dark';
   sidebarCollapsed: boolean;
   posCart: CartItem[];
@@ -50,6 +51,7 @@ interface UiState {
   tipsOpen: boolean;
   tipsTopicId: string | null;
   setToken: (token: string | null) => void;
+  setCurrentUser: (user: SessionUser | null) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
   toggleSidebar: () => void;
@@ -116,6 +118,7 @@ applyThemeClass(initTheme);
 
 export const useUiStore = create<UiState>((set, get) => ({
   token: getInitialToken(),
+  currentUser: null,
   theme: initTheme,
   sidebarCollapsed: false,
   posCart: [],
@@ -133,8 +136,10 @@ export const useUiStore = create<UiState>((set, get) => ({
     } catch {
       // ignore
     }
-    set({ token });
+    set((state) => ({ token, currentUser: token ? state.currentUser : null }));
   },
+
+  setCurrentUser: (currentUser) => set({ currentUser }),
 
   setTheme: (theme) => {
     try {

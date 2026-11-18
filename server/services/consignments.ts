@@ -1,4 +1,5 @@
 import { getDb, withWriteTx, nextSequence, requireOpenSession, getTheoreticalCash, auditLog } from '../db.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 import {
   BusinessError,
   checkedAddMoney,
@@ -9,6 +10,7 @@ import {
 } from '../domain.ts';
 
 export function getConsignmentsOverview() {
+  requireCurrentActorPermission('consignments:read');
   const db = getDb();
   const types = db
     .prepare(
@@ -74,6 +76,7 @@ export async function createReturnableType(input: {
   initial_stock?: number;
   description?: string;
 }) {
+  requireCurrentActorPermission('consignments:write');
   const code = (input.code || '').trim().toUpperCase();
   const name = (input.name || '').trim();
   const producer = (input.producer || '').trim();
@@ -120,6 +123,7 @@ export async function adjustReturnableStock(input: {
   reason: string;
   request_key: string;
 }) {
+  requireCurrentActorPermission('consignments:write');
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     throw new BusinessError('VALIDATION_ERROR', 'La quantité doit être un entier strictement positif.');
   }
@@ -180,6 +184,7 @@ export async function returnClientEmpties(input: {
   reason: string;
   request_key: string;
 }) {
+  requireCurrentActorPermission('consignments:write');
   if (!Number.isInteger(input.pieces) || input.pieces <= 0) {
     throw new BusinessError('VALIDATION_ERROR', 'Nombre de pièces retournées invalide.');
   }

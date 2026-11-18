@@ -8,13 +8,14 @@ Les deux moteurs (`server/db.ts` et `crates/depotpro-core/src/infrastructure/db.
 2. `0002_app_settings_logo_path.sql` : ajout de `app_settings.logo_path`.
 3. `0003_expense_receipt_path.sql` : ajout de `expenses.receipt_path`.
 4. `0004_onboarding_setup_state.sql` : ajout de `app_settings.setup_completed` (assistant de première configuration).
+5. `0005_security_roles_users.sql` : table `users` (RBAC 6 rôles), index `idx_users_role_active` et colonnes `audit_logs.actor_{user_id,name,role}` (schéma de référence `migrations/sqlite/expected_schema_v5.json`).
 
 ### Séquence obligatoire au démarrage
 
 1. Ouverture SQLite avec `PRAGMA foreign_keys = ON`, `journal_mode = WAL`, `synchronous = FULL`, `busy_timeout = DEPOTPRO_BUSY_TIMEOUT_MS` (5000 ms par défaut).
 2. Inspection de `schema_version` (si existante) et lecture des versions appliquées.
 3. Application des migrations manquantes par ordre croissant de version, chacune dans sa propre transaction atomique `BEGIN IMMEDIATE ... COMMIT` (avec `ROLLBACK` intégral en cas d'erreur ou d'interruption).
-4. **Compatibilité bases V3 existantes** : si `logo_path`, `receipt_path` ou `setup_completed` existent déjà sans entrée `schema_version` correspondante, les colonnes sont reconnues sans ré-exécuter `ALTER TABLE` et leur version est enregistrée proprement.
+4. **Compatibilité bases V3 existantes** : si `logo_path`, `receipt_path`, `setup_completed`, `users` ou `audit_logs.actor_user_id` existent déjà sans entrée `schema_version` correspondante, les éléments sont reconnus sans ré-exécuter `ALTER TABLE` et leur version est enregistrée proprement.
 5. Vérification d'intégrité au démarrage (`PRAGMA integrity_check = 'ok'` et `PRAGMA foreign_key_check` vide).
 6. Initialisation des paramètres neutres uniquement (`ensureNeutralDefaults` / `ensure_neutral_defaults`).
 

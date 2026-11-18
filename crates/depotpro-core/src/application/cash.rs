@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::sales::{audit_log_tx, get_theoretical_cash_tx, require_open_session_tx, PaymentPartInput};
 use crate::domain::money::Money;
 use crate::error::{CoreError, CoreResult};
@@ -111,6 +112,7 @@ pub struct CreateExpenseInput {
 }
 
 pub async fn get_cash_status(db: &DepotDb) -> CoreResult<CashStatusDto> {
+    require_current_actor_permission(Permission::CashRead)?;
     let active_session = sqlx::query_as::<_, CashSessionDto>(
         "SELECT id, reference, opened_at, closed_at, status, opening_cash, theoretical_cash, physical_cash, difference, closing_notes
          FROM cash_sessions WHERE status = 'open' LIMIT 1",
@@ -179,6 +181,7 @@ pub async fn get_cash_status(db: &DepotDb) -> CoreResult<CashStatusDto> {
 }
 
 pub async fn open_cash_session(db: &DepotDb, input: OpenCashInput) -> CoreResult<CashSessionDto> {
+    require_current_actor_permission(Permission::CashOperate)?;
     let opening_cash = Money::from_non_negative(input.opening_cash, "Fond de caisse initial")?;
     let (_guard, mut tx) = db.begin_write().await?;
 
@@ -236,6 +239,7 @@ pub async fn open_cash_session(db: &DepotDb, input: OpenCashInput) -> CoreResult
 }
 
 pub async fn close_cash_session(db: &DepotDb, input: CloseCashInput) -> CoreResult<CashSessionDto> {
+    require_current_actor_permission(Permission::CashOperate)?;
     let physical_cash = Money::from_non_negative(input.physical_cash, "Montant physique compté")?;
     let notes = input.closing_notes.as_deref().map(str::trim).unwrap_or("");
 
@@ -307,6 +311,7 @@ pub async fn close_cash_session(db: &DepotDb, input: CloseCashInput) -> CoreResu
 }
 
 pub async fn list_receivables(db: &DepotDb) -> CoreResult<Vec<ReceivableDto>> {
+    require_current_actor_permission(Permission::ReceivablesRead)?;
     let rows = sqlx::query_as::<_, ReceivableDto>(
         "SELECT cr.id, cr.sale_id, s.reference AS sale_reference, s.created_at AS sale_date, s.total_amount AS sale_total,
                 cr.client_id, c.name AS client_name, c.code AS client_code, c.phone AS client_phone,
@@ -326,6 +331,7 @@ pub async fn pay_receivable(
     receivable_id: i64,
     input: PayReceivableInput,
 ) -> CoreResult<ReceivableDto> {
+    require_current_actor_permission(Permission::ReceivablesPay)?;
     if input.parts.is_empty() {
         return Err(CoreError::InvalidPayment("Indiquez au moins un moyen de paiement.".to_string()));
     }
@@ -461,6 +467,7 @@ pub async fn pay_receivable(
 }
 
 pub async fn create_expense(db: &DepotDb, input: CreateExpenseInput) -> CoreResult<()> {
+    require_current_actor_permission(Permission::ExpensesWrite)?;
     let category = input.category.trim().to_string();
     if category.is_empty() {
         return Err(CoreError::Validation("La catégorie est obligatoire.".to_string()));
@@ -576,6 +583,7 @@ pub struct ExpensesOverviewDto {
 }
 
 pub async fn list_expenses(db: &DepotDb) -> CoreResult<ExpensesOverviewDto> {
+    require_current_actor_permission(Permission::CashRead)?;
     let categories =
         sqlx::query_as::<_, ExpenseCategoryDto>("SELECT id, name FROM expense_categories ORDER BY name")
             .fetch_all(&db.pool)

@@ -1,3 +1,4 @@
+import type { SessionUser } from '../../types/erp.ts';
 import {
   ApiError,
   type ApiClient,
@@ -33,12 +34,12 @@ export class TauriApiClient implements ApiClient {
     return tauriInvoke<Awaited<ReturnType<ApiClient['getAuthStatus']>>>('auth_status');
   }
   async setupPin(pin: string) {
-    const res = await tauriInvoke<{ token: string }>('auth_setup_pin', { pin });
+    const res = await tauriInvoke<{ token: string; user?: SessionUser }>('auth_setup_pin', { pin });
     sessionStorage.setItem(TAURI_TOKEN_KEY, res.token);
     return res;
   }
-  async login(pin: string) {
-    const res = await tauriInvoke<{ token: string }>('auth_login', { pin });
+  async login(pin: string, username?: string) {
+    const res = await tauriInvoke<{ token: string; user?: SessionUser }>('auth_login', { pin, username });
     sessionStorage.setItem(TAURI_TOKEN_KEY, res.token);
     return res;
   }
@@ -51,6 +52,27 @@ export class TauriApiClient implements ApiClient {
   }
   async changePin(currentPin: string, newPin: string) {
     await tauriInvoke('change_owner_pin', { token: getStoredToken(), currentPin, newPin });
+  }
+  getMe() {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['getMe']>>>('auth_me', { token: getStoredToken() });
+  }
+  listUsers() {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['listUsers']>>>('auth_list_users', {
+      token: getStoredToken(),
+    });
+  }
+  createUser(input: Parameters<ApiClient['createUser']>[0]) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['createUser']>>>('auth_create_user', {
+      token: getStoredToken(),
+      payload: input,
+    });
+  }
+  toggleUser(userId: number, active: boolean) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['toggleUser']>>>('auth_toggle_user', {
+      token: getStoredToken(),
+      userId,
+      active,
+    });
   }
   getDashboard() {
     return tauriInvoke<Awaited<ReturnType<ApiClient['getDashboard']>>>('get_dashboard', { token: getStoredToken() });
@@ -346,16 +368,36 @@ export class TauriApiClient implements ApiClient {
       token: getStoredToken(),
     });
   }
+  createEncryptedBackup(passphrase: string) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['createEncryptedBackup']>>>('create_encrypted_backup', {
+      token: getStoredToken(),
+      passphrase,
+    });
+  }
   verifyBackup(name: string) {
     return tauriInvoke<Awaited<ReturnType<ApiClient['verifyBackup']>>>('verify_backup', {
       token: getStoredToken(),
       name,
     });
   }
+  verifyEncryptedBackup(name: string, passphrase: string) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['verifyEncryptedBackup']>>>('verify_encrypted_backup', {
+      token: getStoredToken(),
+      name,
+      passphrase,
+    });
+  }
   restoreBackup(name: string) {
     return tauriInvoke<Awaited<ReturnType<ApiClient['restoreBackup']>>>('restore_backup', {
       token: getStoredToken(),
       name,
+    });
+  }
+  restoreEncryptedBackup(name: string, passphrase: string) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['restoreEncryptedBackup']>>>('restore_encrypted_backup', {
+      token: getStoredToken(),
+      name,
+      passphrase,
     });
   }
   async downloadBackup(name: string) {

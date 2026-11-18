@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Sqlite, Transaction};
 use std::collections::{HashMap, HashSet};
 
+use crate::application::auth::{current_actor, require_current_actor_permission, Permission};
 use crate::application::products::deserialize_nullable_opt;
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
@@ -227,13 +228,18 @@ pub(crate) async fn audit_log_tx(
     entity_id: Option<String>,
     details: &str,
 ) -> CoreResult<()> {
+    let actor = current_actor();
     sqlx::query(
-        "INSERT INTO audit_logs (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)",
+        "INSERT INTO audit_logs (action, entity_type, entity_id, details, actor_user_id, actor_name, actor_role)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(action)
     .bind(entity_type)
     .bind(entity_id)
     .bind(details)
+    .bind(actor.as_ref().map(|a| a.user_id.clone()))
+    .bind(actor.as_ref().map(|a| a.display_name.clone()))
+    .bind(actor.as_ref().map(|a| a.role.as_str().to_string()))
     .execute(&mut **tx)
     .await?;
     Ok(())
@@ -274,6 +280,7 @@ pub(crate) async fn get_theoretical_cash_tx(
 }
 
 pub async fn list_clients(db: &DepotDb, search: Option<&str>) -> CoreResult<Vec<ClientSummaryDto>> {
+    require_current_actor_permission(Permission::SalesRead)?;
     let q = search.map(str::trim).filter(|s| !s.is_empty());
     let pattern = q.map(|s| format!("%{s}%"));
     let rows = match pattern {
@@ -312,6 +319,7 @@ pub async fn list_clients(db: &DepotDb, search: Option<&str>) -> CoreResult<Vec<
 }
 
 pub async fn create_client(db: &DepotDb, input: CreateClientInput) -> CoreResult<ClientSummaryDto> {
+    require_current_actor_permission(Permission::SalesWrite)?;
     let name = input.name.trim().to_string();
     if name.is_empty() {
         return Err(CoreError::Validation("Le nom du client est obligatoire.".to_string()));
@@ -387,6 +395,7 @@ pub async fn update_client(
     client_id: i64,
     input: UpdateClientInput,
 ) -> CoreResult<ClientSummaryDto> {
+    require_current_actor_permission(Permission::SalesWrite)?;
     type ExistingClientRow = (
         String,
         String,
@@ -490,6 +499,7 @@ pub async fn update_client_credit_policy(
     client_id: i64,
     input: UpdateCreditPolicyInput,
 ) -> CoreResult<()> {
+    require_current_actor_permission(Permission::SalesWrite)?;
     if !matches!(input.credit_policy.as_str(), "forbidden" | "limited" | "unlimited") {
         return Err(CoreError::Validation("Politique de crédit explicite requise.".to_string()));
     }
@@ -561,6 +571,7 @@ struct PreparedSaleLine {
 }
 
 pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetailDto> {
+    require_current_actor_permission(Permission::SalesRead)?;
     let sale = sqlx::query_as::<_, SaleSummaryDto>(
         "SELECT s.id, s.reference, s.client_id, COALESCE(c.name, 'Client Comptoir') AS client_name,
                 s.sale_type, s.price_tier, s.subtotal_merchandise, s.discount_amount,
@@ -669,6 +680,7 @@ pub async fn list_sales(
     limit: i64,
     offset: i64,
 ) -> CoreResult<PaginatedSalesDto> {
+    require_current_actor_permission(Permission::SalesRead)?;
     let ps = limit.clamp(1, 100);
     let page = (offset / ps) + 1;
     let pat = format!("%{}%", search.unwrap_or("").trim());
@@ -739,6 +751,7 @@ pub async fn list_sales(
 }
 
 pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<SaleDetailDto> {
+    require_current_actor_permission(Permission::SalesWrite)?;
     let request_key = input.request_key.trim().to_string();
     if request_key.is_empty() {
         return Err(CoreError::Validation("Clé d'idempotence requise.".to_string()));
@@ -1203,6 +1216,7 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
 }
 
 pub async fn cancel_sale(db: &DepotDb, sale_id: i64, input: CancelSaleInput) -> CoreResult<SaleDetailDto> {
+    require_current_actor_permission(Permission::SalesCancelReturn)?;
     let reason = input.reason.trim().to_string();
     if reason.is_empty() {
         return Err(CoreError::Validation("Le motif d'annulation est obligatoire.".to_string()));
@@ -1371,6 +1385,7 @@ pub async fn create_sale_return(
     sale_id: i64,
     input: CreateSaleReturnInput,
 ) -> CoreResult<SaleDetailDto> {
+    require_current_actor_permission(Permission::SalesCancelReturn)?;
     if sale_id <= 0 {
         return Err(CoreError::Validation(
             "Identifiant de vente invalide.".to_string(),

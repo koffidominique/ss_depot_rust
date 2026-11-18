@@ -90,8 +90,12 @@ pub fn run() {
             commands::auth_status,
             commands::auth_setup_pin,
             commands::auth_login,
+            commands::auth_me,
             commands::auth_lock,
             commands::change_owner_pin,
+            commands::auth_list_users,
+            commands::auth_create_user,
+            commands::auth_toggle_user,
             commands::list_categories,
             commands::create_category,
             commands::list_products,
@@ -143,9 +147,12 @@ pub fn run() {
             commands::generate_document_pdf,
             commands::list_backups,
             commands::create_backup,
+            commands::create_encrypted_backup,
             commands::verify_backup,
+            commands::verify_encrypted_backup,
             commands::download_backup,
             commands::restore_backup,
+            commands::restore_encrypted_backup,
         ])
         .build(tauri::generate_context!())
         .expect("Erreur fatale au démarrage de DEPOTPRO Desktop");

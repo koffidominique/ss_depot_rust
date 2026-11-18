@@ -4,10 +4,17 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
+use aes_gcm::aead::{Aead, KeyInit, Payload};
+use aes_gcm::{Aes256Gcm, Nonce};
+use base64::engine::general_purpose::STANDARD as BASE64_STD;
+use base64::Engine as _;
+use pbkdf2::pbkdf2_hmac;
+use serde::{Deserialize, Serialize};
+use sha2::Sha256 as CrateSha256;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Row, SqlitePool};
 
+use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::sales::audit_log_tx;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::{
@@ -18,6 +25,10 @@ pub const MAX_RETAINED_BACKUPS: usize = 30;
 pub const BACKUP_FORMAT_V3: &str = "sqlite3-depotpro-v3";
 pub const MIN_APP_VERSION: &str = "3.0.0";
 const SQLITE_HEADER_MAGIC: &[u8; 16] = b"SQLite format 3\0";
+pub const ENCRYPTED_BACKUP_MAGIC: &[u8; 8] = b"DPBKP01\0";
+pub const ENCRYPTED_BACKUP_VERSION: u16 = 1;
+pub const ENCRYPTED_PBKDF2_ITERATIONS: u32 = 100_000;
+const MIN_BACKUP_PASSPHRASE_LEN: usize = 8;
 
 pub const REQUIRED_CORE_TABLES: &[&str] = &[
     "schema_version",
@@ -57,6 +68,7 @@ pub struct BackupFileDto {
     pub created_at: String,
     pub integrity: Option<String>,
     pub sha256: Option<String>,
+    pub encrypted: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -297,7 +309,11 @@ pub fn is_valid_backup_filename(filename: &str) -> bool {
     let Some(rest) = filename.strip_prefix("depotpro_backup_") else {
         return false;
     };
-    let Some(core) = rest.strip_suffix(".db") else {
+    let core = if let Some(c) = rest.strip_suffix(".db") {
+        c
+    } else if let Some(c) = rest.strip_suffix(".dpbkp") {
+        c
+    } else {
         return false;
     };
     let bytes = core.as_bytes();
@@ -384,6 +400,11 @@ fn validate_sqlite_archive_header(path: &Path) -> CoreResult<()> {
     file.read_exact(&mut header).map_err(|e| {
         CoreError::Validation(format!("Lecture en-tête SQLite impossible : {e}"))
     })?;
+    if &header[..8] == ENCRYPTED_BACKUP_MAGIC {
+        return Err(CoreError::Validation(
+            "Archive chiffrée (.dpbkp) : fournissez la clé de déchiffrement.".to_string(),
+        ));
+    }
     if &header != SQLITE_HEADER_MAGIC {
         return Err(CoreError::Validation(
             "Archive invalide : en-tête SQLite format 3 absent ou fichier corrompu.".to_string(),
@@ -605,6 +626,14 @@ async fn inspect_backup_pool(
             "Incohérence de migration v4 : colonne app_settings.setup_completed absente."
                 .to_string(),
         );
+    } else if applied_versions.contains(&5)
+        && (!table_set.contains("users")
+            || !table_has_column_ro(pool, "audit_logs", "actor_user_id").await?)
+    {
+        compatibility_reason = Some(
+            "Incohérence de migration v5 : table users ou colonne audit_logs.actor_user_id absente."
+                .to_string(),
+        );
     }
 
     let compatible = compatibility_reason.is_none();
@@ -629,14 +658,11 @@ async fn inspect_backup_pool(
     })
 }
 
-pub async fn create_consistent_backup(db: &DepotDb, backup_dir: &Path) -> CoreResult<PathBuf> {
-    std::fs::create_dir_all(backup_dir).map_err(|e| {
-        CoreError::Internal(format!("Création répertoire sauvegarde impossible : {e}"))
-    })?;
-    let ts = chrono::Utc::now().format("%Y%m%d%H%M%S");
-    let uid_suffix = uuid::Uuid::new_v4().to_string()[..6].to_string();
-    let filename = format!("depotpro_backup_{ts}_{uid_suffix}.db");
-    let dest = backup_dir.join(&filename);
+async fn export_consistent_sqlite_to_path(
+    db: &DepotDb,
+    dest: &Path,
+    label_name: &str,
+) -> CoreResult<BackupVerifyDto> {
     let escaped = dest.to_string_lossy().replace('\'', "''");
 
     let _guard = db.lock_write().await;
@@ -648,7 +674,7 @@ pub async fn create_consistent_backup(db: &DepotDb, backup_dir: &Path) -> CoreRe
         .await?;
     drop(_guard);
 
-    let dest_file = File::open(&dest).map_err(|e| {
+    let dest_file = File::open(dest).map_err(|e| {
         CoreError::Internal(format!("Synchronisation sauvegarde impossible : {e}"))
     })?;
     dest_file.sync_all().map_err(|e| {
@@ -657,21 +683,33 @@ pub async fn create_consistent_backup(db: &DepotDb, backup_dir: &Path) -> CoreRe
     drop(dest_file);
 
     // Vérification immédiate en lecture seule (aucune écriture ni sidecar WAL/SHM)
-    let verify_res = verify_backup_path_read_only(&dest, &filename).await;
-    let check = match verify_res {
-        Ok(v) if v.compatible && v.integrity == "ok" && v.foreign_key_errors == 0 => v,
+    let verify_res = verify_backup_path_read_only(dest, label_name).await;
+    match verify_res {
+        Ok(v) if v.compatible && v.integrity == "ok" && v.foreign_key_errors == 0 => Ok(v),
         Ok(v) => {
-            let _ = std::fs::remove_file(&dest);
-            return Err(CoreError::Database(
+            let _ = std::fs::remove_file(dest);
+            Err(CoreError::Database(
                 v.compatibility_reason
                     .unwrap_or_else(|| "La sauvegarde a échoué au contrôle d'intégrité.".to_string()),
-            ));
+            ))
         }
         Err(e) => {
-            let _ = std::fs::remove_file(&dest);
-            return Err(e);
+            let _ = std::fs::remove_file(dest);
+            Err(e)
         }
-    };
+    }
+}
+
+pub async fn create_consistent_backup(db: &DepotDb, backup_dir: &Path) -> CoreResult<PathBuf> {
+    require_current_actor_permission(Permission::BackupsCreate)?;
+    std::fs::create_dir_all(backup_dir).map_err(|e| {
+        CoreError::Internal(format!("Création répertoire sauvegarde impossible : {e}"))
+    })?;
+    let ts = chrono::Utc::now().format("%Y%m%d%H%M%S");
+    let uid_suffix = uuid::Uuid::new_v4().to_string()[..6].to_string();
+    let filename = format!("depotpro_backup_{ts}_{uid_suffix}.db");
+    let dest = backup_dir.join(&filename);
+    let check = export_consistent_sqlite_to_path(db, &dest, &filename).await?;
 
     let (_guard2, mut tx) = db.begin_write().await?;
     audit_log_tx(
@@ -718,6 +756,7 @@ fn prune_old_backups(backup_dir: &Path, keep_count: usize) {
 }
 
 pub async fn create_backup_summary(db: &DepotDb, backup_dir: &Path) -> CoreResult<BackupFileDto> {
+    require_current_actor_permission(Permission::BackupsCreate)?;
     let path = create_consistent_backup(db, backup_dir).await?;
     let meta = std::fs::metadata(&path).map_err(|e| {
         CoreError::Internal(format!("Lecture métadonnées sauvegarde impossible : {e}"))
@@ -733,10 +772,12 @@ pub async fn create_backup_summary(db: &DepotDb, backup_dir: &Path) -> CoreResul
         created_at: chrono::Utc::now().to_rfc3339(),
         integrity: Some("ok".to_string()),
         sha256: Some(sha256),
+        encrypted: false,
     })
 }
 
 pub fn list_backups(backup_dir: &Path) -> CoreResult<Vec<BackupFileDto>> {
+    require_current_actor_permission(Permission::BackupsRead)?;
     std::fs::create_dir_all(backup_dir).map_err(|e| {
         CoreError::Internal(format!("Accès répertoire sauvegardes impossible : {e}"))
     })?;
@@ -762,12 +803,14 @@ pub fn list_backups(backup_dir: &Path) -> CoreResult<Vec<BackupFileDto>> {
             .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
             .unwrap_or_else(|_| chrono::Utc::now().to_rfc3339());
         let sha256 = sha256_file(&path).ok();
+        let encrypted = name.ends_with(".dpbkp");
         items.push(BackupFileDto {
             name,
             size: meta.len(),
             created_at,
             integrity: None,
             sha256,
+            encrypted,
         });
     }
     items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
@@ -775,6 +818,7 @@ pub fn list_backups(backup_dir: &Path) -> CoreResult<Vec<BackupFileDto>> {
 }
 
 pub async fn verify_backup(backup_dir: &Path, filename: &str) -> CoreResult<BackupVerifyDto> {
+    require_current_actor_permission(Permission::BackupsRead)?;
     let (safe_name, full_path) = resolve_safe_backup_path(backup_dir, filename)?;
     verify_backup_path_read_only(&full_path, &safe_name).await
 }
@@ -805,6 +849,7 @@ pub async fn restore_backup(
     backup_dir: &Path,
     filename: &str,
 ) -> CoreResult<BackupRestoreDto> {
+    require_current_actor_permission(Permission::BackupsRestore)?;
     let (safe_name, src_path) = resolve_safe_backup_path(backup_dir, filename)?;
     let check = verify_backup_path_read_only(&src_path, &safe_name).await?;
     if !check.compatible || check.integrity != "ok" || check.foreign_key_errors > 0 {
@@ -918,6 +963,7 @@ pub async fn restore_backup(
 }
 
 pub fn read_backup_bytes(backup_dir: &Path, filename: &str) -> CoreResult<(String, Vec<u8>)> {
+    require_current_actor_permission(Permission::BackupsRead)?;
     let (safe_name, full_path) = resolve_safe_backup_path(backup_dir, filename)?;
     let bytes = std::fs::read(&full_path)
         .map_err(|e| CoreError::Internal(format!("Lecture sauvegarde impossible : {e}")))?;
@@ -938,11 +984,24 @@ pub async fn restore_and_reconnect_with_hook(
     filename: &str,
     failure_hook: RestoreFailureHook,
 ) -> CoreResult<BackupRestoreDto> {
-    let mut guard = db_lock.write().await;
-
-    // 1. Validation chemin + vérification en lecture seule de la source
+    require_current_actor_permission(Permission::BackupsRestore)?;
     let (safe_name, src_path) = resolve_safe_backup_path(backup_dir, filename)?;
-    let source_check = verify_backup_path_read_only(&src_path, &safe_name).await?;
+    let mut guard = db_lock.write().await;
+    restore_from_plain_path_with_hook(&mut guard, backup_dir, &src_path, &safe_name, failure_hook)
+        .await
+}
+
+async fn restore_from_plain_path_with_hook(
+    guard: &mut DepotDb,
+    backup_dir: &Path,
+    src_path: &Path,
+    display_name: &str,
+    failure_hook: RestoreFailureHook,
+) -> CoreResult<BackupRestoreDto> {
+    let safe_name = display_name.to_string();
+
+    // 1. Vérification en lecture seule de la source
+    let source_check = verify_backup_path_read_only(src_path, &safe_name).await?;
     if !source_check.compatible || source_check.integrity != "ok" || source_check.foreign_key_errors > 0 {
         return Err(CoreError::Validation(
             source_check.compatibility_reason.unwrap_or_else(|| {
@@ -952,7 +1011,7 @@ pub async fn restore_and_reconnect_with_hook(
     }
 
     // 2. Sauvegarde de sécurité de la base courante + 3. Vérification en lecture seule
-    let safety_path = create_consistent_backup(&guard, backup_dir).await?;
+    let safety_path = create_consistent_backup(guard, backup_dir).await?;
     let safety_name = safety_path
         .file_name()
         .map(|s| s.to_string_lossy().to_string())
@@ -978,7 +1037,7 @@ pub async fn restore_and_reconnect_with_hook(
     let staging_path = dest_dir.join(format!(".depotpro_restore_tmp_{uid}.db"));
     let rollback_path = dest_dir.join(format!(".depotpro_restore_prev_{uid}.db"));
 
-    std::fs::copy(&src_path, &staging_path)
+    std::fs::copy(src_path, &staging_path)
         .map_err(|e| CoreError::Internal(format!("Copie vers fichier temporaire impossible : {e}")))?;
     {
         let staged_file = File::open(&staging_path).map_err(|e| {
@@ -1134,6 +1193,274 @@ pub async fn restore_and_reconnect_with_hook(
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EncryptedBackupHeader {
+    v: u16,
+    cipher: String,
+    kdf: String,
+    iterations: u32,
+    salt_b64: String,
+    nonce_b64: String,
+    plaintext_sha256: String,
+}
+
+struct TempFileCleanup(PathBuf);
+
+impl Drop for TempFileCleanup {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+        remove_sqlite_sidecars(&self.0);
+    }
+}
+
+fn validate_backup_passphrase(passphrase: &str) -> CoreResult<()> {
+    if passphrase.len() < MIN_BACKUP_PASSPHRASE_LEN {
+        return Err(CoreError::Validation(format!(
+            "La clé de chiffrement doit contenir au moins {MIN_BACKUP_PASSPHRASE_LEN} caractères."
+        )));
+    }
+    Ok(())
+}
+
+pub fn encrypt_backup_bytes(plaintext: &[u8], passphrase: &str) -> CoreResult<Vec<u8>> {
+    validate_backup_passphrase(passphrase)?;
+    let salt = *uuid::Uuid::new_v4().as_bytes();
+    let nonce_uuid = *uuid::Uuid::new_v4().as_bytes();
+    let nonce_bytes = &nonce_uuid[..12];
+
+    let mut key = [0u8; 32];
+    pbkdf2_hmac::<CrateSha256>(
+        passphrase.as_bytes(),
+        &salt,
+        ENCRYPTED_PBKDF2_ITERATIONS,
+        &mut key,
+    );
+
+    let header = EncryptedBackupHeader {
+        v: ENCRYPTED_BACKUP_VERSION,
+        cipher: "aes-256-gcm".to_string(),
+        kdf: "pbkdf2-hmac-sha256".to_string(),
+        iterations: ENCRYPTED_PBKDF2_ITERATIONS,
+        salt_b64: BASE64_STD.encode(salt),
+        nonce_b64: BASE64_STD.encode(nonce_bytes),
+        plaintext_sha256: sha256_bytes(plaintext),
+    };
+    let header_bytes = serde_json::to_vec(&header).map_err(|e| {
+        CoreError::Internal(format!("Sérialisation en-tête chiffré impossible : {e}"))
+    })?;
+    let header_len: u32 = header_bytes.len().try_into().map_err(|_| {
+        CoreError::Internal("En-tête chiffré trop volumineux.".to_string())
+    })?;
+
+    let cipher = Aes256Gcm::new_from_slice(&key)
+        .map_err(|e| CoreError::Internal(format!("Initialisation AES-256-GCM impossible : {e}")))?;
+    let nonce = Nonce::from_slice(nonce_bytes);
+    let ciphertext = cipher
+        .encrypt(
+            nonce,
+            Payload {
+                msg: plaintext,
+                aad: &header_bytes,
+            },
+        )
+        .map_err(|e| CoreError::Internal(format!("Chiffrement AES-256-GCM impossible : {e}")))?;
+
+    let mut out = Vec::with_capacity(14 + header_bytes.len() + ciphertext.len());
+    out.extend_from_slice(ENCRYPTED_BACKUP_MAGIC);
+    out.extend_from_slice(&ENCRYPTED_BACKUP_VERSION.to_le_bytes());
+    out.extend_from_slice(&header_len.to_le_bytes());
+    out.extend_from_slice(&header_bytes);
+    out.extend_from_slice(&ciphertext);
+    Ok(out)
+}
+
+pub fn decrypt_backup_bytes(blob: &[u8], passphrase: &str) -> CoreResult<(Vec<u8>, String)> {
+    validate_backup_passphrase(passphrase)?;
+    if blob.len() < 14 + 16 || &blob[..8] != ENCRYPTED_BACKUP_MAGIC {
+        return Err(CoreError::Validation(
+            "Enveloppe de sauvegarde chiffrée invalide (magique DPBKP01 absent).".to_string(),
+        ));
+    }
+    let ver = u16::from_le_bytes([blob[8], blob[9]]);
+    if ver != ENCRYPTED_BACKUP_VERSION {
+        return Err(CoreError::Validation(format!(
+            "Version d'enveloppe chiffrée non supportée : {ver}."
+        )));
+    }
+    let header_len = u32::from_le_bytes([blob[10], blob[11], blob[12], blob[13]]) as usize;
+    if header_len == 0 || 14 + header_len + 16 > blob.len() {
+        return Err(CoreError::Validation(
+            "En-tête d'enveloppe chiffrée corrompu ou tronqué.".to_string(),
+        ));
+    }
+    let header_bytes = &blob[14..14 + header_len];
+    let ciphertext = &blob[14 + header_len..];
+
+    let header: EncryptedBackupHeader = serde_json::from_slice(header_bytes).map_err(|e| {
+        CoreError::Validation(format!("Métadonnées de sauvegarde chiffrée invalides : {e}"))
+    })?;
+    if header.cipher != "aes-256-gcm" || header.kdf != "pbkdf2-hmac-sha256" || header.iterations < 10_000 {
+        return Err(CoreError::Validation(
+            "Algorithme de chiffrement non supporté.".to_string(),
+        ));
+    }
+    let salt = BASE64_STD.decode(&header.salt_b64).map_err(|_| {
+        CoreError::Validation("Sel cryptographique invalide.".to_string())
+    })?;
+    let nonce_vec = BASE64_STD.decode(&header.nonce_b64).map_err(|_| {
+        CoreError::Validation("Nonce cryptographique invalide.".to_string())
+    })?;
+    if nonce_vec.len() != 12 || salt.len() < 8 {
+        return Err(CoreError::Validation(
+            "Paramètres cryptographiques invalides.".to_string(),
+        ));
+    }
+
+    let mut key = [0u8; 32];
+    pbkdf2_hmac::<CrateSha256>(passphrase.as_bytes(), &salt, header.iterations, &mut key);
+    let cipher = Aes256Gcm::new_from_slice(&key)
+        .map_err(|e| CoreError::Internal(format!("Initialisation AES-256-GCM impossible : {e}")))?;
+    let nonce = Nonce::from_slice(&nonce_vec);
+    let plaintext = cipher
+        .decrypt(
+            nonce,
+            Payload {
+                msg: ciphertext,
+                aad: header_bytes,
+            },
+        )
+        .map_err(|_| {
+            CoreError::Unauthorized(
+                "Clé de déchiffrement invalide ou archive chiffrée altérée.".to_string(),
+            )
+        })?;
+
+    let actual_sha = sha256_bytes(&plaintext);
+    if actual_sha != header.plaintext_sha256 {
+        return Err(CoreError::Validation(
+            "Empreinte SHA-256 post-déchiffrement incohérente.".to_string(),
+        ));
+    }
+    Ok((plaintext, actual_sha))
+}
+
+pub async fn create_encrypted_backup(
+    db: &DepotDb,
+    backup_dir: &Path,
+    passphrase: &str,
+) -> CoreResult<BackupFileDto> {
+    require_current_actor_permission(Permission::BackupsCreate)?;
+    validate_backup_passphrase(passphrase)?;
+    std::fs::create_dir_all(backup_dir).map_err(|e| {
+        CoreError::Internal(format!("Création répertoire sauvegarde impossible : {e}"))
+    })?;
+
+    let ts = chrono::Utc::now().format("%Y%m%d%H%M%S");
+    let uid_suffix = uuid::Uuid::new_v4().to_string()[..6].to_string();
+    let enc_filename = format!("depotpro_backup_{ts}_{uid_suffix}.dpbkp");
+    let enc_dest = backup_dir.join(&enc_filename);
+
+    let temp_plain = backup_dir.join(format!(".depotpro_enc_stage_{}.db", uuid::Uuid::new_v4()));
+    let _temp_guard = TempFileCleanup(temp_plain.clone());
+
+    export_consistent_sqlite_to_path(db, &temp_plain, &enc_filename).await?;
+    let plain_bytes = std::fs::read(&temp_plain).map_err(|e| {
+        CoreError::Internal(format!("Lecture archive temporaire impossible : {e}"))
+    })?;
+    let encrypted_blob = encrypt_backup_bytes(&plain_bytes, passphrase)?;
+
+    std::fs::write(&enc_dest, &encrypted_blob).map_err(|e| {
+        CoreError::Internal(format!("Écriture sauvegarde chiffrée impossible : {e}"))
+    })?;
+    let enc_file = File::open(&enc_dest).map_err(|e| {
+        CoreError::Internal(format!("Synchronisation sauvegarde chiffrée impossible : {e}"))
+    })?;
+    enc_file.sync_all().map_err(|e| {
+        CoreError::Internal(format!("Fsync sauvegarde chiffrée impossible : {e}"))
+    })?;
+    drop(enc_file);
+    sync_parent_dir(backup_dir)?;
+
+    let archive_sha256 = sha256_bytes(&encrypted_blob);
+    let (_wg, mut tx) = db.begin_write().await?;
+    audit_log_tx(
+        &mut tx,
+        "CREATE_ENCRYPTED_BACKUP",
+        "backups",
+        Some(enc_filename.clone()),
+        &format!(
+            "Sauvegarde chiffrée AES-256-GCM créée : {enc_filename} (sha256={})",
+            &archive_sha256[..12]
+        ),
+    )
+    .await?;
+    tx.commit().await?;
+
+    prune_old_backups(backup_dir, MAX_RETAINED_BACKUPS);
+
+    Ok(BackupFileDto {
+        name: enc_filename,
+        size: encrypted_blob.len() as u64,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        integrity: Some("ok".to_string()),
+        sha256: Some(archive_sha256),
+        encrypted: true,
+    })
+}
+
+pub async fn verify_encrypted_backup(
+    backup_dir: &Path,
+    filename: &str,
+    passphrase: &str,
+) -> CoreResult<BackupVerifyDto> {
+    require_current_actor_permission(Permission::BackupsRead)?;
+    let (safe_name, full_path) = resolve_safe_backup_path(backup_dir, filename)?;
+    let blob = std::fs::read(&full_path).map_err(|e| {
+        CoreError::Internal(format!("Lecture sauvegarde chiffrée impossible : {e}"))
+    })?;
+    let (plaintext, _plain_sha) = decrypt_backup_bytes(&blob, passphrase)?;
+
+    let temp_plain =
+        std::env::temp_dir().join(format!("depotpro_verify_dec_{}.db", uuid::Uuid::new_v4()));
+    let _temp_guard = TempFileCleanup(temp_plain.clone());
+    std::fs::write(&temp_plain, &plaintext).map_err(|e| {
+        CoreError::Internal(format!("Écriture archive déchiffrée temporaire impossible : {e}"))
+    })?;
+
+    verify_backup_path_read_only(&temp_plain, &safe_name).await
+}
+
+pub async fn restore_encrypted_backup_and_reconnect(
+    db_lock: &tokio::sync::RwLock<DepotDb>,
+    backup_dir: &Path,
+    filename: &str,
+    passphrase: &str,
+) -> CoreResult<BackupRestoreDto> {
+    require_current_actor_permission(Permission::BackupsRestore)?;
+    let (safe_name, full_path) = resolve_safe_backup_path(backup_dir, filename)?;
+    let blob = std::fs::read(&full_path).map_err(|e| {
+        CoreError::Internal(format!("Lecture sauvegarde chiffrée impossible : {e}"))
+    })?;
+    let (plaintext, _) = decrypt_backup_bytes(&blob, passphrase)?;
+
+    let temp_plain = backup_dir.join(format!(".depotpro_restore_dec_{}.db", uuid::Uuid::new_v4()));
+    let _temp_guard = TempFileCleanup(temp_plain.clone());
+    std::fs::write(&temp_plain, &plaintext).map_err(|e| {
+        CoreError::Internal(format!("Préparation archive déchiffrée impossible : {e}"))
+    })?;
+
+    let mut guard = db_lock.write().await;
+    restore_from_plain_path_with_hook(
+        &mut guard,
+        backup_dir,
+        &temp_plain,
+        &safe_name,
+        RestoreFailureHook::None,
+    )
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1147,8 +1474,16 @@ mod tests {
         fn assert_send<F: std::future::Future + Send>(_: F) {}
         assert_send(open_backup_read_only(dir));
         assert_send(create_backup_summary(db, dir));
+        assert_send(create_encrypted_backup(db, dir, "MotDePasseTest123"));
         assert_send(verify_backup(dir, "dummy.db"));
+        assert_send(verify_encrypted_backup(dir, "dummy.dpbkp", "MotDePasseTest123"));
         assert_send(restore_and_reconnect(lock, dir, "dummy.db"));
+        assert_send(restore_encrypted_backup_and_reconnect(
+            lock,
+            dir,
+            "dummy.dpbkp",
+            "MotDePasseTest123",
+        ));
     }
 
     #[test]
@@ -1164,8 +1499,26 @@ mod tests {
     }
 
     #[test]
+    fn encrypted_backup_envelope_roundtrip_and_tamper_detection() {
+        let payload = b"SQLite format 3\0test payload for aes-256-gcm verification";
+        let blob = encrypt_backup_bytes(payload, "CleSecrete2026!").expect("encrypt ok");
+        let (dec, _) = decrypt_backup_bytes(&blob, "CleSecrete2026!").expect("decrypt ok");
+        assert_eq!(dec, payload);
+
+        // Mauvaise clé refusée
+        assert!(decrypt_backup_bytes(&blob, "MauvaiseCle!").is_err());
+
+        // Altération d'un octet détectée par le tag GCM
+        let mut tampered = blob.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 0x01;
+        assert!(decrypt_backup_bytes(&tampered, "CleSecrete2026!").is_err());
+    }
+
+    #[test]
     fn backup_filename_allowlist_rejects_traversal_and_invalid_names() {
         assert!(is_valid_backup_filename("depotpro_backup_20261117123045_a1b2c3.db"));
+        assert!(is_valid_backup_filename("depotpro_backup_20261117123045_a1b2c3.dpbkp"));
         assert!(is_valid_backup_filename("depotpro_backup_20250101000000_stale0.db"));
         assert!(!is_valid_backup_filename("../depotpro_backup_20261117123045_a1b2c3.db"));
         assert!(!is_valid_backup_filename("sub/depotpro_backup_20261117123045_a1b2c3.db"));

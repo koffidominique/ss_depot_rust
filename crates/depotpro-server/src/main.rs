@@ -1,22 +1,24 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
 use axum::body::Body;
-use axum::extract::{Path, Query, State};
+use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, post, put};
 use axum::Router;
+use chrono::Utc;
 use serde::Deserialize;
 use tokio::sync::RwLock;
 use tower_http::services::{ServeDir, ServeFile};
-use uuid::Uuid;
 
+use depotpro_core::application::auth::{self, Permission, SessionIdentity, SessionStore};
 use depotpro_core::application::{
-    auth, cash, consignments, inventory, pdf, products, purchases, reports, sales,
+    cash, consignments, inventory, pdf, products, purchases, reports, sales,
 };
 use depotpro_core::infrastructure::{backup, db::DepotDb};
 use depotpro_core::CoreError;
@@ -39,32 +41,150 @@ impl AuthRateLimiter {
     }
 }
 
-fn is_allowed_origin(origin: &str, host: &str, extra_allowed: &str) -> bool {
-    let lower = origin.trim().to_ascii_lowercase();
-    let is_local = lower == "http://localhost"
-        || lower == "https://localhost"
-        || lower.starts_with("http://localhost:")
-        || lower.starts_with("https://localhost:")
-        || lower == "http://127.0.0.1"
-        || lower == "https://127.0.0.1"
-        || lower.starts_with("http://127.0.0.1:")
-        || lower.starts_with("https://127.0.0.1:");
-    let matches_host = !host.is_empty()
-        && (origin.starts_with(&format!("http://{host}"))
-            || origin.starts_with(&format!("https://{host}")));
-    let in_extra = extra_allowed
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedOrigin {
+    scheme: String,
+    host: String,
+    port: Option<u16>,
+}
+
+fn parse_origin(raw: &str) -> Option<ParsedOrigin> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty()
+        || trimmed.contains('@')
+        || trimmed.contains('?')
+        || trimmed.contains('#')
+        || trimmed.contains('\\')
+    {
+        return None;
+    }
+
+    let (scheme_raw, rest) = trimmed.split_once("://")?;
+    let scheme = scheme_raw.to_ascii_lowercase();
+    if scheme != "http" && scheme != "https" {
+        return None;
+    }
+    if rest.is_empty() || rest.contains('/') {
+        return None;
+    }
+
+    let (host, port) = parse_host_port(rest)?;
+    let default_port = if scheme == "https" { 443 } else { 80 };
+    let normalized_port = match port {
+        Some(p) if p == default_port => None,
+        other => other,
+    };
+
+    Some(ParsedOrigin {
+        scheme,
+        host,
+        port: normalized_port,
+    })
+}
+
+fn parse_host_port(raw: &str) -> Option<(String, Option<u16>)> {
+    let s = raw.trim();
+    if s.is_empty() || s.contains('/') || s.contains('@') || s.contains(char::is_whitespace) {
+        return None;
+    }
+
+    if let Some(after_open) = s.strip_prefix('[') {
+        let (addr, remainder) = after_open.split_once(']')?;
+        if addr.is_empty() {
+            return None;
+        }
+        let host = format!("[{}]", addr.to_ascii_lowercase());
+        if remainder.is_empty() {
+            return Some((host, None));
+        }
+        let port_str = remainder.strip_prefix(':')?;
+        let port = port_str.parse::<u16>().ok().filter(|p| *p > 0)?;
+        return Some((host, Some(port)));
+    }
+
+    if let Some((h, p_str)) = s.rsplit_once(':') {
+        if h.is_empty() || h.contains(':') {
+            return None;
+        }
+        let port = p_str.parse::<u16>().ok().filter(|p| *p > 0)?;
+        if !is_valid_hostname(h) {
+            return None;
+        }
+        Some((h.to_ascii_lowercase(), Some(port)))
+    } else {
+        if !is_valid_hostname(s) {
+            return None;
+        }
+        Some((s.to_ascii_lowercase(), None))
+    }
+}
+
+fn is_valid_hostname(h: &str) -> bool {
+    !h.is_empty()
+        && !h.starts_with('.')
+        && !h.ends_with('.')
+        && h.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.')
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1" | "[::1]")
+}
+
+fn is_allowed_origin(
+    origin: &str,
+    host_header: &str,
+    forwarded_host_header: Option<&str>,
+    trust_proxy: bool,
+    extra_allowed: &str,
+) -> bool {
+    let Some(parsed) = parse_origin(origin) else {
+        return false;
+    };
+
+    if is_loopback_host(&parsed.host) {
+        return true;
+    }
+
+    if trust_proxy {
+        let effective_host = forwarded_host_header
+            .and_then(|v| v.split(',').next())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(host_header);
+        if let Some((h, p)) = parse_host_port(effective_host) {
+            let default_port = if parsed.scheme == "https" { 443 } else { 80 };
+            let host_norm_port = match p {
+                Some(port) if port == default_port => None,
+                other => other,
+            };
+            if parsed.host == h && parsed.port == host_norm_port {
+                return true;
+            }
+        }
+    }
+
+    extra_allowed
         .split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .any(|allowed| allowed == origin);
-    is_local || matches_host || in_extra
+        .any(|allowed| match parse_origin(allowed) {
+            Some(allowed_parsed) => allowed_parsed == parsed,
+            None => false,
+        })
+}
+
+fn trust_proxy_enabled() -> bool {
+    std::env::var("DEPOTPRO_TRUST_PROXY")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false)
 }
 
 #[derive(Clone)]
 struct AppState {
     db: Arc<RwLock<DepotDb>>,
     backup_dir: PathBuf,
-    tokens: Arc<RwLock<HashSet<String>>>,
+    sessions: Arc<RwLock<SessionStore>>,
     auth_limiter: Arc<RwLock<AuthRateLimiter>>,
 }
 
@@ -75,8 +195,10 @@ impl AppState {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PinPayload {
     pin: String,
+    username: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -84,6 +206,18 @@ struct PinPayload {
 struct ChangePinPayload {
     current_pin: String,
     new_pin: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ToggleUserStatusPayload {
+    active: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EncryptedBackupPayload {
+    passphrase: String,
 }
 
 #[derive(Deserialize)]
@@ -140,6 +274,8 @@ struct TogglePaymentMethodPayload {
 fn map_err(err: CoreError) -> (StatusCode, Json<serde_json::Value>) {
     let status = match err {
         CoreError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+        CoreError::Forbidden(_) => StatusCode::FORBIDDEN,
+        CoreError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
         CoreError::Validation(_)
         | CoreError::InsufficientStock(_)
         | CoreError::CreditPolicyViolation(_)
@@ -174,25 +310,58 @@ fn extract_axum_token(headers: &HeaderMap) -> Option<&str> {
 async fn require_auth(
     state: &AppState,
     headers: &HeaderMap,
-) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
-    if let Some(t) = extract_axum_token(headers) {
-        if state.tokens.read().await.contains(t) {
-            return Ok(());
-        }
-    }
-    Err(map_err(CoreError::Unauthorized(
-        "Session verrouillée ou expirée.".to_string(),
-    )))
+) -> Result<SessionIdentity, (StatusCode, Json<serde_json::Value>)> {
+    let token = extract_axum_token(headers).ok_or_else(|| {
+        map_err(CoreError::Unauthorized(
+            "Session verrouillée ou expirée.".to_string(),
+        ))
+    })?;
+    let mut store = state.sessions.write().await;
+    store
+        .validate_and_touch(token, Utc::now())
+        .map_err(map_err)
+}
+
+async fn require_perm(
+    state: &AppState,
+    headers: &HeaderMap,
+    permission: Permission,
+) -> Result<SessionIdentity, (StatusCode, Json<serde_json::Value>)> {
+    let identity = require_auth(state, headers).await?;
+    auth::require_permission(&identity, permission).map_err(map_err)?;
+    Ok(identity)
 }
 
 async fn health() -> impl IntoResponse {
     Json(serde_json::json!({ "status": "ok", "engine": "depotpro-axum" }))
 }
 
-async fn auth_status(State(state): State<AppState>) -> impl IntoResponse {
+async fn auth_status(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
     let db = state.db().await;
     match auth::get_auth_status(&db).await {
-        Ok(dto) => (StatusCode::OK, Json(serde_json::to_value(dto).unwrap())).into_response(),
+        Ok(dto) => {
+            let user = if let Some(tok) = extract_axum_token(&headers) {
+                state
+                    .sessions
+                    .write()
+                    .await
+                    .validate_and_touch(tok, Utc::now())
+                    .ok()
+            } else {
+                None
+            };
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "needsSetup": dto.needs_setup,
+                    "lockedUntil": dto.locked_until,
+                    "failedAttempts": dto.failed_attempts,
+                    "authenticated": user.is_some(),
+                    "user": user,
+                })),
+            )
+                .into_response()
+        }
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -203,10 +372,13 @@ async fn auth_setup(
 ) -> impl IntoResponse {
     let db = state.db().await;
     match auth::setup_owner_pin(&db, &payload.pin).await {
-        Ok(()) => {
-            let token = Uuid::new_v4().to_string();
-            state.tokens.write().await.insert(token.clone());
-            (StatusCode::OK, Json(serde_json::json!({ "token": token }))).into_response()
+        Ok(identity) => {
+            let session = state.sessions.write().await.issue_session(identity.clone());
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "token": session.token, "user": identity })),
+            )
+                .into_response()
         }
         Err(e) => map_err(e).into_response(),
     }
@@ -217,19 +389,29 @@ async fn auth_login(
     Json(payload): Json<PinPayload>,
 ) -> impl IntoResponse {
     let db = state.db().await;
-    match auth::verify_owner_pin(&db, &payload.pin).await {
-        Ok(()) => {
-            let token = Uuid::new_v4().to_string();
-            state.tokens.write().await.insert(token.clone());
-            (StatusCode::OK, Json(serde_json::json!({ "token": token }))).into_response()
+    match auth::verify_user_login(&db, payload.username.as_deref(), &payload.pin).await {
+        Ok(identity) => {
+            let session = state.sessions.write().await.issue_session(identity.clone());
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "token": session.token, "user": identity })),
+            )
+                .into_response()
         }
         Err(e) => map_err(e).into_response(),
     }
 }
 
+async fn auth_me(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
+    match require_auth(&state, &headers).await {
+        Ok(identity) => (StatusCode::OK, Json(serde_json::json!({ "user": identity }))).into_response(),
+        Err(e) => e.into_response(),
+    }
+}
+
 async fn auth_lock(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
     if let Some(token) = extract_axum_token(&headers) {
-        state.tokens.write().await.remove(token);
+        state.sessions.write().await.revoke(token);
     }
     (StatusCode::OK, Json(serde_json::json!({ "locked": true }))).into_response()
 }
@@ -239,33 +421,103 @@ async fn auth_change_pin(
     headers: HeaderMap,
     Json(payload): Json<ChangePinPayload>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SecurityChangeOwnerPin).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match auth::change_owner_pin(&db, &payload.current_pin, &payload.new_pin).await {
-        Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
+    let current_token = extract_axum_token(&headers).map(str::to_string);
+    match auth::with_actor(
+        actor,
+        auth::change_owner_pin(&db, &payload.current_pin, &payload.new_pin),
+    )
+    .await
+    {
+        Ok(()) => {
+            state
+                .sessions
+                .write()
+                .await
+                .revoke_except(current_token.as_deref());
+            (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
+        }
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn auth_list_users(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::SecurityManageUsers).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, auth::list_users(&db)).await {
+        Ok(users) => (StatusCode::OK, Json(serde_json::to_value(users).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn auth_create_user(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<auth::CreateUserInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::SecurityManageUsers).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, auth::create_user(&db, payload)).await {
+        Ok(user) => (StatusCode::CREATED, Json(serde_json::to_value(user).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn auth_toggle_user(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<ToggleUserStatusPayload>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::SecurityManageUsers).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, auth::set_user_active(&db, id, payload.active)).await {
+        Ok(user) => {
+            if !user.active {
+                state
+                    .sessions
+                    .write()
+                    .await
+                    .revoke_user_sessions(&user.id.to_string());
+            }
+            (StatusCode::OK, Json(serde_json::to_value(user).unwrap())).into_response()
+        }
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn dashboard(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match reports::get_dashboard_data(&db).await {
+    match auth::with_actor(actor, reports::get_dashboard_data(&db)).await {
         Ok(data) => (StatusCode::OK, Json(serde_json::to_value(data).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn list_categories(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match products::list_categories(&db).await {
+    match auth::with_actor(actor, products::list_categories(&db)).await {
         Ok(items) => (StatusCode::OK, Json(serde_json::to_value(items).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -276,11 +528,17 @@ async fn create_category(
     headers: HeaderMap,
     Json(payload): Json<CategoryPayload>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match products::create_category(&db, &payload.name, payload.description.as_deref()).await {
+    match auth::with_actor(
+        actor,
+        products::create_category(&db, &payload.name, payload.description.as_deref()),
+    )
+    .await
+    {
         Ok(cat) => (StatusCode::CREATED, Json(serde_json::to_value(cat).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -291,20 +549,24 @@ async fn list_products(
     headers: HeaderMap,
     Query(q): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
     let page = q.page.unwrap_or(1).max(1);
     let page_size = q.page_size.unwrap_or(25).clamp(1, 100);
-    match products::list_products(
-        &db,
-        q.search.as_deref(),
-        q.category_id,
-        q.include_archived.unwrap_or(false),
-        q.low_stock_only.unwrap_or(false),
-        page,
-        page_size,
+    match auth::with_actor(
+        actor,
+        products::list_products(
+            &db,
+            q.search.as_deref(),
+            q.category_id,
+            q.include_archived.unwrap_or(false),
+            q.low_stock_only.unwrap_or(false),
+            page,
+            page_size,
+        ),
     )
     .await
     {
@@ -318,11 +580,12 @@ async fn create_product(
     headers: HeaderMap,
     Json(payload): Json<products::CreateProductInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match products::create_product(&db, payload).await {
+    match auth::with_actor(actor, products::create_product(&db, payload)).await {
         Ok(p) => (StatusCode::CREATED, Json(serde_json::to_value(p).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -334,11 +597,12 @@ async fn update_product(
     Path(id): Path<i64>,
     Json(payload): Json<products::UpdateProductInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match products::update_product(&db, id, payload).await {
+    match auth::with_actor(actor, products::update_product(&db, id, payload)).await {
         Ok(p) => (StatusCode::OK, Json(serde_json::to_value(p).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -350,11 +614,12 @@ async fn upsert_packaging(
     Path(id): Path<i64>,
     Json(payload): Json<products::PackagingInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match products::upsert_packaging(&db, id, payload).await {
+    match auth::with_actor(actor, products::upsert_packaging(&db, id, payload)).await {
         Ok(pk) => (StatusCode::OK, Json(serde_json::to_value(pk).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -364,11 +629,12 @@ async fn export_products_csv(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match products::export_products_csv(&db).await {
+    match auth::with_actor(actor, products::export_products_csv(&db)).await {
         Ok(csv) => (
             StatusCode::OK,
             [
@@ -393,11 +659,12 @@ async fn import_products_csv(
     headers: HeaderMap,
     Json(payload): Json<CsvImportPayload>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match products::import_products_csv(&db, &payload.csv).await {
+    match auth::with_actor(actor, products::import_products_csv(&db, &payload.csv)).await {
         Ok(created) => {
             (StatusCode::OK, Json(serde_json::json!({ "created": created }))).into_response()
         }
@@ -410,11 +677,12 @@ async fn list_clients(
     headers: HeaderMap,
     Query(q): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SalesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match sales::list_clients(&db, q.search.as_deref()).await {
+    match auth::with_actor(actor, sales::list_clients(&db, q.search.as_deref())).await {
         Ok(items) => (StatusCode::OK, Json(serde_json::to_value(items).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -425,11 +693,12 @@ async fn create_client(
     headers: HeaderMap,
     Json(payload): Json<sales::CreateClientInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SalesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match sales::create_client(&db, payload).await {
+    match auth::with_actor(actor, sales::create_client(&db, payload)).await {
         Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -441,11 +710,12 @@ async fn update_client(
     Path(id): Path<i64>,
     Json(payload): Json<sales::UpdateClientInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SalesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match sales::update_client(&db, id, payload).await {
+    match auth::with_actor(actor, sales::update_client(&db, id, payload)).await {
         Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -457,11 +727,12 @@ async fn update_client_credit(
     Path(id): Path<i64>,
     Json(payload): Json<sales::UpdateCreditPolicyInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SalesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match sales::update_client_credit_policy(&db, id, payload).await {
+    match auth::with_actor(actor, sales::update_client_credit_policy(&db, id, payload)).await {
         Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -472,20 +743,24 @@ async fn list_sales(
     headers: HeaderMap,
     Query(q): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SalesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
     let page = q.page.unwrap_or(1).max(1);
     let page_size = q.page_size.unwrap_or(25).clamp(1, 100);
-    match sales::list_sales(
-        &db,
-        q.search.as_deref(),
-        q.status.as_deref(),
-        q.from.as_deref(),
-        q.to.as_deref(),
-        page_size,
-        (page - 1) * page_size,
+    match auth::with_actor(
+        actor,
+        sales::list_sales(
+            &db,
+            q.search.as_deref(),
+            q.status.as_deref(),
+            q.from.as_deref(),
+            q.to.as_deref(),
+            page_size,
+            (page - 1) * page_size,
+        ),
     )
     .await
     {
@@ -499,11 +774,12 @@ async fn get_sale(
     headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SalesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match sales::get_sale_detail(&db, id).await {
+    match auth::with_actor(actor, sales::get_sale_detail(&db, id)).await {
         Ok(s) => (StatusCode::OK, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -514,11 +790,12 @@ async fn create_sale(
     headers: HeaderMap,
     Json(payload): Json<sales::CreateSaleInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SalesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match sales::create_sale(&db, payload).await {
+    match auth::with_actor(actor, sales::create_sale(&db, payload)).await {
         Ok(s) => (StatusCode::CREATED, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -530,11 +807,12 @@ async fn cancel_sale(
     Path(id): Path<i64>,
     Json(payload): Json<sales::CancelSaleInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SalesCancelReturn).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match sales::cancel_sale(&db, id, payload).await {
+    match auth::with_actor(actor, sales::cancel_sale(&db, id, payload)).await {
         Ok(s) => (StatusCode::OK, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -546,22 +824,24 @@ async fn return_sale(
     Path(id): Path<i64>,
     Json(payload): Json<sales::CreateSaleReturnInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SalesCancelReturn).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match sales::create_sale_return(&db, id, payload).await {
+    match auth::with_actor(actor, sales::create_sale_return(&db, id, payload)).await {
         Ok(s) => (StatusCode::CREATED, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn stock_overview(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::StockRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match inventory::get_stock_overview(&db).await {
+    match auth::with_actor(actor, inventory::get_stock_overview(&db)).await {
         Ok(ov) => (StatusCode::OK, Json(serde_json::to_value(ov).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -572,22 +852,24 @@ async fn adjust_stock(
     headers: HeaderMap,
     Json(payload): Json<inventory::AdjustStockInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::StockAdjust).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match inventory::adjust_stock(&db, payload).await {
+    match auth::with_actor(actor, inventory::adjust_stock(&db, payload)).await {
         Ok(mv) => (StatusCode::CREATED, Json(serde_json::to_value(mv).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn list_inventories(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::StockRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match inventory::list_inventories(&db).await {
+    match auth::with_actor(actor, inventory::list_inventories(&db)).await {
         Ok(items) => (StatusCode::OK, Json(serde_json::to_value(items).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -598,11 +880,17 @@ async fn create_inventory(
     headers: HeaderMap,
     Json(payload): Json<CreateInventoryPayload>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::InventoryValidate).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match inventory::create_inventory(&db, payload.notes.as_deref()).await {
+    match auth::with_actor(
+        actor,
+        inventory::create_inventory(&db, payload.notes.as_deref()),
+    )
+    .await
+    {
         Ok(inv) => (StatusCode::CREATED, Json(serde_json::to_value(inv).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -614,22 +902,24 @@ async fn validate_inventory(
     Path(id): Path<i64>,
     Json(payload): Json<ValidateInventoryPayload>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::InventoryValidate).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match inventory::validate_inventory(&db, id, payload.lines).await {
+    match auth::with_actor(actor, inventory::validate_inventory(&db, id, payload.lines)).await {
         Ok(inv) => (StatusCode::OK, Json(serde_json::to_value(inv).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn cash_status(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CashRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match cash::get_cash_status(&db).await {
+    match auth::with_actor(actor, cash::get_cash_status(&db)).await {
         Ok(s) => (StatusCode::OK, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -640,11 +930,12 @@ async fn open_cash(
     headers: HeaderMap,
     Json(payload): Json<cash::OpenCashInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CashOperate).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match cash::open_cash_session(&db, payload).await {
+    match auth::with_actor(actor, cash::open_cash_session(&db, payload)).await {
         Ok(s) => (StatusCode::CREATED, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -655,22 +946,24 @@ async fn close_cash(
     headers: HeaderMap,
     Json(payload): Json<cash::CloseCashInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CashOperate).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match cash::close_cash_session(&db, payload).await {
+    match auth::with_actor(actor, cash::close_cash_session(&db, payload)).await {
         Ok(s) => (StatusCode::OK, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn list_receivables(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::ReceivablesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match cash::list_receivables(&db).await {
+    match auth::with_actor(actor, cash::list_receivables(&db)).await {
         Ok(items) => (StatusCode::OK, Json(serde_json::to_value(items).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -682,22 +975,24 @@ async fn pay_receivable(
     Path(id): Path<i64>,
     Json(payload): Json<cash::PayReceivableInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::ReceivablesPay).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match cash::pay_receivable(&db, id, payload).await {
+    match auth::with_actor(actor, cash::pay_receivable(&db, id, payload)).await {
         Ok(r) => (StatusCode::OK, Json(serde_json::to_value(r).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn list_expenses(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::CashRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match cash::list_expenses(&db).await {
+    match auth::with_actor(actor, cash::list_expenses(&db)).await {
         Ok(ov) => (StatusCode::OK, Json(serde_json::to_value(ov).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -708,11 +1003,12 @@ async fn create_expense(
     headers: HeaderMap,
     Json(payload): Json<cash::CreateExpenseInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::ExpensesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match cash::create_expense(&db, payload).await {
+    match auth::with_actor(actor, cash::create_expense(&db, payload)).await {
         Ok(()) => (StatusCode::CREATED, Json(serde_json::json!({ "ok": true }))).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -723,11 +1019,12 @@ async fn list_suppliers(
     headers: HeaderMap,
     Query(q): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::PurchasesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match purchases::list_suppliers(&db, q.search.as_deref()).await {
+    match auth::with_actor(actor, purchases::list_suppliers(&db, q.search.as_deref())).await {
         Ok(items) => (StatusCode::OK, Json(serde_json::to_value(items).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -738,11 +1035,12 @@ async fn create_supplier(
     headers: HeaderMap,
     Json(payload): Json<purchases::CreateSupplierInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::PurchasesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match purchases::create_supplier(&db, payload).await {
+    match auth::with_actor(actor, purchases::create_supplier(&db, payload)).await {
         Ok(s) => (StatusCode::CREATED, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -754,22 +1052,24 @@ async fn update_supplier(
     Path(id): Path<i64>,
     Json(payload): Json<purchases::UpdateSupplierInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::PurchasesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match purchases::update_supplier(&db, id, payload).await {
+    match auth::with_actor(actor, purchases::update_supplier(&db, id, payload)).await {
         Ok(s) => (StatusCode::OK, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn list_purchases(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::PurchasesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match purchases::list_purchase_orders(&db).await {
+    match auth::with_actor(actor, purchases::list_purchase_orders(&db)).await {
         Ok(items) => (StatusCode::OK, Json(serde_json::to_value(items).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -780,11 +1080,12 @@ async fn create_purchase(
     headers: HeaderMap,
     Json(payload): Json<purchases::CreatePurchaseOrderInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::PurchasesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match purchases::create_purchase_order(&db, payload).await {
+    match auth::with_actor(actor, purchases::create_purchase_order(&db, payload)).await {
         Ok(po) => (StatusCode::CREATED, Json(serde_json::to_value(po).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -796,11 +1097,12 @@ async fn receive_purchase(
     Path(id): Path<i64>,
     Json(payload): Json<purchases::ReceivePurchaseOrderInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::PurchasesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match purchases::receive_purchase_order(&db, id, payload).await {
+    match auth::with_actor(actor, purchases::receive_purchase_order(&db, id, payload)).await {
         Ok(rec) => (StatusCode::CREATED, Json(serde_json::to_value(rec).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -812,11 +1114,12 @@ async fn cancel_purchase(
     Path(id): Path<i64>,
     Json(payload): Json<purchases::CancelPurchaseOrderInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::PurchasesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match purchases::cancel_purchase_order(&db, id, payload).await {
+    match auth::with_actor(actor, purchases::cancel_purchase_order(&db, id, payload)).await {
         Ok(po) => (StatusCode::OK, Json(serde_json::to_value(po).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -826,11 +1129,12 @@ async fn list_supplier_debts(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::PurchasesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match purchases::list_supplier_debts(&db).await {
+    match auth::with_actor(actor, purchases::list_supplier_debts(&db)).await {
         Ok(items) => (StatusCode::OK, Json(serde_json::to_value(items).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -842,11 +1146,12 @@ async fn pay_supplier_debt(
     Path(id): Path<i64>,
     Json(payload): Json<purchases::PaySupplierDebtInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SupplierDebtsPay).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match purchases::pay_supplier_debt(&db, id, payload).await {
+    match auth::with_actor(actor, purchases::pay_supplier_debt(&db, id, payload)).await {
         Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -856,11 +1161,12 @@ async fn consignments_overview(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match consignments::get_overview(&db).await {
+    match auth::with_actor(actor, consignments::get_overview(&db)).await {
         Ok(ov) => (StatusCode::OK, Json(serde_json::to_value(ov).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -871,11 +1177,12 @@ async fn create_returnable_type(
     headers: HeaderMap,
     Json(payload): Json<consignments::CreateReturnableTypeInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match consignments::create_returnable_type(&db, payload).await {
+    match auth::with_actor(actor, consignments::create_returnable_type(&db, payload)).await {
         Ok(t) => (StatusCode::CREATED, Json(serde_json::to_value(t).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -886,11 +1193,12 @@ async fn adjust_returnable_stock(
     headers: HeaderMap,
     Json(payload): Json<consignments::AdjustReturnableStockInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match consignments::adjust_returnable_stock(&db, payload).await {
+    match auth::with_actor(actor, consignments::adjust_returnable_stock(&db, payload)).await {
         Ok(()) => (StatusCode::CREATED, Json(serde_json::json!({ "ok": true }))).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -901,11 +1209,12 @@ async fn return_client_empties(
     headers: HeaderMap,
     Json(payload): Json<consignments::ReturnClientEmptiesInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match consignments::return_client_empties(&db, payload).await {
+    match auth::with_actor(actor, consignments::return_client_empties(&db, payload)).await {
         Ok(reference) => (
             StatusCode::CREATED,
             Json(serde_json::json!({ "reference": reference })),
@@ -920,22 +1229,29 @@ async fn reports_overview(
     headers: HeaderMap,
     Query(q): Query<ReportQuery>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::ReportsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match reports::get_reports_overview(&db, q.from.as_deref(), q.to.as_deref()).await {
+    match auth::with_actor(
+        actor,
+        reports::get_reports_overview(&db, q.from.as_deref(), q.to.as_deref()),
+    )
+    .await
+    {
         Ok(r) => (StatusCode::OK, Json(serde_json::to_value(r).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn get_settings(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SettingsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match reports::get_settings_bundle(&db).await {
+    match auth::with_actor(actor, reports::get_settings_bundle(&db)).await {
         Ok(bundle) => (StatusCode::OK, Json(serde_json::to_value(bundle).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -946,11 +1262,12 @@ async fn update_settings(
     headers: HeaderMap,
     Json(payload): Json<reports::UpdateSettingsInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SettingsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match reports::update_settings(&db, payload).await {
+    match auth::with_actor(actor, reports::update_settings(&db, payload)).await {
         Ok(bundle) => (StatusCode::OK, Json(serde_json::to_value(bundle).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -961,11 +1278,12 @@ async fn add_payment_method(
     headers: HeaderMap,
     Json(payload): Json<AddPaymentMethodPayload>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SettingsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match reports::add_payment_method(&db, &payload.label).await {
+    match auth::with_actor(actor, reports::add_payment_method(&db, &payload.label)).await {
         Ok(pm) => (StatusCode::CREATED, Json(serde_json::to_value(pm).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -977,11 +1295,17 @@ async fn toggle_payment_method(
     Path(code): Path<String>,
     Json(payload): Json<TogglePaymentMethodPayload>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::SettingsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match reports::toggle_payment_method(&db, &code, payload.active).await {
+    match auth::with_actor(
+        actor,
+        reports::toggle_payment_method(&db, &code, payload.active),
+    )
+    .await
+    {
         Ok(pm) => (StatusCode::OK, Json(serde_json::to_value(pm).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -992,11 +1316,17 @@ async fn generate_document_pdf(
     headers: HeaderMap,
     Json(payload): Json<pdf::DocumentPdfInput>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let needed = match payload.doc_type.as_str() {
+        "BON_COMMANDE" | "BON_RECEPTION" => Permission::PurchasesRead,
+        "CLOTURE_CAISSE" => Permission::CashRead,
+        _ => Permission::SalesRead,
+    };
+    let actor = match require_perm(&state, &headers, needed).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match pdf::generate_document_pdf(&db, payload).await {
+    match auth::with_actor(actor, pdf::generate_document_pdf(&db, payload)).await {
         Ok((filename, bytes)) => {
             let disp = format!("attachment; filename=\"{filename}\"");
             let mut resp_headers = HeaderMap::new();
@@ -1014,21 +1344,47 @@ async fn generate_document_pdf(
 }
 
 async fn list_backups(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
-    match backup::list_backups(&state.backup_dir) {
+    let actor = match require_perm(&state, &headers, Permission::BackupsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let dir = state.backup_dir.clone();
+    match auth::with_actor(actor, async move { backup::list_backups(&dir) }).await {
         Ok(items) => (StatusCode::OK, Json(serde_json::to_value(items).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
 
 async fn create_backup(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
+    let actor = match require_perm(&state, &headers, Permission::BackupsCreate).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
     let db = state.db().await;
-    match backup::create_backup_summary(&db, &state.backup_dir).await {
+    match auth::with_actor(actor, backup::create_backup_summary(&db, &state.backup_dir)).await {
+        Ok(summary) => {
+            (StatusCode::CREATED, Json(serde_json::to_value(summary).unwrap())).into_response()
+        }
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_encrypted_backup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<EncryptedBackupPayload>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::BackupsCreate).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        backup::create_encrypted_backup(&db, &state.backup_dir, &payload.passphrase),
+    )
+    .await
+    {
         Ok(summary) => {
             (StatusCode::CREATED, Json(serde_json::to_value(summary).unwrap())).into_response()
         }
@@ -1041,10 +1397,32 @@ async fn verify_backup(
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
+    let actor = match require_perm(&state, &headers, Permission::BackupsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    match auth::with_actor(actor, backup::verify_backup(&state.backup_dir, &name)).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
     }
-    match backup::verify_backup(&state.backup_dir, &name).await {
+}
+
+async fn verify_encrypted_backup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+    Json(payload): Json<EncryptedBackupPayload>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::BackupsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    match auth::with_actor(
+        actor,
+        backup::verify_encrypted_backup(&state.backup_dir, &name, &payload.passphrase),
+    )
+    .await
+    {
         Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -1055,10 +1433,12 @@ async fn download_backup(
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
-    }
-    match backup::read_backup_bytes(&state.backup_dir, &name) {
+    let actor = match require_perm(&state, &headers, Permission::BackupsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let dir = state.backup_dir.clone();
+    match auth::with_actor(actor, async move { backup::read_backup_bytes(&dir, &name) }).await {
         Ok((safe_name, bytes)) => {
             let disp = format!("attachment; filename=\"{safe_name}\"");
             let mut resp_headers = HeaderMap::new();
@@ -1080,10 +1460,42 @@ async fn restore_backup(
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> impl IntoResponse {
-    if let Err(e) = require_auth(&state, &headers).await {
-        return e.into_response();
+    let actor = match require_perm(&state, &headers, Permission::BackupsRestore).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    match auth::with_actor(
+        actor,
+        backup::restore_and_reconnect(&state.db, &state.backup_dir, &name),
+    )
+    .await
+    {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
     }
-    match backup::restore_and_reconnect(&state.db, &state.backup_dir, &name).await {
+}
+
+async fn restore_encrypted_backup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+    Json(payload): Json<EncryptedBackupPayload>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::BackupsRestore).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    match auth::with_actor(
+        actor,
+        backup::restore_encrypted_backup_and_reconnect(
+            &state.db,
+            &state.backup_dir,
+            &name,
+            &payload.passphrase,
+        ),
+    )
+    .await
+    {
         Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -1100,6 +1512,7 @@ async fn security_middleware(
         method,
         Method::POST | Method::PUT | Method::PATCH | Method::DELETE
     );
+    let trust_proxy = trust_proxy_enabled();
 
     if is_mutating {
         if let Some(origin) = req.headers().get(header::ORIGIN).and_then(|v| v.to_str().ok()) {
@@ -1108,8 +1521,15 @@ async fn security_middleware(
                 .get(header::HOST)
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("");
+            let forwarded_host = if trust_proxy {
+                req.headers()
+                    .get("x-forwarded-host")
+                    .and_then(|v| v.to_str().ok())
+            } else {
+                None
+            };
             let extra = std::env::var("DEPOTPRO_ALLOWED_ORIGINS").unwrap_or_default();
-            if !is_allowed_origin(origin, host, &extra) {
+            if !is_allowed_origin(origin, host, forwarded_host, trust_proxy, &extra) {
                 let mut resp = (
                     StatusCode::FORBIDDEN,
                     Json(serde_json::json!({
@@ -1125,11 +1545,22 @@ async fn security_middleware(
     }
 
     if path == "/api/auth/setup" || path == "/api/auth/login" || path == "/api/auth/change-pin" {
-        let client_ip = req
-            .headers()
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("local");
+        let peer_ip = req
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|ci| ci.0.ip().to_string());
+        let forwarded_ip = if trust_proxy {
+            req.headers()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').next())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        } else {
+            None
+        };
+        let client_ip = forwarded_ip.or(peer_ip).unwrap_or_else(|| "local".to_string());
         let client_key = format!("{client_ip}:{path}");
         let allowed = state
             .auth_limiter
@@ -1167,34 +1598,17 @@ fn apply_security_headers(headers: &mut HeaderMap, path: &str) {
     }
 }
 
-#[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt::init();
-    let db_path = std::env::var("DEPOTPRO_DB_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("./data/depotpro_v3.db"));
-    let backup_dir = std::env::var("DEPOTPRO_BACKUP_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("./data/Sauvegardes"));
-
-    let db = DepotDb::connect(&db_path)
-        .await
-        .expect("Impossible de connecter SQLite via SQLx");
-
-    let state = AppState {
-        db: Arc::new(RwLock::new(db)),
-        backup_dir,
-        tokens: Arc::new(RwLock::new(HashSet::new())),
-        auth_limiter: Arc::new(RwLock::new(AuthRateLimiter::default())),
-    };
-
+fn build_router(state: AppState) -> Router {
     let mut app = Router::new()
         .route("/api/health", get(health))
         .route("/api/auth/status", get(auth_status))
         .route("/api/auth/setup", post(auth_setup))
         .route("/api/auth/login", post(auth_login))
+        .route("/api/auth/me", get(auth_me))
         .route("/api/auth/lock", post(auth_lock))
         .route("/api/auth/change-pin", post(auth_change_pin))
+        .route("/api/auth/users", get(auth_list_users).post(auth_create_user))
+        .route("/api/auth/users/:id/status", put(auth_toggle_user))
         .route("/api/dashboard", get(dashboard))
         .route("/api/categories", get(list_categories).post(create_category))
         .route("/api/products", get(list_products).post(create_product))
@@ -1239,9 +1653,18 @@ async fn main() {
         .route("/api/payment-methods", post(add_payment_method))
         .route("/api/payment-methods/:code", put(toggle_payment_method))
         .route("/api/backups", get(list_backups).post(create_backup))
+        .route("/api/backups/encrypted", post(create_encrypted_backup))
         .route("/api/backups/:name/verify", get(verify_backup))
+        .route(
+            "/api/backups/:name/verify-encrypted",
+            post(verify_encrypted_backup),
+        )
         .route("/api/backups/:name/download", get(download_backup))
         .route("/api/backups/:name/restore", post(restore_backup))
+        .route(
+            "/api/backups/:name/restore-encrypted",
+            post(restore_encrypted_backup),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             security_middleware,
@@ -1255,6 +1678,31 @@ async fn main() {
             ServeDir::new(&dist_dir).not_found_service(ServeFile::new(index_file)),
         );
     }
+    app
+}
+
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt::init();
+    let db_path = std::env::var("DEPOTPRO_DB_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("./data/depotpro_v3.db"));
+    let backup_dir = std::env::var("DEPOTPRO_BACKUP_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("./data/Sauvegardes"));
+
+    let db = DepotDb::connect(&db_path)
+        .await
+        .expect("Impossible de connecter SQLite via SQLx");
+
+    let state = AppState {
+        db: Arc::new(RwLock::new(db)),
+        backup_dir,
+        sessions: Arc::new(RwLock::new(SessionStore::default())),
+        auth_limiter: Arc::new(RwLock::new(AuthRateLimiter::default())),
+    };
+
+    let app = build_router(state);
 
     let port: u16 = std::env::var("PORT")
         .ok()
@@ -1267,21 +1715,100 @@ async fn main() {
     let addr = SocketAddr::from((host, port));
     tracing::info!("DEPOTPRO Axum server listening on http://{addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn send_http(
+        addr: SocketAddr,
+        method: &str,
+        path: &str,
+        headers: &[(&str, &str)],
+        body: Option<&str>,
+    ) -> (u16, String) {
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let body_bytes = body.unwrap_or("");
+        let mut req = format!("{method} {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n");
+        for (k, v) in headers {
+            req.push_str(&format!("{k}: {v}\r\n"));
+        }
+        if !body_bytes.is_empty() {
+            req.push_str("Content-Type: application/json\r\n");
+            req.push_str(&format!("Content-Length: {}\r\n", body_bytes.len()));
+        }
+        req.push_str("\r\n");
+        req.push_str(body_bytes);
+        stream.write_all(req.as_bytes()).await.unwrap();
+        let mut raw = Vec::new();
+        stream.read_to_end(&mut raw).await.unwrap();
+        let text = String::from_utf8_lossy(&raw).to_string();
+        let status_line = text.lines().next().unwrap_or("");
+        let status = status_line
+            .split_whitespace()
+            .nth(1)
+            .and_then(|s| s.parse::<u16>().ok())
+            .unwrap_or(0);
+        let body_text = text.split_once("\r\n\r\n").map(|(_, b)| b).unwrap_or("");
+        (status, body_text.to_string())
+    }
 
     #[test]
-    fn origin_allowlist_blocks_foreign_domains_and_accepts_localhost() {
-        assert!(is_allowed_origin("http://localhost:3000", "127.0.0.1:3000", ""));
-        assert!(is_allowed_origin("http://127.0.0.1:3100", "127.0.0.1:3000", ""));
-        assert!(!is_allowed_origin("https://evil.example", "127.0.0.1:3000", ""));
+    fn origin_allowlist_blocks_prefix_spoof_and_untrusted_proxy_headers() {
+        assert!(is_allowed_origin("http://localhost:3000", "127.0.0.1:3000", None, false, ""));
+        assert!(is_allowed_origin("http://127.0.0.1:3100", "127.0.0.1:3000", None, false, ""));
+        assert!(is_allowed_origin("http://[::1]:3000", "127.0.0.1:3000", None, false, ""));
+        assert!(!is_allowed_origin("https://evil.example", "127.0.0.1:3000", None, false, ""));
+        // Contre les contournements de préfixe
+        assert!(!is_allowed_origin(
+            "http://localhost:3000.evil.com",
+            "localhost:3000",
+            None,
+            false,
+            ""
+        ));
+        assert!(!is_allowed_origin(
+            "http://127.0.0.1.evil.com",
+            "127.0.0.1:3000",
+            None,
+            false,
+            ""
+        ));
+        assert!(!is_allowed_origin(
+            "http://user@localhost:3000",
+            "localhost:3000",
+            None,
+            false,
+            ""
+        ));
+        // En-têtes proxy ignorés si DEPOTPRO_TRUST_PROXY=false
+        assert!(!is_allowed_origin(
+            "https://erp.example.com",
+            "erp.example.com",
+            Some("erp.example.com"),
+            false,
+            ""
+        ));
+        assert!(is_allowed_origin(
+            "https://erp.example.com",
+            "127.0.0.1:3000",
+            Some("erp.example.com"),
+            true,
+            ""
+        ));
         assert!(is_allowed_origin(
             "https://preview.depotpro.local",
             "127.0.0.1:3000",
+            None,
+            false,
             "https://preview.depotpro.local"
         ));
     }
@@ -1295,5 +1822,130 @@ mod tests {
         }
         assert!(!limiter.check("local", t0));
         assert!(limiter.check("local", t0 + Duration::from_secs(61)));
+    }
+
+    #[tokio::test]
+    async fn axum_enforces_session_expiry_revocation_origin_and_rbac() {
+        let uid = uuid::Uuid::new_v4();
+        let dir = std::env::temp_dir().join(format!("depotpro_axum_sec_{uid}"));
+        let db_path = dir.join("test.db");
+        let backup_dir = dir.join("backups");
+        let db = DepotDb::connect(&db_path).await.unwrap();
+
+        let state = AppState {
+            db: Arc::new(RwLock::new(db)),
+            backup_dir,
+            sessions: Arc::new(RwLock::new(SessionStore::default())),
+            auth_limiter: Arc::new(RwLock::new(AuthRateLimiter::default())),
+        };
+        let app = build_router(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let srv = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            .unwrap();
+        });
+
+        // 1. Setup PIN
+        let (st, setup_body) = send_http(
+            addr,
+            "POST",
+            "/api/auth/setup",
+            &[],
+            Some(r#"{"pin":"246810"}"#),
+        )
+        .await;
+        assert_eq!(st, 200);
+        let setup_json: serde_json::Value = serde_json::from_str(&setup_body).unwrap();
+        let owner_token = setup_json["token"].as_str().unwrap().to_string();
+
+        // 2. Sans token -> 401
+        let (st, _) = send_http(addr, "GET", "/api/dashboard", &[], None).await;
+        assert_eq!(st, 401);
+
+        // 3. Origine malveillante ou contournement préfixe -> 403
+        let (st, _) = send_http(
+            addr,
+            "POST",
+            "/api/categories",
+            &[
+                ("Authorization", &format!("Bearer {owner_token}")),
+                ("Origin", "http://127.0.0.1.evil.com"),
+            ],
+            Some(r#"{"name":"Test"}"#),
+        )
+        .await;
+        assert_eq!(st, 403);
+
+        // 4. Créer un utilisateur Caissier et tester RBAC (403 sur /api/settings PUT, 200 sur /api/sales GET)
+        let (st, _) = send_http(
+            addr,
+            "POST",
+            "/api/auth/users",
+            &[("Authorization", &format!("Bearer {owner_token}"))],
+            Some(r#"{"username":"caisse1","displayName":"Awa Caisse","role":"cashier","pin":"112233"}"#),
+        )
+        .await;
+        assert_eq!(st, 201);
+
+        let (st, login_cashier) = send_http(
+            addr,
+            "POST",
+            "/api/auth/login",
+            &[],
+            Some(r#"{"username":"caisse1","pin":"112233"}"#),
+        )
+        .await;
+        assert_eq!(st, 200);
+        let cashier_json: serde_json::Value = serde_json::from_str(&login_cashier).unwrap();
+        let cashier_token = cashier_json["token"].as_str().unwrap().to_string();
+
+        let (st, _) = send_http(
+            addr,
+            "PUT",
+            "/api/settings",
+            &[("Authorization", &format!("Bearer {cashier_token}"))],
+            Some(r#"{"company_name":"Hack"}"#),
+        )
+        .await;
+        assert_eq!(st, 403);
+
+        let (st, _) = send_http(
+            addr,
+            "GET",
+            "/api/sales",
+            &[("Authorization", &format!("Bearer {cashier_token}"))],
+            None,
+        )
+        .await;
+        assert_eq!(st, 200);
+
+        // 5. Révocation via /api/auth/lock -> 401 ensuite
+        let (st, _) = send_http(
+            addr,
+            "POST",
+            "/api/auth/lock",
+            &[("Authorization", &format!("Bearer {cashier_token}"))],
+            None,
+        )
+        .await;
+        assert_eq!(st, 200);
+
+        let (st, _) = send_http(
+            addr,
+            "GET",
+            "/api/sales",
+            &[("Authorization", &format!("Bearer {cashier_token}"))],
+            None,
+        )
+        .await;
+        assert_eq!(st, 401);
+
+        srv.abort();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

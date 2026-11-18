@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::sales::audit_log_tx;
 use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
@@ -114,6 +115,7 @@ pub struct AdjustStockInput {
 }
 
 pub async fn get_stock_overview(db: &DepotDb) -> CoreResult<StockOverviewDto> {
+    require_current_actor_permission(Permission::StockRead)?;
     let rows = sqlx::query_as::<_, StockProductDto>(
         "SELECT p.id, p.reference, p.name, p.brand, c.name AS category_name, p.base_unit,
                 p.stock_milli, p.min_stock_milli, p.max_stock_milli, p.average_cost_num, p.average_cost_den, p.is_active
@@ -178,6 +180,7 @@ pub async fn get_stock_overview(db: &DepotDb) -> CoreResult<StockOverviewDto> {
 }
 
 pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<StockMovementDto> {
+    require_current_actor_permission(Permission::StockAdjust)?;
     if input.direction != "in" && input.direction != "out" {
         return Err(CoreError::Validation(
             "Le sens d'ajustement doit être 'in' ou 'out'.".to_string(),
@@ -334,6 +337,7 @@ pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<S
 }
 
 pub async fn list_inventories(db: &DepotDb) -> CoreResult<Vec<InventoryDto>> {
+    require_current_actor_permission(Permission::StockRead)?;
     let invs = sqlx::query_as::<_, InventoryRow>(
         "SELECT id, reference, status, notes, created_at, validated_at FROM inventories ORDER BY id DESC",
     )
@@ -368,6 +372,7 @@ pub async fn list_inventories(db: &DepotDb) -> CoreResult<Vec<InventoryDto>> {
 }
 
 pub async fn create_inventory(db: &DepotDb, notes: Option<&str>) -> CoreResult<InventoryDto> {
+    require_current_actor_permission(Permission::InventoryValidate)?;
     let (_guard, mut tx) = db.begin_write().await?;
     let reference = DepotDb::next_sequence(&mut tx, "INV").await?;
     let clean_notes = notes.map(str::trim).filter(|s| !s.is_empty());
@@ -416,6 +421,7 @@ pub async fn validate_inventory(
     inventory_id: i64,
     lines: Vec<ValidateInventoryLineInput>,
 ) -> CoreResult<InventoryDto> {
+    require_current_actor_permission(Permission::InventoryValidate)?;
     let (_guard, mut tx) = db.begin_write().await?;
     let inv: Option<(i64, String, String)> =
         sqlx::query_as("SELECT id, reference, status FROM inventories WHERE id = ?")

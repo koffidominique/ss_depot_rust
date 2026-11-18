@@ -1,5 +1,6 @@
 use serde::Deserialize;
 
+use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::reports::{get_settings, AppSettingsDto};
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
@@ -777,6 +778,12 @@ pub async fn generate_document_pdf(
     db: &DepotDb,
     input: DocumentPdfInput,
 ) -> CoreResult<(String, Vec<u8>)> {
+    let needed_perm = match input.doc_type.as_str() {
+        "BON_COMMANDE" | "BON_RECEPTION" => Permission::PurchasesRead,
+        "CLOTURE_CAISSE" => Permission::CashRead,
+        _ => Permission::SalesRead,
+    };
+    require_current_actor_permission(needed_perm)?;
     if !VALID_DOC_TYPES.contains(&input.doc_type.as_str()) {
         return Err(CoreError::Validation(
             "Type de document PDF non reconnu.".to_string(),

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::FromRow;
+use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::sales::audit_log_tx;
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
@@ -235,6 +236,7 @@ pub struct UpdateProductInput {
 }
 
 pub async fn list_categories(db: &DepotDb) -> CoreResult<Vec<CategoryDto>> {
+    require_current_actor_permission(Permission::CatalogRead)?;
     let rows = sqlx::query_as::<_, CategoryDto>(
         "SELECT id, name, description, is_active FROM categories ORDER BY name ASC",
     )
@@ -248,6 +250,7 @@ pub async fn create_category(
     name: &str,
     description: Option<&str>,
 ) -> CoreResult<CategoryDto> {
+    require_current_actor_permission(Permission::CatalogWrite)?;
     let clean = name.trim();
     if clean.is_empty() {
         return Err(CoreError::Validation(
@@ -291,6 +294,7 @@ pub async fn list_products(
     page: i64,
     page_size: i64,
 ) -> CoreResult<PaginatedProductsDto> {
+    require_current_actor_permission(Permission::CatalogRead)?;
     let p = page.max(1);
     let ps = page_size.clamp(1, 100);
     let offset = (p - 1) * ps;
@@ -491,6 +495,7 @@ async fn get_product_by_id(db: &DepotDb, id: i64) -> CoreResult<ProductSummaryDt
 }
 
 pub async fn create_product(db: &DepotDb, input: CreateProductInput) -> CoreResult<ProductSummaryDto> {
+    require_current_actor_permission(Permission::CatalogWrite)?;
     let name = input.name.trim().to_string();
     let base_unit = input.base_unit.trim().to_string();
     if name.is_empty() {
@@ -723,6 +728,7 @@ pub async fn update_product(
     id: i64,
     input: UpdateProductInput,
 ) -> CoreResult<ProductSummaryDto> {
+    require_current_actor_permission(Permission::CatalogWrite)?;
     type ExistingProductRow = (
         String,
         String,
@@ -844,6 +850,7 @@ pub async fn upsert_packaging(
     product_id: i64,
     pkg: PackagingInput,
 ) -> CoreResult<ProductPackagingDto> {
+    require_current_actor_permission(Permission::CatalogWrite)?;
     if !ALLOWED_PACKAGING_NAMES.contains(&pkg.name.as_str()) {
         return Err(CoreError::Validation(
             "Type de conditionnement invalide.".to_string(),
@@ -1014,6 +1021,7 @@ fn format_milli(milli: i64) -> String {
 }
 
 pub async fn export_products_csv(db: &DepotDb) -> CoreResult<String> {
+    require_current_actor_permission(Permission::CatalogRead)?;
     type ExportProductRow = (
         String,
         Option<String>,
@@ -1066,6 +1074,7 @@ pub async fn export_products_csv(db: &DepotDb) -> CoreResult<String> {
 }
 
 pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
+    require_current_actor_permission(Permission::CatalogWrite)?;
     let lines: Vec<&str> = csv.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
     if lines.len() < 2 {
         return Err(CoreError::Validation(

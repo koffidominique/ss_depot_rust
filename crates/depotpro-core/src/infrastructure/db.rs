@@ -15,6 +15,8 @@ pub const V3_MIGRATION_0003_SQL: &str =
     include_str!("../../../../migrations/sqlite/0003_expense_receipt_path.sql");
 pub const V3_MIGRATION_0004_SQL: &str =
     include_str!("../../../../migrations/sqlite/0004_onboarding_setup_state.sql");
+pub const V3_MIGRATION_0005_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0005_security_roles_users.sql");
 
 #[derive(Debug, Clone, Copy)]
 pub struct MigrationDef {
@@ -44,10 +46,15 @@ pub const MIGRATIONS: &[MigrationDef] = &[
         name: "0004_onboarding_setup_state",
         sql: V3_MIGRATION_0004_SQL,
     },
+    MigrationDef {
+        version: 5,
+        name: "0005_security_roles_users",
+        sql: V3_MIGRATION_0005_SQL,
+    },
 ];
 
 pub const MIN_SUPPORTED_SCHEMA_VERSION: i64 = 1;
-pub const CURRENT_SCHEMA_VERSION: i64 = 4;
+pub const CURRENT_SCHEMA_VERSION: i64 = 5;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MigrationRunReport {
@@ -217,6 +224,17 @@ async fn should_skip_sql_due_to_existing_column(
     }
     if migration.version == 4 || migration.name == "0004_onboarding_setup_state" {
         return column_exists_tx(tx, "app_settings", "setup_completed").await;
+    }
+    if migration.version == 5 || migration.name == "0005_security_roles_users" {
+        let has_users: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'users'",
+        )
+        .fetch_one(&mut **tx)
+        .await?;
+        let has_actor_id = column_exists_tx(tx, "audit_logs", "actor_user_id").await?;
+        let has_actor_name = column_exists_tx(tx, "audit_logs", "actor_name").await?;
+        let has_actor_role = column_exists_tx(tx, "audit_logs", "actor_role").await?;
+        return Ok(has_users > 0 && has_actor_id && has_actor_name && has_actor_role);
     }
     Ok(false)
 }

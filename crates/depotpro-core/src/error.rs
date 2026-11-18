@@ -11,6 +11,12 @@ pub enum CoreError {
     Unauthorized(String),
 
     #[error("{0}")]
+    Forbidden(String),
+
+    #[error("{0}")]
+    RateLimited(String),
+
+    #[error("{0}")]
     InsufficientStock(String),
 
     #[error("{0}")]

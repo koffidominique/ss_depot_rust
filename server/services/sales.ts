@@ -6,6 +6,7 @@ import {
   getTheoreticalCash,
   auditLog,
 } from '../db.ts';
+import { requireCurrentActorPermission } from './auth.ts';
 import {
   BusinessError,
   checkedAddMilli,
@@ -21,6 +22,7 @@ import {
 } from '../domain.ts';
 
 export function listClients(search?: string) {
+  requireCurrentActorPermission('sales:read');
   const db = getDb();
   const q = search?.trim() ? `%${search.trim()}%` : null;
   const where = q ? 'WHERE (c.name LIKE ? OR c.code LIKE ? OR COALESCE(c.phone, \'\') LIKE ?)' : '';
@@ -50,6 +52,7 @@ export async function createClient(input: {
   credit_limit?: number | null;
   payment_terms_days?: number;
 }) {
+  requireCurrentActorPermission('sales:write');
   const name = (input.name || '').trim();
   if (!name) throw new BusinessError('VALIDATION_ERROR', 'Le nom du client est obligatoire.');
   if (!['particulier', 'professionnel'].includes(input.client_type)) {
@@ -115,6 +118,7 @@ export async function updateClient(
   if (!Number.isInteger(clientId) || clientId <= 0) {
     throw new BusinessError('CLIENT_NOT_FOUND', 'Client invalide.', 400);
   }
+  requireCurrentActorPermission('sales:write');
   return withWriteTx((db) => {
     const existing = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId) as
       | {
@@ -178,6 +182,7 @@ export async function updateClientCreditPolicy(
     payment_terms_days?: number;
   }
 ) {
+  requireCurrentActorPermission('sales:write');
   let limit: number | null = null;
   if (input.credit_policy === 'limited') {
     limit = nonNegativeFcfa(input.credit_limit, 'Plafond de crédit');
@@ -225,6 +230,7 @@ export interface CreateSaleInput {
 }
 
 export async function createSale(input: CreateSaleInput) {
+  requireCurrentActorPermission('sales:write');
   const requestKey = (input.request_key || '').trim();
   if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   if (!input.lines?.length) {
@@ -642,6 +648,7 @@ export function listSales(
     pageSize?: number;
   } = {}
 ) {
+  requireCurrentActorPermission('sales:read');
   const db = getDb();
   const page = Math.max(1, Number(filter.page || 1));
   const pageSize = Math.min(100, Math.max(1, Number(filter.pageSize || 25)));
@@ -689,6 +696,7 @@ export function listSales(
 }
 
 export function getSaleDetail(saleId: number) {
+  requireCurrentActorPermission('sales:read');
   const db = getDb();
   const sale = db
     .prepare(
@@ -735,6 +743,7 @@ export async function cancelSale(
   saleId: number,
   input: { reason: string; refund_method_code?: string; request_key: string }
 ) {
+  requireCurrentActorPermission('sales:cancel_return');
   const reason = (input.reason || '').trim();
   if (!reason) throw new BusinessError('VALIDATION_ERROR', "Le motif d'annulation est obligatoire.");
 
@@ -863,6 +872,7 @@ export async function createSaleReturn(
     lines: Array<{ sale_line_id: number; base_quantity: string | number }>;
   }
 ) {
+  requireCurrentActorPermission('sales:cancel_return');
   const requestKey = (input.request_key || '').trim();
   if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const reason = (input.reason || '').trim();

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Switch from '@radix-ui/react-switch';
-import { Image as ImageIcon, KeyRound, Plus, Save, Trash2 } from 'lucide-react';
+import { Image as ImageIcon, KeyRound, Plus, Save, Trash2, Users } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { useUiStore } from '../stores/uiStore.ts';
 import { FormTipsButton } from '../components/common/FormTipsButton.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
-import type { AppSettings } from '../types/erp.ts';
+import type { AppSettings, UserAccount, UserRole } from '../types/erp.ts';
 import { compressLocalImage } from '../utils/image.ts';
 
 export function SettingsPage() {
@@ -18,11 +18,27 @@ export function SettingsPage() {
   const [newMethodLabel, setNewMethodLabel] = useState('');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
+  const [newUsername, setNewUsername] = useState('');
+  const [newDisplayName, setNewDisplayName] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserRole>('cashier');
+  const [newUserPin, setNewUserPin] = useState('');
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['settings'],
     queryFn: () => apiClient.getSettings(),
+  });
+
+  const { data: usersList } = useQuery<UserAccount[]>({
+    queryKey: ['auth-users'],
+    queryFn: async () => {
+      if (typeof apiClient.listUsers !== 'function') return [];
+      try {
+        return await apiClient.listUsers();
+      } catch {
+        return [];
+      }
+    },
   });
 
   const form: Partial<AppSettings> = {
@@ -94,6 +110,39 @@ export function SettingsPage() {
     },
     onError: (err) =>
       setFeedback({ type: 'err', text: err instanceof Error ? err.message : 'Erreur changement PIN.' }),
+  });
+
+  const createUserMut = useMutation({
+    mutationFn: () =>
+      apiClient.createUser({
+        username: newUsername,
+        displayName: newDisplayName,
+        role: newUserRole,
+        pin: newUserPin,
+      }),
+    onSuccess: (created) => {
+      setNewUsername('');
+      setNewDisplayName('');
+      setNewUserPin('');
+      qc.invalidateQueries({ queryKey: ['auth-users'] });
+      setFeedback({
+        type: 'ok',
+        text: `Compte ${created.username} (${created.roleLabel}) créé avec succès.`,
+      });
+    },
+    onError: (err) =>
+      setFeedback({ type: 'err', text: err instanceof Error ? err.message : 'Erreur création utilisateur.' }),
+  });
+
+  const toggleUserMut = useMutation({
+    mutationFn: ({ userId, active }: { userId: number; active: boolean }) =>
+      apiClient.toggleUser(userId, active),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['auth-users'] });
+      setFeedback({ type: 'ok', text: 'Statut du compte mis à jour.' });
+    },
+    onError: (err) =>
+      setFeedback({ type: 'err', text: err instanceof Error ? err.message : 'Action refusée.' }),
   });
 
   if (isLoading) return <LoadingState rows={6} />;
@@ -436,6 +485,91 @@ export function SettingsPage() {
               </button>
             </div>
           </div>
+
+          {/* Comptes & Rôles RBAC */}
+          {usersList && usersList.length > 0 && (
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-[#2563EB]" />
+                <h3 className="font-display text-sm font-semibold">Opérateurs & Rôles (RBAC)</h3>
+              </div>
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                {usersList.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between py-2.5 gap-3">
+                    <div>
+                      <div className="font-medium">
+                        {u.displayName}{' '}
+                        <span className="font-mono-num text-[11px] text-[#667085]">(@{u.username})</span>
+                      </div>
+                      <div className="text-[11px] text-[#667085]">
+                        {u.roleLabel} · {u.active ? 'Actif' : 'Désactivé'}
+                      </div>
+                    </div>
+                    <Switch.Root
+                      disabled={u.role === 'owner'}
+                      checked={u.active}
+                      onCheckedChange={(checked) =>
+                        toggleUserMut.mutate({ userId: u.id, active: checked })
+                      }
+                      className="relative h-5 w-9 rounded-full bg-slate-300 dark:bg-slate-700 data-[state=checked]:bg-[#16A36A] disabled:opacity-60"
+                    >
+                      <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white transition-transform data-[state=checked]:translate-x-[18px]" />
+                    </Switch.Root>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-3 grid grid-cols-2 gap-2.5 text-xs">
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  placeholder="Identifiant (ex: caisse1)"
+                  className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5"
+                />
+                <input
+                  type="text"
+                  value={newDisplayName}
+                  onChange={(e) => setNewDisplayName(e.target.value)}
+                  placeholder="Nom affiché"
+                  className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5"
+                />
+                <select
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                  className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5"
+                >
+                  <option value="cashier">Caissier</option>
+                  <option value="stock_manager">Magasinier</option>
+                  <option value="manager">Gérant</option>
+                  <option value="accountant">Comptable</option>
+                  <option value="admin">Administrateur</option>
+                </select>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={newUserPin}
+                  onChange={(e) => setNewUserPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="PIN 6 chiffres"
+                  className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 font-mono-num"
+                />
+                <button
+                  type="button"
+                  disabled={
+                    !newUsername.trim() ||
+                    !newDisplayName.trim() ||
+                    newUserPin.length !== 6 ||
+                    createUserMut.isPending
+                  }
+                  onClick={() => createUserMut.mutate()}
+                  className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Ajouter un compte opérateur
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
