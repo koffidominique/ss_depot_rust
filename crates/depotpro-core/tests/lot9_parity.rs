@@ -150,11 +150,13 @@ async fn lot9_22_scenarios_business_parity() {
         )
         .await
         .unwrap();
-        assert!(sup.code.starts_with("FOU-"));
+        assert!(sup.code.starts_with("FRN-"));
         assert_eq!(sup.balance_due, 0);
 
         // Scénario 3 — Création produit
-        let cat = products::create_category(&db, "Bières 65cl Lot 9", None).await.unwrap();
+        let cat = products::create_category(&db, "Bières 65cl Lot 9", None)
+            .await
+            .unwrap();
         let bad_prod = products::create_product(
             &db,
             products::CreateProductInput {
@@ -458,7 +460,10 @@ async fn lot9_22_scenarios_business_parity() {
             },
         )
         .await;
-        assert!(matches!(forbidden_credit, Err(CoreError::CreditPolicyViolation(_))));
+        assert!(matches!(
+            forbidden_credit,
+            Err(CoreError::CreditPolicyViolation(_))
+        ));
 
         let credit_sale = sales::create_sale(
             &db,
@@ -582,7 +587,10 @@ async fn lot9_22_scenarios_business_parity() {
             },
         )
         .await;
-        assert!(matches!(cancel_after_ret, Err(CoreError::HistoricalImmutable(_))));
+        assert!(matches!(
+            cancel_after_ret,
+            Err(CoreError::HistoricalImmutable(_))
+        ));
 
         let cancel_target = sales::create_sale(
             &db,
@@ -823,7 +831,9 @@ async fn lot9_22_scenarios_business_parity() {
         assert_eq!(adj_empty.stock_after, 26);
 
         // Scénario 18 — Inventaire physique (-2 bouteilles)
-        let inv = inventory::create_inventory(&db, Some("Inventaire Lot 9")).await.unwrap();
+        let inv = inventory::create_inventory(&db, Some("Inventaire Lot 9"))
+            .await
+            .unwrap();
         let bad_inv_unmot = inventory::validate_inventory(
             &db,
             inv.id,
@@ -978,7 +988,9 @@ async fn lot9_22_scenarios_business_parity() {
         .unwrap();
 
         // Scénario 21 — Rapports, KPIs & Sauvegarde lecture seule
-        let rep = reports::get_reports_overview(&db, None, None).await.unwrap();
+        let rep = reports::get_reports_overview(&db, None, None)
+            .await
+            .unwrap();
         assert_eq!(rep.commercial.count, 3);
         assert_eq!(rep.commercial.merchandise_revenue, 56_950);
         assert_eq!(rep.commercial.deposit_billed, 7_500);
@@ -988,8 +1000,12 @@ async fn lot9_22_scenarios_business_parity() {
         assert_eq!(rep.profitability.known_gross_margin, 14_200);
         assert_eq!(rep.profitability.net_known_result, 9_200);
 
-        let bkp = backup::create_backup_summary(&db, &backup_dir).await.unwrap();
-        let verify = backup::verify_backup(&backup_dir, &bkp.name).await.unwrap();
+        let bkp = backup::create_backup_summary(&db, &backup_dir)
+            .await
+            .unwrap();
+        let verify = backup::verify_backup(&backup_dir, &bkp.name)
+            .await
+            .unwrap();
         assert!(verify.compatible);
         assert_eq!(verify.integrity, "ok");
         assert_eq!(verify.foreign_key_errors, 0);

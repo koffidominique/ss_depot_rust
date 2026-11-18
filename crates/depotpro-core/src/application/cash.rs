@@ -373,11 +373,12 @@ pub async fn pay_receivable(
             .fetch_optional(&mut *tx)
             .await?;
     if let Some((pay_id, kind)) = existing_pay {
-        let alloc_rec: Option<i64> =
-            sqlx::query_scalar("SELECT receivable_id FROM payment_allocations WHERE payment_id = ?")
-                .bind(pay_id)
-                .fetch_optional(&mut *tx)
-                .await?;
+        let alloc_rec: Option<i64> = sqlx::query_scalar(
+            "SELECT receivable_id FROM payment_allocations WHERE payment_id = ?",
+        )
+        .bind(pay_id)
+        .fetch_optional(&mut *tx)
+        .await?;
         tx.rollback().await?;
         if kind != "receivable" || alloc_rec != Some(receivable_id) {
             return Err(CoreError::DuplicateOperation(

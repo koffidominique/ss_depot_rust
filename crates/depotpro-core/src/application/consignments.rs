@@ -527,7 +527,9 @@ pub async fn return_client_empties(
         ))
     })?;
     if pm_active == 0 {
-        return Err(CoreError::InvalidPayment(format!("Moyen de paiement inactif : {pm_code}")));
+        return Err(CoreError::InvalidPayment(format!(
+            "Moyen de paiement inactif : {pm_code}"
+        )));
     }
 
     let total_returned_pieces = returned_pieces

@@ -192,7 +192,7 @@ jobs:
           cargo fmt --all -- --check 2>&1 | tee /tmp/rustfmt.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
-            MSG=$(head -n 80 /tmp/rustfmt.log | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
+            MSG=$(head -n 200 /tmp/rustfmt.log | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
             echo "::error title=rustfmt::$MSG"
             exit "$rc"
           fi
