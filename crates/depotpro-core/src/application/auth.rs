@@ -930,19 +930,29 @@ pub async fn create_user(db: &DepotDb, input: CreateUserInput) -> CoreResult<Use
     get_user_by_id(db, uid).await
 }
 
+type UserRow = (
+    i64,
+    String,
+    String,
+    String,
+    i64,
+    i64,
+    Option<String>,
+    String,
+);
+
 async fn get_user_by_id(db: &DepotDb, user_id: i64) -> CoreResult<UserDto> {
-    let row: Option<(i64, String, String, String, i64, i64, Option<String>, String)> =
-        sqlx::query_as(
-            "SELECT id, username, display_name, role, active, failed_attempts,
-                    CASE WHEN locked_until IS NOT NULL AND locked_until > datetime('now')
-                         THEN locked_until ELSE NULL END,
-                    created_at
-             FROM users
-             WHERE id = ?",
-        )
-        .bind(user_id)
-        .fetch_optional(&db.pool)
-        .await?;
+    let row: Option<UserRow> = sqlx::query_as(
+        "SELECT id, username, display_name, role, active, failed_attempts,
+                CASE WHEN locked_until IS NOT NULL AND locked_until > datetime('now')
+                     THEN locked_until ELSE NULL END,
+                created_at
+         FROM users
+         WHERE id = ?",
+    )
+    .bind(user_id)
+    .fetch_optional(&db.pool)
+    .await?;
 
     let (id, username, display_name, role_raw, active, failed_attempts, locked_until, created_at) =
         row.ok_or_else(|| CoreError::Validation("Utilisateur introuvable.".to_string()))?;
@@ -962,17 +972,16 @@ async fn get_user_by_id(db: &DepotDb, user_id: i64) -> CoreResult<UserDto> {
 
 pub async fn list_users(db: &DepotDb) -> CoreResult<Vec<UserDto>> {
     require_current_actor_permission(Permission::SecurityManageUsers)?;
-    let rows: Vec<(i64, String, String, String, i64, i64, Option<String>, String)> =
-        sqlx::query_as(
-            "SELECT id, username, display_name, role, active, failed_attempts,
-                    CASE WHEN locked_until IS NOT NULL AND locked_until > datetime('now')
-                         THEN locked_until ELSE NULL END,
-                    created_at
-             FROM users
-             ORDER BY id ASC",
-        )
-        .fetch_all(&db.pool)
-        .await?;
+    let rows: Vec<UserRow> = sqlx::query_as(
+        "SELECT id, username, display_name, role, active, failed_attempts,
+                CASE WHEN locked_until IS NOT NULL AND locked_until > datetime('now')
+                     THEN locked_until ELSE NULL END,
+                created_at
+         FROM users
+         ORDER BY id ASC",
+    )
+    .fetch_all(&db.pool)
+    .await?;
 
     let mut out = Vec::with_capacity(rows.len());
     for (id, username, display_name, role_raw, active, failed_attempts, locked_until, created_at) in
