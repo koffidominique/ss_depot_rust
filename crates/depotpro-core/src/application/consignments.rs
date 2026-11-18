@@ -207,7 +207,9 @@ pub async fn create_returnable_type(
         ));
     }
     if !matches!(input.kind.as_str(), "bottle" | "crate") {
-        return Err(CoreError::Validation("Type emballage invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Type emballage invalide.".to_string(),
+        ));
     }
     let deposit_value = Money::from_non_negative(input.deposit_value, "Valeur de consigne")?;
     let initial_stock = input.initial_stock.unwrap_or(0);
@@ -224,7 +226,9 @@ pub async fn create_returnable_type(
         .await?
         .is_some()
     {
-        return Err(CoreError::DuplicateOperation("Code emballage déjà utilisé.".to_string()));
+        return Err(CoreError::DuplicateOperation(
+            "Code emballage déjà utilisé.".to_string(),
+        ));
     }
 
     let clean_desc = input
@@ -301,21 +305,27 @@ pub async fn adjust_returnable_stock(
     }
     let reason = input.reason.trim().to_string();
     if reason.is_empty() {
-        return Err(CoreError::Validation("Le motif est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le motif est obligatoire.".to_string(),
+        ));
     }
     if !matches!(
         input.movement_type.as_str(),
         "entry" | "exit" | "breakage" | "loss" | "correction_in" | "correction_out"
     ) {
-        return Err(CoreError::Validation("Type de mouvement invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Type de mouvement invalide.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    if sqlx::query_scalar::<_, i64>("SELECT id FROM returnable_stock_movements WHERE request_key = ?")
-        .bind(&input.request_key)
-        .fetch_optional(&mut *tx)
-        .await?
-        .is_some()
+    if sqlx::query_scalar::<_, i64>(
+        "SELECT id FROM returnable_stock_movements WHERE request_key = ?",
+    )
+    .bind(&input.request_key)
+    .fetch_optional(&mut *tx)
+    .await?
+    .is_some()
     {
         tx.rollback().await?;
         return Ok(());
@@ -389,24 +399,31 @@ pub async fn return_client_empties(
 ) -> CoreResult<String> {
     require_current_actor_permission(Permission::ConsignmentsWrite)?;
     if input.pieces <= 0 {
-        return Err(CoreError::Validation("Nombre de pièces retournées invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Nombre de pièces retournées invalide.".to_string(),
+        ));
     }
     if !matches!(input.condition_state.as_str(), "good" | "damaged") {
-        return Err(CoreError::Validation("État d'emballage invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "État d'emballage invalide.".to_string(),
+        ));
     }
     let refund_amount = Money::from_non_negative(input.refund_amount, "Montant remboursé")?;
     let credit_reduction = Money::from_non_negative(input.credit_reduction, "Réduction créance")?;
     let reason = input.reason.trim().to_string();
     if reason.is_empty() {
-        return Err(CoreError::Validation("Le motif du retour est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le motif du retour est obligatoire.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    if let Some((existing_ref,)) =
-        sqlx::query_as::<_, (String,)>("SELECT reference FROM deposit_returns WHERE request_key = ?")
-            .bind(&input.request_key)
-            .fetch_optional(&mut *tx)
-            .await?
+    if let Some((existing_ref,)) = sqlx::query_as::<_, (String,)>(
+        "SELECT reference FROM deposit_returns WHERE request_key = ?",
+    )
+    .bind(&input.request_key)
+    .fetch_optional(&mut *tx)
+    .await?
     {
         tx.rollback().await?;
         return Ok(existing_ref);
@@ -434,7 +451,8 @@ pub async fn return_client_empties(
     }
     let max_val = Money::from_non_negative(unit_value, "Tarif consigne")?
         .checked_mul(input.pieces, "Valeur consignée retournée")?;
-    let total_counterpart = refund_amount.checked_add(credit_reduction, "Contrepartie retour vides")?;
+    let total_counterpart =
+        refund_amount.checked_add(credit_reduction, "Contrepartie retour vides")?;
     if total_counterpart > max_val {
         return Err(CoreError::InvalidPayment(format!(
             "La contrepartie ({}) dépasse la valeur consignée ({}).",
@@ -444,11 +462,12 @@ pub async fn return_client_empties(
     }
 
     if credit_reduction.value() > 0 {
-        let rec: Option<(i64, i64)> =
-            sqlx::query_as("SELECT id, remaining_amount FROM customer_receivables WHERE sale_id = ?")
-                .bind(sale_id)
-                .fetch_optional(&mut *tx)
-                .await?;
+        let rec: Option<(i64, i64)> = sqlx::query_as(
+            "SELECT id, remaining_amount FROM customer_receivables WHERE sale_id = ?",
+        )
+        .bind(sale_id)
+        .fetch_optional(&mut *tx)
+        .await?;
         let (rec_id, rem) = rec.ok_or_else(|| {
             CoreError::InvalidPayment("Aucune créance associée à cette vente.".to_string())
         })?;
@@ -460,12 +479,14 @@ pub async fn return_client_empties(
         let next_rem = Money(rem)
             .checked_sub_non_negative(credit_reduction, "Solde créance")?
             .value();
-        sqlx::query("UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?")
-            .bind(next_rem)
-            .bind(if next_rem == 0 { "paid" } else { "partial" })
-            .bind(rec_id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "UPDATE customer_receivables SET remaining_amount = ?, status = ? WHERE id = ?",
+        )
+        .bind(next_rem)
+        .bind(if next_rem == 0 { "paid" } else { "partial" })
+        .bind(rec_id)
+        .execute(&mut *tx)
+        .await?;
     }
 
     if refund_amount.value() > 0 && input.method_code == "cash" {
@@ -499,11 +520,13 @@ pub async fn return_client_empties(
                 .execute(&mut *tx)
                 .await?;
         } else {
-            sqlx::query("INSERT INTO returnable_stock_balances (packaging_id, quantity) VALUES (?, ?)")
-                .bind(returnable_id)
-                .bind(after)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query(
+                "INSERT INTO returnable_stock_balances (packaging_id, quantity) VALUES (?, ?)",
+            )
+            .bind(returnable_id)
+            .bind(after)
+            .execute(&mut *tx)
+            .await?;
         }
     }
 
@@ -594,7 +617,10 @@ pub async fn return_client_empties(
         "DEPOSIT_RETURN",
         "deposit_returns",
         Some(ret_id.to_string()),
-        &format!("{reference} — {} pièces ({})", input.pieces, input.condition_state),
+        &format!(
+            "{reference} — {} pièces ({})",
+            input.pieces, input.condition_state
+        ),
     )
     .await?;
     tx.commit().await?;

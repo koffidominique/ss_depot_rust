@@ -47,7 +47,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole('heading', { name: 'Tableau de bord', level: 1 })).toBeVisible();
 
-    const themeToggle = page.getByRole('button', { name: 'Changer de thème' });
+    const themeToggle = page.getByRole('button', { name: /thème/i });
     await themeToggle.click();
     await expect(page.locator('html')).toHaveClass(/dark/);
     await themeToggle.click();

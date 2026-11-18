@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::future::Future;
-use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::application::sales::audit_log_tx;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::future::Future;
+use uuid::Uuid;
 
 pub const DEFAULT_SESSION_IDLE_SECS: i64 = 30 * 60;
 pub const DEFAULT_SESSION_MAX_SECS: i64 = 12 * 60 * 60;
@@ -385,11 +385,7 @@ impl SessionStore {
         now: DateTime<Utc>,
     ) -> SessionRecord {
         self.purge_expired_at(now);
-        let token = format!(
-            "{}{}",
-            Uuid::new_v4().simple(),
-            Uuid::new_v4().simple()
-        );
+        let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
         let record = SessionRecord {
             token: token.clone(),
             created_at: now,
@@ -409,11 +405,15 @@ impl SessionStore {
     ) -> CoreResult<SessionIdentity> {
         let trimmed = token.trim();
         if trimmed.is_empty() {
-            return Err(CoreError::Unauthorized("Session verrouillée ou expirée.".to_string()));
+            return Err(CoreError::Unauthorized(
+                "Session verrouillée ou expirée.".to_string(),
+            ));
         }
 
         let Some(entry) = self.sessions.get_mut(trimmed) else {
-            return Err(CoreError::Unauthorized("Session verrouillée ou expirée.".to_string()));
+            return Err(CoreError::Unauthorized(
+                "Session verrouillée ou expirée.".to_string(),
+            ));
         };
 
         if entry.revoked {
@@ -741,11 +741,13 @@ pub async fn verify_user_login(
     .fetch_optional(&db.pool)
     .await?;
 
-    let (uid, uname, display_name, role_raw, pin_hash, active, is_locked) =
-        row.ok_or_else(|| CoreError::Unauthorized("Identifiant ou code PIN incorrect.".to_string()))?;
+    let (uid, uname, display_name, role_raw, pin_hash, active, is_locked) = row
+        .ok_or_else(|| CoreError::Unauthorized("Identifiant ou code PIN incorrect.".to_string()))?;
 
     if active != 1 {
-        return Err(CoreError::Unauthorized("Compte utilisateur désactivé.".to_string()));
+        return Err(CoreError::Unauthorized(
+            "Compte utilisateur désactivé.".to_string(),
+        ));
     }
     if is_locked == 1 {
         return Err(CoreError::RateLimited(
@@ -771,7 +773,9 @@ pub async fn verify_user_login(
 
     if tx_active != 1 {
         tx.rollback().await?;
-        return Err(CoreError::Unauthorized("Compte utilisateur désactivé.".to_string()));
+        return Err(CoreError::Unauthorized(
+            "Compte utilisateur désactivé.".to_string(),
+        ));
     }
     if tx_locked == 1 {
         tx.rollback().await?;
@@ -808,7 +812,9 @@ pub async fn verify_user_login(
         )
         .await?;
         tx.commit().await?;
-        return Err(CoreError::Unauthorized("Identifiant ou code PIN incorrect.".to_string()));
+        return Err(CoreError::Unauthorized(
+            "Identifiant ou code PIN incorrect.".to_string(),
+        ));
     }
 
     sqlx::query(
@@ -841,12 +847,15 @@ pub async fn change_owner_pin(db: &DepotDb, current_pin: &str, new_pin: &str) ->
     let row: Option<(String,)> = sqlx::query_as("SELECT pin_hash FROM owner_security WHERE id = 1")
         .fetch_optional(&db.pool)
         .await?;
-    let (pin_hash,) = row.ok_or_else(|| CoreError::Unauthorized("Aucun code PIN configuré.".to_string()))?;
+    let (pin_hash,) =
+        row.ok_or_else(|| CoreError::Unauthorized("Aucun code PIN configuré.".to_string()))?;
 
     let ok = bcrypt::verify(current_pin, &pin_hash)
         .map_err(|e| CoreError::Internal(format!("Erreur vérification PIN : {e}")))?;
     if !ok {
-        return Err(CoreError::Unauthorized("Code PIN actuel incorrect.".to_string()));
+        return Err(CoreError::Unauthorized(
+            "Code PIN actuel incorrect.".to_string(),
+        ));
     }
 
     let next_hash = bcrypt::hash(new_pin, 10)
@@ -922,7 +931,10 @@ pub async fn create_user(db: &DepotDb, input: CreateUserInput) -> CoreResult<Use
         "CREATE_USER",
         "users",
         Some(uid.to_string()),
-        &format!("Création utilisateur {username} ({})", input.role.label_fr()),
+        &format!(
+            "Création utilisateur {username} ({})",
+            input.role.label_fr()
+        ),
     )
     .await?;
     tx.commit().await?;
@@ -1019,22 +1031,28 @@ pub async fn set_user_active(db: &DepotDb, user_id: i64, active: bool) -> CoreRe
         ));
     }
 
-    sqlx::query(
-        "UPDATE users SET active = ?, updated_at = datetime('now') WHERE id = ?",
-    )
-    .bind(if active { 1 } else { 0 })
-    .bind(user_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE users SET active = ?, updated_at = datetime('now') WHERE id = ?")
+        .bind(if active { 1 } else { 0 })
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
 
     audit_log_tx(
         &mut tx,
-        if active { "ACTIVATE_USER" } else { "DEACTIVATE_USER" },
+        if active {
+            "ACTIVATE_USER"
+        } else {
+            "DEACTIVATE_USER"
+        },
         "users",
         Some(user_id.to_string()),
         &format!(
             "{} du compte {username}",
-            if active { "Activation" } else { "Désactivation" }
+            if active {
+                "Activation"
+            } else {
+                "Désactivation"
+            }
         ),
     )
     .await?;

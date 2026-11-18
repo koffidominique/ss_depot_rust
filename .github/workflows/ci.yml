@@ -205,7 +205,7 @@ jobs:
                   size = 0
               chunk.append(esc)
               size += len(esc) + 3
-              if idx > 500:
+              if idx > 4000:
                   chunk.append('... (truncated)')
                   break
           if chunk:
@@ -229,6 +229,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
+      - run: npm run build
       - name: Vérification CLI Tauri
         run: npm exec tauri -- --version
       - name: Analyse statique Rust Desktop (clippy)
@@ -270,10 +271,19 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
+      - run: npm run build
       - name: Vérification CLI Tauri
         run: npm exec tauri -- --version
       - name: Analyse statique Rust Desktop (clippy)
-        run: cargo clippy -p depotpro-desktop --all-targets -- -D warnings
+        run: |
+          set +e
+          CARGO_TERM_COLOR=never cargo clippy -p depotpro-desktop --all-targets -- -D warnings 2>&1 | tee /tmp/clippy_mac.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            MSG=$(grep -E '^error(\[|:)|   -->' /tmp/clippy_mac.log | head -n 60 | sed 's/%/%25/g; s/\r//g' | tr '\n' '\a' | sed 's/\a/%0A/g')
+            echo "::error title=clippy-desktop-mac::$MSG"
+            exit "$rc"
+          fi
       - name: Compilation Tauri macOS & génération bundle
         run: npm exec tauri -- build --ci --bundles app,dmg
       - name: Vérification présence réelle des artefacts macOS

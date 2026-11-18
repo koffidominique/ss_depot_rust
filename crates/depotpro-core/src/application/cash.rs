@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::application::auth::{require_current_actor_permission, Permission};
-use crate::application::sales::{audit_log_tx, get_theoretical_cash_tx, require_open_session_tx, PaymentPartInput};
+use crate::application::sales::{
+    audit_log_tx, get_theoretical_cash_tx, require_open_session_tx, PaymentPartInput,
+};
 use crate::domain::money::Money;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
@@ -295,7 +297,10 @@ pub async fn close_cash_session(db: &DepotDb, input: CloseCashInput) -> CoreResu
         "CLOSE_CASH",
         "cash_sessions",
         Some(sid.to_string()),
-        &format!("Clôture {sref} — Théorique {theoretical} / Physique {} / Écart {difference}", physical_cash.value()),
+        &format!(
+            "Clôture {sref} — Théorique {theoretical} / Physique {} / Écart {difference}",
+            physical_cash.value()
+        ),
     )
     .await?;
     tx.commit().await?;
@@ -333,7 +338,9 @@ pub async fn pay_receivable(
 ) -> CoreResult<ReceivableDto> {
     require_current_actor_permission(Permission::ReceivablesPay)?;
     if input.parts.is_empty() {
-        return Err(CoreError::InvalidPayment("Indiquez au moins un moyen de paiement.".to_string()));
+        return Err(CoreError::InvalidPayment(
+            "Indiquez au moins un moyen de paiement.".to_string(),
+        ));
     }
     let (_guard, mut tx) = db.begin_write().await?;
 
@@ -361,20 +368,26 @@ pub async fn pay_receivable(
     let (rec_id, sale_id, client_id, remaining, status) =
         rec.ok_or_else(|| CoreError::Validation("Créance introuvable.".to_string()))?;
     if status == "cancelled" || remaining <= 0 {
-        return Err(CoreError::HistoricalImmutable("Cette créance est déjà soldée ou annulée.".to_string()));
+        return Err(CoreError::HistoricalImmutable(
+            "Cette créance est déjà soldée ou annulée.".to_string(),
+        ));
     }
 
     let mut total_paid = Money::ZERO;
     let mut valid_parts: Vec<(String, i64)> = Vec::new();
     for p in &input.parts {
         let amt = Money::from_positive(p.amount, &format!("Montant ({})", p.method_code))?;
-        let pm: Option<(String, i64)> = sqlx::query_as("SELECT code, active FROM payment_methods WHERE code = ?")
-            .bind(&p.method_code)
-            .fetch_optional(&mut *tx)
-            .await?;
-        let (code, active) = pm.ok_or_else(|| CoreError::InvalidPayment("Moyen de paiement invalide.".to_string()))?;
+        let pm: Option<(String, i64)> =
+            sqlx::query_as("SELECT code, active FROM payment_methods WHERE code = ?")
+                .bind(&p.method_code)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let (code, active) =
+            pm.ok_or_else(|| CoreError::InvalidPayment("Moyen de paiement invalide.".to_string()))?;
         if active == 0 {
-            return Err(CoreError::InvalidPayment("Moyen de paiement inactif.".to_string()));
+            return Err(CoreError::InvalidPayment(
+                "Moyen de paiement inactif.".to_string(),
+            ));
         }
         total_paid = total_paid.checked_add(amt, "Total règlement")?;
         valid_parts.push((code, amt.value()));
@@ -402,12 +415,14 @@ pub async fn pay_receivable(
     .await?
     .last_insert_rowid();
 
-    sqlx::query("INSERT INTO payment_allocations (payment_id, receivable_id, amount) VALUES (?, ?, ?)")
-        .bind(payment_id)
-        .bind(rec_id)
-        .bind(total_paid.value())
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "INSERT INTO payment_allocations (payment_id, receivable_id, amount) VALUES (?, ?, ?)",
+    )
+    .bind(payment_id)
+    .bind(rec_id)
+    .bind(total_paid.value())
+    .execute(&mut *tx)
+    .await?;
 
     for (idx, (code, amt)) in valid_parts.iter().enumerate() {
         let part_id = sqlx::query("INSERT INTO payment_parts (payment_id, method_code, amount) VALUES (?, ?, ?)")
@@ -470,7 +485,9 @@ pub async fn create_expense(db: &DepotDb, input: CreateExpenseInput) -> CoreResu
     require_current_actor_permission(Permission::ExpensesWrite)?;
     let category = input.category.trim().to_string();
     if category.is_empty() {
-        return Err(CoreError::Validation("La catégorie est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "La catégorie est obligatoire.".to_string(),
+        ));
     }
     let amount = Money::from_positive(input.amount, "Montant dépense")?;
     let receipt_path =
@@ -496,7 +513,9 @@ pub async fn create_expense(db: &DepotDb, input: CreateExpenseInput) -> CoreResu
     let (code, is_cash, active) =
         pm.ok_or_else(|| CoreError::InvalidPayment("Moyen de paiement invalide.".to_string()))?;
     if active == 0 {
-        return Err(CoreError::InvalidPayment("Moyen de paiement inactif.".to_string()));
+        return Err(CoreError::InvalidPayment(
+            "Moyen de paiement inactif.".to_string(),
+        ));
     }
     if is_cash == 1 {
         let avail = get_theoretical_cash_tx(&mut tx, session_id, opening_cash).await?;
@@ -584,10 +603,11 @@ pub struct ExpensesOverviewDto {
 
 pub async fn list_expenses(db: &DepotDb) -> CoreResult<ExpensesOverviewDto> {
     require_current_actor_permission(Permission::CashRead)?;
-    let categories =
-        sqlx::query_as::<_, ExpenseCategoryDto>("SELECT id, name FROM expense_categories ORDER BY name")
-            .fetch_all(&db.pool)
-            .await?;
+    let categories = sqlx::query_as::<_, ExpenseCategoryDto>(
+        "SELECT id, name FROM expense_categories ORDER BY name",
+    )
+    .fetch_all(&db.pool)
+    .await?;
     let items = sqlx::query_as::<_, ExpenseItemDto>(
         "SELECT e.id, e.reference, e.category, e.amount, e.method_code, pm.label AS method_label,
                 e.session_id, e.beneficiary, e.notes, e.receipt_path, e.expense_date, e.created_at
@@ -599,4 +619,3 @@ pub async fn list_expenses(db: &DepotDb) -> CoreResult<ExpensesOverviewDto> {
     .await?;
     Ok(ExpensesOverviewDto { categories, items })
 }
-
