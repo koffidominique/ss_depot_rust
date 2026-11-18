@@ -183,7 +183,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await assertNoHorizontalOverflow('desktop-products');
 
     // Tri de colonne DataTable
-    const sortProductBtn = page.getByRole('button', { name: 'Produit' });
+    const sortProductBtn = page.getByRole('button', { name: 'Produit', exact: true });
     await sortProductBtn.click();
     await sortProductBtn.click();
 
@@ -198,11 +198,11 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     const posSearch = page.getByPlaceholder(/Scanner code-barres ou chercher \(F2\)/i);
     await expect(posSearch).toBeFocused();
     await posSearch.fill('Youki');
-    await page.getByRole('button', { name: 'Effacer la recherche' }).click();
+    await page.getByRole('button', { name: 'Effacer la recherche', exact: true }).click();
     await expect(posSearch).toHaveValue('');
 
     // Ouverture modale client rapide puis fermeture via Escape
-    await page.getByRole('button', { name: 'Créer rapidement un client' }).click();
+    await page.getByRole('button', { name: 'Créer rapidement un client', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toBeHidden();
@@ -221,9 +221,9 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await page.goto('/');
     await assertNoHorizontalOverflow('mobile-dashboard');
 
-    await page.getByRole('button', { name: 'Ouvrir le menu de navigation' }).click();
-    await expect(page.getByRole('button', { name: 'Fermer le menu' })).toBeVisible();
-    await page.locator('aside:visible').getByRole('link', { name: 'Clients' }).click();
+    await page.getByRole('button', { name: 'Ouvrir le menu de navigation', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Fermer le menu', exact: true })).toBeVisible();
+    await page.locator('aside:visible').getByRole('link', { name: 'Clients', exact: true }).click();
     await expect(
       page.getByRole('heading', { name: 'Clients & Politiques de crédit', level: 1 })
     ).toBeVisible();
