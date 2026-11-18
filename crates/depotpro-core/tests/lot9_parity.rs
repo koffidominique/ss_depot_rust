@@ -1003,9 +1003,7 @@ async fn lot9_22_scenarios_business_parity() {
         let bkp = backup::create_backup_summary(&db, &backup_dir)
             .await
             .unwrap();
-        let verify = backup::verify_backup(&backup_dir, &bkp.name)
-            .await
-            .unwrap();
+        let verify = backup::verify_backup(&backup_dir, &bkp.name).await.unwrap();
         assert!(verify.compatible);
         assert_eq!(verify.integrity, "ok");
         assert_eq!(verify.foreign_key_errors, 0);
