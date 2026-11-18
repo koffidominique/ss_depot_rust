@@ -157,4 +157,78 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
 
     expect(errors).toEqual([]);
   });
+
+  test('Scénario 5 — Lot 8 : Multi-viewports (1440x900, 768x1024, 390x844), tiroir mobile, tri DataTable et raccourcis POS', async ({
+    page,
+  }) => {
+    const errors = trackRuntimeErrors(page);
+
+    const assertNoHorizontalOverflow = async (label: string) => {
+      const overflow = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      }));
+      expect(overflow.scrollWidth, `${label} overflow`).toBeLessThanOrEqual(overflow.innerWidth);
+    };
+
+    // 1. Desktop 1440x900 : login, tri DataTable, recherche & raccourcis POS (F2 / Escape)
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginWithPin(page, '123456');
+    await assertNoHorizontalOverflow('desktop-dashboard');
+
+    await page.goto('/products');
+    await expect(
+      page.getByRole('heading', { name: 'Catalogue produits & conditionnements', level: 1 })
+    ).toBeVisible();
+    await assertNoHorizontalOverflow('desktop-products');
+
+    // Tri de colonne DataTable
+    const sortProductBtn = page.getByRole('button', { name: 'Produit' });
+    await sortProductBtn.click();
+    await sortProductBtn.click();
+
+    await page.goto('/sales/new');
+    await expect(
+      page.getByRole('heading', { name: 'Nouvelle vente (Point de vente)', level: 1 })
+    ).toBeVisible();
+    await assertNoHorizontalOverflow('desktop-sales');
+
+    // F2 focalise le champ de recherche POS + bouton effacer
+    await page.keyboard.press('F2');
+    const posSearch = page.getByPlaceholder(/Scanner code-barres ou chercher \(F2\)/i);
+    await expect(posSearch).toBeFocused();
+    await posSearch.fill('Youki');
+    await page.getByRole('button', { name: 'Effacer la recherche' }).click();
+    await expect(posSearch).toHaveValue('');
+
+    // Ouverture modale client rapide puis fermeture via Escape
+    await page.getByRole('button', { name: 'Créer rapidement un client' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeHidden();
+
+    // 2. Tablette 768x1024
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Tableau de bord', level: 1 })).toBeVisible();
+    await assertNoHorizontalOverflow('tablet-dashboard');
+
+    await page.goto('/sales/new');
+    await assertNoHorizontalOverflow('tablet-sales');
+
+    // 3. Mobile 390x844 : tiroir de navigation mobile
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await assertNoHorizontalOverflow('mobile-dashboard');
+
+    await page.getByRole('button', { name: 'Ouvrir le menu de navigation' }).click();
+    await expect(page.getByRole('button', { name: 'Fermer le menu' })).toBeVisible();
+    await page.locator('aside:visible').getByRole('link', { name: 'Clients' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Clients & Politiques de crédit', level: 1 })
+    ).toBeVisible();
+    await assertNoHorizontalOverflow('mobile-clients');
+
+    expect(errors).toEqual([]);
+  });
 });

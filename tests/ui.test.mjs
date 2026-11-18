@@ -49,7 +49,7 @@ for (const key of [
 }
 
 const React = await import('react');
-const { MemoryRouter } = await import('react-router-dom');
+const { MemoryRouter, Route, Routes } = await import('react-router-dom');
 const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
 const { cleanup, fireEvent, render, screen, waitFor } = await import('@testing-library/react');
 const { MoneyInput } = await import('../src/components/common/MoneyInput.tsx');
@@ -76,6 +76,7 @@ const { ExpensesPage } = await import('../src/pages/ExpensesPage.tsx');
 const { CashPage } = await import('../src/pages/CashPage.tsx');
 const { ConsignmentsPage } = await import('../src/pages/ConsignmentsPage.tsx');
 const { BackupsPage } = await import('../src/pages/BackupsPage.tsx');
+const { AppLayout } = await import('../src/layouts/AppLayout.tsx');
 const { Header } = await import('../src/layouts/Header.tsx');
 const { apiClient } = await import('../src/services/api/createApiClient.ts');
 const { useUiStore } = await import('../src/stores/uiStore.ts');
@@ -3407,6 +3408,661 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       apiClient.getSettings = origGetSettings;
       apiClient.listUsers = origListUsers;
       apiClient.createUser = origCreateUser;
+    }
+  });
+
+  it('Lot 8 — Ouverture des 17 écrans, navigation inter-écrans, thème Header et menu mobile responsive', async () => {
+    const orig = {
+      getAuthStatus: apiClient.getAuthStatus,
+      getDashboard: apiClient.getDashboard,
+      getSettings: apiClient.getSettings,
+      getReports: apiClient.getReports,
+      getCashStatus: apiClient.getCashStatus,
+      listProducts: apiClient.listProducts,
+      listCategories: apiClient.listCategories,
+      listClients: apiClient.listClients,
+      listSales: apiClient.listSales,
+      listReceivables: apiClient.listReceivables,
+      getStockOverview: apiClient.getStockOverview,
+      listInventories: apiClient.listInventories,
+      getConsignmentsOverview: apiClient.getConsignmentsOverview,
+      listSuppliers: apiClient.listSuppliers,
+      listSupplierDebts: apiClient.listSupplierDebts,
+      listPurchases: apiClient.listPurchases,
+      listExpenses: apiClient.listExpenses,
+      listBackups: apiClient.listBackups,
+      listUsers: apiClient.listUsers,
+    };
+
+    try {
+      useUiStore.setState({
+        token: 'lot8-token',
+        theme: 'light',
+        sidebarCollapsed: false,
+        currentUser: {
+          id: 1,
+          username: 'owner',
+          displayName: 'Propriétaire',
+          role: 'owner',
+          roleLabel: 'Propriétaire',
+          active: true,
+        },
+      });
+
+      apiClient.getAuthStatus = async () => ({
+        needsSetup: false,
+        authenticated: false,
+        failedAttempts: 0,
+        lockedUntil: null,
+      });
+      apiClient.getDashboard = async () => ({
+        kpis: {
+          revenueMerchandise: 120000,
+          depositsTotal: 0,
+          salesCount: 2,
+          collectionsTotal: 120000,
+          receivablesTotal: 0,
+          receivablesCount: 0,
+          supplierDebtsTotal: 0,
+          supplierDebtsCount: 0,
+          expensesTotal: 0,
+          cashSessionOpen: false,
+          cashSessionReference: null,
+          cashPhysicalTheoretical: 0,
+          digitalSessionTotal: 0,
+          lowStockCount: 0,
+          outOfStockCount: 0,
+        },
+        lowStockProducts: [],
+        topProducts: [],
+        salesSeries: [],
+        recentAudit: [],
+      });
+      apiClient.getSettings = async () => ({
+        settings: {
+          company_name: 'DEPOTPRO Lot 8',
+          company_legal_name: null,
+          address: null,
+          phone: null,
+          email: null,
+          city: null,
+          country: null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          setup_completed: 1,
+        },
+        paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+      });
+      apiClient.getReports = async () => ({
+        commercial: { count: 0, merchandise_revenue: 0, deposit_billed: 0, total_amount: 0, paid_amount: 0 },
+        profitability: { knownCostRevenue: 0, knownCostTotal: 0, knownGrossMargin: 0, expensesTotal: 0, netKnownResult: 0, unknownCostLines: 0 },
+        stock: { product_count: 0, unknown_cost_products: 0, knownValuationFcfa: 0 },
+        paymentBreakdown: [],
+        dailySales: [],
+      });
+      apiClient.getCashStatus = async () => ({ activeSession: null, summary: null, history: [] });
+      apiClient.listProducts = async () => ({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 1 });
+      apiClient.listCategories = async () => [{ id: 1, name: 'Boissons', description: null }];
+      apiClient.listClients = async () => [];
+      apiClient.listSales = async () => ({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 1 });
+      apiClient.listReceivables = async () => [];
+      apiClient.getStockOverview = async () => ({ products: [], movements: [] });
+      apiClient.listInventories = async () => [];
+      apiClient.getConsignmentsOverview = async () => ({ types: [], clientBalances: [], movements: [] });
+      apiClient.listSuppliers = async () => [];
+      apiClient.listSupplierDebts = async () => [];
+      apiClient.listPurchases = async () => [];
+      apiClient.listExpenses = async () => ({ items: [], categories: [] });
+      apiClient.listBackups = async () => [];
+      apiClient.listUsers = async () => [];
+
+      const qc = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      const appTree = React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(
+            Routes,
+            null,
+            React.createElement(Route, { path: '/login', element: React.createElement(LoginPage) }),
+            React.createElement(
+              Route,
+              { element: React.createElement(AppLayout) },
+              React.createElement(Route, { path: '/', element: React.createElement(DashboardPage) }),
+              React.createElement(Route, { path: '/sales/new', element: React.createElement(SalesPage) }),
+              React.createElement(Route, { path: '/sales', element: React.createElement(SalesHistoryPage) }),
+              React.createElement(Route, { path: '/clients', element: React.createElement(ClientsPage) }),
+              React.createElement(Route, { path: '/debts', element: React.createElement(DebtsPage) }),
+              React.createElement(Route, { path: '/products', element: React.createElement(ProductsPage) }),
+              React.createElement(Route, { path: '/stock', element: React.createElement(StockPage) }),
+              React.createElement(Route, { path: '/inventories', element: React.createElement(InventoryPage) }),
+              React.createElement(Route, { path: '/consignments', element: React.createElement(ConsignmentsPage) }),
+              React.createElement(Route, { path: '/suppliers', element: React.createElement(SuppliersPage) }),
+              React.createElement(Route, { path: '/purchases', element: React.createElement(PurchasesPage) }),
+              React.createElement(Route, { path: '/cash', element: React.createElement(CashPage) }),
+              React.createElement(Route, { path: '/expenses', element: React.createElement(ExpensesPage) }),
+              React.createElement(Route, { path: '/reports', element: React.createElement(ReportsPage) }),
+              React.createElement(Route, { path: '/settings', element: React.createElement(SettingsPage) }),
+              React.createElement(Route, { path: '/backups', element: React.createElement(BackupsPage) })
+            )
+          )
+        )
+      );
+
+      render(appTree);
+      await waitFor(() =>
+        assert.ok(screen.getByRole('heading', { name: 'Tableau de bord', level: 1 }))
+      );
+
+      // Navigation inter-écrans via les liens de la Sidebar (couvre les 16 écrans authentifiés)
+      const navAssertions = [
+        ['Nouvelle vente', 'Nouvelle vente (Point de vente)'],
+        ['Historique ventes', 'Historique des ventes'],
+        ['Clients', 'Clients & Politiques de crédit'],
+        ['Créances', 'Créances clients'],
+        ['Produits', 'Catalogue produits & conditionnements'],
+        ['Stocks', 'Stocks & Mouvements'],
+        ['Inventaires', 'Inventaires physiques'],
+        ['Consignations', 'Consignations & Emballages vides'],
+        ['Fournisseurs', 'Fournisseurs'],
+        ['Approvisionnements', 'Approvisionnements & Réceptions'],
+        ['Caisse', 'Session de caisse'],
+        ['Dépenses', 'Dépenses'],
+        ['Rapports', 'Rapports & Indicateurs financiers'],
+        ['Paramètres', 'Paramètres généraux'],
+        ['Sauvegardes', 'Sauvegardes & Restauration'],
+        ['Tableau de bord', 'Tableau de bord'],
+      ];
+
+      for (const [linkName, headingName] of navAssertions) {
+        const navLinks = screen.getAllByRole('link', { name: linkName });
+        fireEvent.click(navLinks[0]);
+        await waitFor(() =>
+          assert.ok(screen.getByRole('heading', { name: headingName, level: 1 }))
+        );
+      }
+
+      // Changement de thème depuis le Header
+      assert.equal(useUiStore.getState().theme, 'light');
+      fireEvent.click(screen.getByRole('button', { name: /Activer le thème sombre/i }));
+      assert.equal(useUiStore.getState().theme, 'dark');
+      fireEvent.click(screen.getByRole('button', { name: /Activer le thème clair/i }));
+      assert.equal(useUiStore.getState().theme, 'light');
+
+      // Menu mobile responsive : ouverture puis fermeture du tiroir
+      fireEvent.click(screen.getByRole('button', { name: /Ouvrir le menu de navigation/i }));
+      assert.ok(screen.getByRole('button', { name: 'Fermer le menu' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Fermer le menu' }));
+      assert.equal(screen.queryByRole('button', { name: 'Fermer le menu' }), null);
+
+      cleanup();
+
+      // 17e écran : Connexion / PIN
+      useUiStore.getState().setToken(null);
+      render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/login'] },
+          React.createElement(LoginPage)
+        )
+      );
+      await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Déverrouiller' })));
+      cleanup();
+      qc.clear();
+    } finally {
+      useUiStore.setState({ token: null, theme: 'light', sidebarCollapsed: false, currentUser: null });
+      Object.assign(apiClient, orig);
+    }
+  });
+
+  it('Lot 8 — États de chargement (LoadingState) et d’erreur (ErrorState + Réessayer)', async () => {
+    const origListProducts = apiClient.listProducts;
+    const origListCategories = apiClient.listCategories;
+    const origConsignments = apiClient.getConsignmentsOverview;
+    let shouldFail = true;
+    let resolvePending;
+
+    try {
+      apiClient.listCategories = async () => [];
+      apiClient.getConsignmentsOverview = async () => ({ types: [], clientBalances: [], movements: [] });
+      apiClient.listProducts = () =>
+        new Promise((resolve) => {
+          resolvePending = resolve;
+        });
+
+      const qcLoading = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      const { container, unmount } = render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(QueryClientProvider, { client: qcLoading }, React.createElement(ProductsPage))
+        )
+      );
+      assert.ok(container.querySelector('.animate-pulse'), 'Le squelette de chargement doit être affiché');
+      if (resolvePending) {
+        resolvePending({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 1 });
+      }
+      unmount();
+      qcLoading.clear();
+
+      apiClient.listProducts = async () => {
+        if (shouldFail) {
+          throw new Error('Connexion base locale interrompue');
+        }
+        return {
+          items: [
+            {
+              id: 77,
+              reference: 'PRD-077',
+              name: 'Eau Céleste 1.5L',
+              brand: null,
+              barcode: null,
+              category_id: 1,
+              category_name: 'Eaux',
+              base_unit: 'bouteille',
+              stock_milli: 12000,
+              min_stock_milli: 6000,
+              max_stock_milli: 0,
+              purchase_price: 250,
+              wholesale_price: 350,
+              semi_wholesale_price: 375,
+              retail_price: 400,
+              average_cost_fcfa: 250,
+              is_active: 1,
+              image_path: null,
+              packagings: [],
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+          totalPages: 1,
+        };
+      };
+
+      const qcError = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(QueryClientProvider, { client: qcError }, React.createElement(ProductsPage))
+        )
+      );
+
+      await waitFor(() => {
+        assert.ok(screen.getByText('Impossible de charger les données'));
+        assert.ok(screen.getByText('Connexion base locale interrompue'));
+      });
+
+      shouldFail = false;
+      fireEvent.click(screen.getByRole('button', { name: /Réessayer/i }));
+      await waitFor(() => {
+        assert.ok(screen.getByText('Eau Céleste 1.5L'));
+      });
+      qcError.clear();
+    } finally {
+      apiClient.listProducts = origListProducts;
+      apiClient.listCategories = origListCategories;
+      apiClient.getConsignmentsOverview = origConsignments;
+    }
+  });
+
+  it('Lot 8 — DataTable : tri par colonne, pagination Précédent/Suivant et état vide', () => {
+    const pagesVisited = [];
+    const rows = [
+      { id: 1, name: 'Zebra Cola', total: 3000 },
+      { id: 2, name: 'Alpha Jus', total: 1000 },
+    ];
+    const columns = [
+      { accessorKey: 'name', header: 'Nom' },
+      { accessorKey: 'total', header: 'Montant' },
+    ];
+
+    const { rerender } = render(
+      React.createElement(DataTable, {
+        data: rows,
+        columns,
+        page: 1,
+        totalPages: 3,
+        total: 50,
+        onPageChange: (p) => pagesVisited.push(p),
+      })
+    );
+
+    const beforeRows = screen.getAllByRole('row');
+    assert.ok(beforeRows[1].textContent.includes('Zebra Cola'));
+
+    // Tri par Nom croissant -> Alpha Jus en premier
+    fireEvent.click(screen.getByRole('button', { name: 'Nom' }));
+    const sortedAscRows = screen.getAllByRole('row');
+    assert.ok(sortedAscRows[1].textContent.includes('Alpha Jus'));
+
+    // Tri décroissant -> Zebra Cola en premier
+    fireEvent.click(screen.getByRole('button', { name: 'Nom' }));
+    const sortedDescRows = screen.getAllByRole('row');
+    assert.ok(sortedDescRows[1].textContent.includes('Zebra Cola'));
+
+    // Pagination
+    const prevBtn = screen.getByRole('button', { name: /Précédent/i });
+    const nextBtn = screen.getByRole('button', { name: /Suivant/i });
+    assert.equal(prevBtn.disabled, true);
+    assert.equal(nextBtn.disabled, false);
+    fireEvent.click(nextBtn);
+    assert.equal(pagesVisited[0], 2);
+
+    // État vide
+    rerender(
+      React.createElement(DataTable, {
+        data: [],
+        columns,
+        emptyMessage: 'Aucun résultat trouvé.',
+      })
+    );
+    assert.ok(screen.getByText('Aucun résultat trouvé.'));
+  });
+
+  it('Lot 8 — Dialogues ouverture/fermeture et formulaires valides/invalides (Fournisseurs)', async () => {
+    const origListSuppliers = apiClient.listSuppliers;
+    const origListDebts = apiClient.listSupplierDebts;
+    const origGetSettings = apiClient.getSettings;
+    const origCreateSupplier = apiClient.createSupplier;
+    const createdPayloads = [];
+
+    try {
+      apiClient.listSuppliers = async () => [];
+      apiClient.listSupplierDebts = async () => [];
+      apiClient.getSettings = async () => ({
+        settings: {
+          company_name: 'DEPOTPRO',
+          company_legal_name: null,
+          address: null,
+          phone: null,
+          email: null,
+          city: null,
+          country: null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          setup_completed: 1,
+        },
+        paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+      });
+      apiClient.createSupplier = async (payload) => {
+        createdPayloads.push(payload);
+        return {
+          id: 90,
+          code: 'FRN-090',
+          name: payload.name,
+          company_name: payload.company_name || null,
+          phone: payload.phone,
+          address: payload.address || null,
+          email: payload.email || null,
+          contact_person: payload.contact_person || null,
+          payment_terms_days: payload.payment_terms_days || 30,
+          total_purchases: 0,
+          balance_due: 0,
+          is_active: 1,
+        };
+      };
+
+      const qc = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(SuppliersPage))
+        )
+      );
+
+      await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Nouveau fournisseur' })));
+
+      // Ouverture puis fermeture par Annuler
+      fireEvent.click(screen.getByRole('button', { name: 'Nouveau fournisseur' }));
+      const dialog1 = await screen.findByRole('dialog');
+      assert.ok(dialog1);
+      fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+      await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
+
+      // Formulaire invalide (champs vides) -> erreurs Zod, aucune création
+      fireEvent.click(screen.getByRole('button', { name: 'Nouveau fournisseur' }));
+      await screen.findByRole('dialog');
+      fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+      await waitFor(() => {
+        assert.ok(screen.getByText('Le nom du fournisseur est obligatoire.'));
+        assert.ok(screen.getByText('Le téléphone du fournisseur est obligatoire.'));
+      });
+      assert.equal(createdPayloads.length, 0);
+
+      // Formulaire valide -> soumission réussie et fermeture
+      const inputs = screen.getByRole('dialog').querySelectorAll('input');
+      fireEvent.change(inputs[0], { target: { value: 'Brasserie Test' } });
+      fireEvent.change(inputs[2], { target: { value: '0707070707' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+
+      await waitFor(() => {
+        assert.equal(createdPayloads.length, 1);
+        assert.equal(createdPayloads[0].name, 'Brasserie Test');
+        assert.equal(screen.queryByRole('dialog'), null);
+      });
+      qc.clear();
+    } finally {
+      apiClient.listSuppliers = origListSuppliers;
+      apiClient.listSupplierDebts = origListDebts;
+      apiClient.getSettings = origGetSettings;
+      apiClient.createSupplier = origCreateSupplier;
+    }
+  });
+
+  it('Lot 8 — Raccourcis POS (F2 recherche, F9 validation, Escape) et recherche avec bouton effacer', async () => {
+    const origListProducts = apiClient.listProducts;
+    const origListClients = apiClient.listClients;
+    const origGetSettings = apiClient.getSettings;
+    const origGetCash = apiClient.getCashStatus;
+    const origCreateSale = apiClient.createSale;
+    const createdSales = [];
+    let qc;
+
+    try {
+      useUiStore.getState().clearCart();
+      apiClient.listProducts = async () => ({
+        items: [
+          {
+            id: 501,
+            reference: 'PRD-501',
+            name: 'Beaufort Lager 65cl',
+            brand: null,
+            barcode: '888000501',
+            category_id: 1,
+            category_name: 'Bières',
+            base_unit: 'bouteille',
+            stock_milli: 48000,
+            min_stock_milli: 6000,
+            max_stock_milli: 0,
+            purchase_price: 450,
+            wholesale_price: 550,
+            semi_wholesale_price: 600,
+            retail_price: 650,
+            average_cost_fcfa: 450,
+            is_active: 1,
+            image_path: null,
+            packagings: [
+              {
+                id: 5010,
+                product_id: 501,
+                name: 'bouteille',
+                coefficient_milli: 1000,
+                purchase_price: 450,
+                wholesale_price: 550,
+                semi_wholesale_price: 600,
+                retail_price: 650,
+                barcode: '888000501',
+                allow_fraction: 0,
+                is_default: 1,
+                is_active: 1,
+                returnable_type_id: null,
+                returnable_pieces: 0,
+                deposit_mode: 'none',
+              },
+            ],
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 50,
+        totalPages: 1,
+      });
+      apiClient.listClients = async () => [];
+      apiClient.getSettings = async () => ({
+        settings: {
+          company_name: 'DEPOTPRO',
+          company_legal_name: null,
+          address: null,
+          phone: null,
+          email: null,
+          city: null,
+          country: null,
+          currency: 'FCFA',
+          allow_negative_stock: 0,
+          invoice_prefix: 'FAC',
+          sale_prefix: 'VTE',
+          purchase_prefix: 'ACH',
+          order_prefix: 'CMD',
+          receipt_prefix: 'REC',
+          credit_note_prefix: 'AVO',
+          theme: 'light',
+          setup_completed: 1,
+        },
+        paymentMethods: [{ code: 'cash', label: 'Espèces', is_cash: 1, active: 1 }],
+      });
+      apiClient.getCashStatus = async () => ({
+        activeSession: {
+          id: 1,
+          reference: 'CAI-2026-00001',
+          opened_at: '2026-11-17T08:00:00Z',
+          closed_at: null,
+          status: 'open',
+          opening_cash: 50000,
+          theoretical_cash: null,
+          physical_cash: null,
+          difference: null,
+          closing_notes: null,
+        },
+        summary: { theoreticalCash: 50000, byMethod: [], movements: [] },
+        history: [],
+      });
+      apiClient.createSale = async (payload) => {
+        createdSales.push(payload);
+        return {
+          id: 901,
+          reference: 'VTE-2026-00901',
+          created_at: '2026-11-17T10:00:00Z',
+          status: 'validated',
+          sale_type: 'cash',
+          client_id: null,
+          client_name: 'Client Comptoir',
+          client_code: null,
+          client_phone: null,
+          total_merchandise: 650,
+          total_deposit: 0,
+          total_amount: 650,
+          paid_amount: 650,
+          remaining_amount: 0,
+          due_date: null,
+          notes: null,
+          lines: [],
+          deposits: [],
+          payments: [],
+          returns: [],
+        };
+      };
+
+      qc = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+          mutations: { gcTime: Number.POSITIVE_INFINITY },
+        },
+      });
+      render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(QueryClientProvider, { client: qc }, React.createElement(SalesPage))
+        )
+      );
+
+      await waitFor(() => assert.ok(screen.getByText('Beaufort Lager 65cl')));
+
+      // F2 focalise le champ de recherche
+      const scanInput = screen.getByPlaceholderText(/Scanner code-barres/i);
+      fireEvent.keyDown(window, { key: 'F2' });
+      assert.equal(document.activeElement, scanInput);
+
+      // Recherche puis effacement via le bouton SearchInput
+      fireEvent.change(scanInput, { target: { value: 'Beaufort' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Effacer la recherche' }));
+      assert.equal(scanInput.value, '');
+
+      // Ajout par scan + Entrée puis ouverture/fermeture rapide par Escape
+      fireEvent.change(scanInput, { target: { value: '888000501' } });
+      fireEvent.keyDown(scanInput, { key: 'Enter', code: 'Enter' });
+      await waitFor(() => assert.ok(screen.getByText(/Panier de vente \(1\)/)));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Créer rapidement un client' }));
+      await screen.findByRole('dialog');
+      fireEvent.keyDown(window, { key: 'Escape' });
+      await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
+
+      // Raccourci F9 déclenche la validation
+      fireEvent.keyDown(window, { key: 'F9' });
+      await waitFor(() => {
+        assert.equal(createdSales.length, 1);
+        assert.ok(screen.getByText(/Vente validée · VTE-2026-00901/i));
+      });
+    } finally {
+      qc?.clear();
+      cleanup();
+      useUiStore.getState().clearCart();
+      apiClient.listProducts = origListProducts;
+      apiClient.listClients = origListClients;
+      apiClient.getSettings = origGetSettings;
+      apiClient.getCashStatus = origGetCash;
+      apiClient.createSale = origCreateSale;
     }
   });
 });
