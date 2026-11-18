@@ -31,7 +31,10 @@ struct AuthRateLimiter {
 impl AuthRateLimiter {
     fn check(&mut self, key: &str, now: Instant) -> bool {
         let window = Duration::from_secs(60);
-        let entry = self.buckets.entry(key.to_string()).or_insert((0, now + window));
+        let entry = self
+            .buckets
+            .entry(key.to_string())
+            .or_insert((0, now + window));
         if now > entry.1 {
             *entry = (1, now + window);
             return true;
@@ -317,9 +320,7 @@ async fn require_auth(
         ))
     })?;
     let mut store = state.sessions.write().await;
-    store
-        .validate_and_touch(token, Utc::now())
-        .map_err(map_err)
+    store.validate_and_touch(token, Utc::now()).map_err(map_err)
 }
 
 async fn require_perm(
@@ -404,7 +405,11 @@ async fn auth_login(
 
 async fn auth_me(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
     match require_auth(&state, &headers).await {
-        Ok(identity) => (StatusCode::OK, Json(serde_json::json!({ "user": identity }))).into_response(),
+        Ok(identity) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "user": identity })),
+        )
+            .into_response(),
         Err(e) => e.into_response(),
     }
 }
@@ -468,7 +473,11 @@ async fn auth_create_user(
     };
     let db = state.db().await;
     match auth::with_actor(actor, auth::create_user(&db, payload)).await {
-        Ok(user) => (StatusCode::CREATED, Json(serde_json::to_value(user).unwrap())).into_response(),
+        Ok(user) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(user).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -539,7 +548,11 @@ async fn create_category(
     )
     .await
     {
-        Ok(cat) => (StatusCode::CREATED, Json(serde_json::to_value(cat).unwrap())).into_response(),
+        Ok(cat) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(cat).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -665,9 +678,11 @@ async fn import_products_csv(
     };
     let db = state.db().await;
     match auth::with_actor(actor, products::import_products_csv(&db, &payload.csv)).await {
-        Ok(created) => {
-            (StatusCode::OK, Json(serde_json::json!({ "created": created }))).into_response()
-        }
+        Ok(created) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "created": created })),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -891,7 +906,11 @@ async fn create_inventory(
     )
     .await
     {
-        Ok(inv) => (StatusCode::CREATED, Json(serde_json::to_value(inv).unwrap())).into_response(),
+        Ok(inv) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(inv).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -1103,7 +1122,11 @@ async fn receive_purchase(
     };
     let db = state.db().await;
     match auth::with_actor(actor, purchases::receive_purchase_order(&db, id, payload)).await {
-        Ok(rec) => (StatusCode::CREATED, Json(serde_json::to_value(rec).unwrap())).into_response(),
+        Ok(rec) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(rec).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -1362,9 +1385,11 @@ async fn create_backup(State(state): State<AppState>, headers: HeaderMap) -> imp
     };
     let db = state.db().await;
     match auth::with_actor(actor, backup::create_backup_summary(&db, &state.backup_dir)).await {
-        Ok(summary) => {
-            (StatusCode::CREATED, Json(serde_json::to_value(summary).unwrap())).into_response()
-        }
+        Ok(summary) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(summary).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -1385,9 +1410,11 @@ async fn create_encrypted_backup(
     )
     .await
     {
-        Ok(summary) => {
-            (StatusCode::CREATED, Json(serde_json::to_value(summary).unwrap())).into_response()
-        }
+        Ok(summary) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(summary).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -1515,7 +1542,11 @@ async fn security_middleware(
     let trust_proxy = trust_proxy_enabled();
 
     if is_mutating {
-        if let Some(origin) = req.headers().get(header::ORIGIN).and_then(|v| v.to_str().ok()) {
+        if let Some(origin) = req
+            .headers()
+            .get(header::ORIGIN)
+            .and_then(|v| v.to_str().ok())
+        {
             let host = req
                 .headers()
                 .get(header::HOST)
@@ -1560,7 +1591,9 @@ async fn security_middleware(
         } else {
             None
         };
-        let client_ip = forwarded_ip.or(peer_ip).unwrap_or_else(|| "local".to_string());
+        let client_ip = forwarded_ip
+            .or(peer_ip)
+            .unwrap_or_else(|| "local".to_string());
         let client_key = format!("{client_ip}:{path}");
         let allowed = state
             .auth_limiter
@@ -1591,8 +1624,14 @@ fn apply_security_headers(headers: &mut HeaderMap, path: &str) {
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
     );
-    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("SAMEORIGIN"));
-    headers.insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    headers.insert(
+        header::X_FRAME_OPTIONS,
+        HeaderValue::from_static("SAMEORIGIN"),
+    );
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
     if path.starts_with("/api") {
         headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     }
@@ -1607,10 +1646,16 @@ fn build_router(state: AppState) -> Router {
         .route("/api/auth/me", get(auth_me))
         .route("/api/auth/lock", post(auth_lock))
         .route("/api/auth/change-pin", post(auth_change_pin))
-        .route("/api/auth/users", get(auth_list_users).post(auth_create_user))
+        .route(
+            "/api/auth/users",
+            get(auth_list_users).post(auth_create_user),
+        )
         .route("/api/auth/users/:id/status", put(auth_toggle_user))
         .route("/api/dashboard", get(dashboard))
-        .route("/api/categories", get(list_categories).post(create_category))
+        .route(
+            "/api/categories",
+            get(list_categories).post(create_category),
+        )
         .route("/api/products", get(list_products).post(create_product))
         .route("/api/products/:id", put(update_product))
         .route("/api/products/:id/packagings", post(upsert_packaging))
@@ -1634,7 +1679,10 @@ fn build_router(state: AppState) -> Router {
         .route("/api/supplier-debts/:id/pay", post(pay_supplier_debt))
         .route("/api/stock", get(stock_overview))
         .route("/api/stock/adjust", post(adjust_stock))
-        .route("/api/inventories", get(list_inventories).post(create_inventory))
+        .route(
+            "/api/inventories",
+            get(list_inventories).post(create_inventory),
+        )
         .route("/api/inventories/:id/validate", post(validate_inventory))
         .route("/api/consignments", get(consignments_overview))
         .route("/api/consignments/types", post(create_returnable_type))
@@ -1763,10 +1811,34 @@ mod tests {
 
     #[test]
     fn origin_allowlist_blocks_prefix_spoof_and_untrusted_proxy_headers() {
-        assert!(is_allowed_origin("http://localhost:3000", "127.0.0.1:3000", None, false, ""));
-        assert!(is_allowed_origin("http://127.0.0.1:3100", "127.0.0.1:3000", None, false, ""));
-        assert!(is_allowed_origin("http://[::1]:3000", "127.0.0.1:3000", None, false, ""));
-        assert!(!is_allowed_origin("https://evil.example", "127.0.0.1:3000", None, false, ""));
+        assert!(is_allowed_origin(
+            "http://localhost:3000",
+            "127.0.0.1:3000",
+            None,
+            false,
+            ""
+        ));
+        assert!(is_allowed_origin(
+            "http://127.0.0.1:3100",
+            "127.0.0.1:3000",
+            None,
+            false,
+            ""
+        ));
+        assert!(is_allowed_origin(
+            "http://[::1]:3000",
+            "127.0.0.1:3000",
+            None,
+            false,
+            ""
+        ));
+        assert!(!is_allowed_origin(
+            "https://evil.example",
+            "127.0.0.1:3000",
+            None,
+            false,
+            ""
+        ));
         // Contre les contournements de préfixe
         assert!(!is_allowed_origin(
             "http://localhost:3000.evil.com",

@@ -127,8 +127,18 @@ async fn lot1_sale_returns_prevent_duplicates_and_preserve_atomicity() {
     .await
     .unwrap();
 
-    let line_a_id = sale.lines.iter().find(|l| l.product_id == prod_a.id).unwrap().id;
-    let line_b_id = sale.lines.iter().find(|l| l.product_id == prod_b.id).unwrap().id;
+    let line_a_id = sale
+        .lines
+        .iter()
+        .find(|l| l.product_id == prod_a.id)
+        .unwrap()
+        .id;
+    let line_b_id = sale
+        .lines
+        .iter()
+        .find(|l| l.product_id == prod_b.id)
+        .unwrap()
+        .id;
 
     // Deux occurrences du même sale_line_id dans la même requête -> rejet explicite
     let dup_err = sales::create_sale_return(
@@ -216,12 +226,11 @@ async fn lot1_sale_returns_prevent_duplicates_and_preserve_atomicity() {
     .is_err());
 
     // Erreur multi-lignes (A valide + B invalide) -> aucune modification partielle sur A
-    let stock_a_before: i64 =
-        sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
-            .bind(prod_a.id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let stock_a_before: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+        .bind(prod_a.id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert!(sales::create_sale_return(
         &db,
         sale.sale.id,
@@ -244,12 +253,11 @@ async fn lot1_sale_returns_prevent_duplicates_and_preserve_atomicity() {
     )
     .await
     .is_err());
-    let stock_a_after: i64 =
-        sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
-            .bind(prod_a.id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let stock_a_after: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+        .bind(prod_a.id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(stock_a_after, stock_a_before);
 
     // Retour multi-lignes du solde restant complet (A: 3, B: 4) -> status = returned
@@ -535,8 +543,18 @@ async fn lot1_purchase_receipts_prevent_duplicates_concurrency_and_partial_write
     .await
     .unwrap();
 
-    let line_a_id = po.lines.iter().find(|l| l.product_id == prod_a.id).unwrap().id;
-    let line_b_id = po.lines.iter().find(|l| l.product_id == prod_b.id).unwrap().id;
+    let line_a_id = po
+        .lines
+        .iter()
+        .find(|l| l.product_id == prod_a.id)
+        .unwrap()
+        .id;
+    let line_b_id = po
+        .lines
+        .iter()
+        .find(|l| l.product_id == prod_b.id)
+        .unwrap()
+        .id;
 
     // 1. Ligne répétée dans une même demande -> rejet explicite
     assert!(purchases::receive_purchase_order(
@@ -708,14 +726,13 @@ async fn lot1_purchase_receipts_prevent_duplicates_concurrency_and_partial_write
         .unwrap();
     assert_eq!(stock_a_final, 240_000);
 
-    let (stock_b_final, avg_num, avg_den): (i64, Option<String>, Option<String>) =
-        sqlx::query_as(
-            "SELECT stock_milli, average_cost_num, average_cost_den FROM products WHERE id = ?",
-        )
-        .bind(prod_b.id)
-        .fetch_one(&db.pool)
-        .await
-        .unwrap();
+    let (stock_b_final, avg_num, avg_den): (i64, Option<String>, Option<String>) = sqlx::query_as(
+        "SELECT stock_milli, average_cost_num, average_cost_den FROM products WHERE id = ?",
+    )
+    .bind(prod_b.id)
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
     assert_eq!(stock_b_final, 20_000);
     let num: i64 = avg_num.unwrap().parse().unwrap();
     let den: i64 = avg_den.unwrap().parse().unwrap();

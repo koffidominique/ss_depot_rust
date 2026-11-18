@@ -187,45 +187,7 @@ jobs:
         with:
           components: rustfmt
       - name: Vérification formatage Rust (rustfmt)
-        run: |
-          set +e
-          cargo fmt --all -- --check 2>&1 | tee /tmp/fmt.log
-          rc=${PIPESTATUS[0]}
-          if [ "$rc" -ne 0 ]; then
-            python3 - <<'PY'
-          txt = open('/tmp/fmt.log', encoding='utf-8').read()
-          lines = txt.splitlines()
-          chunks = []
-          cur = []
-          size = 0
-          for l in lines:
-              esc = l.replace('%', '%25').replace('\r', '')
-              if size + len(esc) + 4 > 3800 and cur:
-                  chunks.append('%0A'.join(cur))
-                  cur = []
-                  size = 0
-              cur.append(esc)
-              size += len(esc) + 3
-          if cur:
-              chunks.append('%0A'.join(cur))
-          open('/tmp/fmt_chunks.txt', 'w').write('\n'.join(chunks))
-          for c in chunks[:9]:
-              print('::error title=rustfmt::' + c)
-          print(f'Total chunks={len(chunks)}, emitted=0..{min(len(chunks),9)}')
-          PY
-            exit "$rc"
-          fi
-      - name: Détails formatage Rust (suite)
-        if: failure()
-        run: |
-          if [ -f /tmp/fmt_chunks.txt ]; then
-            python3 - <<'PY'
-          chunks = open('/tmp/fmt_chunks.txt', encoding='utf-8').read().splitlines()
-          for c in chunks[9:18]:
-              print('::error title=rustfmt-cont::' + c)
-          print(f'Emitted chunks 9..{min(len(chunks),18)} of {len(chunks)}')
-          PY
-          fi
+        run: cargo fmt --all -- --check
 
   tauri-windows:
     name: 11. Compilation Tauri Windows (.msi / .exe)

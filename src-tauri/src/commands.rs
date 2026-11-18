@@ -329,9 +329,12 @@ pub async fn update_client_credit(
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::SalesWrite).await?;
     let db = state.db().await;
-    auth::with_actor(actor, sales::update_client_credit_policy(&db, client_id, payload))
-        .await
-        .map_err(|e| e.to_string())?;
+    auth::with_actor(
+        actor,
+        sales::update_client_credit_policy(&db, client_id, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "ok": true }))
 }
 
@@ -970,9 +973,10 @@ pub async fn download_backup(
 ) -> Result<Vec<u8>, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::BackupsRead).await?;
     let dir = state.backup_dir.clone();
-    let (_safe_name, bytes) = auth::with_actor(actor, async move { backup::read_backup_bytes(&dir, &name) })
-        .await
-        .map_err(|e| e.to_string())?;
+    let (_safe_name, bytes) =
+        auth::with_actor(actor, async move { backup::read_backup_bytes(&dir, &name) })
+            .await
+            .map_err(|e| e.to_string())?;
     Ok(bytes)
 }
 

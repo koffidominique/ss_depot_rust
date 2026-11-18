@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use depotpro_core::application::{
-    cash, consignments, products, purchases, sales,
-};
+use depotpro_core::application::{cash, consignments, products, purchases, sales};
 use depotpro_core::infrastructure::backup::{self, RestoreFailureHook};
 use depotpro_core::infrastructure::db::DepotDb;
 use tokio::sync::RwLock;
@@ -344,9 +342,11 @@ async fn lot5_read_only_verify_sha256_compatibility_and_path_security() {
     std::fs::write(backup_dir.join(bad_hdr), b"NOT_SQLITE").unwrap();
     assert!(backup::verify_backup(&backup_dir, bad_hdr).await.is_err());
     let db_lock = Arc::new(RwLock::new(db.clone()));
-    assert!(backup::restore_and_reconnect(&db_lock, &backup_dir, bad_hdr)
-        .await
-        .is_err());
+    assert!(
+        backup::restore_and_reconnect(&db_lock, &backup_dir, bad_hdr)
+            .await
+            .is_err()
+    );
 
     let corrupt_name = "depotpro_backup_20261117020203_corrup.db";
     let corrupt_path = backup_dir.join(corrupt_name);
@@ -360,9 +360,11 @@ async fn lot5_read_only_verify_sha256_compatibility_and_path_security() {
     if let Ok(dto) = &v_corrupt {
         assert!(!dto.compatible);
     }
-    assert!(backup::restore_and_reconnect(&db_lock, &backup_dir, corrupt_name)
-        .await
-        .is_err());
+    assert!(
+        backup::restore_and_reconnect(&db_lock, &backup_dir, corrupt_name)
+            .await
+            .is_err()
+    );
 
     // Archive incompatible (schema_version futur = 99)
     let future_name = "depotpro_backup_20261117020204_future.db";
@@ -379,9 +381,11 @@ async fn lot5_read_only_verify_sha256_compatibility_and_path_security() {
         .unwrap();
     assert!(!v_future.compatible);
     assert_eq!(v_future.schema_version, 99);
-    assert!(backup::restore_and_reconnect(&db_lock, &backup_dir, future_name)
-        .await
-        .is_err());
+    assert!(
+        backup::restore_and_reconnect(&db_lock, &backup_dir, future_name)
+            .await
+            .is_err()
+    );
 
     // Chemins non autorisés et liens symboliques
     for invalid in [
@@ -392,9 +396,11 @@ async fn lot5_read_only_verify_sha256_compatibility_and_path_security() {
         assert!(backup::resolve_safe_backup_path(&backup_dir, invalid).is_err());
         assert!(backup::verify_backup(&backup_dir, invalid).await.is_err());
         assert!(backup::read_backup_bytes(&backup_dir, invalid).is_err());
-        assert!(backup::restore_and_reconnect(&db_lock, &backup_dir, invalid)
-            .await
-            .is_err());
+        assert!(
+            backup::restore_and_reconnect(&db_lock, &backup_dir, invalid)
+                .await
+                .is_err()
+        );
     }
 
     #[cfg(unix)]
@@ -404,9 +410,11 @@ async fn lot5_read_only_verify_sha256_compatibility_and_path_security() {
         std::os::unix::fs::symlink(&db_path, &sym_path).unwrap();
         assert!(backup::verify_backup(&backup_dir, sym_name).await.is_err());
         assert!(backup::read_backup_bytes(&backup_dir, sym_name).is_err());
-        assert!(backup::restore_and_reconnect(&db_lock, &backup_dir, sym_name)
-            .await
-            .is_err());
+        assert!(
+            backup::restore_and_reconnect(&db_lock, &backup_dir, sym_name)
+                .await
+                .is_err()
+        );
         let listed = backup::list_backups(&backup_dir).unwrap();
         assert!(!listed.iter().any(|x| x.name == sym_name));
     }
@@ -465,21 +473,27 @@ async fn lot5_atomic_restore_failure_recovery_and_restart_persistence() {
         RestoreFailureHook::BeforeReconnect,
         RestoreFailureHook::AfterReconnectPostVerify,
     ] {
-        let err = backup::restore_and_reconnect_with_hook(
-            &db_lock,
-            &backup_dir,
-            &bkp_t0.name,
-            hook,
-        )
-        .await;
+        let err =
+            backup::restore_and_reconnect_with_hook(&db_lock, &backup_dir, &bkp_t0.name, hook)
+                .await;
         assert!(err.is_err());
 
         let guard = db_lock.read().await;
-        assert!(!guard.pool.is_closed(), "Le pool ne doit jamais rester fermé");
-        let after_fail =
-            products::list_products(&guard, Some("Produit Post-T0 Rust"), None, false, false, 1, 20)
-                .await
-                .unwrap();
+        assert!(
+            !guard.pool.is_closed(),
+            "Le pool ne doit jamais rester fermé"
+        );
+        let after_fail = products::list_products(
+            &guard,
+            Some("Produit Post-T0 Rust"),
+            None,
+            false,
+            false,
+            1,
+            20,
+        )
+        .await
+        .unwrap();
         assert_eq!(after_fail.items.len(), 1);
     }
 
@@ -503,10 +517,17 @@ async fn lot5_atomic_restore_failure_recovery_and_restart_persistence() {
 
     {
         let guard = db_lock.read().await;
-        let post_check =
-            products::list_products(&guard, Some("Produit Post-T0 Rust"), None, false, false, 1, 20)
-                .await
-                .unwrap();
+        let post_check = products::list_products(
+            &guard,
+            Some("Produit Post-T0 Rust"),
+            None,
+            false,
+            false,
+            1,
+            20,
+        )
+        .await
+        .unwrap();
         assert_eq!(post_check.items.len(), 0);
         guard.pool.close().await;
     }

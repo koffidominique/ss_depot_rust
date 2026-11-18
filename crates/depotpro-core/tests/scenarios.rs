@@ -1,15 +1,13 @@
-use std::path::PathBuf;
 use depotpro_core::application::{
     auth, cash, consignments, inventory, pdf, products, purchases, reports, sales,
 };
 use depotpro_core::domain::quantity::Quantity;
 use depotpro_core::infrastructure::{backup, db::DepotDb};
+use std::path::PathBuf;
 
 fn temp_paths(tag: &str) -> (PathBuf, PathBuf) {
-    let base = std::env::temp_dir().join(format!(
-        "depotpro_rust_test_{tag}_{}",
-        uuid::Uuid::new_v4()
-    ));
+    let base =
+        std::env::temp_dir().join(format!("depotpro_rust_test_{tag}_{}", uuid::Uuid::new_v4()));
     let db_path = base.join("depotpro.db");
     let backup_dir = base.join("backups");
     (db_path, backup_dir)
@@ -26,7 +24,9 @@ async fn rust_core_scenarios_a_through_l() {
     auth::setup_owner_pin(&db, "123456").await.unwrap();
     assert!(auth::verify_owner_pin(&db, "123456").await.is_ok());
     assert!(auth::verify_owner_pin(&db, "000000").await.is_err());
-    auth::change_owner_pin(&db, "123456", "654321").await.unwrap();
+    auth::change_owner_pin(&db, "123456", "654321")
+        .await
+        .unwrap();
     assert!(auth::verify_owner_pin(&db, "654321").await.is_ok());
 
     // Scénario A — Catégorie + Produit + Conditionnements exacts (bouteille=1, pack=6, casier=24)
@@ -123,11 +123,7 @@ async fn rust_core_scenarios_a_through_l() {
         .iter()
         .find(|p| p.name == "bouteille")
         .unwrap();
-    let pkg_casier = prod
-        .packagings
-        .iter()
-        .find(|p| p.name == "casier")
-        .unwrap();
+    let pkg_casier = prod.packagings.iter().find(|p| p.name == "casier").unwrap();
     assert_eq!(pkg_btl.coefficient_milli, 1_000);
     assert_eq!(pkg_casier.coefficient_milli, 24_000);
     assert_eq!(
@@ -196,12 +192,11 @@ async fn rust_core_scenarios_a_through_l() {
     .await
     .unwrap();
 
-    let stock_after_rec: i64 =
-        sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
-            .bind(prod.id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let stock_after_rec: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+        .bind(prod.id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(stock_after_rec, 240_000);
 
     // Scénario C — Ouverture session caisse puis vente 1 casier + 3 bouteilles (-27 bouteilles)
@@ -323,30 +318,30 @@ async fn rust_core_scenarios_a_through_l() {
 
     // Vérification image_path : conservation, rejet SVG et suppression explicite
     assert!(prod.image_path.is_some());
-    assert!(
-        products::update_product(
-            &db,
-            prod.id,
-            products::UpdateProductInput {
-                name: None,
-                brand: None,
-                barcode: None,
-                category_id: None,
-                supplier_id: None,
-                description: None,
-                min_stock: None,
-                max_stock: None,
-                purchase_price: None,
-                wholesale_price: None,
-                semi_wholesale_price: None,
-                retail_price: None,
-                image_path: Some(Some("data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=".to_string())),
-                is_active: None,
-            }
-        )
-        .await
-        .is_err()
-    );
+    assert!(products::update_product(
+        &db,
+        prod.id,
+        products::UpdateProductInput {
+            name: None,
+            brand: None,
+            barcode: None,
+            category_id: None,
+            supplier_id: None,
+            description: None,
+            min_stock: None,
+            max_stock: None,
+            purchase_price: None,
+            wholesale_price: None,
+            semi_wholesale_price: None,
+            retail_price: None,
+            image_path: Some(Some(
+                "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=".to_string()
+            )),
+            is_active: None,
+        }
+    )
+    .await
+    .is_err());
     let cleared = products::update_product(
         &db,
         prod.id,
@@ -393,7 +388,10 @@ async fn rust_core_scenarios_a_through_l() {
     .unwrap();
     assert_eq!(credit_sale.sale.total_amount, 100_000);
     let recs = cash::list_receivables(&db).await.unwrap();
-    let rec = recs.iter().find(|r| r.sale_id == credit_sale.sale.id).unwrap();
+    let rec = recs
+        .iter()
+        .find(|r| r.sale_id == credit_sale.sale.id)
+        .unwrap();
     assert_eq!(rec.remaining_amount, 100_000);
 
     let paid_rec = cash::pay_receivable(
@@ -471,19 +469,17 @@ async fn rust_core_scenarios_a_through_l() {
     let inv = inventory::create_inventory(&db, Some("Contrôle Rust"))
         .await
         .unwrap();
-    assert!(
-        inventory::validate_inventory(
-            &db,
-            inv.id,
-            vec![inventory::ValidateInventoryLineInput {
-                product_id: prod_no_dep.id,
-                counted_quantity: "80".to_string(),
-                reason: None,
-            }]
-        )
-        .await
-        .is_err()
-    );
+    assert!(inventory::validate_inventory(
+        &db,
+        inv.id,
+        vec![inventory::ValidateInventoryLineInput {
+            product_id: prod_no_dep.id,
+            counted_quantity: "80".to_string(),
+            reason: None,
+        }]
+    )
+    .await
+    .is_err());
     let validated = inventory::validate_inventory(
         &db,
         inv.id,
@@ -507,20 +503,22 @@ async fn rust_core_scenarios_a_through_l() {
 
     // Scénario L — Clôture caisse : écart sans justification rejeté, avec justification validé
     let status_before_close = cash::get_cash_status(&db).await.unwrap();
-    let theo = status_before_close.summary.as_ref().unwrap().theoretical_cash;
-    assert!(
-        cash::close_cash_session(
-            &db,
-            cash::CloseCashInput {
-                session_id: session.id,
-                physical_cash: theo - 500,
-                closing_notes: None,
-                request_key: "rust-close-err".to_string(),
-            }
-        )
-        .await
-        .is_err()
-    );
+    let theo = status_before_close
+        .summary
+        .as_ref()
+        .unwrap()
+        .theoretical_cash;
+    assert!(cash::close_cash_session(
+        &db,
+        cash::CloseCashInput {
+            session_id: session.id,
+            physical_cash: theo - 500,
+            closing_notes: None,
+            request_key: "rust-close-err".to_string(),
+        }
+    )
+    .await
+    .is_err());
     let closed = cash::close_cash_session(
         &db,
         cash::CloseCashInput {
@@ -538,14 +536,20 @@ async fn rust_core_scenarios_a_through_l() {
     // Rapports, Dashboard, PDF & Paramètres
     let dash = reports::get_dashboard_data(&db).await.unwrap();
     assert!(dash.kpis.sales_count >= 3);
-    let rep = reports::get_reports_overview(&db, None, None).await.unwrap();
-    assert!(rep.commercial.count >= 3);
-    assert!(!rep.payment_breakdown.is_empty());
-    let rep_empty_period = reports::get_reports_overview(&db, Some("2099-01-01"), Some("2099-01-31"))
+    let rep = reports::get_reports_overview(&db, None, None)
         .await
         .unwrap();
+    assert!(rep.commercial.count >= 3);
+    assert!(!rep.payment_breakdown.is_empty());
+    let rep_empty_period =
+        reports::get_reports_overview(&db, Some("2099-01-01"), Some("2099-01-31"))
+            .await
+            .unwrap();
     assert_eq!(rep_empty_period.profitability.expenses_total, 0);
-    assert!(rep_empty_period.payment_breakdown.iter().all(|m| m.total_in == 0));
+    assert!(rep_empty_period
+        .payment_breakdown
+        .iter()
+        .all(|m| m.total_in == 0));
 
     let (_bkp_name, bkp_bytes) = backup::read_backup_bytes(&backup_dir, &bkp.name).unwrap();
     assert!(!bkp_bytes.is_empty());
@@ -586,20 +590,18 @@ async fn rust_core_scenarios_a_through_l() {
     assert!(!bundle.payment_methods.is_empty());
 
     // Scénario R — Ajustement manuel du stock audité (validation, sortie fractionnaire, idempotence, entrée)
-    assert!(
-        inventory::adjust_stock(
-            &db,
-            inventory::AdjustStockInput {
-                product_id: prod.id,
-                direction: "out".to_string(),
-                quantity: "1".to_string(),
-                reason: "ok".to_string(),
-                request_key: "rust-adj-bad".to_string(),
-            }
-        )
-        .await
-        .is_err()
-    );
+    assert!(inventory::adjust_stock(
+        &db,
+        inventory::AdjustStockInput {
+            product_id: prod.id,
+            direction: "out".to_string(),
+            quantity: "1".to_string(),
+            reason: "ok".to_string(),
+            request_key: "rust-adj-bad".to_string(),
+        }
+    )
+    .await
+    .is_err());
     let adj_out = inventory::adjust_stock(
         &db,
         inventory::AdjustStockInput {
@@ -614,7 +616,11 @@ async fn rust_core_scenarios_a_through_l() {
     .unwrap();
     assert_eq!(adj_out.movement_type, "manual_adjust");
     assert_eq!(adj_out.quantity_milli, -500);
-    assert!(adj_out.reference_document.as_deref().unwrap_or("").starts_with("ADJ-"));
+    assert!(adj_out
+        .reference_document
+        .as_deref()
+        .unwrap_or("")
+        .starts_with("ADJ-"));
 
     let adj_replay = inventory::adjust_stock(
         &db,
@@ -745,17 +751,15 @@ async fn scenario_t_company_logo_and_wave_refund() {
 
     let valid_logo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=".to_string();
 
-    assert!(
-        reports::update_settings(
-            &db,
-            reports::UpdateSettingsInput {
-                logo_path: Some(Some("https://evil.example/logo.png".to_string())),
-                ..Default::default()
-            },
-        )
-        .await
-        .is_err()
-    );
+    assert!(reports::update_settings(
+        &db,
+        reports::UpdateSettingsInput {
+            logo_path: Some(Some("https://evil.example/logo.png".to_string())),
+            ..Default::default()
+        },
+    )
+    .await
+    .is_err());
 
     let saved = reports::update_settings(
         &db,
@@ -766,7 +770,10 @@ async fn scenario_t_company_logo_and_wave_refund() {
     )
     .await
     .unwrap();
-    assert_eq!(saved.settings.logo_path.as_deref(), Some(valid_logo.as_str()));
+    assert_eq!(
+        saved.settings.logo_path.as_deref(),
+        Some(valid_logo.as_str())
+    );
 
     let cleared = reports::update_settings(
         &db,
@@ -861,7 +868,10 @@ async fn scenario_t_company_logo_and_wave_refund() {
     let mov = summary
         .movements
         .iter()
-        .find(|m| m.reference_document.as_deref() == Some(sale.sale.reference.as_str()) && m.direction == "out")
+        .find(|m| {
+            m.reference_document.as_deref() == Some(sale.sale.reference.as_str())
+                && m.direction == "out"
+        })
         .unwrap();
     assert_eq!(mov.method_code, "wave");
     assert_eq!(mov.amount, 1200);
@@ -938,17 +948,15 @@ async fn scenario_u_cancel_po_and_overdue_kpis() {
     .unwrap();
 
     // Motif vide refusé
-    assert!(
-        purchases::cancel_purchase_order(
-            &db,
-            po.id,
-            purchases::CancelPurchaseOrderInput {
-                reason: "   ".to_string(),
-            },
-        )
-        .await
-        .is_err()
-    );
+    assert!(purchases::cancel_purchase_order(
+        &db,
+        po.id,
+        purchases::CancelPurchaseOrderInput {
+            reason: "   ".to_string(),
+        },
+    )
+    .await
+    .is_err());
 
     let cancelled_po = purchases::cancel_purchase_order(
         &db,
@@ -960,20 +968,22 @@ async fn scenario_u_cancel_po_and_overdue_kpis() {
     .await
     .unwrap();
     assert_eq!(cancelled_po.status, "cancelled");
-    assert!(cancelled_po.notes.as_deref().unwrap_or("").contains("Rupture fournisseur"));
+    assert!(cancelled_po
+        .notes
+        .as_deref()
+        .unwrap_or("")
+        .contains("Rupture fournisseur"));
 
     // Double annulation refusée
-    assert!(
-        purchases::cancel_purchase_order(
-            &db,
-            po.id,
-            purchases::CancelPurchaseOrderInput {
-                reason: "Deuxième tentative".to_string(),
-            },
-        )
-        .await
-        .is_err()
-    );
+    assert!(purchases::cancel_purchase_order(
+        &db,
+        po.id,
+        purchases::CancelPurchaseOrderInput {
+            reason: "Deuxième tentative".to_string(),
+        },
+    )
+    .await
+    .is_err());
 
     // Commande déjà réceptionnée ne peut plus être annulée
     let po_rec = purchases::create_purchase_order(
@@ -1008,17 +1018,15 @@ async fn scenario_u_cancel_po_and_overdue_kpis() {
     )
     .await
     .unwrap();
-    assert!(
-        purchases::cancel_purchase_order(
-            &db,
-            po_rec.id,
-            purchases::CancelPurchaseOrderInput {
-                reason: "Trop tard".to_string(),
-            },
-        )
-        .await
-        .is_err()
-    );
+    assert!(purchases::cancel_purchase_order(
+        &db,
+        po_rec.id,
+        purchases::CancelPurchaseOrderInput {
+            reason: "Trop tard".to_string(),
+        },
+    )
+    .await
+    .is_err());
 
     // Échéance dépassée remontée sur les KPIs Dashboard
     let _sess = cash::open_cash_session(
@@ -1075,23 +1083,21 @@ async fn scenario_u_cancel_po_and_overdue_kpis() {
 
     // Scénario V — Justificatif de dépense (expenses.receipt_path) : validation et persistance
     let valid_png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-    assert!(
-        cash::create_expense(
-            &db,
-            cash::CreateExpenseInput {
-                request_key: "exp-v-bad".to_string(),
-                category: "Divers".to_string(),
-                amount: 500,
-                method_code: "cash".to_string(),
-                beneficiary: None,
-                notes: None,
-                receipt_path: Some("https://evil.example/a.png".to_string()),
-                expense_date: None,
-            },
-        )
-        .await
-        .is_err()
-    );
+    assert!(cash::create_expense(
+        &db,
+        cash::CreateExpenseInput {
+            request_key: "exp-v-bad".to_string(),
+            category: "Divers".to_string(),
+            amount: 500,
+            method_code: "cash".to_string(),
+            beneficiary: None,
+            notes: None,
+            receipt_path: Some("https://evil.example/a.png".to_string()),
+            expense_date: None,
+        },
+    )
+    .await
+    .is_err());
     cash::create_expense(
         &db,
         cash::CreateExpenseInput {

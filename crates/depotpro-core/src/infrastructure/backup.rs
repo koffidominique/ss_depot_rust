@@ -1593,11 +1593,21 @@ mod tests {
 
     #[test]
     fn backup_filename_allowlist_rejects_traversal_and_invalid_names() {
-        assert!(is_valid_backup_filename("depotpro_backup_20261117123045_a1b2c3.db"));
-        assert!(is_valid_backup_filename("depotpro_backup_20261117123045_a1b2c3.dpbkp"));
-        assert!(is_valid_backup_filename("depotpro_backup_20250101000000_stale0.db"));
-        assert!(!is_valid_backup_filename("../depotpro_backup_20261117123045_a1b2c3.db"));
-        assert!(!is_valid_backup_filename("sub/depotpro_backup_20261117123045_a1b2c3.db"));
+        assert!(is_valid_backup_filename(
+            "depotpro_backup_20261117123045_a1b2c3.db"
+        ));
+        assert!(is_valid_backup_filename(
+            "depotpro_backup_20261117123045_a1b2c3.dpbkp"
+        ));
+        assert!(is_valid_backup_filename(
+            "depotpro_backup_20250101000000_stale0.db"
+        ));
+        assert!(!is_valid_backup_filename(
+            "../depotpro_backup_20261117123045_a1b2c3.db"
+        ));
+        assert!(!is_valid_backup_filename(
+            "sub/depotpro_backup_20261117123045_a1b2c3.db"
+        ));
         assert!(!is_valid_backup_filename("depotpro_v3.db"));
         assert!(!is_valid_backup_filename("depotpro_backup_bad_a1b2c3.db"));
     }

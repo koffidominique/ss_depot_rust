@@ -33,7 +33,11 @@ fn is_pid_alive(pid: u32) -> bool {
 }
 
 fn acquire_single_instance_lock(lock_path: &std::path::Path) -> std::io::Result<()> {
-    match OpenOptions::new().write(true).create_new(true).open(lock_path) {
+    match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(lock_path)
+    {
         Ok(mut f) => {
             let _ = writeln!(f, "pid={}", std::process::id());
             Ok(())
@@ -50,7 +54,10 @@ fn acquire_single_instance_lock(lock_path: &std::path::Path) -> std::io::Result<
                 .unwrap_or(false);
             if stale {
                 let _ = std::fs::remove_file(lock_path);
-                let mut f = OpenOptions::new().write(true).create_new(true).open(lock_path)?;
+                let mut f = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(lock_path)?;
                 let _ = writeln!(f, "pid={}", std::process::id());
                 return Ok(());
             }

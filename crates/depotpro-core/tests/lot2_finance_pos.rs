@@ -17,20 +17,38 @@ fn lot2_domain_exact_money_and_quantity_invariants() {
     assert!(Money::from_positive(0, "strict").is_err());
     assert!(Money::from_non_negative(-5, "neg").is_err());
     assert!(Money(i64::MAX).checked_add(Money(1), "ovf").is_err());
-    assert!(Money(1_000_000_000_000).checked_mul(10_000_000, "mul_ovf").is_err());
-    assert!(Money(400).checked_sub_non_negative(Money(500), "neg_rem").is_err());
+    assert!(Money(1_000_000_000_000)
+        .checked_mul(10_000_000, "mul_ovf")
+        .is_err());
+    assert!(Money(400)
+        .checked_sub_non_negative(Money(500), "neg_rem")
+        .is_err());
 
-    assert_eq!(Quantity::parse_str("3", "entier").unwrap().milli_units, 3_000);
-    assert_eq!(Quantity::parse_str("1.5", "frac").unwrap().milli_units, 1_500);
-    assert_eq!(Quantity::parse_str("0,250", "virg").unwrap().milli_units, 250);
+    assert_eq!(
+        Quantity::parse_str("3", "entier").unwrap().milli_units,
+        3_000
+    );
+    assert_eq!(
+        Quantity::parse_str("1.5", "frac").unwrap().milli_units,
+        1_500
+    );
+    assert_eq!(
+        Quantity::parse_str("0,250", "virg").unwrap().milli_units,
+        250
+    );
     assert!(Quantity::parse_str("1.2345", "4dec").is_err());
     assert!(Quantity::parse_str("1.", "dot").is_err());
     assert!(Quantity::parse_str(".5", "nodot").is_err());
     assert!(Quantity::parse_positive_str("0", "zero").is_err());
 
-    assert_eq!(Quantity::from_milli(500).compute_line_fcfa(100).unwrap(), 50);
+    assert_eq!(
+        Quantity::from_milli(500).compute_line_fcfa(100).unwrap(),
+        50
+    );
     assert!(Quantity::from_milli(333).compute_line_fcfa(100).is_err());
-    assert!(Quantity::from_milli(1).multiply_coefficient_to_base(Quantity::from_milli(500)).is_err());
+    assert!(Quantity::from_milli(1)
+        .multiply_coefficient_to_base(Quantity::from_milli(500))
+        .is_err());
 }
 
 #[tokio::test]

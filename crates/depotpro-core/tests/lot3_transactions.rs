@@ -214,12 +214,11 @@ async fn lot3_concurrent_sales_receptions_receivables_cash_close_and_stock_moves
         ),
     );
     assert_eq!(usize::from(r1.is_ok()) + usize::from(r2.is_ok()), 1);
-    let stock_after_rec: i64 =
-        sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
-            .bind(prod_id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let stock_after_rec: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+        .bind(prod_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(stock_after_rec, 48_000);
 
     // 3. Deux mouvements de stock concurrents (+12 et -5 -> solde exact 55)
@@ -246,12 +245,11 @@ async fn lot3_concurrent_sales_receptions_receivables_cash_close_and_stock_moves
         ),
     );
     assert!(m1.is_ok() && m2.is_ok());
-    let stock_after_adj: i64 =
-        sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
-            .bind(prod_id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let stock_after_adj: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+        .bind(prod_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(stock_after_adj, 55_000);
 
     // 4. Vente et paiement de créance simultanés
@@ -370,14 +368,14 @@ async fn lot3_concurrent_sales_receptions_receivables_cash_close_and_stock_moves
 
 #[tokio::test]
 async fn lot3_rollback_fk_violation_temp_block_and_busy_timeout_expiration() {
-    let (path, db, prod_id, _pkg_id, _sup_id, _client_id) = setup_fixture("lock_and_rollback").await;
+    let (path, db, prod_id, _pkg_id, _sup_id, _client_id) =
+        setup_fixture("lock_and_rollback").await;
 
-    let initial_stock: i64 =
-        sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
-            .bind(prod_id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let initial_stock: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+        .bind(prod_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
 
     // 1. Rollback après erreur + vérification clés étrangères (violation FK annulée proprement)
     {
@@ -416,16 +414,17 @@ async fn lot3_rollback_fk_violation_temp_block_and_busy_timeout_expiration() {
             .unwrap();
         // Drop sans commit()
     }
-    let stock_after_drop: i64 =
-        sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
-            .bind(prod_id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let stock_after_drop: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+        .bind(prod_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(stock_after_drop, initial_stock);
 
     // 3. Blocage temporaire d'une connexion (db2 bloque 120ms pendant que db attend puis réussit via busy_timeout 5000ms)
-    let db_wait = DepotDb::connect_with_busy_timeout(&path, 5_000).await.unwrap();
+    let db_wait = DepotDb::connect_with_busy_timeout(&path, 5_000)
+        .await
+        .unwrap();
     let (tx_guard, mut holder_tx) = db.begin_write().await.unwrap();
     sqlx::query("UPDATE products SET stock_milli = stock_milli + 1000 WHERE id = ?")
         .bind(prod_id)
@@ -452,7 +451,10 @@ async fn lot3_rollback_fk_violation_temp_block_and_busy_timeout_expiration() {
     drop(tx_guard);
 
     let waiter_res = waiter.await.unwrap();
-    assert!(waiter_res.is_ok(), "Attente busy_timeout aurait dû réussir : {waiter_res:?}");
+    assert!(
+        waiter_res.is_ok(),
+        "Attente busy_timeout aurait dû réussir : {waiter_res:?}"
+    );
 
     // 4. Expiration du délai busy_timeout (db_short a busy_timeout=60ms tandis que db bloque 300ms -> CoreError::DatabaseBusy)
     let db_short = DepotDb::connect_with_busy_timeout(&path, 60).await.unwrap();
@@ -525,12 +527,15 @@ async fn lot3_multi_process_child_entrypoint() {
 
 #[tokio::test]
 async fn lot3_two_processes_same_sqlite_file() {
-    let (path, db, prod_id, _pkg_id, _sup_id, _client_id) =
-        setup_fixture("multiprocess").await;
+    let (path, db, prod_id, _pkg_id, _sup_id, _client_id) = setup_fixture("multiprocess").await;
     let exe = std::env::current_exe().expect("current test exe");
 
     let mut c1 = Command::new(&exe)
-        .args(["--exact", "lot3_multi_process_child_entrypoint", "--nocapture"])
+        .args([
+            "--exact",
+            "lot3_multi_process_child_entrypoint",
+            "--nocapture",
+        ])
         .env("DEPOTPRO_LOT3_CHILD_DB", &path)
         .env("DEPOTPRO_LOT3_PROD_ID", prod_id.to_string())
         .env("DEPOTPRO_LOT3_WORKER_TAG", "p1")
@@ -538,7 +543,11 @@ async fn lot3_two_processes_same_sqlite_file() {
         .expect("spawn worker p1");
 
     let mut c2 = Command::new(&exe)
-        .args(["--exact", "lot3_multi_process_child_entrypoint", "--nocapture"])
+        .args([
+            "--exact",
+            "lot3_multi_process_child_entrypoint",
+            "--nocapture",
+        ])
         .env("DEPOTPRO_LOT3_CHILD_DB", &path)
         .env("DEPOTPRO_LOT3_PROD_ID", prod_id.to_string())
         .env("DEPOTPRO_LOT3_WORKER_TAG", "p2")
@@ -566,12 +575,11 @@ async fn lot3_two_processes_same_sqlite_file() {
     assert!(s2.success(), "worker p2 failed with {s2}");
 
     // 100 init + 5 (p1) + 5 (p2) + 5 (parent) = 115
-    let final_stock: i64 =
-        sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
-            .bind(prod_id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let final_stock: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+        .bind(prod_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(final_stock, 115_000);
     db.verify_integrity().await.unwrap();
 }

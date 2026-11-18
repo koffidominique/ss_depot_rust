@@ -127,7 +127,11 @@ pub fn split_sql_statements(sql: &str) -> Vec<String> {
 
     while i < chars.len() {
         let ch = chars[i];
-        let next = if i + 1 < chars.len() { chars[i + 1] } else { '\0' };
+        let next = if i + 1 < chars.len() {
+            chars[i + 1]
+        } else {
+            '\0'
+        };
 
         if in_line_comment {
             if ch == '\n' {
@@ -186,12 +190,11 @@ pub fn split_sql_statements(sql: &str) -> Vec<String> {
 }
 
 async fn table_exists_tx(tx: &mut Transaction<'_, Sqlite>, table_name: &str) -> CoreResult<bool> {
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
-    )
-    .bind(table_name)
-    .fetch_one(&mut **tx)
-    .await?;
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?")
+            .bind(table_name)
+            .fetch_one(&mut **tx)
+            .await?;
     Ok(count > 0)
 }
 
@@ -203,12 +206,11 @@ async fn column_exists_tx(
     if !table_exists_tx(tx, table_name).await? {
         return Ok(false);
     }
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?")
-            .bind(table_name)
-            .bind(column_name)
-            .fetch_one(&mut **tx)
-            .await?;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?")
+        .bind(table_name)
+        .bind(column_name)
+        .fetch_one(&mut **tx)
+        .await?;
     Ok(count > 0)
 }
 
@@ -244,7 +246,10 @@ impl DepotDb {
         Self::connect_with_busy_timeout(db_path, default_busy_timeout_ms()).await
     }
 
-    pub async fn connect_with_busy_timeout(db_path: &Path, busy_timeout_ms: u64) -> CoreResult<Self> {
+    pub async fn connect_with_busy_timeout(
+        db_path: &Path,
+        busy_timeout_ms: u64,
+    ) -> CoreResult<Self> {
         let clamped_timeout = busy_timeout_ms.clamp(1, 60_000);
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
@@ -364,22 +369,18 @@ impl DepotDb {
     /// Initialise uniquement les paramètres applicatifs neutres nécessaires au premier démarrage
     /// (aucun fournisseur, produit, stock ni client fictif).
     pub async fn ensure_neutral_defaults(pool: &SqlitePool) -> CoreResult<()> {
-        let settings_count_pre: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM app_settings")
-                .fetch_one(pool)
-                .await?;
-        let methods_count_pre: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM payment_methods")
-                .fetch_one(pool)
-                .await?;
-        let exp_cat_count_pre: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM expense_categories")
-                .fetch_one(pool)
-                .await?;
-        let cat_count_pre: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM categories")
-                .fetch_one(pool)
-                .await?;
+        let settings_count_pre: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_settings")
+            .fetch_one(pool)
+            .await?;
+        let methods_count_pre: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payment_methods")
+            .fetch_one(pool)
+            .await?;
+        let exp_cat_count_pre: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM expense_categories")
+            .fetch_one(pool)
+            .await?;
+        let cat_count_pre: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM categories")
+            .fetch_one(pool)
+            .await?;
 
         if settings_count_pre > 0
             && methods_count_pre > 0
@@ -391,10 +392,9 @@ impl DepotDb {
 
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
-        let settings_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM app_settings")
-                .fetch_one(&mut *tx)
-                .await?;
+        let settings_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_settings")
+            .fetch_one(&mut *tx)
+            .await?;
         if settings_count == 0 {
             sqlx::query(
                 "INSERT OR IGNORE INTO app_settings (
@@ -405,10 +405,9 @@ impl DepotDb {
             .await?;
         }
 
-        let methods_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM payment_methods")
-                .fetch_one(&mut *tx)
-                .await?;
+        let methods_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payment_methods")
+            .fetch_one(&mut *tx)
+            .await?;
         if methods_count == 0 {
             for (code, label, is_cash) in [
                 ("cash", "Espèces", 1_i64),
@@ -428,10 +427,9 @@ impl DepotDb {
             }
         }
 
-        let exp_cat_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM expense_categories")
-                .fetch_one(&mut *tx)
-                .await?;
+        let exp_cat_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM expense_categories")
+            .fetch_one(&mut *tx)
+            .await?;
         if exp_cat_count == 0 {
             for cat in [
                 "Carburant & Livraison",
@@ -448,24 +446,24 @@ impl DepotDb {
             }
         }
 
-        let cat_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM categories")
-                .fetch_one(&mut *tx)
-                .await?;
+        let cat_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM categories")
+            .fetch_one(&mut *tx)
+            .await?;
         if cat_count == 0 {
             for (name, desc) in [
                 ("Bières", "Bières en bouteille, canette ou casier"),
                 ("Boissons gazeuses", "Sodas et boissons gazeuses"),
                 ("Eaux minérales", "Eaux plates et gazeuses"),
-                ("Jus & Énergisants", "Jus de fruits, nectars et boissons énergisantes"),
+                (
+                    "Jus & Énergisants",
+                    "Jus de fruits, nectars et boissons énergisantes",
+                ),
             ] {
-                sqlx::query(
-                    "INSERT OR IGNORE INTO categories (name, description) VALUES (?, ?)",
-                )
-                .bind(name)
-                .bind(desc)
-                .execute(&mut *tx)
-                .await?;
+                sqlx::query("INSERT OR IGNORE INTO categories (name, description) VALUES (?, ?)")
+                    .bind(name)
+                    .bind(desc)
+                    .execute(&mut *tx)
+                    .await?;
             }
         }
 
@@ -482,12 +480,11 @@ impl DepotDb {
 
         let mut tables = Vec::with_capacity(table_names.len());
         for tname in table_names {
-            let cols: Vec<(String, String, i64, i64)> = sqlx::query_as(
-                "SELECT name, type, \"notnull\", pk FROM pragma_table_info(?)",
-            )
-            .bind(&tname)
-            .fetch_all(pool)
-            .await?;
+            let cols: Vec<(String, String, i64, i64)> =
+                sqlx::query_as("SELECT name, type, \"notnull\", pk FROM pragma_table_info(?)")
+                    .bind(&tname)
+                    .fetch_all(pool)
+                    .await?;
             tables.push(SchemaTableSnapshot {
                 name: tname,
                 columns: cols
@@ -549,10 +546,9 @@ impl DepotDb {
                 "Échec contrôle intégrité SQLite : {integrity}"
             )));
         }
-        let fk_errors: Vec<(String, i64, String, i64)> =
-            sqlx::query_as("PRAGMA foreign_key_check")
-                .fetch_all(&self.pool)
-                .await?;
+        let fk_errors: Vec<(String, i64, String, i64)> = sqlx::query_as("PRAGMA foreign_key_check")
+            .fetch_all(&self.pool)
+            .await?;
         if !fk_errors.is_empty() {
             return Err(CoreError::Database(format!(
                 "Violations de clés étrangères détectées ({} erreur(s)).",
@@ -576,8 +572,15 @@ impl DepotDb {
         Ok((guard, tx))
     }
 
-    pub async fn next_sequence(tx: &mut Transaction<'_, Sqlite>, prefix: &str) -> CoreResult<String> {
-        let year = chrono::Utc::now().format("%Y").to_string().parse::<i64>().unwrap_or(2026);
+    pub async fn next_sequence(
+        tx: &mut Transaction<'_, Sqlite>,
+        prefix: &str,
+    ) -> CoreResult<String> {
+        let year = chrono::Utc::now()
+            .format("%Y")
+            .to_string()
+            .parse::<i64>()
+            .unwrap_or(2026);
         sqlx::query(
             "INSERT INTO document_sequences (prefix, year, last_number) VALUES (?, ?, 1)
              ON CONFLICT(prefix, year) DO UPDATE SET last_number = last_number + 1",

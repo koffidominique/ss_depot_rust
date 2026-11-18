@@ -1,18 +1,15 @@
-use std::path::PathBuf;
 use depotpro_core::application::reports;
 use depotpro_core::infrastructure::db::{
-    DepotDb, MIGRATIONS, SchemaSnapshot, V3_SCHEMA_SQL, split_sql_statements,
+    split_sql_statements, DepotDb, SchemaSnapshot, MIGRATIONS, V3_SCHEMA_SQL,
 };
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::path::PathBuf;
 
 const EXPECTED_SCHEMA_V5_JSON: &str =
     include_str!("../../../migrations/sqlite/expected_schema_v5.json");
 
 fn temp_db_path(tag: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "depotpro_lot4_{tag}_{}.db",
-        uuid::Uuid::new_v4()
-    ))
+    std::env::temp_dir().join(format!("depotpro_lot4_{tag}_{}.db", uuid::Uuid::new_v4()))
 }
 
 fn legacy_v3_sql_without_optional_cols() -> String {
@@ -62,7 +59,10 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
         "document_sequences",
     ] {
         let query = format!("SELECT COUNT(*) FROM {tbl}");
-        let count: i64 = sqlx::query_scalar(&query).fetch_one(&db.pool).await.unwrap();
+        let count: i64 = sqlx::query_scalar(&query)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
         assert_eq!(count, 0, "{tbl} doit être vide en production");
     }
 
@@ -231,7 +231,8 @@ async fn lot4_interrupted_migration_rolls_back_and_partial_migration_recovers() 
     bad_list.push(depotpro_core::infrastructure::db::MigrationDef {
         version: 99,
         name: "0099_bad_interrupted",
-        sql: "CREATE TABLE partial_should_rollback (id INTEGER PRIMARY KEY); INVALID SQL STATEMENT;",
+        sql:
+            "CREATE TABLE partial_should_rollback (id INTEGER PRIMARY KEY); INVALID SQL STATEMENT;",
     });
 
     let err = DepotDb::apply_migrations_list(&pool, &bad_list).await;
@@ -248,10 +249,11 @@ async fn lot4_interrupted_migration_rolls_back_and_partial_migration_recovers() 
         "Le rollback atomique doit annuler partial_should_rollback"
     );
 
-    let sv_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM schema_version WHERE version = 99")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let sv_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM schema_version WHERE version = 99")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(sv_count, 0);
     pool.close().await;
 

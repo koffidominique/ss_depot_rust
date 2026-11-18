@@ -112,8 +112,14 @@ async fn lot6_concurrent_pin_attempts_lockout_and_unlock() {
             other => panic!("Résultat inattendu lors d'attaques concurrentes : {other:?}"),
         }
     }
-    assert_eq!(unauthorized, 5, "Exactement 5 tentatives doivent incrémenter jusqu'au verrou");
-    assert_eq!(rate_limited, 3, "Les 3 tentatives suivantes doivent être bloquées par le verrou");
+    assert_eq!(
+        unauthorized, 5,
+        "Exactement 5 tentatives doivent incrémenter jusqu'au verrou"
+    );
+    assert_eq!(
+        rate_limited, 3,
+        "Les 3 tentatives suivantes doivent être bloquées par le verrou"
+    );
 
     let (attempts,): (i64,) =
         sqlx::query_as("SELECT failed_attempts FROM owner_security WHERE id = 1")
@@ -228,14 +234,20 @@ async fn lot6_rbac_six_roles_permissions_and_audit_identity() {
         ),
     )
     .await;
-    assert!(matches!(denied_sale_for_stock, Err(CoreError::Forbidden(_))));
+    assert!(matches!(
+        denied_sale_for_stock,
+        Err(CoreError::Forbidden(_))
+    ));
 
     let denied_cat_for_accountant = auth::with_actor(
         accountant.clone(),
         products::create_category(&db, "Refusé", None),
     )
     .await;
-    assert!(matches!(denied_cat_for_accountant, Err(CoreError::Forbidden(_))));
+    assert!(matches!(
+        denied_cat_for_accountant,
+        Err(CoreError::Forbidden(_))
+    ));
 
     // Accès autorisé pour le bon rôle + traçabilité audit_logs
     auth::with_actor(
@@ -266,12 +278,9 @@ async fn lot6_rbac_six_roles_permissions_and_audit_identity() {
     assert_eq!(actor_role.as_deref(), Some("cashier"));
 
     // Désactivation utilisateur
-    let toggled = auth::with_actor(
-        owner,
-        auth::set_user_active(&db, cashier_dto.id, false),
-    )
-    .await
-    .unwrap();
+    let toggled = auth::with_actor(owner, auth::set_user_active(&db, cashier_dto.id, false))
+        .await
+        .unwrap();
     assert!(!toggled.active);
     assert!(stock_dto.active);
     assert!(matches!(
