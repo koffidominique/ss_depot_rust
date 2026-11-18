@@ -122,15 +122,15 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
         </div>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {totalOverdue > 0 && (
           <Link
             to={overdueReceivables > 0 ? '/debts' : '/suppliers'}
             aria-label="Voir les échéances dépassées"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1.5 text-xs font-semibold text-[#DC4545] dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-colors whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 px-2 xl:px-2.5 py-1.5 text-xs font-semibold text-[#DC4545] dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-colors whitespace-nowrap shrink-0"
           >
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            <span className="font-mono-num">{totalOverdue} échéance(s)</span>
+            <span className="hidden lg:inline font-mono-num">{totalOverdue} échéance(s)</span>
           </Link>
         )}
 
@@ -138,11 +138,11 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
           type="button"
           onClick={() => setSearchOpen(true)}
           aria-label="Ouvrir la recherche globale"
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 text-xs text-[#667085] dark:text-slate-300 hover:border-[#2563EB] hover:text-[#182230] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2 xl:px-3 py-1.5 text-xs text-[#667085] dark:text-slate-300 hover:border-[#2563EB] hover:text-[#182230] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
         >
           <Search className="h-3.5 w-3.5" />
           <span className="hidden 2xl:inline">Rechercher...</span>
-          <kbd className="hidden lg:inline-block rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 font-mono-num text-[10px]">
+          <kbd className="hidden xl:inline-block rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 font-mono-num text-[10px]">
             Ctrl+K
           </kbd>
         </button>
@@ -150,7 +150,7 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
         <Link
           to="/cash"
           aria-label="Statut de la caisse"
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2 xl:px-3 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
         >
           <Landmark
             className={`h-3.5 w-3.5 ${
@@ -158,11 +158,11 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
             }`}
           />
           {cash?.activeSession ? (
-            <span className="hidden sm:inline font-mono-num">
+            <span className="hidden xl:inline font-mono-num">
               Caisse ouverte · {formatFcfa(cash.summary?.theoreticalCash ?? cash.activeSession.opening_cash)}
             </span>
           ) : (
-            <span className="hidden sm:inline">Caisse fermée</span>
+            <span className="hidden xl:inline">Caisse fermée</span>
           )}
         </Link>
 
@@ -170,10 +170,10 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
           type="button"
           onClick={() => openTips(topicId)}
           aria-label="Conseils et règles métier"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 hover:border-[#2563EB] hover:text-[#2563EB] dark:hover:text-[#60A5FA] transition-colors whitespace-nowrap shrink-0"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 xl:px-3 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 hover:border-[#2563EB] hover:text-[#2563EB] dark:hover:text-[#60A5FA] transition-colors whitespace-nowrap shrink-0"
         >
           <HelpCircle className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Conseils</span>
+          <span className="hidden xl:inline">Conseils</span>
         </button>
 
         <button
@@ -209,10 +209,10 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
           type="button"
           onClick={handleLock}
           aria-label="Verrouiller"
-          className="inline-flex items-center gap-2 rounded-lg bg-[#101B33] dark:bg-[#2563EB] px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+          className="inline-flex items-center gap-2 rounded-lg bg-[#101B33] dark:bg-[#2563EB] px-2.5 lg:px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
         >
           <Lock className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Verrouiller</span>
+          <span className="hidden lg:inline">Verrouiller</span>
         </button>
       </div>
       <GlobalSearchModal open={searchOpen} onOpenChange={setSearchOpen} />

@@ -55,7 +55,7 @@ Une vérification statique sur `src/` confirme :
 
 ### 2.2. Responsive design & accessibilité (`8.4`)
 - **`src/layouts/Sidebar.tsx`** & **`src/layouts/AppLayout.tsx`** : ajout d'un tiroir de navigation mobile (`md:hidden`) piloté depuis l'en-tête (`Ouvrir le menu de navigation` / `Fermer le menu`), avec fermeture automatique lors d'un clic sur un lien de navigation ou sur l'arrière-plan, tout en conservant la barre latérale desktop repliable (`hidden md:flex`).
-- **`src/layouts/Header.tsx`** : adaptation des espacements sur petits écrans (`px-3 sm:px-6`, masquage des libellés secondaires sous `sm:` avec conservation des `aria-label` pour lecteurs d'écran et tests).
+- **`src/layouts/Header.tsx`** : adaptation des espacements sur petits et moyens écrans (`px-3 sm:px-6`, `gap-1.5 sm:gap-2`, masquage des libellés secondaires sous `lg:`/`xl:` avec conservation des `aria-label` pour lecteurs d'écran et tests) évitant l'écrasement du titre `<h1>` en largeur tablette (`768px` avec barre latérale affichée) et mobile (`390px`).
 - **`src/features/sales/components/PosCatalogPanel.tsx`** & **`src/features/sales/hooks/usePosShortcuts.ts`** : conservation intégrale des raccourcis POS (`F2` focus/sélection recherche, `Entrée` scan code-barres, `F9` validation vente, `Escape` fermeture modales/bannière) et activation du bouton d'effacement (`clearable`) sur la recherche POS.
 
 ---
