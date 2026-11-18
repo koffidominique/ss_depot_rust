@@ -152,7 +152,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await page.getByLabel('Phrase secrète de chiffrement').fill('DepotPro!2026');
     await page.getByRole('button', { name: 'Chiffrer et sauvegarder' }).click();
     await expect(
-      page.getByRole('cell', { name: /depotpro_backup_.*\.dpbkp$/i }).first()
+      page.getByText(/depotpro_backup_.*\.dpbkp$/i).first()
     ).toBeVisible();
 
     expect(errors).toEqual([]);

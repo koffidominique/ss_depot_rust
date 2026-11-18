@@ -204,10 +204,11 @@ pub async fn get_dashboard_kpis(db: &DepotDb) -> CoreResult<DashboardKpisDto> {
     .fetch_one(&db.pool)
     .await?;
 
-    let collections_total: i64 =
-        sqlx::query_scalar("SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE direction = 'in'")
-            .fetch_one(&db.pool)
-            .await?;
+    let collections_total: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE direction = 'in'",
+    )
+    .fetch_one(&db.pool)
+    .await?;
 
     let (receivables_total, receivables_count): (i64, i64) = sqlx::query_as(
         "SELECT COALESCE(SUM(remaining_amount), 0), COUNT(*) FROM customer_receivables WHERE status IN ('open', 'partial')",
@@ -272,10 +273,11 @@ pub async fn get_dashboard_kpis(db: &DepotDb) -> CoreResult<DashboardKpisDto> {
         .await?;
     }
 
-    let out_of_stock_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_milli <= 0")
-            .fetch_one(&db.pool)
-            .await?;
+    let out_of_stock_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_milli <= 0",
+    )
+    .fetch_one(&db.pool)
+    .await?;
 
     let low_stock_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_milli > 0 AND stock_milli <= min_stock_milli",
@@ -367,14 +369,18 @@ pub async fn get_reports_overview(
     to_date: Option<&str>,
 ) -> CoreResult<ReportsOverviewDto> {
     require_current_actor_permission(Permission::ReportsRead)?;
-    let from = from_date.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("");
+    let from = from_date
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("");
     let to = to_date
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .unwrap_or("9999-12-31");
 
-    let (commercial_count, merchandise_revenue, deposit_billed, paid_amount): (i64, i64, i64, i64) = sqlx::query_as(
-        "SELECT COUNT(*),
+    let (commercial_count, merchandise_revenue, deposit_billed, paid_amount): (i64, i64, i64, i64) =
+        sqlx::query_as(
+            "SELECT COUNT(*),
                 COALESCE(SUM(total_merchandise), 0),
                 COALESCE(SUM(total_deposit), 0),
                 COALESCE(SUM(paid_amount), 0)
@@ -382,11 +388,11 @@ pub async fn get_reports_overview(
          WHERE status != 'cancelled'
            AND substr(created_at, 1, 10) >= ?
            AND substr(created_at, 1, 10) <= ?",
-    )
-    .bind(from)
-    .bind(to)
-    .fetch_one(&db.pool)
-    .await?;
+        )
+        .bind(from)
+        .bind(to)
+        .fetch_one(&db.pool)
+        .await?;
 
     let lines: Vec<(i64, i64, Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT sl.base_quantity_milli, sl.line_total, sl.cost_num, sl.cost_den
@@ -573,7 +579,11 @@ pub async fn update_settings(
         match next {
             Some(v) => {
                 let t = v.trim().to_string();
-                if t.is_empty() { None } else { Some(t) }
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
             }
             None => prev,
         }

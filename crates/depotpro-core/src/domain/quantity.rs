@@ -133,13 +133,21 @@ mod tests {
         assert!(Quantity::parse_str("-1", "Négatif").is_err());
         assert!(Quantity::parse_positive_str("0", "Zéro").is_err());
         assert_eq!(Quantity::parse_str("0.5", "Demi").unwrap().milli_units, 500);
-        assert_eq!(Quantity::parse_str("0,5", "Virgule").unwrap().milli_units, 500);
+        assert_eq!(
+            Quantity::parse_str("0,5", "Virgule").unwrap().milli_units,
+            500
+        );
 
         // Fraction valide donnant un FCFA entier : 0.5 * 500 = 250 FCFA
-        assert_eq!(Quantity::from_milli(500).compute_line_fcfa(500).unwrap(), 250);
+        assert_eq!(
+            Quantity::from_milli(500).compute_line_fcfa(500).unwrap(),
+            250
+        );
         // Fraction donnant une fraction de FCFA refusée sans arrondi : 0.333 * 100 = 33.3 FCFA
         assert!(Quantity::from_milli(333).compute_line_fcfa(100).is_err());
         // Débordement refusé
-        assert!(Quantity::from_milli(i64::MAX).compute_line_fcfa(2_000).is_err());
+        assert!(Quantity::from_milli(i64::MAX)
+            .compute_line_fcfa(2_000)
+            .is_err());
     }
 }

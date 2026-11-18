@@ -49,7 +49,10 @@ pub enum CoreError {
 
 pub fn is_sqlite_busy_error(err: &sqlx::Error) -> bool {
     if let sqlx::Error::Database(db_err) = err {
-        if matches!(db_err.code().as_deref(), Some("5") | Some("261") | Some("517")) {
+        if matches!(
+            db_err.code().as_deref(),
+            Some("5") | Some("261") | Some("517")
+        ) {
             return true;
         }
         let msg = db_err.message().to_ascii_lowercase();

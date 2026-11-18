@@ -392,7 +392,9 @@ pub async fn update_supplier(
         .await?
         .into_iter()
         .find(|s| s.id == supplier_id)
-        .ok_or_else(|| CoreError::Internal("Fournisseur introuvable après mise à jour.".to_string()))
+        .ok_or_else(|| {
+            CoreError::Internal("Fournisseur introuvable après mise à jour.".to_string())
+        })
 }
 
 pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderDto>> {
@@ -449,13 +451,20 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
     Ok(result)
 }
 
-pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput) -> CoreResult<PurchaseOrderDto> {
+pub async fn create_purchase_order(
+    db: &DepotDb,
+    input: CreatePurchaseOrderInput,
+) -> CoreResult<PurchaseOrderDto> {
     require_current_actor_permission(Permission::PurchasesWrite)?;
     if input.request_key.trim().is_empty() {
-        return Err(CoreError::Validation("Clé d'idempotence requise.".to_string()));
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
     }
     if input.lines.is_empty() {
-        return Err(CoreError::Validation("Ajoutez au moins une ligne de commande.".to_string()));
+        return Err(CoreError::Validation(
+            "Ajoutez au moins une ligne de commande.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
@@ -478,7 +487,9 @@ pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput
         .fetch_optional(&mut *tx)
         .await?;
     if sup.is_none() {
-        return Err(CoreError::Validation("Fournisseur introuvable.".to_string()));
+        return Err(CoreError::Validation(
+            "Fournisseur introuvable.".to_string(),
+        ));
     }
 
     type PreparedPurchaseOrderLine = (i64, i64, String, String, String, i64, i64, i64, i64);
@@ -506,7 +517,9 @@ pub async fn create_purchase_order(db: &DepotDb, input: CreatePurchaseOrderInput
 
         let qty = Quantity::parse_str(&l.quantity, &format!("Quantité commandée ({pname})"))?;
         if qty.milli_units <= 0 {
-            return Err(CoreError::Validation("La quantité commandée doit être > 0.".to_string()));
+            return Err(CoreError::Validation(
+                "La quantité commandée doit être > 0.".to_string(),
+            ));
         }
         let unit_price = Money::from_non_negative(l.unit_price, &format!("Prix achat ({pname})"))?;
         let line_total = Money(qty.compute_line_fcfa(unit_price.value())?);
@@ -670,8 +683,7 @@ pub async fn receive_purchase_order(
 
     type PreparedReceiptLine = (i64, i64, i64, i64, i64, i64, Option<String>);
     let mut receipt_total = Money::ZERO;
-    let mut prepared: Vec<PreparedReceiptLine> =
-        Vec::with_capacity(normalized_lines.len());
+    let mut prepared: Vec<PreparedReceiptLine> = Vec::with_capacity(normalized_lines.len());
 
     for (po_line_id, qty, disc_reason) in &normalized_lines {
         let pol: Option<(i64, i64, i64, i64, i64, i64)> = sqlx::query_as(
@@ -690,9 +702,9 @@ pub async fn receive_purchase_order(
                 "La ligne de commande #{pol_id} a déjà été intégralement réceptionnée."
             )));
         }
-        let cum_received = received_milli
-            .checked_add(qty.milli_units)
-            .ok_or_else(|| CoreError::Validation("Débordement quantité réceptionnée.".to_string()))?;
+        let cum_received = received_milli.checked_add(qty.milli_units).ok_or_else(|| {
+            CoreError::Validation("Débordement quantité réceptionnée.".to_string())
+        })?;
         if cum_received > ordered_milli {
             return Err(CoreError::Validation(
                 "La quantité reçue dépasse la quantité commandée restante.".to_string(),
@@ -771,9 +783,16 @@ pub async fn receive_purchase_order(
         let mut next_num = avg_num.clone();
         let mut next_den = avg_den.clone();
 
-        if *amount >= 0 && *base_qty_milli > 0 && (cur_stock == 0 || (avg_num.is_some() && avg_den.is_some())) {
+        if *amount >= 0
+            && *base_qty_milli > 0
+            && (cur_stock == 0 || (avg_num.is_some() && avg_den.is_some()))
+        {
             let old_num: i128 = avg_num.as_deref().and_then(|s| s.parse().ok()).unwrap_or(0);
-            let old_den: i128 = avg_den.as_deref().and_then(|s| s.parse().ok()).unwrap_or(1).max(1);
+            let old_den: i128 = avg_den
+                .as_deref()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1)
+                .max(1);
             let old_val_scaled = ((cur_stock as i128) * old_num) / old_den;
             let added_val_scaled = (*amount as i128) * 1000_i128;
             let total_num = old_val_scaled + added_val_scaled;
@@ -794,8 +813,9 @@ pub async fn receive_purchase_order(
 
         let unit_base_cost = if *base_qty_milli > 0 {
             Some(
-                i64::try_from((*amount as i128 * 1000) / (*base_qty_milli as i128))
-                    .map_err(|_| CoreError::Validation("Débordement du coût unitaire de base.".to_string()))?,
+                i64::try_from((*amount as i128 * 1000) / (*base_qty_milli as i128)).map_err(
+                    |_| CoreError::Validation("Débordement du coût unitaire de base.".to_string()),
+                )?,
             )
         } else {
             None
@@ -817,7 +837,11 @@ pub async fn receive_purchase_order(
     }
 
     let due_date = if payment_terms_days > 0 {
-        Some((chrono::Utc::now() + chrono::Duration::days(payment_terms_days)).format("%Y-%m-%d").to_string())
+        Some(
+            (chrono::Utc::now() + chrono::Duration::days(payment_terms_days))
+                .format("%Y-%m-%d")
+                .to_string(),
+        )
     } else {
         None
     };
@@ -841,19 +865,24 @@ pub async fn receive_purchase_order(
     .fetch_one(&mut *tx)
     .await?;
 
-    sqlx::query("UPDATE purchase_orders SET received_amount = received_amount + ?, status = ? WHERE id = ?")
-        .bind(receipt_total.value())
-        .bind(if rem == 0 { "received" } else { "partial" })
-        .bind(purchase_order_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE purchase_orders SET received_amount = received_amount + ?, status = ? WHERE id = ?",
+    )
+    .bind(receipt_total.value())
+    .bind(if rem == 0 { "received" } else { "partial" })
+    .bind(purchase_order_id)
+    .execute(&mut *tx)
+    .await?;
 
     audit_log_tx(
         &mut tx,
         "RECEIVE_PO",
         "purchase_receipts",
         Some(receipt_id.to_string()),
-        &format!("Réception {rec_ref} sur {po_ref} — {} FCFA", receipt_total.value()),
+        &format!(
+            "Réception {rec_ref} sur {po_ref} — {} FCFA",
+            receipt_total.value()
+        ),
     )
     .await?;
     tx.commit().await?;
@@ -874,11 +903,15 @@ pub async fn cancel_purchase_order(
 ) -> CoreResult<PurchaseOrderDto> {
     require_current_actor_permission(Permission::PurchasesWrite)?;
     if purchase_order_id <= 0 {
-        return Err(CoreError::Validation("Bon de commande invalide.".to_string()));
+        return Err(CoreError::Validation(
+            "Bon de commande invalide.".to_string(),
+        ));
     }
     let reason = input.reason.trim();
     if reason.is_empty() {
-        return Err(CoreError::Validation("Le motif d'annulation est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le motif d'annulation est obligatoire.".to_string(),
+        ));
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
@@ -934,7 +967,9 @@ pub async fn cancel_purchase_order(
         .await?
         .into_iter()
         .find(|o| o.id == purchase_order_id)
-        .ok_or_else(|| CoreError::Internal("Bon de commande introuvable après annulation.".to_string()))
+        .ok_or_else(|| {
+            CoreError::Internal("Bon de commande introuvable après annulation.".to_string())
+        })
 }
 
 pub async fn list_supplier_debts(db: &DepotDb) -> CoreResult<Vec<SupplierDebtDto>> {
@@ -979,7 +1014,8 @@ pub async fn pay_supplier_debt(
             .bind(debt_id)
             .fetch_optional(&mut *tx)
             .await?;
-    let (_id, rem) = debt.ok_or_else(|| CoreError::Validation("Dette fournisseur introuvable.".to_string()))?;
+    let (_id, rem) =
+        debt.ok_or_else(|| CoreError::Validation("Dette fournisseur introuvable.".to_string()))?;
     if amount.value() > rem {
         return Err(CoreError::InvalidPayment(
             "Le règlement dépasse le solde fournisseur restant.".to_string(),
@@ -994,7 +1030,9 @@ pub async fn pay_supplier_debt(
     let (pm_code, is_cash, active) =
         pm.ok_or_else(|| CoreError::InvalidPayment("Moyen de paiement invalide.".to_string()))?;
     if active == 0 {
-        return Err(CoreError::InvalidPayment("Moyen de paiement inactif.".to_string()));
+        return Err(CoreError::InvalidPayment(
+            "Moyen de paiement inactif.".to_string(),
+        ));
     }
 
     if is_cash == 1 {
@@ -1014,18 +1052,25 @@ pub async fn pay_supplier_debt(
     .bind(&pay_ref)
     .bind(&input.request_key)
     .bind(amount.value())
-    .bind(input.note.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        input
+            .note
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
 
-    let part_id = sqlx::query("INSERT INTO payment_parts (payment_id, method_code, amount) VALUES (?, ?, ?)")
-        .bind(payment_id)
-        .bind(&pm_code)
-        .bind(amount.value())
-        .execute(&mut *tx)
-        .await?
-        .last_insert_rowid();
+    let part_id =
+        sqlx::query("INSERT INTO payment_parts (payment_id, method_code, amount) VALUES (?, ?, ?)")
+            .bind(payment_id)
+            .bind(&pm_code)
+            .bind(amount.value())
+            .execute(&mut *tx)
+            .await?
+            .last_insert_rowid();
 
     sqlx::query(
         "INSERT INTO cash_movements (session_id, request_key, payment_part_id, kind, method_code, direction, amount, description, reference_document)
