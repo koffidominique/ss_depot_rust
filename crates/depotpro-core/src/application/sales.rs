@@ -3,7 +3,7 @@ use sqlx::{FromRow, Sqlite, Transaction};
 use std::collections::{HashMap, HashSet};
 
 use crate::application::auth::{current_actor, require_current_actor_permission, Permission};
-use crate::application::products::deserialize_nullable_opt;
+use crate::application::products::{deserialize_nullable_opt, deserialize_qty_str};
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
@@ -49,6 +49,15 @@ pub struct UpdateCreditPolicyInput {
     pub payment_terms_days: Option<i64>,
 }
 
+#[derive(Debug, Serialize, FromRow)]
+pub struct ClientCreditSettingsDto {
+    pub client_id: i64,
+    pub policy: String,
+    pub credit_limit: Option<i64>,
+    pub payment_terms_days: i64,
+    pub updated_at: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UpdateClientInput {
     pub name: Option<String>,
@@ -70,6 +79,7 @@ pub struct UpdateClientInput {
 pub struct CreateSaleLineInput {
     pub product_id: i64,
     pub packaging_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub quantity: String,
     pub discount_amount: Option<i64>,
 }
@@ -103,6 +113,7 @@ pub struct CancelSaleInput {
 #[derive(Debug, Deserialize)]
 pub struct SaleReturnLineInput {
     pub sale_line_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub base_quantity: String,
 }
 
@@ -180,6 +191,7 @@ pub struct SaleDepositDto {
 pub struct SaleCancellationDto {
     pub id: i64,
     pub reason: String,
+    pub refund_method_code: Option<String>,
     pub refunded_amount: i64,
     pub created_at: String,
 }
@@ -562,7 +574,7 @@ pub async fn update_client_credit_policy(
     db: &DepotDb,
     client_id: i64,
     input: UpdateCreditPolicyInput,
-) -> CoreResult<()> {
+) -> CoreResult<ClientCreditSettingsDto> {
     require_current_actor_permission(Permission::SalesWrite)?;
     if !matches!(
         input.credit_policy.as_str(),
@@ -621,7 +633,15 @@ pub async fn update_client_credit_policy(
     )
     .await?;
     tx.commit().await?;
-    Ok(())
+
+    let updated = sqlx::query_as::<_, ClientCreditSettingsDto>(
+        "SELECT client_id, policy, credit_limit, payment_terms_days, updated_at
+         FROM client_credit_settings WHERE client_id = ?",
+    )
+    .bind(client_id)
+    .fetch_one(&db.pool)
+    .await?;
+    Ok(updated)
 }
 
 struct PreparedSaleLine {
@@ -714,7 +734,7 @@ pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetai
     .await?;
 
     let cancellation = sqlx::query_as::<_, SaleCancellationDto>(
-        "SELECT id, reason, refunded_amount, created_at FROM sales_cancellations WHERE sale_id = ?",
+        "SELECT id, reason, refund_method_code, refunded_amount, created_at FROM sales_cancellations WHERE sale_id = ?",
     )
     .bind(sale_id)
     .fetch_optional(&db.pool)
@@ -1283,17 +1303,23 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
 
     if credit_amount > 0 {
         if let Some(cid) = input.client_id {
-            let due_date = input.due_date.clone().or_else(|| {
-                if payment_terms_days > 0 {
-                    Some(
-                        (chrono::Utc::now() + chrono::Duration::days(payment_terms_days))
-                            .format("%Y-%m-%d")
-                            .to_string(),
-                    )
-                } else {
-                    None
-                }
-            });
+            let due_date = input
+                .due_date
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .or_else(|| {
+                    if payment_terms_days > 0 {
+                        Some(
+                            (chrono::Utc::now() + chrono::Duration::days(payment_terms_days))
+                                .format("%Y-%m-%d")
+                                .to_string(),
+                        )
+                    } else {
+                        None
+                    }
+                });
             sqlx::query(
                 "INSERT INTO customer_receivables (sale_id, client_id, initial_amount, remaining_amount, due_date, status)
                  VALUES (?, ?, ?, ?, ?, ?)",
@@ -1328,6 +1354,12 @@ pub async fn cancel_sale(
     input: CancelSaleInput,
 ) -> CoreResult<SaleDetailDto> {
     require_current_actor_permission(Permission::SalesCancelReturn)?;
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
+    }
     let reason = input.reason.trim().to_string();
     if reason.is_empty() {
         return Err(CoreError::Validation(
@@ -1336,13 +1368,18 @@ pub async fn cancel_sale(
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    let dup: Option<(i64,)> =
-        sqlx::query_as("SELECT id FROM sales_cancellations WHERE request_key = ?")
-            .bind(&input.request_key)
+    let dup: Option<(i64, i64)> =
+        sqlx::query_as("SELECT id, sale_id FROM sales_cancellations WHERE request_key = ?")
+            .bind(&request_key)
             .fetch_optional(&mut *tx)
             .await?;
-    if dup.is_some() {
+    if let Some((_dup_id, dup_sale_id)) = dup {
         tx.rollback().await?;
+        if dup_sale_id != sale_id {
+            return Err(CoreError::DuplicateOperation(
+                "Cette clé d'idempotence a déjà été utilisée pour une autre vente.".to_string(),
+            ));
+        }
         return get_sale_detail(db, sale_id).await;
     }
 
@@ -1443,10 +1480,29 @@ pub async fn cancel_sale(
     .await?;
     let refund_method = input
         .refund_method_code
-        .unwrap_or_else(|| "cash".to_string());
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("cash")
+        .to_string();
 
     if refunded > 0 {
-        if refund_method == "cash" {
+        let pm: Option<(String, i64, i64)> =
+            sqlx::query_as("SELECT code, is_cash, active FROM payment_methods WHERE code = ?")
+                .bind(&refund_method)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let (pm_code, is_cash, active) = pm.ok_or_else(|| {
+            CoreError::InvalidPayment(format!(
+                "Moyen de remboursement introuvable : {refund_method}"
+            ))
+        })?;
+        if active == 0 {
+            return Err(CoreError::InvalidPayment(format!(
+                "Moyen de remboursement inactif : {pm_code}"
+            )));
+        }
+        if is_cash == 1 {
             let avail = get_theoretical_cash_tx(&mut tx, session_id, opening_cash).await?;
             if refunded > avail {
                 return Err(CoreError::InvalidPayment(
@@ -1459,8 +1515,8 @@ pub async fn cancel_sale(
              VALUES (?, ?, 'sale_refund', ?, 'out', ?, ?, ?)",
         )
         .bind(session_id)
-        .bind(format!("cancel-ref:{}", input.request_key))
-        .bind(&refund_method)
+        .bind(format!("cancel-ref:{request_key}"))
+        .bind(&pm_code)
         .bind(refunded)
         .bind(format!("Annulation {sale_ref} — {reason}"))
         .bind(&sale_ref)
@@ -1474,7 +1530,7 @@ pub async fn cancel_sale(
     )
     .bind(sale_id)
     .bind(session_id)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(&reason)
     .bind(if refunded > 0 { Some(refund_method) } else { None })
     .bind(refunded)

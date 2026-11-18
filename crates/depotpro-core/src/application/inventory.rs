@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::collections::HashSet;
 
 use crate::application::auth::{require_current_actor_permission, Permission};
+use crate::application::products::deserialize_qty_str;
 use crate::application::sales::audit_log_tx;
 use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
@@ -101,6 +103,7 @@ pub struct InventoryDto {
 #[derive(Debug, Deserialize)]
 pub struct ValidateInventoryLineInput {
     pub product_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub counted_quantity: String,
     pub reason: Option<String>,
 }
@@ -109,6 +112,7 @@ pub struct ValidateInventoryLineInput {
 pub struct AdjustStockInput {
     pub product_id: i64,
     pub direction: String,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub quantity: String,
     pub reason: String,
     pub request_key: String,
@@ -437,6 +441,15 @@ pub async fn validate_inventory(
     lines: Vec<ValidateInventoryLineInput>,
 ) -> CoreResult<InventoryDto> {
     require_current_actor_permission(Permission::InventoryValidate)?;
+    let mut seen_products = HashSet::with_capacity(lines.len());
+    for l in &lines {
+        if !seen_products.insert(l.product_id) {
+            return Err(CoreError::Validation(format!(
+                "Produit #{} dupliqué dans le même inventaire.",
+                l.product_id
+            )));
+        }
+    }
     let (_guard, mut tx) = db.begin_write().await?;
     let inv: Option<(i64, String, String)> =
         sqlx::query_as("SELECT id, reference, status FROM inventories WHERE id = ?")

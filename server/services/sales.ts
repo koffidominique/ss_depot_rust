@@ -183,6 +183,9 @@ export async function updateClientCreditPolicy(
   }
 ) {
   requireCurrentActorPermission('sales:write');
+  if (!['forbidden', 'limited', 'unlimited'].includes(input.credit_policy)) {
+    throw new BusinessError('VALIDATION_ERROR', 'Politique de crédit explicite requise.');
+  }
   let limit: number | null = null;
   if (input.credit_policy === 'limited') {
     limit = nonNegativeFcfa(input.credit_limit, 'Plafond de crédit');
@@ -614,11 +617,11 @@ export async function createSale(input: CreateSaleInput) {
 
     // Créance client si vente à crédit
     if (creditAmount > 0 && client) {
-      let dueDate = input.due_date || null;
+      let dueDate = input.due_date?.trim() || null;
       if (!dueDate && creditSetting && creditSetting.payment_terms_days > 0) {
-        const d = new Date();
-        d.setDate(d.getDate() + creditSetting.payment_terms_days);
-        dueDate = d.toISOString().slice(0, 10);
+        dueDate = new Date(Date.now() + creditSetting.payment_terms_days * 86_400_000)
+          .toISOString()
+          .slice(0, 10);
       }
       db.prepare(
         `INSERT INTO customer_receivables (sale_id, client_id, initial_amount, remaining_amount, due_date, status)
@@ -744,12 +747,25 @@ export async function cancelSale(
   input: { reason: string; refund_method_code?: string; request_key: string }
 ) {
   requireCurrentActorPermission('sales:cancel_return');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const reason = (input.reason || '').trim();
   if (!reason) throw new BusinessError('VALIDATION_ERROR', "Le motif d'annulation est obligatoire.");
 
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM sales_cancellations WHERE request_key = ?').get(input.request_key);
-    if (dup) return getSaleDetail(saleId);
+    const dup = db
+      .prepare('SELECT id, sale_id FROM sales_cancellations WHERE request_key = ?')
+      .get(requestKey) as { id: number; sale_id: number } | undefined;
+    if (dup) {
+      if (dup.sale_id !== saleId) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour une autre vente.",
+          409
+        );
+      }
+      return getSaleDetail(saleId);
+    }
 
     const session = requireOpenSession(db);
     const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId) as
@@ -829,22 +845,33 @@ export async function cancelSale(
       .prepare("SELECT COALESCE(SUM(total_amount), 0) AS s FROM payments WHERE sale_id = ? AND payment_kind IN ('sale', 'receivable')")
       .get(saleId) as { s: number };
     const refundedAmount = totalPaidRow.s;
-    const refundMethod = input.refund_method_code || 'cash';
+    const refundMethod = input.refund_method_code?.trim() || 'cash';
+    let finalRefundMethod: string | null = null;
 
     if (refundedAmount > 0) {
-      if (refundMethod === 'cash') {
+      const pm = db
+        .prepare('SELECT code, is_cash, active FROM payment_methods WHERE code = ?')
+        .get(refundMethod) as { code: string; is_cash: number; active: number } | undefined;
+      if (!pm || !pm.active) {
+        throw new BusinessError(
+          'INVALID_PAYMENT',
+          `Moyen de remboursement inactif ou introuvable : ${refundMethod}`
+        );
+      }
+      if (pm.is_cash === 1) {
         const avail = getTheoreticalCash(db, session.id, session.opening_cash);
         if (refundedAmount > avail) {
           throw new BusinessError('INVALID_PAYMENT', 'Espèces insuffisantes en caisse pour rembourser cette vente.');
         }
       }
+      finalRefundMethod = pm.code;
       db.prepare(
         `INSERT INTO cash_movements (session_id, request_key, kind, method_code, direction, amount, description, reference_document)
          VALUES (?, ?, 'sale_refund', ?, 'out', ?, ?, ?)`
       ).run(
         session.id,
-        `cancel-ref:${input.request_key}`,
-        refundMethod,
+        `cancel-ref:${requestKey}`,
+        pm.code,
         refundedAmount,
         `Annulation ${sale.reference} — ${reason}`,
         sale.reference
@@ -854,7 +881,7 @@ export async function cancelSale(
     db.prepare(
       `INSERT INTO sales_cancellations (sale_id, session_id, request_key, reason, refund_method_code, refunded_amount)
        VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(saleId, session.id, input.request_key, reason, refundedAmount > 0 ? refundMethod : null, refundedAmount);
+    ).run(saleId, session.id, requestKey, reason, finalRefundMethod, refundedAmount);
 
     db.prepare("UPDATE sales SET status = 'cancelled' WHERE id = ?").run(saleId);
     auditLog(db, 'CANCEL_SALE', 'sales', saleId, `Annulation ${sale.reference} (${reason})`);

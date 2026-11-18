@@ -223,14 +223,19 @@ export function getReportsOverview(fromDate?: string, toDate?: string) {
   let unknownCostLines = 0;
 
   for (const l of lines) {
-    if (l.cost_num && l.cost_den && Number(l.cost_den) > 0) {
-      const unitCost = Number(l.cost_num) / Number(l.cost_den);
-      const lineCost = Math.round((l.base_quantity_milli * unitCost) / 1000);
-      knownCostTotal += lineCost;
-      knownCostRevenue += l.line_total;
-    } else {
-      unknownCostLines++;
+    if (l.cost_num && l.cost_den) {
+      const num = BigInt(l.cost_num);
+      const den = BigInt(l.cost_den);
+      if (den > 0n) {
+        const scaled = BigInt(l.base_quantity_milli) * num;
+        const denom = den * 1000n;
+        const lineCost = Number((scaled + denom / 2n) / denom);
+        knownCostTotal += lineCost;
+        knownCostRevenue += l.line_total;
+        continue;
+      }
     }
+    unknownCostLines++;
   }
 
   const expClauses: string[] = [];
@@ -268,7 +273,7 @@ export function getReportsOverview(fromDate?: string, toDate?: string) {
        FROM payment_methods pm
        LEFT JOIN cash_movements cm ON ${cmJoinClauses.join(' AND ')}
        GROUP BY pm.code, pm.label, pm.is_cash
-       ORDER BY total_in DESC`
+       ORDER BY total_in DESC, pm.code ASC`
     )
     .all(...cmParams);
 
@@ -288,9 +293,12 @@ export function getReportsOverview(fromDate?: string, toDate?: string) {
       )
       .all() as Array<{ stock_milli: number; average_cost_num: string; average_cost_den: string }>
   ).reduce((acc, p) => {
-    const den = Number(p.average_cost_den);
-    if (den <= 0) return acc;
-    return acc + Math.round((p.stock_milli * (Number(p.average_cost_num) / den)) / 1000);
+    const num = BigInt(p.average_cost_num);
+    const den = BigInt(p.average_cost_den);
+    if (den <= 0n) return acc;
+    const denom = den * 1000n;
+    const lineVal = Number((BigInt(p.stock_milli) * num + denom / 2n) / denom);
+    return acc + lineVal;
   }, 0);
 
   const dailySales = db
@@ -348,7 +356,7 @@ export async function updateSettings(input: {
   email?: string;
   city?: string;
   country?: string;
-  allow_negative_stock?: boolean;
+  allow_negative_stock?: boolean | number;
   invoice_prefix?: string;
   sale_prefix?: string;
   purchase_prefix?: string;

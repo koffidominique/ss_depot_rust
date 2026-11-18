@@ -275,22 +275,30 @@ struct TogglePaymentMethodPayload {
 }
 
 fn map_err(err: CoreError) -> (StatusCode, Json<serde_json::Value>) {
-    let status = match err {
-        CoreError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
-        CoreError::Forbidden(_) => StatusCode::FORBIDDEN,
-        CoreError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
-        CoreError::Validation(_)
-        | CoreError::InsufficientStock(_)
-        | CoreError::CreditPolicyViolation(_)
-        | CoreError::SessionNotOpen(_)
-        | CoreError::SessionAlreadyOpen(_)
-        | CoreError::HistoricalImmutable(_)
-        | CoreError::InvalidPayment(_) => StatusCode::BAD_REQUEST,
-        CoreError::DuplicateOperation(_) => StatusCode::CONFLICT,
-        CoreError::DatabaseBusy(_) => StatusCode::SERVICE_UNAVAILABLE,
-        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    let (status, code, message) = match err {
+        CoreError::Unauthorized(m) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", m),
+        CoreError::Forbidden(m) => (StatusCode::FORBIDDEN, "FORBIDDEN", m),
+        CoreError::RateLimited(m) => (StatusCode::TOO_MANY_REQUESTS, "RATE_LIMITED", m),
+        CoreError::Validation(m) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", m),
+        CoreError::InsufficientStock(m) => (StatusCode::BAD_REQUEST, "INSUFFICIENT_STOCK", m),
+        CoreError::CreditPolicyViolation(m) => {
+            (StatusCode::BAD_REQUEST, "CREDIT_POLICY_VIOLATION", m)
+        }
+        CoreError::SessionNotOpen(m) => (StatusCode::BAD_REQUEST, "SESSION_NOT_OPEN", m),
+        CoreError::SessionAlreadyOpen(m) => (StatusCode::BAD_REQUEST, "SESSION_ALREADY_OPEN", m),
+        CoreError::HistoricalImmutable(m) => {
+            (StatusCode::BAD_REQUEST, "HISTORICAL_IMMUTABLE", m)
+        }
+        CoreError::InvalidPayment(m) => (StatusCode::BAD_REQUEST, "INVALID_PAYMENT", m),
+        CoreError::DuplicateOperation(m) => (StatusCode::CONFLICT, "DUPLICATE_OPERATION", m),
+        CoreError::DatabaseBusy(m) => (StatusCode::SERVICE_UNAVAILABLE, "DATABASE_BUSY", m),
+        CoreError::Database(m) => (StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_ERROR", m),
+        CoreError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", m),
     };
-    (status, Json(serde_json::to_value(err).unwrap_or_default()))
+    (
+        status,
+        Json(serde_json::json!({ "code": code, "message": message })),
+    )
 }
 
 fn extract_axum_token(headers: &HeaderMap) -> Option<&str> {
@@ -748,7 +756,7 @@ async fn update_client_credit(
     };
     let db = state.db().await;
     match auth::with_actor(actor, sales::update_client_credit_policy(&db, id, payload)).await {
-        Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -1028,7 +1036,11 @@ async fn create_expense(
     };
     let db = state.db().await;
     match auth::with_actor(actor, cash::create_expense(&db, payload)).await {
-        Ok(()) => (StatusCode::CREATED, Json(serde_json::json!({ "ok": true }))).into_response(),
+        Ok(exp) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(exp).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -1175,7 +1187,7 @@ async fn pay_supplier_debt(
     };
     let db = state.db().await;
     match auth::with_actor(actor, purchases::pay_supplier_debt(&db, id, payload)).await {
-        Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
+        Ok(debt) => (StatusCode::OK, Json(serde_json::to_value(debt).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -1222,7 +1234,7 @@ async fn adjust_returnable_stock(
     };
     let db = state.db().await;
     match auth::with_actor(actor, consignments::adjust_returnable_stock(&db, payload)).await {
-        Ok(()) => (StatusCode::CREATED, Json(serde_json::json!({ "ok": true }))).into_response(),
+        Ok(mv) => (StatusCode::CREATED, Json(serde_json::to_value(mv).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -1238,9 +1250,9 @@ async fn return_client_empties(
     };
     let db = state.db().await;
     match auth::with_actor(actor, consignments::return_client_empties(&db, payload)).await {
-        Ok(reference) => (
+        Ok(ret) => (
             StatusCode::CREATED,
-            Json(serde_json::json!({ "reference": reference })),
+            Json(serde_json::to_value(ret).unwrap()),
         )
             .into_response(),
         Err(e) => map_err(e).into_response(),
@@ -2016,6 +2028,266 @@ mod tests {
         )
         .await;
         assert_eq!(st, 401);
+
+        srv.abort();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn axum_lot9_http_json_and_error_code_parity() {
+        let uid = uuid::Uuid::new_v4();
+        let dir = std::env::temp_dir().join(format!("depotpro_axum_lot9_{uid}"));
+        let db_path = dir.join("test.db");
+        let backup_dir = dir.join("backups");
+        let db = DepotDb::connect(&db_path).await.unwrap();
+
+        let state = AppState {
+            db: Arc::new(RwLock::new(db)),
+            backup_dir,
+            sessions: Arc::new(RwLock::new(SessionStore::default())),
+            auth_limiter: Arc::new(RwLock::new(AuthRateLimiter::default())),
+        };
+        let app = build_router(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let srv = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            .unwrap();
+        });
+
+        let (st, setup_body) = send_http(
+            addr,
+            "POST",
+            "/api/auth/setup",
+            &[],
+            Some(r#"{"pin":"246810"}"#),
+        )
+        .await;
+        assert_eq!(st, 200);
+        let setup_json: serde_json::Value = serde_json::from_str(&setup_body).unwrap();
+        let token = setup_json["token"].as_str().unwrap().to_string();
+        let auth_hdr = format!("Bearer {token}");
+
+        // Catégorie + client + politique crédit
+        let (st, cat_body) = send_http(
+            addr,
+            "POST",
+            "/api/categories",
+            &[("Authorization", &auth_hdr)],
+            Some(r#"{"name":"Bières Lot 9"}"#),
+        )
+        .await;
+        assert_eq!(st, 201);
+        let cat_id = serde_json::from_str::<serde_json::Value>(&cat_body).unwrap()["id"]
+            .as_i64()
+            .unwrap();
+
+        let (st, bad_cli) = send_http(
+            addr,
+            "POST",
+            "/api/clients",
+            &[("Authorization", &auth_hdr)],
+            Some(r#"{"name":"Bad","client_type":"particulier","credit_policy":"invalid"}"#),
+        )
+        .await;
+        assert_eq!(st, 400);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&bad_cli).unwrap()["code"],
+            "VALIDATION_ERROR"
+        );
+
+        let cli_payload = serde_json::json!({
+            "name": "Maquis Axum",
+            "client_type": "professionnel",
+            "credit_policy": "limited",
+            "credit_limit": 50_000,
+            "payment_terms_days": 15
+        })
+        .to_string();
+        let (st, cli_body) = send_http(
+            addr,
+            "POST",
+            "/api/clients",
+            &[("Authorization", &auth_hdr)],
+            Some(&cli_payload),
+        )
+        .await;
+        assert_eq!(st, 201);
+        let cli_id = serde_json::from_str::<serde_json::Value>(&cli_body).unwrap()["id"]
+            .as_i64()
+            .unwrap();
+
+        let (st, pol_body) = send_http(
+            addr,
+            "PUT",
+            &format!("/api/clients/{cli_id}/credit"),
+            &[("Authorization", &auth_hdr)],
+            Some(r#"{"credit_policy":"limited","credit_limit":80000,"payment_terms_days":30}"#),
+        )
+        .await;
+        assert_eq!(st, 200);
+        let pol_json: serde_json::Value = serde_json::from_str(&pol_body).unwrap();
+        assert_eq!(pol_json["client_id"], cli_id);
+        assert_eq!(pol_json["credit_limit"], 80_000);
+        assert_eq!(pol_json["payment_terms_days"], 30);
+
+        // Produit (quantités numériques acceptées) + conditionnement doublon 409 + bool int 0/1
+        let prod_payload = serde_json::json!({
+            "name": "Flag Axum 65cl",
+            "category_id": cat_id,
+            "base_unit": "bouteille",
+            "initial_stock": 10,
+            "min_stock": 2,
+            "purchase_price": 450,
+            "retail_price": 650
+        })
+        .to_string();
+        let (st, prod_body) = send_http(
+            addr,
+            "POST",
+            "/api/products",
+            &[("Authorization", &auth_hdr)],
+            Some(&prod_payload),
+        )
+        .await;
+        assert_eq!(st, 201);
+        let prod_json: serde_json::Value = serde_json::from_str(&prod_body).unwrap();
+        let prod_id = prod_json["id"].as_i64().unwrap();
+        let pkg_id = prod_json["packagings"][0]["id"].as_i64().unwrap();
+        assert_eq!(prod_json["stock_milli"], 10_000);
+        assert_eq!(prod_json["average_cost_fcfa"], 450);
+
+        let (st, dup_pkg) = send_http(
+            addr,
+            "POST",
+            &format!("/api/products/{prod_id}/packagings"),
+            &[("Authorization", &auth_hdr)],
+            Some(r#"{"name":"bouteille","coefficient":1,"retail_price":700}"#),
+        )
+        .await;
+        assert_eq!(st, 409);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&dup_pkg).unwrap()["code"],
+            "DUPLICATE_OPERATION"
+        );
+
+        let pack_payload = serde_json::json!({
+            "name": "pack",
+            "coefficient": 6,
+            "retail_price": 3750,
+            "allow_fraction": 0,
+            "is_active": 1
+        })
+        .to_string();
+        let (st, pack_body) = send_http(
+            addr,
+            "POST",
+            &format!("/api/products/{prod_id}/packagings"),
+            &[("Authorization", &auth_hdr)],
+            Some(&pack_payload),
+        )
+        .await;
+        assert_eq!(st, 200);
+        let pack_json: serde_json::Value = serde_json::from_str(&pack_body).unwrap();
+        assert_eq!(pack_json["allow_fraction"], 0);
+        assert_eq!(pack_json["is_active"], 1);
+
+        // Caisse + vente + annulation + collision 409 + backup/restore camelCase
+        let (st, _) = send_http(
+            addr,
+            "POST",
+            "/api/cash/open",
+            &[("Authorization", &auth_hdr)],
+            Some(r#"{"opening_cash":25000,"request_key":"axum-lot9-open"}"#),
+        )
+        .await;
+        assert_eq!(st, 201);
+
+        let (st, open_dup) = send_http(
+            addr,
+            "POST",
+            "/api/cash/open",
+            &[("Authorization", &auth_hdr)],
+            Some(r#"{"opening_cash":1000,"request_key":"axum-lot9-open-dup"}"#),
+        )
+        .await;
+        assert_eq!(st, 400);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&open_dup).unwrap()["code"],
+            "SESSION_ALREADY_OPEN"
+        );
+
+        let sale_payload = serde_json::json!({
+            "request_key": "axum-lot9-sale-1",
+            "sale_type": "cash",
+            "price_tier": "retail",
+            "lines": [{"product_id": prod_id, "packaging_id": pkg_id, "quantity": 2}],
+            "payments": [{"method_code": "wave", "amount": 1300}]
+        })
+        .to_string();
+        let (st, sale_body) = send_http(
+            addr,
+            "POST",
+            "/api/sales",
+            &[("Authorization", &auth_hdr)],
+            Some(&sale_payload),
+        )
+        .await;
+        assert_eq!(st, 201);
+        let sale_id = serde_json::from_str::<serde_json::Value>(&sale_body).unwrap()["id"]
+            .as_i64()
+            .unwrap();
+
+        let cancel_payload = serde_json::json!({
+            "reason": "Test Axum",
+            "refund_method_code": "wave",
+            "request_key": "axum-lot9-cancel-1"
+        })
+        .to_string();
+        let (st, cancel_body) = send_http(
+            addr,
+            "POST",
+            &format!("/api/sales/{sale_id}/cancel"),
+            &[("Authorization", &auth_hdr)],
+            Some(&cancel_payload),
+        )
+        .await;
+        assert_eq!(st, 200);
+        let cancel_json: serde_json::Value = serde_json::from_str(&cancel_body).unwrap();
+        assert_eq!(cancel_json["status"], "cancelled");
+        assert_eq!(cancel_json["cancellation"]["refund_method_code"], "wave");
+
+        let (st, bkp_body) = send_http(
+            addr,
+            "POST",
+            "/api/backups",
+            &[("Authorization", &auth_hdr)],
+            None,
+        )
+        .await;
+        assert_eq!(st, 201);
+        let bkp_name = serde_json::from_str::<serde_json::Value>(&bkp_body).unwrap()["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let (st, rest_body) = send_http(
+            addr,
+            "POST",
+            &format!("/api/backups/{bkp_name}/restore"),
+            &[("Authorization", &auth_hdr)],
+            None,
+        )
+        .await;
+        assert_eq!(st, 200);
+        let rest_json: serde_json::Value = serde_json::from_str(&rest_body).unwrap();
+        assert_eq!(rest_json["integrity"], "ok");
+        assert_eq!(rest_json["foreignKeyErrors"], 0);
+        assert!(rest_json["safetyBackup"].as_str().is_some());
 
         srv.abort();
         let _ = std::fs::remove_dir_all(&dir);

@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::application::auth::{require_current_actor_permission, Permission};
-use crate::application::products::{deserialize_nullable_opt, sanitize_image_path};
+use crate::application::products::{
+    deserialize_nullable_opt, deserialize_opt_bool_or_int, sanitize_image_path,
+};
 use crate::application::sales::audit_log_tx;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
@@ -182,6 +184,7 @@ pub struct UpdateSettingsInput {
     pub email: Option<String>,
     pub city: Option<String>,
     pub country: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
     pub allow_negative_stock: Option<bool>,
     pub invoice_prefix: Option<String>,
     pub sale_prefix: Option<String>,
@@ -192,6 +195,7 @@ pub struct UpdateSettingsInput {
     pub theme: Option<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_opt")]
     pub logo_path: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
     pub setup_completed: Option<bool>,
 }
 
@@ -449,7 +453,7 @@ pub async fn get_reports_overview(
            AND substr(cm.created_at, 1, 10) >= ?
            AND substr(cm.created_at, 1, 10) <= ?
          GROUP BY pm.code, pm.label, pm.is_cash
-         ORDER BY total_in DESC",
+         ORDER BY total_in DESC, pm.code ASC",
     )
     .bind(from)
     .bind(to)

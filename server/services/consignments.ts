@@ -83,6 +83,9 @@ export async function createReturnableType(input: {
   if (!code || !name || !producer) {
     throw new BusinessError('VALIDATION_ERROR', 'Code, nom et producteur sont obligatoires.');
   }
+  if (!['bottle', 'crate'].includes(input.kind)) {
+    throw new BusinessError('VALIDATION_ERROR', 'Type emballage invalide.');
+  }
   const depositValue = nonNegativeFcfa(input.deposit_value, 'Valeur de consigne');
   const initialStock = Number(input.initial_stock ?? 0);
   if (!Number.isInteger(initialStock) || initialStock < 0) {
@@ -112,7 +115,14 @@ export async function createReturnableType(input: {
       ).run(`init-ret-${id}-${Date.now()}`, id, initialStock, initialStock, code);
     }
     auditLog(db, 'CREATE_RETURNABLE_TYPE', 'returnable_packaging_types', id, `${code} — ${name}`);
-    return db.prepare('SELECT * FROM returnable_packaging_types WHERE id = ?').get(id);
+    return db
+      .prepare(
+        `SELECT rpt.*, COALESCE(rsb.quantity, 0) AS stock_quantity
+         FROM returnable_packaging_types rpt
+         LEFT JOIN returnable_stock_balances rsb ON rsb.packaging_id = rpt.id
+         WHERE rpt.id = ?`
+      )
+      .get(id);
   });
 }
 
@@ -124,17 +134,39 @@ export async function adjustReturnableStock(input: {
   request_key: string;
 }) {
   requireCurrentActorPermission('consignments:write');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     throw new BusinessError('VALIDATION_ERROR', 'La quantité doit être un entier strictement positif.');
   }
   const reason = (input.reason || '').trim();
   if (!reason) throw new BusinessError('VALIDATION_ERROR', 'Le motif est obligatoire.');
+  if (!['entry', 'exit', 'breakage', 'loss', 'correction_in', 'correction_out'].includes(input.movement_type)) {
+    throw new BusinessError('VALIDATION_ERROR', 'Type de mouvement invalide.');
+  }
+
+  const fetchMovementDto = (db: ReturnType<typeof getDb>, id: number) =>
+    db
+      .prepare(
+        `SELECT rsm.*, rsm.date AS created_at, rpt.name AS packaging_name, rpt.code AS packaging_code
+         FROM returnable_stock_movements rsm
+         JOIN returnable_packaging_types rpt ON rpt.id = rsm.packaging_id
+         WHERE rsm.id = ?`
+      )
+      .get(id);
 
   return withWriteTx((db) => {
     const dup = db
-      .prepare('SELECT * FROM returnable_stock_movements WHERE request_key = ?')
-      .get(input.request_key);
-    if (dup) return dup;
+      .prepare('SELECT id FROM returnable_stock_movements WHERE request_key = ?')
+      .get(requestKey) as { id: number } | undefined;
+    if (dup) return fetchMovementDto(db, dup.id);
+
+    const pkgExists = db
+      .prepare('SELECT id FROM returnable_packaging_types WHERE id = ?')
+      .get(input.packaging_id);
+    if (!pkgExists) {
+      throw new BusinessError('VALIDATION_ERROR', "Type d'emballage consigné introuvable.");
+    }
 
     const bal = db
       .prepare('SELECT quantity FROM returnable_stock_balances WHERE packaging_id = ?')
@@ -166,11 +198,11 @@ export async function adjustReturnableStock(input: {
           `INSERT INTO returnable_stock_movements (request_key, packaging_id, movement_type, quantity, stock_before, stock_after, reason)
            VALUES (?, ?, ?, ?, ?, ?, ?)`
         )
-        .run(input.request_key, input.packaging_id, input.movement_type, input.quantity, before, after, reason)
+        .run(requestKey, input.packaging_id, input.movement_type, input.quantity, before, after, reason)
         .lastInsertRowid
     );
     auditLog(db, 'RETURNABLE_STOCK_MOVEMENT', 'returnable_packaging_types', input.packaging_id, `${input.movement_type} ${input.quantity} (${reason})`);
-    return db.prepare('SELECT * FROM returnable_stock_movements WHERE id = ?').get(movId);
+    return fetchMovementDto(db, movId);
   });
 }
 
@@ -185,21 +217,45 @@ export async function returnClientEmpties(input: {
   request_key: string;
 }) {
   requireCurrentActorPermission('consignments:write');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   if (!Number.isInteger(input.pieces) || input.pieces <= 0) {
     throw new BusinessError('VALIDATION_ERROR', 'Nombre de pièces retournées invalide.');
+  }
+  if (!['good', 'damaged'].includes(input.condition_state)) {
+    throw new BusinessError('VALIDATION_ERROR', "État d'emballage invalide.");
   }
   const refundAmount = nonNegativeFcfa(input.refund_amount, 'Montant remboursé');
   const creditReduction = nonNegativeFcfa(input.credit_reduction, 'Réduction créance');
   const reason = (input.reason || '').trim();
   if (!reason) throw new BusinessError('VALIDATION_ERROR', 'Le motif du retour est obligatoire.');
 
+  const fetchReturnDto = (db: ReturnType<typeof getDb>, id: number) =>
+    db
+      .prepare(
+        `SELECT dr.*, rpt.name AS packaging_name, c.name AS client_name, pm.label AS method_label
+         FROM deposit_returns dr
+         JOIN returnable_packaging_types rpt ON rpt.id = dr.returnable_id
+         LEFT JOIN clients c ON c.id = dr.client_id
+         JOIN payment_methods pm ON pm.code = dr.method_code
+         WHERE dr.id = ?`
+      )
+      .get(id);
+
   return withWriteTx((db) => {
-    const existing = db.prepare('SELECT * FROM deposit_returns WHERE request_key = ?').get(input.request_key);
-    if (existing) return existing;
+    const existing = db
+      .prepare('SELECT id FROM deposit_returns WHERE request_key = ?')
+      .get(requestKey) as { id: number } | undefined;
+    if (existing) return fetchReturnDto(db, existing.id);
 
     const session = requireOpenSession(db);
     const issue = db
-      .prepare('SELECT * FROM deposit_issues WHERE id = ?')
+      .prepare(
+        `SELECT di.*, s.status AS sale_status
+         FROM deposit_issues di
+         JOIN sales s ON s.id = di.sale_id
+         WHERE di.id = ?`
+      )
       .get(input.issue_id) as
       | {
           id: number;
@@ -210,9 +266,27 @@ export async function returnClientEmpties(input: {
           returned_pieces: number;
           unit_value: number;
           amount: number;
+          sale_status: string;
         }
       | undefined;
     if (!issue) throw new BusinessError('VALIDATION_ERROR', 'Consigne client introuvable.');
+    if (issue.sale_status === 'cancelled') {
+      throw new BusinessError(
+        'HISTORICAL_IMMUTABLE',
+        "Impossible d'enregistrer un retour d'emballage sur une vente annulée."
+      );
+    }
+
+    const pm = db
+      .prepare('SELECT code, is_cash, active FROM payment_methods WHERE code = ?')
+      .get(input.method_code) as { code: string; is_cash: number; active: number } | undefined;
+    if (!pm || !pm.active) {
+      throw new BusinessError(
+        'INVALID_PAYMENT',
+        `Moyen de paiement introuvable ou inactif : ${input.method_code}`
+      );
+    }
+
     const totalReturned = checkedAddMoney(
       issue.returned_pieces,
       input.pieces,
@@ -254,7 +328,7 @@ export async function returnClientEmpties(input: {
       );
     }
 
-    if (refundAmount > 0 && input.method_code === 'cash') {
+    if (refundAmount > 0 && pm.is_cash === 1) {
       const avail = getTheoreticalCash(db, session.id, session.opening_cash);
       if (refundAmount > avail) {
         throw new BusinessError('INVALID_PAYMENT', 'Espèces en caisse insuffisantes pour rembourser la consigne.');
@@ -289,7 +363,7 @@ export async function returnClientEmpties(input: {
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
-          `ret-vides:${input.request_key}`,
+          `ret-vides:${requestKey}`,
           issue.returnable_id,
           movType,
           input.pieces,
@@ -326,8 +400,8 @@ export async function returnClientEmpties(input: {
          VALUES (?, ?, 'deposit_refund', ?, 'out', ?, ?, ?)`
       ).run(
         session.id,
-        `dep-ref:${input.request_key}`,
-        input.method_code,
+        `dep-ref:${requestKey}`,
+        pm.code,
         refundAmount,
         `Remboursement consigne ${ref} (${reason})`,
         ref
@@ -342,7 +416,7 @@ export async function returnClientEmpties(input: {
         )
         .run(
           ref,
-          input.request_key,
+          requestKey,
           issue.id,
           issue.client_id,
           issue.returnable_id,
@@ -352,12 +426,12 @@ export async function returnClientEmpties(input: {
           input.condition_state,
           refundAmount,
           creditReduction,
-          input.method_code,
+          pm.code,
           reason
         ).lastInsertRowid
     );
 
     auditLog(db, 'DEPOSIT_RETURN', 'deposit_returns', retId, `${ref} — ${input.pieces} pièces (${input.condition_state})`);
-    return db.prepare('SELECT * FROM deposit_returns WHERE id = ?').get(retId);
+    return fetchReturnDto(db, retId);
   });
 }

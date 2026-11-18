@@ -286,3 +286,64 @@ jobs:
             target/release/bundle/macos/*.app
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/macos/*.app
+
+  cross-engine-parity:
+    name: 13. Parité métier Node.js / Rust (22 scénarios)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - name: Compilation serveur Axum (depotpro-server)
+        run: cargo build --bin depotpro-server
+      - name: Exécution matrice paritaire Node.js vs Rust
+        run: |
+          set -euo pipefail
+          PARITY_TMP=$(mktemp -d)
+          cleanup() {
+            rc=$?
+            if [ "$rc" -ne 0 ] && [ -f /tmp/depotpro_rust_parity.log ]; then
+              echo "::group::Logs serveur Axum parité"
+              tail -n 80 /tmp/depotpro_rust_parity.log || true
+              echo "::endgroup::"
+            fi
+            if [ -n "${RUST_PID:-}" ]; then
+              kill "$RUST_PID" 2>/dev/null || true
+              wait "$RUST_PID" 2>/dev/null || true
+            fi
+            rm -rf "$PARITY_TMP"
+            exit "$rc"
+          }
+          trap cleanup EXIT
+
+          RUST_DB="$PARITY_TMP/rust_depotpro.db"
+          RUST_BKP="$PARITY_TMP/rust_backups"
+          mkdir -p "$RUST_BKP"
+          PORT=13999 \
+          DEPOTPRO_HOST=127.0.0.1 \
+          DEPOTPRO_DB_PATH="$RUST_DB" \
+          DEPOTPRO_BACKUP_DIR="$RUST_BKP" \
+            ./target/debug/depotpro-server >/tmp/depotpro_rust_parity.log 2>&1 &
+          RUST_PID=$!
+
+          READY=0
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:13999/api/health >/dev/null 2>&1; then
+              READY=1
+              break
+            fi
+            sleep 0.5
+          done
+          if [ "$READY" -ne 1 ]; then
+            echo "Le serveur Axum n'a pas démarré dans le délai imparti"
+            exit 1
+          fi
+
+          DEPOTPRO_PARITY_RUST_URL=http://127.0.0.1:13999 \
+          DEPOTPRO_PARITY_RUST_DB="$RUST_DB" \
+            npx tsx --test tests/lot9_parity.test.mjs

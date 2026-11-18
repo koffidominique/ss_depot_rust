@@ -165,9 +165,14 @@ export function listPurchaseOrders() {
   const lineStmt = db.prepare('SELECT * FROM purchase_order_lines WHERE purchase_order_id = ?');
   const receiptStmt = db.prepare('SELECT * FROM purchase_receipts WHERE purchase_order_id = ? ORDER BY id DESC');
   const debtStmt = db.prepare(
-    `SELECT sd.* FROM supplier_debts sd
+    `SELECT sd.*, s.name AS supplier_name, s.code AS supplier_code,
+            pr.reference AS receipt_reference, po.reference AS order_reference
+     FROM supplier_debts sd
+     JOIN suppliers s ON s.id = sd.supplier_id
      JOIN purchase_receipts pr ON pr.id = sd.receipt_id
-     WHERE pr.purchase_order_id = ?`
+     JOIN purchase_orders po ON po.id = pr.purchase_order_id
+     WHERE pr.purchase_order_id = ?
+     ORDER BY sd.id DESC`
   );
 
   return orders.map((po) => ({
@@ -190,12 +195,13 @@ export async function createPurchaseOrder(input: {
     unit_price: number;
   }>;
 }) {
-  if (!input.request_key?.trim()) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   requireCurrentActorPermission('purchases:write');
   if (!input.lines?.length) throw new BusinessError('VALIDATION_ERROR', 'Ajoutez au moins une ligne de commande.');
 
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT id FROM purchase_orders WHERE request_key = ?').get(input.request_key);
+    const dup = db.prepare('SELECT id FROM purchase_orders WHERE request_key = ?').get(requestKey);
     if (dup) return listPurchaseOrders().find((o) => o.id === (dup as { id: number }).id);
 
     const sup = db.prepare('SELECT id, name FROM suppliers WHERE id = ?').get(input.supplier_id) as
@@ -246,13 +252,14 @@ export async function createPurchaseOrder(input: {
     }
 
     const ref = nextSequence(db, 'CMD');
+    const expectedDate = input.expected_date?.trim() || null;
     const poId = Number(
       db
         .prepare(
           `INSERT INTO purchase_orders (reference, request_key, supplier_id, status, total_amount, expected_date, notes)
            VALUES (?, ?, ?, 'confirmed', ?, ?, ?)`
         )
-        .run(ref, input.request_key, sup.id, totalAmount, input.expected_date || null, input.notes?.trim() || null)
+        .run(ref, requestKey, sup.id, totalAmount, expectedDate, input.notes?.trim() || null)
         .lastInsertRowid
     );
 
@@ -494,9 +501,9 @@ export async function receivePurchaseOrder(
     // Création dette fournisseur sur quantité réellement reçue
     let dueDate: string | null = null;
     if (sup.payment_terms_days > 0) {
-      const d = new Date();
-      d.setDate(d.getDate() + sup.payment_terms_days);
-      dueDate = d.toISOString().slice(0, 10);
+      dueDate = new Date(Date.now() + sup.payment_terms_days * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
     }
     db.prepare(
       `INSERT INTO supplier_debts (receipt_id, supplier_id, initial_amount, remaining_amount, due_date, status)
@@ -572,10 +579,41 @@ export async function paySupplierDebt(
   input: { method_code: string; amount: number; request_key: string; note?: string }
 ) {
   requireCurrentActorPermission('supplier_debts:pay');
+  const requestKey = (input.request_key || '').trim();
+  if (!requestKey) throw new BusinessError('VALIDATION_ERROR', "Clé d'idempotence requise.");
   const amount = positiveFcfa(input.amount, 'Montant règlement fournisseur');
+
+  const fetchDebtDto = (db: ReturnType<typeof getDb>, id: number) =>
+    db
+      .prepare(
+        `SELECT sd.*, s.name AS supplier_name, s.code AS supplier_code, pr.reference AS receipt_reference, po.reference AS order_reference
+         FROM supplier_debts sd
+         JOIN suppliers s ON s.id = sd.supplier_id
+         JOIN purchase_receipts pr ON pr.id = sd.receipt_id
+         JOIN purchase_orders po ON po.id = pr.purchase_order_id
+         WHERE sd.id = ?`
+      )
+      .get(id);
+
   return withWriteTx((db) => {
-    const dup = db.prepare('SELECT * FROM payments WHERE request_key = ?').get(input.request_key);
-    if (dup) return dup;
+    const dup = db
+      .prepare('SELECT id, payment_kind FROM payments WHERE request_key = ?')
+      .get(requestKey) as { id: number; payment_kind: string } | undefined;
+    if (dup) {
+      const cm = db
+        .prepare('SELECT description FROM cash_movements WHERE request_key = ?')
+        .get(`cm-sup:${requestKey}`) as { description: string } | undefined;
+      if (dup.payment_kind !== 'supplier_debt' || cm?.description !== `Règlement fournisseur dette #${debtId}`) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          "Cette clé d'idempotence a déjà été utilisée pour une autre opération.",
+          409
+        );
+      }
+      const existingDebt = fetchDebtDto(db, debtId);
+      if (!existingDebt) throw new BusinessError('VALIDATION_ERROR', 'Dette fournisseur introuvable.');
+      return existingDebt;
+    }
 
     const session = requireOpenSession(db);
     const debt = db.prepare('SELECT * FROM supplier_debts WHERE id = ?').get(debtId) as
@@ -605,7 +643,7 @@ export async function paySupplierDebt(
           `INSERT INTO payments (reference, request_key, payment_kind, total_amount, note)
            VALUES (?, ?, 'supplier_debt', ?, ?)`
         )
-        .run(payRef, input.request_key, amount, input.note?.trim() || null).lastInsertRowid
+        .run(payRef, requestKey, amount, input.note?.trim() || null).lastInsertRowid
     );
     const partId = Number(
       db.prepare('INSERT INTO payment_parts (payment_id, method_code, amount) VALUES (?, ?, ?)').run(
@@ -619,7 +657,7 @@ export async function paySupplierDebt(
        VALUES (?, ?, ?, 'supplier_payment', ?, 'out', ?, ?, ?)`
     ).run(
       session.id,
-      `cm-sup:${input.request_key}`,
+      `cm-sup:${requestKey}`,
       partId,
       pm.code,
       amount,
@@ -639,7 +677,7 @@ export async function paySupplierDebt(
     );
 
     auditLog(db, 'PAY_SUPPLIER_DEBT', 'supplier_debts', debt.id, `${payRef} — ${amount} FCFA`);
-    return db.prepare('SELECT * FROM supplier_debts WHERE id = ?').get(debt.id);
+    return fetchDebtDto(db, debt.id);
   });
 }
 

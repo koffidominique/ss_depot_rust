@@ -296,8 +296,14 @@ pub async fn create_returnable_type(
 pub async fn adjust_returnable_stock(
     db: &DepotDb,
     input: AdjustReturnableStockInput,
-) -> CoreResult<()> {
+) -> CoreResult<ReturnableMovementDto> {
     require_current_actor_permission(Permission::ConsignmentsWrite)?;
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
+    }
     if input.quantity <= 0 {
         return Err(CoreError::Validation(
             "La quantité doit être un entier strictement positif.".to_string(),
@@ -319,16 +325,37 @@ pub async fn adjust_returnable_stock(
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    if sqlx::query_scalar::<_, i64>(
+    if let Some(existing_id) = sqlx::query_scalar::<_, i64>(
         "SELECT id FROM returnable_stock_movements WHERE request_key = ?",
     )
-    .bind(&input.request_key)
+    .bind(&request_key)
     .fetch_optional(&mut *tx)
     .await?
-    .is_some()
     {
         tx.rollback().await?;
-        return Ok(());
+        let mv = sqlx::query_as::<_, ReturnableMovementDto>(
+            "SELECT rsm.id, rsm.packaging_id, rpt.name AS packaging_name, rpt.code AS packaging_code,
+                    rsm.movement_type, rsm.quantity, rsm.stock_before, rsm.stock_after, rsm.reason,
+                    rsm.reference_document, rsm.date AS created_at
+             FROM returnable_stock_movements rsm
+             JOIN returnable_packaging_types rpt ON rpt.id = rsm.packaging_id
+             WHERE rsm.id = ?",
+        )
+        .bind(existing_id)
+        .fetch_one(&db.pool)
+        .await?;
+        return Ok(mv);
+    }
+
+    if sqlx::query_scalar::<_, i64>("SELECT id FROM returnable_packaging_types WHERE id = ?")
+        .bind(input.packaging_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .is_none()
+    {
+        return Err(CoreError::Validation(
+            "Type d'emballage consigné introuvable.".to_string(),
+        ));
     }
 
     let bal: Option<(i64,)> =
@@ -367,11 +394,11 @@ pub async fn adjust_returnable_stock(
             .await?;
     }
 
-    sqlx::query(
+    let mov_id = sqlx::query(
         "INSERT INTO returnable_stock_movements (request_key, packaging_id, movement_type, quantity, stock_before, stock_after, reason)
          VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(input.packaging_id)
     .bind(&input.movement_type)
     .bind(input.quantity)
@@ -379,7 +406,8 @@ pub async fn adjust_returnable_stock(
     .bind(after)
     .bind(&reason)
     .execute(&mut *tx)
-    .await?;
+    .await?
+    .last_insert_rowid();
 
     audit_log_tx(
         &mut tx,
@@ -390,14 +418,32 @@ pub async fn adjust_returnable_stock(
     )
     .await?;
     tx.commit().await?;
-    Ok(())
+
+    let mv = sqlx::query_as::<_, ReturnableMovementDto>(
+        "SELECT rsm.id, rsm.packaging_id, rpt.name AS packaging_name, rpt.code AS packaging_code,
+                rsm.movement_type, rsm.quantity, rsm.stock_before, rsm.stock_after, rsm.reason,
+                rsm.reference_document, rsm.date AS created_at
+         FROM returnable_stock_movements rsm
+         JOIN returnable_packaging_types rpt ON rpt.id = rsm.packaging_id
+         WHERE rsm.id = ?",
+    )
+    .bind(mov_id)
+    .fetch_one(&db.pool)
+    .await?;
+    Ok(mv)
 }
 
 pub async fn return_client_empties(
     db: &DepotDb,
     input: ReturnClientEmptiesInput,
-) -> CoreResult<String> {
+) -> CoreResult<DepositReturnDto> {
     require_current_actor_permission(Permission::ConsignmentsWrite)?;
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
+    }
     if input.pieces <= 0 {
         return Err(CoreError::Validation(
             "Nombre de pièces retournées invalide.".to_string(),
@@ -418,28 +464,73 @@ pub async fn return_client_empties(
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    if let Some((existing_ref,)) = sqlx::query_as::<_, (String,)>(
-        "SELECT reference FROM deposit_returns WHERE request_key = ?",
-    )
-    .bind(&input.request_key)
-    .fetch_optional(&mut *tx)
-    .await?
+    if let Some(existing_id) =
+        sqlx::query_scalar::<_, i64>("SELECT id FROM deposit_returns WHERE request_key = ?")
+            .bind(&request_key)
+            .fetch_optional(&mut *tx)
+            .await?
     {
         tx.rollback().await?;
-        return Ok(existing_ref);
+        let ret = sqlx::query_as::<_, DepositReturnDto>(
+            "SELECT dr.id, dr.reference, rpt.name AS packaging_name, c.name AS client_name,
+                    dr.pieces, dr.condition_state, dr.refund_amount, dr.credit_reduction,
+                    pm.label AS method_label, dr.reason, dr.created_at
+             FROM deposit_returns dr
+             JOIN returnable_packaging_types rpt ON rpt.id = dr.returnable_id
+             LEFT JOIN clients c ON c.id = dr.client_id
+             JOIN payment_methods pm ON pm.code = dr.method_code
+             WHERE dr.id = ?",
+        )
+        .bind(existing_id)
+        .fetch_one(&db.pool)
+        .await?;
+        return Ok(ret);
     }
 
     let (session_id, _sref, opening_cash) = require_open_session_tx(&mut tx).await?;
-    type DepositIssueRow = (i64, i64, Option<i64>, i64, i64, i64, i64);
+    type DepositIssueRow = (i64, i64, Option<i64>, i64, i64, i64, i64, String);
     let issue: Option<DepositIssueRow> = sqlx::query_as(
-        "SELECT id, sale_id, client_id, returnable_id, pieces, returned_pieces, unit_value
-         FROM deposit_issues WHERE id = ?",
+        "SELECT di.id, di.sale_id, di.client_id, di.returnable_id, di.pieces, di.returned_pieces, di.unit_value, s.status
+         FROM deposit_issues di
+         JOIN sales s ON s.id = di.sale_id
+         WHERE di.id = ?",
     )
     .bind(input.issue_id)
     .fetch_optional(&mut *tx)
     .await?;
-    let (issue_id, sale_id, client_id, returnable_id, pieces, returned_pieces, unit_value) =
-        issue.ok_or_else(|| CoreError::Validation("Consigne client introuvable.".to_string()))?;
+    let (
+        issue_id,
+        sale_id,
+        client_id,
+        returnable_id,
+        pieces,
+        returned_pieces,
+        unit_value,
+        sale_status,
+    ) = issue.ok_or_else(|| CoreError::Validation("Consigne client introuvable.".to_string()))?;
+
+    if sale_status == "cancelled" {
+        return Err(CoreError::HistoricalImmutable(
+            "Impossible d'enregistrer un retour d'emballage sur une vente annulée.".to_string(),
+        ));
+    }
+
+    let pm: Option<(String, i64, i64)> =
+        sqlx::query_as("SELECT code, is_cash, active FROM payment_methods WHERE code = ?")
+            .bind(&input.method_code)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let (pm_code, is_cash, pm_active) = pm.ok_or_else(|| {
+        CoreError::InvalidPayment(format!(
+            "Moyen de paiement introuvable : {}",
+            input.method_code
+        ))
+    })?;
+    if pm_active == 0 {
+        return Err(CoreError::InvalidPayment(format!(
+            "Moyen de paiement inactif : {pm_code}"
+        )));
+    }
 
     let total_returned_pieces = returned_pieces
         .checked_add(input.pieces)
@@ -489,7 +580,7 @@ pub async fn return_client_empties(
         .await?;
     }
 
-    if refund_amount.value() > 0 && input.method_code == "cash" {
+    if refund_amount.value() > 0 && is_cash == 1 {
         let avail = get_theoretical_cash_tx(&mut tx, session_id, opening_cash).await?;
         if refund_amount.value() > avail {
             return Err(CoreError::InvalidPayment(
@@ -539,7 +630,7 @@ pub async fn return_client_empties(
         "INSERT INTO returnable_stock_movements (request_key, packaging_id, movement_type, quantity, stock_before, stock_after, reason, reference_document)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
-    .bind(format!("ret-vides:{}", input.request_key))
+    .bind(format!("ret-vides:{request_key}"))
     .bind(returnable_id)
     .bind(mov_type)
     .bind(input.pieces)
@@ -582,8 +673,8 @@ pub async fn return_client_empties(
              VALUES (?, ?, 'deposit_refund', ?, 'out', ?, ?, ?)",
         )
         .bind(session_id)
-        .bind(format!("dep-ref:{}", input.request_key))
-        .bind(&input.method_code)
+        .bind(format!("dep-ref:{request_key}"))
+        .bind(&pm_code)
         .bind(refund_amount.value())
         .bind(format!("Remboursement consigne {reference} ({reason})"))
         .bind(&reference)
@@ -596,7 +687,7 @@ pub async fn return_client_empties(
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&reference)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(issue_id)
     .bind(client_id)
     .bind(returnable_id)
@@ -606,7 +697,7 @@ pub async fn return_client_empties(
     .bind(&input.condition_state)
     .bind(refund_amount.value())
     .bind(credit_reduction.value())
-    .bind(&input.method_code)
+    .bind(&pm_code)
     .bind(&reason)
     .execute(&mut *tx)
     .await?
@@ -624,5 +715,19 @@ pub async fn return_client_empties(
     )
     .await?;
     tx.commit().await?;
-    Ok(reference)
+
+    let ret = sqlx::query_as::<_, DepositReturnDto>(
+        "SELECT dr.id, dr.reference, rpt.name AS packaging_name, c.name AS client_name,
+                dr.pieces, dr.condition_state, dr.refund_amount, dr.credit_reduction,
+                pm.label AS method_label, dr.reason, dr.created_at
+         FROM deposit_returns dr
+         JOIN returnable_packaging_types rpt ON rpt.id = dr.returnable_id
+         LEFT JOIN clients c ON c.id = dr.client_id
+         JOIN payment_methods pm ON pm.code = dr.method_code
+         WHERE dr.id = ?",
+    )
+    .bind(ret_id)
+    .fetch_one(&db.pool)
+    .await?;
+    Ok(ret)
 }

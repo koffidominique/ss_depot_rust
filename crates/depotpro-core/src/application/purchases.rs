@@ -3,7 +3,7 @@ use sqlx::FromRow;
 use std::collections::HashSet;
 
 use crate::application::auth::{require_current_actor_permission, Permission};
-use crate::application::products::deserialize_nullable_opt;
+use crate::application::products::{deserialize_nullable_opt, deserialize_qty_str};
 use crate::application::sales::{audit_log_tx, get_theoretical_cash_tx, require_open_session_tx};
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
@@ -71,6 +71,7 @@ pub struct PurchaseOrderDto {
     pub created_at: String,
     pub lines: Vec<PurchaseOrderLineDto>,
     pub receipts: Vec<PurchaseReceiptDto>,
+    pub debts: Vec<SupplierDebtDto>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -130,6 +131,7 @@ pub struct UpdateSupplierInput {
 pub struct PurchaseOrderLineInput {
     pub product_id: i64,
     pub packaging_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub quantity: String,
     pub unit_price: i64,
 }
@@ -146,6 +148,7 @@ pub struct CreatePurchaseOrderInput {
 #[derive(Debug, Deserialize)]
 pub struct ReceiveLineInput {
     pub purchase_order_line_id: i64,
+    #[serde(deserialize_with = "deserialize_qty_str")]
     pub received_quantity: String,
     pub discrepancy_reason: Option<String>,
 }
@@ -432,6 +435,21 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
         .fetch_all(&db.pool)
         .await?;
 
+        let debts = sqlx::query_as::<_, SupplierDebtDto>(
+            "SELECT sd.id, sd.receipt_id, sd.supplier_id, s.name AS supplier_name, s.code AS supplier_code,
+                    pr.reference AS receipt_reference, po.reference AS order_reference,
+                    sd.initial_amount, sd.remaining_amount, sd.due_date, sd.status, sd.created_at
+             FROM supplier_debts sd
+             JOIN suppliers s ON s.id = sd.supplier_id
+             JOIN purchase_receipts pr ON pr.id = sd.receipt_id
+             JOIN purchase_orders po ON po.id = pr.purchase_order_id
+             WHERE pr.purchase_order_id = ?
+             ORDER BY sd.id DESC",
+        )
+        .bind(po.id)
+        .fetch_all(&db.pool)
+        .await?;
+
         result.push(PurchaseOrderDto {
             id: po.id,
             reference: po.reference,
@@ -446,6 +464,7 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
             created_at: po.created_at,
             lines,
             receipts,
+            debts,
         });
     }
     Ok(result)
@@ -456,7 +475,8 @@ pub async fn create_purchase_order(
     input: CreatePurchaseOrderInput,
 ) -> CoreResult<PurchaseOrderDto> {
     require_current_actor_permission(Permission::PurchasesWrite)?;
-    if input.request_key.trim().is_empty() {
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
         return Err(CoreError::Validation(
             "Clé d'idempotence requise.".to_string(),
         ));
@@ -470,7 +490,7 @@ pub async fn create_purchase_order(
     let (_guard, mut tx) = db.begin_write().await?;
     if let Some((existing_id,)) =
         sqlx::query_as::<_, (i64,)>("SELECT id FROM purchase_orders WHERE request_key = ?")
-            .bind(&input.request_key)
+            .bind(&request_key)
             .fetch_optional(&mut *tx)
             .await?
     {
@@ -539,15 +559,20 @@ pub async fn create_purchase_order(
     }
 
     let reference = DepotDb::next_sequence(&mut tx, "CMD").await?;
+    let expected_date = input
+        .expected_date
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     let po_id = sqlx::query(
         "INSERT INTO purchase_orders (reference, request_key, supplier_id, status, total_amount, expected_date, notes)
          VALUES (?, ?, ?, 'confirmed', ?, ?, ?)",
     )
     .bind(&reference)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(input.supplier_id)
     .bind(total_amount.value())
-    .bind(input.expected_date.as_deref())
+    .bind(expected_date)
     .bind(input.notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .execute(&mut *tx)
     .await?
@@ -993,19 +1018,40 @@ pub async fn pay_supplier_debt(
     db: &DepotDb,
     debt_id: i64,
     input: PaySupplierDebtInput,
-) -> CoreResult<()> {
+) -> CoreResult<SupplierDebtDto> {
     require_current_actor_permission(Permission::SupplierDebtsPay)?;
+    let request_key = input.request_key.trim().to_string();
+    if request_key.is_empty() {
+        return Err(CoreError::Validation(
+            "Clé d'idempotence requise.".to_string(),
+        ));
+    }
     let amount = Money::from_positive(input.amount, "Montant règlement fournisseur")?;
     let (_guard, mut tx) = db.begin_write().await?;
 
-    if sqlx::query_scalar::<_, i64>("SELECT id FROM payments WHERE request_key = ?")
-        .bind(&input.request_key)
-        .fetch_optional(&mut *tx)
-        .await?
-        .is_some()
-    {
+    let existing_pay: Option<(i64, String)> =
+        sqlx::query_as("SELECT id, payment_kind FROM payments WHERE request_key = ?")
+            .bind(&request_key)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if let Some((_pay_id, kind)) = existing_pay {
+        let expected_desc = format!("Règlement fournisseur dette #{debt_id}");
+        let cm_desc: Option<String> =
+            sqlx::query_scalar("SELECT description FROM cash_movements WHERE request_key = ?")
+                .bind(format!("cm-sup:{request_key}"))
+                .fetch_optional(&mut *tx)
+                .await?;
         tx.rollback().await?;
-        return Ok(());
+        if kind != "supplier_debt" || cm_desc.as_deref() != Some(expected_desc.as_str()) {
+            return Err(CoreError::DuplicateOperation(
+                "Cette clé d'idempotence a déjà été utilisée pour une autre opération.".to_string(),
+            ));
+        }
+        return list_supplier_debts(db)
+            .await?
+            .into_iter()
+            .find(|d| d.id == debt_id)
+            .ok_or_else(|| CoreError::Validation("Dette fournisseur introuvable.".to_string()));
     }
 
     let (session_id, _sref, opening_cash) = require_open_session_tx(&mut tx).await?;
@@ -1050,7 +1096,7 @@ pub async fn pay_supplier_debt(
          VALUES (?, ?, 'supplier_debt', ?, ?)",
     )
     .bind(&pay_ref)
-    .bind(&input.request_key)
+    .bind(&request_key)
     .bind(amount.value())
     .bind(
         input
@@ -1077,7 +1123,7 @@ pub async fn pay_supplier_debt(
          VALUES (?, ?, ?, 'supplier_payment', ?, 'out', ?, ?, ?)",
     )
     .bind(session_id)
-    .bind(format!("cm-sup:{}", input.request_key))
+    .bind(format!("cm-sup:{request_key}"))
     .bind(part_id)
     .bind(&pm_code)
     .bind(amount.value())
@@ -1103,5 +1149,10 @@ pub async fn pay_supplier_debt(
     )
     .await?;
     tx.commit().await?;
-    Ok(())
+
+    list_supplier_debts(db)
+        .await?
+        .into_iter()
+        .find(|d| d.id == debt_id)
+        .ok_or_else(|| CoreError::Internal("Dette fournisseur introuvable.".to_string()))
 }

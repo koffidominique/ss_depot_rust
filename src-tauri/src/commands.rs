@@ -329,13 +329,13 @@ pub async fn update_client_credit(
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::SalesWrite).await?;
     let db = state.db().await;
-    auth::with_actor(
+    let res = auth::with_actor(
         actor,
         sales::update_client_credit_policy(&db, client_id, payload),
     )
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "ok": true }))
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -585,10 +585,10 @@ pub async fn pay_supplier_debt(
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::SupplierDebtsPay).await?;
     let db = state.db().await;
-    auth::with_actor(actor, purchases::pay_supplier_debt(&db, debt_id, payload))
+    let debt = auth::with_actor(actor, purchases::pay_supplier_debt(&db, debt_id, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "ok": true }))
+    serde_json::to_value(debt).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -698,10 +698,10 @@ pub async fn adjust_returnable_stock(
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsWrite).await?;
     let db = state.db().await;
-    auth::with_actor(actor, consignments::adjust_returnable_stock(&db, payload))
+    let mv = auth::with_actor(actor, consignments::adjust_returnable_stock(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "ok": true }))
+    serde_json::to_value(mv).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -712,10 +712,10 @@ pub async fn return_client_empties(
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsWrite).await?;
     let db = state.db().await;
-    let reference = auth::with_actor(actor, consignments::return_client_empties(&db, payload))
+    let ret = auth::with_actor(actor, consignments::return_client_empties(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "reference": reference }))
+    serde_json::to_value(ret).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -780,10 +780,10 @@ pub async fn create_expense(
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::ExpensesWrite).await?;
     let db = state.db().await;
-    auth::with_actor(actor, cash::create_expense(&db, payload))
+    let exp = auth::with_actor(actor, cash::create_expense(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "ok": true }))
+    serde_json::to_value(exp).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

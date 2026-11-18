@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite';
 import { getDb, withWriteTx, nextSequence, auditLog } from '../db.ts';
 import { requireCurrentActorPermission } from './auth.ts';
 import {
@@ -5,7 +6,6 @@ import {
   nonNegativeFcfa,
   nonNegativeMilli,
   positiveMilli,
-  toMilli,
   formatMilli,
 } from '../domain.ts';
 
@@ -36,6 +36,73 @@ export async function createCategory(name: string, description?: string) {
       .run(clean, description?.trim() || null);
     return db.prepare('SELECT * FROM categories WHERE id = ?').get(Number(res.lastInsertRowid));
   });
+}
+
+function computeAvgCostFcfa(
+  avgNum: unknown,
+  avgDen: unknown
+): number | null {
+  if (!avgNum || !avgDen) return null;
+  const num = BigInt(String(avgNum));
+  const den = BigInt(String(avgDen));
+  if (den <= 0n) return null;
+  const rounded = (num + den / 2n) / den;
+  const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
+  return rounded <= maxSafe && rounded >= -maxSafe ? Number(rounded) : null;
+}
+
+function enrichPackagingRow(db: DatabaseSync, pk: Record<string, unknown>) {
+  const components = db
+    .prepare(
+      `SELECT dpc.returnable_id, dpc.pieces_per_pack, rpt.code, rpt.name, rpt.deposit_value, rpt.kind
+       FROM deposit_packaging_components dpc
+       JOIN returnable_packaging_types rpt ON rpt.id = dpc.returnable_id
+       WHERE dpc.packaging_id = ?`
+    )
+    .all(Number(pk.id));
+  return {
+    ...pk,
+    components,
+  };
+}
+
+function getPackagingById(db: DatabaseSync, pkgId: number) {
+  const pk = db
+    .prepare(
+      `SELECT pk.*, dp.mode AS deposit_mode
+       FROM product_packagings pk
+       LEFT JOIN deposit_packaging_profiles dp ON dp.packaging_id = pk.id
+       WHERE pk.id = ?`
+    )
+    .get(pkgId) as Record<string, unknown> | undefined;
+  return pk ? enrichPackagingRow(db, pk) : undefined;
+}
+
+function getProductById(db: DatabaseSync, productId: number) {
+  const p = db
+    .prepare(
+      `SELECT p.*, c.name AS category_name, s.name AS supplier_name
+       FROM products p
+       JOIN categories c ON c.id = p.category_id
+       LEFT JOIN suppliers s ON s.id = p.supplier_id
+       WHERE p.id = ?`
+    )
+    .get(productId) as Record<string, unknown> | undefined;
+  if (!p) return undefined;
+  const pks = db
+    .prepare(
+      `SELECT pk.*, dp.mode AS deposit_mode
+       FROM product_packagings pk
+       LEFT JOIN deposit_packaging_profiles dp ON dp.packaging_id = pk.id
+       WHERE pk.product_id = ?
+       ORDER BY pk.coefficient_milli ASC`
+    )
+    .all(productId) as Array<Record<string, unknown>>;
+  return {
+    ...p,
+    average_cost_fcfa: computeAvgCostFcfa(p.average_cost_num, p.average_cost_den),
+    packagings: pks.map((pk) => enrichPackagingRow(db, pk)),
+  };
 }
 
 export function listProducts(filter: ProductFilter = {}) {
@@ -103,13 +170,9 @@ export function listProducts(filter: ProductFilter = {}) {
       ...pk,
       components: compStmt.all(Number(pk.id)),
     }));
-    const avgCost =
-      p.average_cost_num && p.average_cost_den && Number(p.average_cost_den) > 0
-        ? Math.round(Number(p.average_cost_num) / Number(p.average_cost_den))
-        : null;
     return {
       ...p,
-      average_cost_fcfa: avgCost,
+      average_cost_fcfa: computeAvgCostFcfa(p.average_cost_num, p.average_cost_den),
       packagings,
     };
   });
@@ -277,11 +340,35 @@ export async function createProduct(input: CreateProductInput) {
           },
         ];
 
+    const seenPkgNames = new Set<string>();
     for (const pkg of packagings) {
       if (!ALLOWED_PACKAGING_NAMES.has(pkg.name)) {
         throw new BusinessError('INVALID_PACKAGING', `Conditionnement non autorisé : ${pkg.name}`);
       }
+      if (seenPkgNames.has(pkg.name)) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          `Conditionnement "${pkg.name}" dupliqué sur le même produit.`
+        );
+      }
+      seenPkgNames.add(pkg.name);
       const coeffMilli = positiveMilli(pkg.coefficient, `Coefficient (${pkg.name})`);
+      const pkgPurchase =
+        pkg.purchase_price !== null && pkg.purchase_price !== undefined
+          ? nonNegativeFcfa(pkg.purchase_price, `Prix d'achat (${pkg.name})`)
+          : null;
+      const pkgWholesale =
+        pkg.wholesale_price !== null && pkg.wholesale_price !== undefined
+          ? nonNegativeFcfa(pkg.wholesale_price, `Prix gros (${pkg.name})`)
+          : null;
+      const pkgSemi =
+        pkg.semi_wholesale_price !== null && pkg.semi_wholesale_price !== undefined
+          ? nonNegativeFcfa(pkg.semi_wholesale_price, `Prix demi-gros (${pkg.name})`)
+          : null;
+      const pkgRetail =
+        pkg.retail_price !== null && pkg.retail_price !== undefined
+          ? nonNegativeFcfa(pkg.retail_price, `Prix détail (${pkg.name})`)
+          : null;
       const pkgBarcode = pkg.barcode?.trim() || null;
       if (pkgBarcode) {
         const dup = db
@@ -302,10 +389,10 @@ export async function createProduct(input: CreateProductInput) {
           pkg.name,
           baseUnit,
           coeffMilli,
-          pkg.purchase_price ?? null,
-          pkg.wholesale_price ?? null,
-          pkg.semi_wholesale_price ?? null,
-          pkg.retail_price ?? null,
+          pkgPurchase,
+          pkgWholesale,
+          pkgSemi,
+          pkgRetail,
           pkgBarcode,
           pkg.allow_fraction ? 1 : 0
         );
@@ -320,6 +407,12 @@ export async function createProduct(input: CreateProductInput) {
           if (!Number.isInteger(comp.pieces_per_pack) || comp.pieces_per_pack <= 0) {
             throw new BusinessError('VALIDATION_ERROR', 'Nombre de pièces par conditionnement invalide.');
           }
+          const rtExists = db
+            .prepare('SELECT id FROM returnable_packaging_types WHERE id = ?')
+            .get(comp.returnable_id);
+          if (!rtExists) {
+            throw new BusinessError('VALIDATION_ERROR', "Type d'emballage consigné introuvable.");
+          }
           db.prepare(
             'INSERT INTO deposit_packaging_components (packaging_id, returnable_id, pieces_per_pack) VALUES (?, ?, ?)'
           ).run(pkgId, comp.returnable_id, comp.pieces_per_pack);
@@ -328,7 +421,7 @@ export async function createProduct(input: CreateProductInput) {
     }
 
     auditLog(db, 'CREATE_PRODUCT', 'products', productId, `Création produit ${reference} — ${name}`);
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(productId);
+    return getProductById(db, productId);
   });
 }
 
@@ -345,6 +438,15 @@ export async function updateProduct(
 
     const name = input.name !== undefined ? input.name.trim() : String(existing.name);
     if (!name) throw new BusinessError('VALIDATION_ERROR', 'Nom produit invalide.');
+
+    if (input.category_id !== undefined) {
+      const cat = db.prepare('SELECT id FROM categories WHERE id = ?').get(Number(input.category_id));
+      if (!cat) throw new BusinessError('VALIDATION_ERROR', 'Catégorie introuvable.');
+    }
+    if (input.supplier_id !== undefined && input.supplier_id !== null) {
+      const sup = db.prepare('SELECT id FROM suppliers WHERE id = ?').get(Number(input.supplier_id));
+      if (!sup) throw new BusinessError('SUPPLIER_NOT_FOUND', 'Fournisseur introuvable.');
+    }
 
     const cleanBarcode =
       input.barcode !== undefined ? input.barcode?.trim() || null : (existing.barcode as string | null);
@@ -422,7 +524,7 @@ export async function updateProduct(
     );
 
     auditLog(db, 'UPDATE_PRODUCT', 'products', id, `Mise à jour produit ${existing.reference}`);
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    return getProductById(db, id);
   });
 }
 
@@ -448,6 +550,22 @@ export async function addOrUpdatePackaging(
   }
   requireCurrentActorPermission('catalog:write');
   const coeffMilli = positiveMilli(pkg.coefficient, 'Coefficient');
+  const pkgPurchase =
+    pkg.purchase_price !== null && pkg.purchase_price !== undefined
+      ? nonNegativeFcfa(pkg.purchase_price, "Prix d'achat (conditionnement)")
+      : null;
+  const pkgWholesale =
+    pkg.wholesale_price !== null && pkg.wholesale_price !== undefined
+      ? nonNegativeFcfa(pkg.wholesale_price, 'Prix gros (conditionnement)')
+      : null;
+  const pkgSemi =
+    pkg.semi_wholesale_price !== null && pkg.semi_wholesale_price !== undefined
+      ? nonNegativeFcfa(pkg.semi_wholesale_price, 'Prix demi-gros (conditionnement)')
+      : null;
+  const pkgRetail =
+    pkg.retail_price !== null && pkg.retail_price !== undefined
+      ? nonNegativeFcfa(pkg.retail_price, 'Prix détail (conditionnement)')
+      : null;
 
   return withWriteTx((db) => {
     const prod = db.prepare('SELECT id, base_unit FROM products WHERE id = ?').get(productId) as
@@ -490,10 +608,10 @@ export async function addOrUpdatePackaging(
       ).run(
         pkg.name,
         coeffMilli,
-        pkg.purchase_price ?? null,
-        pkg.wholesale_price ?? null,
-        pkg.semi_wholesale_price ?? null,
-        pkg.retail_price ?? null,
+        pkgPurchase,
+        pkgWholesale,
+        pkgSemi,
+        pkgRetail,
         barcode,
         pkg.allow_fraction ? 1 : 0,
         pkg.is_active === false ? 0 : 1,
@@ -511,10 +629,10 @@ export async function addOrUpdatePackaging(
           pkg.name,
           prod.base_unit,
           coeffMilli,
-          pkg.purchase_price ?? null,
-          pkg.wholesale_price ?? null,
-          pkg.semi_wholesale_price ?? null,
-          pkg.retail_price ?? null,
+          pkgPurchase,
+          pkgWholesale,
+          pkgSemi,
+          pkgRetail,
           barcode,
           pkg.allow_fraction ? 1 : 0
         );
@@ -531,13 +649,19 @@ export async function addOrUpdatePackaging(
         if (!Number.isInteger(c.pieces_per_pack) || c.pieces_per_pack <= 0) {
           throw new BusinessError('VALIDATION_ERROR', 'Pièces par conditionnement invalides.');
         }
+        const rtExists = db
+          .prepare('SELECT id FROM returnable_packaging_types WHERE id = ?')
+          .get(c.returnable_id);
+        if (!rtExists) {
+          throw new BusinessError('VALIDATION_ERROR', "Type d'emballage consigné introuvable.");
+        }
         db.prepare(
           'INSERT INTO deposit_packaging_components (packaging_id, returnable_id, pieces_per_pack) VALUES (?, ?, ?)'
         ).run(pkgId, c.returnable_id, c.pieces_per_pack);
       }
     }
     auditLog(db, 'UPSERT_PACKAGING', 'product_packagings', pkgId, `Conditionnement ${pkg.name} (coeff ${formatMilli(coeffMilli)})`);
-    return db.prepare('SELECT * FROM product_packagings WHERE id = ?').get(pkgId);
+    return getPackagingById(db, pkgId);
   });
 }
 
@@ -631,13 +755,15 @@ export async function importProductsCsv(csvContent: string) {
       }
       const barcode = idx('barcode') >= 0 && cols[idx('barcode')] ? cols[idx('barcode')] : null;
       if (barcode) {
-        const dup = db.prepare('SELECT id FROM products WHERE barcode = ?').get(barcode);
+        const dup =
+          db.prepare('SELECT id FROM products WHERE barcode = ?').get(barcode) ??
+          db.prepare('SELECT id FROM product_packagings WHERE barcode = ?').get(barcode);
         if (dup) {
           throw new BusinessError('DUPLICATE_OPERATION', `Ligne ${i + 1} : code-barres ${barcode} déjà existant.`);
         }
       }
-      const stockMilli = idx('stock') >= 0 && cols[idx('stock')] ? toMilli(cols[idx('stock')], 'Stock CSV') : 0;
-      const minMilli = idx('min_stock') >= 0 && cols[idx('min_stock')] ? toMilli(cols[idx('min_stock')], 'Seuil CSV') : 0;
+      const stockMilli = idx('stock') >= 0 && cols[idx('stock')] ? nonNegativeMilli(cols[idx('stock')], 'Stock CSV') : 0;
+      const minMilli = idx('min_stock') >= 0 && cols[idx('min_stock')] ? nonNegativeMilli(cols[idx('min_stock')], 'Seuil CSV') : 0;
       const pBuy = idx('purchase_price') >= 0 && cols[idx('purchase_price')] ? nonNegativeFcfa(cols[idx('purchase_price')], 'Prix achat') : null;
       const pWhole = idx('wholesale_price') >= 0 && cols[idx('wholesale_price')] ? nonNegativeFcfa(cols[idx('wholesale_price')], 'Prix gros') : null;
       const pSemi = idx('semi_wholesale_price') >= 0 && cols[idx('semi_wholesale_price')] ? nonNegativeFcfa(cols[idx('semi_wholesale_price')], 'Prix demi-gros') : null;
