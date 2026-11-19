@@ -29,6 +29,12 @@ pub const V3_MIGRATION_0010_SQL: &str =
     include_str!("../../../../migrations/sqlite/0010_crate_compatibility.sql");
 pub const V3_MIGRATION_0009_SQL: &str =
     include_str!("../../../../migrations/sqlite/0009_support_tracking.sql");
+pub const V3_MIGRATION_0011_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0007_packaging_components.sql");
+pub const V3_MIGRATION_0012_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0012_catalogue_products.sql");
+pub const V3_MIGRATION_0013_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0013_pending_returns_pieces.sql");
 #[derive(Debug, Clone, Copy)]
 pub struct MigrationDef {
     pub version: i64,
@@ -87,10 +93,25 @@ pub const MIGRATIONS: &[MigrationDef] = &[
         name: "0010_crate_compatibility",
         sql: V3_MIGRATION_0010_SQL,
     },
+    MigrationDef {
+        version: 11,
+        name: "0011_packaging_components",
+        sql: V3_MIGRATION_0011_SQL,
+    },
+    MigrationDef {
+        version: 12,
+        name: "0012_catalogue_products",
+        sql: V3_MIGRATION_0012_SQL,
+    },
+    MigrationDef {
+        version: 13,
+        name: "0013_pending_returns_pieces",
+        sql: V3_MIGRATION_0013_SQL,
+    },
 ];
 
 pub const MIN_SUPPORTED_SCHEMA_VERSION: i64 = 1;
-pub const CURRENT_SCHEMA_VERSION: i64 = 10;
+pub const CURRENT_SCHEMA_VERSION: i64 = 13;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MigrationRunReport {

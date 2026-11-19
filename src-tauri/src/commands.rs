@@ -2,7 +2,8 @@ use crate::state::DesktopState;
 use chrono::Utc;
 use depotpro_core::application::auth::{self, Permission, SessionIdentity};
 use depotpro_core::application::{
-    cash, consignments, inventory, pdf, products, purchases, reports, sales,
+    cash, consignments, inventory, packaging_components, partial_returns, pdf, product_catalogue,
+    products, purchases, reports, sales, sales_validation,
 };
 use depotpro_core::infrastructure::backup;
 use tauri::State;
@@ -1025,4 +1026,461 @@ pub async fn shutdown_app(
 ) -> Result<(), String> {
     app_handle.exit(0);
     Ok(())
+}
+
+// ============ LOT 3-4 : Emballages composants, retours partiels, validation POS, catalogue ============
+
+#[tauri::command]
+pub async fn get_packaging_components_overview(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
+    let db = state.db().await;
+    let ov = auth::with_actor(actor, packaging_components::get_components_overview(&db))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(ov).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_crate_components_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
+    let db = state.db().await;
+    let list = auth::with_actor(actor, async {
+        Ok::<_, depotpro_core::CoreError>(
+            packaging_components::get_components_overview(&db)
+                .await?
+                .crate_components,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_crate_component_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: packaging_components::CreateCrateComponentInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsWrite).await?;
+    let db = state.db().await;
+    let c = auth::with_actor(
+        actor,
+        packaging_components::create_crate_component(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(c).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_packaging_stock(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
+    let db = state.db().await;
+    let list = auth::with_actor(actor, async {
+        Ok::<_, depotpro_core::CoreError>(
+            packaging_components::get_components_overview(&db)
+                .await?
+                .component_stock,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_component_stock_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: packaging_components::UpdateComponentStockInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsWrite).await?;
+    let db = state.db().await;
+    let mv = auth::with_actor(
+        actor,
+        packaging_components::update_component_stock(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(mv).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn assemble_crates_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: packaging_components::AssembleCratesInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsWrite).await?;
+    let db = state.db().await;
+    let rec = auth::with_actor(actor, packaging_components::assemble_crates(&db, payload))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(rec).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn disassemble_crates_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: packaging_components::DisassembleCratesInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsWrite).await?;
+    let db = state.db().await;
+    let rec = auth::with_actor(
+        actor,
+        packaging_components::disassemble_crates(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(rec).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_bottle_profiles_pc_cmd(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogRead).await?;
+    let db = state.db().await;
+    let list = auth::with_actor(
+        actor,
+        packaging_components::get_bottle_profiles_by_material(&db, "glass".into()),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_bottle_profile_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: packaging_components::CreateBottleProfileInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let p = auth::with_actor(
+        actor,
+        packaging_components::create_bottle_profile(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(p).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_crate_types_pc_cmd(
+    state: State<'_, DesktopState>,
+    token: String,
+    active_only: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogRead).await?;
+    let db = state.db().await;
+    let list = auth::with_actor(
+        actor,
+        packaging_components::get_crate_types(&db, active_only.unwrap_or(true)),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_crate_type_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: packaging_components::CreateCrateTypeInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let t = auth::with_actor(actor, packaging_components::create_crate_type(&db, payload))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(t).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_partial_returns_overview_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
+    let db = state.db().await;
+    let ov = auth::with_actor(actor, partial_returns::get_partial_returns_overview(&db))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(ov).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_partial_return_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: partial_returns::CreatePartialReturnInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsWrite).await?;
+    let db = state.db().await;
+    let items = auth::with_actor(actor, partial_returns::create_partial_return(&db, payload))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(items).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_pending_partial_returns_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
+    let db = state.db().await;
+    let list = auth::with_actor(actor, async {
+        Ok::<_, depotpro_core::CoreError>(
+            partial_returns::get_partial_returns_overview(&db)
+                .await?
+                .pending_returns,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_pending_partial_return_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    client_id: i64,
+    sale_id: i64,
+    total_expected_pieces: i64,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsWrite).await?;
+    let db = state.db().await;
+    let p = auth::with_actor(
+        actor,
+        partial_returns::create_pending_partial_return(
+            &db,
+            client_id,
+            sale_id,
+            total_expected_pieces,
+        ),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(p).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_pending_partial_return_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: partial_returns::UpdatePendingReturnInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsWrite).await?;
+    let db = state.db().await;
+    let p = auth::with_actor(actor, partial_returns::update_pending_return(&db, payload))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(p).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_pos_validation_config_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    terminal_id: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::SalesRead).await?;
+    let db = state.db().await;
+    let c = auth::with_actor(
+        actor,
+        sales_validation::get_pos_validation_config(&db, &terminal_id),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(c).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_pos_validation_config_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: sales_validation::UpdatePosConfigInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::SettingsWrite).await?;
+    let db = state.db().await;
+    let c = auth::with_actor(
+        actor,
+        sales_validation::update_pos_validation_config(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(c).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn validate_sale_compatibility_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: sales_validation::ValidateSaleInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::SalesRead).await?;
+    let db = state.db().await;
+    let r = auth::with_actor(
+        actor,
+        sales_validation::validate_sale_compatibility(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(r).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_compatibility_rules_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::SalesRead).await?;
+    let db = state.db().await;
+    let list = auth::with_actor(actor, sales_validation::get_compatibility_rules(&db))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_compatibility_rule_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: sales_validation::CreateCompatibilityRuleInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::SettingsWrite).await?;
+    let db = state.db().await;
+    let r = auth::with_actor(
+        actor,
+        sales_validation::create_compatibility_rule(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(r).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_product_catalogue_overview_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogRead).await?;
+    let db = state.db().await;
+    let ov = auth::with_actor(actor, product_catalogue::get_catalogue_overview(&db))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(ov).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_catalogue_brand_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: product_catalogue::CreateBrandInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let b = auth::with_actor(actor, product_catalogue::create_brand(&db, payload))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(b).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_catalogue_family_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: product_catalogue::CreateProductFamilyInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let f = auth::with_actor(
+        actor,
+        product_catalogue::create_product_family(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(f).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_catalogue_unit_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: product_catalogue::CreateUnitOfMeasureInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let u = auth::with_actor(
+        actor,
+        product_catalogue::create_unit_of_measure(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(u).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_catalogue_product_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: product_catalogue::CreateCatalogueProductInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let p = auth::with_actor(
+        actor,
+        product_catalogue::create_catalogue_product(&db, payload),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(p).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_catalogue_products_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogRead).await?;
+    let db = state.db().await;
+    let list = auth::with_actor(actor, async {
+        Ok::<_, depotpro_core::CoreError>(
+            product_catalogue::get_catalogue_overview(&db)
+                .await?
+                .products,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn initialize_catalogue_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let rep = auth::with_actor(actor, product_catalogue::initialize_initial_catalogue(&db))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(rep).map_err(|e| e.to_string())
 }

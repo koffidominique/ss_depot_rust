@@ -18,7 +18,8 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use depotpro_core::application::auth::{self, Permission, SessionIdentity, SessionStore};
 use depotpro_core::application::{
-    cash, catalogue, consignments, inventory, pdf, products, purchases, reports, sales,
+    cash, catalogue, consignments, inventory, packaging_components, partial_returns, pdf,
+    product_catalogue, products, purchases, reports, sales, sales_validation,
 };
 use depotpro_core::infrastructure::{backup, db::DepotDb};
 use depotpro_core::CoreError;
@@ -771,6 +772,7 @@ async fn delete_brand(
     }
 }
 
+#[allow(dead_code)]
 async fn list_bottle_profiles(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -787,6 +789,7 @@ async fn list_bottle_profiles(
     }
 }
 
+#[allow(dead_code)]
 async fn create_bottle_profile(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -836,6 +839,7 @@ async fn delete_bottle_profile(
     }
 }
 
+#[allow(dead_code)]
 async fn list_crate_types(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -852,6 +856,7 @@ async fn list_crate_types(
     }
 }
 
+#[allow(dead_code)]
 async fn create_crate_type(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -2165,6 +2170,565 @@ async fn pay_supplier_debt(
     }
 }
 
+// ============ LOT 3-4 : Emballages composants, retours partiels, validation POS, catalogue ============
+
+async fn packaging_components_overview(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, packaging_components::get_components_overview(&db)).await {
+        Ok(ov) => (StatusCode::OK, Json(serde_json::to_value(ov).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_crate_components(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, async {
+        Ok::<_, CoreError>(
+            packaging_components::get_components_overview(&db)
+                .await?
+                .crate_components,
+        )
+    })
+    .await
+    {
+        Ok(list) => (StatusCode::OK, Json(serde_json::to_value(list).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_crate_component(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<packaging_components::CreateCrateComponentInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        packaging_components::create_crate_component(&db, payload),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn packaging_stock_overview(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, async {
+        Ok::<_, CoreError>(
+            packaging_components::get_components_overview(&db)
+                .await?
+                .component_stock,
+        )
+    })
+    .await
+    {
+        Ok(list) => (StatusCode::OK, Json(serde_json::to_value(list).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_component_stock(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<packaging_components::UpdateComponentStockInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        packaging_components::update_component_stock(&db, payload),
+    )
+    .await
+    {
+        Ok(mv) => (StatusCode::CREATED, Json(serde_json::to_value(mv).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn assemble_crates(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<packaging_components::AssembleCratesInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, packaging_components::assemble_crates(&db, payload)).await {
+        Ok(rec) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(rec).unwrap()),
+        )
+            .into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn disassemble_crates(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<packaging_components::DisassembleCratesInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        packaging_components::disassemble_crates(&db, payload),
+    )
+    .await
+    {
+        Ok(rec) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(rec).unwrap()),
+        )
+            .into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_bottle_profiles_pc(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        packaging_components::get_bottle_profiles_by_material(&db, "glass".into()),
+    )
+    .await
+    {
+        Ok(list) => (StatusCode::OK, Json(serde_json::to_value(list).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_bottle_profile_pc(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<packaging_components::CreateBottleProfileInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        packaging_components::create_bottle_profile(&db, payload),
+    )
+    .await
+    {
+        Ok(p) => (StatusCode::CREATED, Json(serde_json::to_value(p).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_crate_types_pc(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, async {
+        Ok::<_, CoreError>(packaging_components::get_crate_types(&db, true).await)
+    })
+    .await
+    {
+        Ok(list) => (StatusCode::OK, Json(serde_json::to_value(list).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_crate_type_pc(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<packaging_components::CreateCrateTypeInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, packaging_components::create_crate_type(&db, payload)).await {
+        Ok(t) => (StatusCode::CREATED, Json(serde_json::to_value(t).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn partial_returns_overview(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, partial_returns::get_partial_returns_overview(&db)).await {
+        Ok(ov) => (StatusCode::OK, Json(serde_json::to_value(ov).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_partial_return(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<partial_returns::CreatePartialReturnInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, partial_returns::create_partial_return(&db, payload)).await {
+        Ok(items) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(items).unwrap()),
+        )
+            .into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_pending_partial_returns(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, async {
+        Ok::<_, CoreError>(
+            partial_returns::get_partial_returns_overview(&db)
+                .await?
+                .pending_returns,
+        )
+    })
+    .await
+    {
+        Ok(list) => (StatusCode::OK, Json(serde_json::to_value(list).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_pending_partial_return(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(client_id): Path<i64>,
+    Path(sale_id): Path<i64>,
+    Json(total_expected_pieces): Json<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        partial_returns::create_pending_partial_return(
+            &db,
+            client_id,
+            sale_id,
+            total_expected_pieces,
+        ),
+    )
+    .await
+    {
+        Ok(p) => (StatusCode::CREATED, Json(serde_json::to_value(p).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_pending_partial_return(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<partial_returns::UpdatePendingReturnInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, partial_returns::update_pending_return(&db, payload)).await {
+        Ok(p) => (StatusCode::OK, Json(serde_json::to_value(p).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn get_pos_validation_config(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(terminal_id): Path<String>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::SalesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        sales_validation::get_pos_validation_config(&db, &terminal_id),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_pos_validation_config(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<sales_validation::UpdatePosConfigInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::SettingsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        sales_validation::update_pos_validation_config(&db, payload),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn validate_sale_compatibility(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<sales_validation::ValidateSaleInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::SalesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        sales_validation::validate_sale_compatibility(&db, payload),
+    )
+    .await
+    {
+        Ok(r) => (StatusCode::OK, Json(serde_json::to_value(r).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_compatibility_rule(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<sales_validation::CreateCompatibilityRuleInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::SettingsWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        sales_validation::create_compatibility_rule(&db, payload),
+    )
+    .await
+    {
+        Ok(r) => (StatusCode::CREATED, Json(serde_json::to_value(r).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_compatibility_rules(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::SalesRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, sales_validation::get_compatibility_rules(&db)).await {
+        Ok(list) => (StatusCode::OK, Json(serde_json::to_value(list).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn product_catalogue_overview(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, product_catalogue::get_catalogue_overview(&db)).await {
+        Ok(ov) => (StatusCode::OK, Json(serde_json::to_value(ov).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_catalogue_brand(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<product_catalogue::CreateBrandInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, product_catalogue::create_brand(&db, payload)).await {
+        Ok(b) => (StatusCode::CREATED, Json(serde_json::to_value(b).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_catalogue_family(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<product_catalogue::CreateProductFamilyInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        product_catalogue::create_product_family(&db, payload),
+    )
+    .await
+    {
+        Ok(f) => (StatusCode::CREATED, Json(serde_json::to_value(f).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_catalogue_unit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<product_catalogue::CreateUnitOfMeasureInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        product_catalogue::create_unit_of_measure(&db, payload),
+    )
+    .await
+    {
+        Ok(u) => (StatusCode::CREATED, Json(serde_json::to_value(u).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_catalogue_product_new(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<product_catalogue::CreateCatalogueProductInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        product_catalogue::create_catalogue_product(&db, payload),
+    )
+    .await
+    {
+        Ok(p) => (StatusCode::CREATED, Json(serde_json::to_value(p).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_catalogue_products_new(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, async {
+        Ok::<_, CoreError>(
+            product_catalogue::get_catalogue_overview(&db)
+                .await?
+                .products,
+        )
+    })
+    .await
+    {
+        Ok(list) => (StatusCode::OK, Json(serde_json::to_value(list).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn initialize_catalogue(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, product_catalogue::initialize_initial_catalogue(&db)).await {
+        Ok(rep) => (StatusCode::OK, Json(serde_json::to_value(rep).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
 async fn consignments_overview(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -2651,7 +3215,7 @@ fn build_router(state: AppState) -> Router {
         .route("/api/brands/:id", put(update_brand).delete(delete_brand))
         .route(
             "/api/bottle-profiles",
-            get(list_bottle_profiles).post(create_bottle_profile),
+            get(list_bottle_profiles_pc).post(create_bottle_profile_pc),
         )
         .route(
             "/api/bottle-profiles/:id",
@@ -2659,7 +3223,7 @@ fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/crate-types",
-            get(list_crate_types).post(create_crate_type),
+            get(list_crate_types_pc).post(create_crate_type_pc),
         )
         .route(
             "/api/crate-types/:id",
@@ -2776,6 +3340,76 @@ fn build_router(state: AppState) -> Router {
             post(adjust_returnable_stock),
         )
         .route("/api/consignments/returns", post(return_client_empties))
+        // LOT 3-4 : emballages composants
+        .route(
+            "/api/packaging-components",
+            get(packaging_components_overview),
+        )
+        .route(
+            "/api/packaging-components/crate-components",
+            get(list_crate_components).post(create_crate_component),
+        )
+        .route(
+            "/api/packaging-components/stock",
+            get(packaging_stock_overview).put(update_component_stock),
+        )
+        .route("/api/packaging-components/assemble", post(assemble_crates))
+        .route(
+            "/api/packaging-components/disassemble",
+            post(disassemble_crates),
+        )
+        .route(
+            "/api/packaging-components/bottle-profiles",
+            get(list_bottle_profiles_pc).post(create_bottle_profile_pc),
+        )
+        .route(
+            "/api/packaging-components/crate-types",
+            get(list_crate_types_pc).post(create_crate_type_pc),
+        )
+        // LOT 3-4 : retours partiels
+        .route(
+            "/api/partial-returns",
+            get(partial_returns_overview).post(create_partial_return),
+        )
+        .route(
+            "/api/partial-returns/pending",
+            get(list_pending_partial_returns),
+        )
+        .route(
+            "/api/partial-returns/pending/:client_id/:sale_id",
+            post(create_pending_partial_return),
+        )
+        .route(
+            "/api/partial-returns/pending/update",
+            put(update_pending_partial_return),
+        )
+        // LOT 3-4 : validation POS & compatibilité
+        .route(
+            "/api/sales-validation/config/:terminal_id",
+            get(get_pos_validation_config),
+        )
+        .route(
+            "/api/sales-validation/config",
+            put(update_pos_validation_config),
+        )
+        .route(
+            "/api/sales-validation/validate",
+            post(validate_sale_compatibility),
+        )
+        .route(
+            "/api/sales-validation/rules",
+            get(list_compatibility_rules).post(create_compatibility_rule),
+        )
+        // LOT 3-4 : catalogue produits V3
+        .route("/api/catalogue-v3", get(product_catalogue_overview))
+        .route("/api/catalogue-v3/brands", post(create_catalogue_brand))
+        .route("/api/catalogue-v3/families", post(create_catalogue_family))
+        .route("/api/catalogue-v3/units", post(create_catalogue_unit))
+        .route(
+            "/api/catalogue-v3/products",
+            get(list_catalogue_products_new).post(create_catalogue_product_new),
+        )
+        .route("/api/catalogue-v3/initialize", post(initialize_catalogue))
         .route("/api/cash", get(cash_status))
         .route("/api/cash/open", post(open_cash))
         .route("/api/cash/close", post(close_cash))
