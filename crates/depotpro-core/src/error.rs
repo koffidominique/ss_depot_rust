@@ -38,6 +38,9 @@ pub enum CoreError {
     DuplicateOperation(String),
 
     #[error("{0}")]
+    NotFound(String),
+
+    #[error("{0}")]
     DatabaseBusy(String),
 
     #[error("Erreur de base de données : {0}")]

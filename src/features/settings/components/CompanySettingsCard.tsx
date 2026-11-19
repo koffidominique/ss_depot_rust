@@ -259,6 +259,26 @@ export function CompanySettingsCard({
             <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white transition-transform data-[state=checked]:translate-x-[18px]" />
           </Switch.Root>
         </div>
+
+        <div className="col-span-2">
+          <label className="block font-medium">Délai d'inactivité avant verrouillage (minutes)</label>
+          <input
+            type="number"
+            min="1"
+            max="120"
+            value={form.inactivity_timeout_minutes ?? 10}
+            onChange={(e) => {
+              const val = parseInt(e.target.value, 10);
+              if (!isNaN(val) && val >= 1 && val <= 120) {
+                onUpdateForm((p) => ({ ...p, inactivity_timeout_minutes: val }));
+              }
+            }}
+            className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
+          />
+          <div className="mt-1 text-[11px] text-[#667085] dark:text-slate-400">
+            Durée d'inactivité avant que l'application se verrouille automatiquement (1 à 120 minutes).
+          </div>
+        </div>
       </div>
 
       <div className="flex justify-end pt-2">

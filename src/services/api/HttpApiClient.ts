@@ -398,4 +398,7 @@ export class HttpApiClient implements ApiClient {
       body: JSON.stringify(doc),
     });
   }
+  async shutdownApp() {
+    // En mode web, la fermeture applicative est gérée par l'onglet/navigateur.
+  }
 }

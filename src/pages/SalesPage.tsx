@@ -123,6 +123,7 @@ export function SalesPage() {
       coefficientMilli: pkg.coefficient_milli,
       allowFraction: pkg.allow_fraction === 1,
       quantity: '1',
+      supportQuantity: '1',  // Default: 1 support per crate
       unitPrice: getTierPrice(pkg, posPriceTier),
       discountAmount: 0,
       depositPerPack,

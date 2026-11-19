@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Lock, Moon, Sun, Landmark, Settings, HelpCircle, Search, AlertTriangle, Menu } from 'lucide-react';
+import { Lock, Moon, Sun, Landmark, Settings, HelpCircle, Search, AlertTriangle, Menu, Power } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { useUiStore } from '../stores/uiStore.ts';
 import { resolveTopicIdFromPath } from '../data/businessTips.ts';
@@ -38,6 +38,7 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
   const setToken = useUiStore((s) => s.setToken);
   const openTips = useUiStore((s) => s.openTips);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isShuttingDown, setIsShuttingDown] = useState(false);
 
   useEffect(() => {
     if (!token || currentUser || typeof apiClient.getMe !== 'function') return;
@@ -97,6 +98,30 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
     navigate('/login');
   };
 
+  const handleShutdown = async () => {
+    if (isShuttingDown) return;
+    if (!confirm('Voulez-vous vraiment fermer l\'application ? Une sauvegarde automatique sera effectuée avant la fermeture.')) return;
+
+    setIsShuttingDown(true);
+    try {
+      await apiClient.createBackup();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
+      if (!confirm(`La sauvegarde automatique a échoué : ${errorMessage}\nVoulez-vous quand même fermer l'application ?`)) {
+        setIsShuttingDown(false);
+        return;
+      }
+    }
+
+    try {
+      setToken(null);
+      await apiClient.shutdownApp();
+    } catch (err) {
+      console.error('Erreur lors de la fermeture de l\'application:', err);
+      setIsShuttingDown(false);
+    }
+  };
+
   return (
     <header className="no-print flex h-16 items-center justify-between gap-2 sm:gap-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] px-3 sm:px-6 shrink-0">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -153,9 +178,8 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2 xl:px-3 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
         >
           <Landmark
-            className={`h-3.5 w-3.5 ${
-              cash?.activeSession ? 'text-[#16A36A]' : 'text-[#D9901A]'
-            }`}
+            className={`h-3.5 w-3.5 ${cash?.activeSession ? 'text-[#16A36A]' : 'text-[#D9901A]'
+              }`}
           />
           {cash?.activeSession ? (
             <span className="hidden xl:inline font-mono-num">
@@ -213,6 +237,17 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
         >
           <Lock className="h-3.5 w-3.5" />
           <span className="hidden lg:inline">Verrouiller</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleShutdown}
+          disabled={isShuttingDown}
+          aria-label="Éteindre l'application"
+          className={`inline-flex items-center gap-2 rounded-lg bg-[#DC4545] px-2.5 lg:px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 ${isShuttingDown ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          <Power className="h-3.5 w-3.5" />
+          <span className="hidden lg:inline">{isShuttingDown ? 'Fermeture...' : 'Éteindre'}</span>
         </button>
       </div>
       <GlobalSearchModal open={searchOpen} onOpenChange={setSearchOpen} />

@@ -19,7 +19,16 @@ pub const V3_MIGRATION_0005_SQL: &str =
     include_str!("../../../../migrations/sqlite/0005_security_roles_users.sql");
 pub const V3_MIGRATION_0006_SQL: &str =
     include_str!("../../../../migrations/sqlite/0006_catalogue_v3.sql");
+pub const V3_MIGRATION_0007_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0007_inactivity_timeout.sql");
 
+pub const V3_MIGRATION_0008_SQL: &str = include_str!(
+    "../../../../migrations/sqlite/0008_compatibility_validation_partial_returns_catalogue.sql"
+);
+pub const V3_MIGRATION_0010_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0010_crate_compatibility.sql");
+pub const V3_MIGRATION_0009_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0009_support_tracking.sql");
 #[derive(Debug, Clone, Copy)]
 pub struct MigrationDef {
     pub version: i64,
@@ -58,10 +67,30 @@ pub const MIGRATIONS: &[MigrationDef] = &[
         name: "0006_catalogue_v3",
         sql: V3_MIGRATION_0006_SQL,
     },
+    MigrationDef {
+        version: 7,
+        name: "0007_inactivity_timeout",
+        sql: V3_MIGRATION_0007_SQL,
+    },
+    MigrationDef {
+        version: 8,
+        name: "0008_compatibility_validation_partial_returns_catalogue",
+        sql: V3_MIGRATION_0008_SQL,
+    },
+    MigrationDef {
+        version: 9,
+        name: "0009_support_tracking",
+        sql: V3_MIGRATION_0009_SQL,
+    },
+    MigrationDef {
+        version: 10,
+        name: "0010_crate_compatibility",
+        sql: V3_MIGRATION_0010_SQL,
+    },
 ];
 
 pub const MIN_SUPPORTED_SCHEMA_VERSION: i64 = 1;
-pub const CURRENT_SCHEMA_VERSION: i64 = 6;
+pub const CURRENT_SCHEMA_VERSION: i64 = 10;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MigrationRunReport {

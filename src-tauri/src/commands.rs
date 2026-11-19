@@ -1017,3 +1017,12 @@ pub async fn restore_encrypted_backup(
     .map_err(|e| e.to_string())?;
     serde_json::to_value(res).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn shutdown_app(
+    app_handle: tauri::AppHandle,
+    _state: State<'_, DesktopState>,
+) -> Result<(), String> {
+    app_handle.exit(0);
+    Ok(())
+}

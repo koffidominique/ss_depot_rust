@@ -1,7 +1,18 @@
-export type PackagingName = 'casier' | 'carton' | 'bouteille' | 'pack' | 'canette';
-export type PriceTier = 'wholesale' | 'semi_wholesale' | 'retail';
-export type CreditPolicy = 'forbidden' | 'limited' | 'unlimited';
-export type UserRole = 'owner' | 'admin' | 'manager' | 'cashier' | 'stock_manager' | 'accountant';
+export type PackagingName =
+  | "casier"
+  | "carton"
+  | "bouteille"
+  | "pack"
+  | "canette";
+export type PriceTier = "wholesale" | "semi_wholesale" | "retail";
+export type CreditPolicy = "forbidden" | "limited" | "unlimited";
+export type UserRole =
+  | "owner"
+  | "admin"
+  | "manager"
+  | "cashier"
+  | "stock_manager"
+  | "accountant";
 
 export interface SessionUser {
   userId: string;
@@ -45,7 +56,7 @@ export interface DepositComponent {
   code: string;
   name: string;
   deposit_value: number;
-  kind: 'bottle' | 'crate';
+  kind: "bottle" | "crate";
 }
 
 export interface ProductPackaging {
@@ -61,7 +72,7 @@ export interface ProductPackaging {
   barcode: string | null;
   allow_fraction: number;
   is_active: number;
-  deposit_mode: 'none' | 'deposit' | null;
+  deposit_mode: "none" | "deposit" | null;
   components: DepositComponent[];
 }
 
@@ -102,7 +113,7 @@ export interface Client {
   id: number;
   code: string;
   name: string;
-  client_type: 'particulier' | 'professionnel';
+  client_type: "particulier" | "professionnel";
   phone: string | null;
   address: string | null;
   city: string | null;
@@ -136,7 +147,7 @@ export interface SaleSummary {
   reference: string;
   client_id: number | null;
   client_name: string;
-  sale_type: 'cash' | 'credit';
+  sale_type: "cash" | "credit";
   price_tier: PriceTier;
   subtotal_merchandise: number;
   discount_amount: number;
@@ -146,7 +157,7 @@ export interface SaleSummary {
   paid_amount: number;
   remaining_amount: number;
   payment_labels: string | null;
-  status: 'validated' | 'cancelled' | 'partially_returned' | 'returned';
+  status: "validated" | "cancelled" | "partially_returned" | "returned";
   created_at: string;
 }
 
@@ -220,7 +231,7 @@ export interface Receivable {
   initial_amount: number;
   remaining_amount: number;
   due_date: string | null;
-  status: 'open' | 'partial' | 'paid' | 'cancelled';
+  status: "open" | "partial" | "paid" | "cancelled";
   created_at: string;
 }
 
@@ -230,7 +241,7 @@ export interface PurchaseOrder {
   supplier_id: number;
   supplier_name: string;
   supplier_code: string;
-  status: 'draft' | 'confirmed' | 'partial' | 'received' | 'cancelled';
+  status: "draft" | "confirmed" | "partial" | "received" | "cancelled";
   total_amount: number;
   received_amount: number;
   expected_date: string | null;
@@ -268,7 +279,7 @@ export interface SupplierDebt {
   initial_amount: number;
   remaining_amount: number;
   due_date: string | null;
-  status: 'open' | 'partial' | 'paid';
+  status: "open" | "partial" | "paid";
   created_at: string;
 }
 
@@ -277,7 +288,7 @@ export interface CashSession {
   reference: string;
   opened_at: string;
   closed_at: string | null;
-  status: 'open' | 'closed';
+  status: "open" | "closed";
   opening_cash: number;
   theoretical_cash: number | null;
   physical_cash: number | null;
@@ -302,7 +313,7 @@ export interface CashStatus {
       method_code: string;
       method_label: string;
       is_cash: number;
-      direction: 'in' | 'out';
+      direction: "in" | "out";
       amount: number;
       description: string;
       reference_document: string | null;
@@ -387,9 +398,10 @@ export interface AppSettings {
   order_prefix: string;
   receipt_prefix: string;
   credit_note_prefix: string;
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   logo_path?: string | null;
   setup_completed?: number;
+  inactivity_timeout_minutes?: number;
 }
 
 export interface ExpenseItem {

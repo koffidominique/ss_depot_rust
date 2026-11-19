@@ -10,14 +10,13 @@ interface PinKeypadProps {
 export function PinDotsIndicator({ length }: { length: number }) {
   return (
     <div className="mt-6 flex justify-center gap-3" aria-label="Indicateur de code PIN">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 4 }).map((_, i) => (
         <div
           key={i}
-          className={`h-3.5 w-3.5 rounded-full border transition-all duration-150 ${
-            i < length
+          className={`h-3.5 w-3.5 rounded-full border transition-all duration-150 ${i < length
               ? 'border-[#2563EB] bg-[#2563EB] scale-110'
               : 'border-slate-300 dark:border-slate-700 bg-transparent'
-          }`}
+            }`}
         />
       ))}
     </div>

@@ -1,0 +1,1 @@
+ALTER TABLE app_settings ADD COLUMN inactivity_timeout_minutes INTEGER NOT NULL DEFAULT 10 CHECK (inactivity_timeout_minutes >= 1 AND inactivity_timeout_minutes <= 120);

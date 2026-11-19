@@ -18,7 +18,7 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use depotpro_core::application::auth::{self, Permission, SessionIdentity, SessionStore};
 use depotpro_core::application::{
-    cash, consignments, inventory, pdf, products, purchases, reports, sales,
+    cash, catalogue, consignments, inventory, pdf, products, purchases, reports, sales,
 };
 use depotpro_core::infrastructure::{backup, db::DepotDb};
 use depotpro_core::CoreError;
@@ -237,6 +237,17 @@ struct SearchQuery {
     page_size: Option<i64>,
 }
 
+impl From<SearchQuery> for catalogue::PaginatedQuery {
+    fn from(q: SearchQuery) -> Self {
+        catalogue::PaginatedQuery {
+            page: q.page.unwrap_or(1).max(1),
+            page_size: q.page_size.unwrap_or(50).clamp(1, 200),
+            search: q.search,
+            include_archived: q.include_archived,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct ReportQuery {
     from: Option<String>,
@@ -288,6 +299,7 @@ fn map_err(err: CoreError) -> (StatusCode, Json<serde_json::Value>) {
         CoreError::HistoricalImmutable(_) => (StatusCode::BAD_REQUEST, "HISTORICAL_IMMUTABLE"),
         CoreError::InvalidPayment(_) => (StatusCode::BAD_REQUEST, "INVALID_PAYMENT"),
         CoreError::DuplicateOperation(_) => (StatusCode::CONFLICT, "DUPLICATE_OPERATION"),
+        CoreError::NotFound(_) => (StatusCode::NOT_FOUND, "NOT_FOUND"),
         CoreError::DatabaseBusy(_) => (StatusCode::SERVICE_UNAVAILABLE, "DATABASE_BUSY"),
         CoreError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_ERROR"),
         CoreError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
@@ -688,6 +700,970 @@ async fn import_products_csv(
             Json(serde_json::json!({ "created": created })),
         )
             .into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+// ==================== CATALOGUE HANDLERS ====================
+
+async fn list_brands(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::list_brand(&db, q.into())).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_brand(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateBrandInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_brand(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_brand(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateBrandInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::update_brand(&db, id, payload)).await {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_brand(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_brand(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_bottle_profiles(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::list_bottle_profile(&db, q.into())).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_bottle_profile(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateBottleProfileInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_bottle_profile(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_bottle_profile(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateBottleProfileInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::update_bottle_profile(&db, id, payload)).await {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_bottle_profile(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_bottle_profile(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_crate_types(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::list_crate_type(&db, q.into())).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_crate_type(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateCrateTypeInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_crate_type(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_crate_type(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateCrateTypeInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::update_crate_type(&db, id, payload)).await {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_crate_type(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_crate_type(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_compatibility_groups(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::list_compatibility_group(&db, q.into())).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_compatibility_group(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateCompatibilityGroupInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_compatibility_group(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_compatibility_group(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateCompatibilityGroupInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        catalogue::update_compatibility_group(&db, id, payload),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_compatibility_group(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_compatibility_group(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_disposable_packaging_types(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        catalogue::list_disposable_packaging_type(&db, q.into()),
+    )
+    .await
+    {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_disposable_packaging_type(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateDisposablePackagingTypeInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        catalogue::create_disposable_packaging_type(&db, payload),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_disposable_packaging_type(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateDisposablePackagingTypeInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        catalogue::update_disposable_packaging_type(&db, id, payload),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_disposable_packaging_type(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_disposable_packaging_type(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_packaging_materials(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::list_packaging_material(&db, q.into())).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_packaging_material(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreatePackagingMaterialInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_packaging_material(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_packaging_material(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdatePackagingMaterialInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        catalogue::update_packaging_material(&db, id, payload),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_packaging_material(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_packaging_material(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_container_types(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::list_container_type(&db, q.into())).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_container_type(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateContainerTypeInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_container_type(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_container_type(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateContainerTypeInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::update_container_type(&db, id, payload)).await {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_container_type(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_container_type(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_units_of_measure(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::list_unit_of_measure(&db, q.into())).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_unit_of_measure(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateUnitOfMeasureInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_unit_of_measure(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_unit_of_measure(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateUnitOfMeasureInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::update_unit_of_measure(&db, id, payload)).await {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_unit_of_measure(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_unit_of_measure(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_product_variants(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+    Query(prod_q): Query<catalogue::PaginatedQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    let product_id = q.search.as_deref().and_then(|s| s.parse::<i64>().ok());
+    let cq = catalogue::PaginatedQuery {
+        page: prod_q.page,
+        page_size: prod_q.page_size,
+        search: prod_q.search,
+        include_archived: prod_q.include_archived,
+    };
+    match auth::with_actor(actor, catalogue::list_product_variants(&db, cq, product_id)).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_product_variant(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateProductVariantInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_product_variant(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_product_variant(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateProductVariantInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::update_product_variant(&db, id, payload)).await {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_product_variant(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_product_variant(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_supplier_prices(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+    Query(sup_q): Query<catalogue::PaginatedQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    let supplier_id = q.search.as_deref().and_then(|s| s.parse::<i64>().ok());
+    let cq = catalogue::PaginatedQuery {
+        page: sup_q.page,
+        page_size: sup_q.page_size,
+        search: sup_q.search,
+        include_archived: sup_q.include_archived,
+    };
+    match auth::with_actor(
+        actor,
+        catalogue::list_supplier_prices(&db, cq, supplier_id, None),
+    )
+    .await
+    {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_supplier_price(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateSupplierProductPriceInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_supplier_price(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_supplier_price(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateSupplierProductPriceInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::update_supplier_price(&db, id, payload)).await {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_supplier_price(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_supplier_price(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_customer_price_lists(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::list_customer_price_lists(&db, q.into())).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_customer_price_list(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateCustomerPriceListInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_customer_price_list(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_customer_price_list(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateCustomerPriceListInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        catalogue::update_customer_price_list(&db, id, payload),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_customer_price_list(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_customer_price_list(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_customer_price_list_items(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+    Query(pl_q): Query<catalogue::PaginatedQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    let price_list_id = q.search.as_deref().and_then(|s| s.parse::<i64>().ok());
+    let cq = catalogue::PaginatedQuery {
+        page: pl_q.page,
+        page_size: pl_q.page_size,
+        search: pl_q.search,
+        include_archived: pl_q.include_archived,
+    };
+    match auth::with_actor(
+        actor,
+        catalogue::list_customer_price_list_items(&db, cq, price_list_id),
+    )
+    .await
+    {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_customer_price_list_item(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreateCustomerPriceListItemInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        catalogue::create_customer_price_list_item(&db, payload),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_customer_price_list_item(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateCustomerPriceListItemInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        catalogue::update_customer_price_list_item(&db, id, payload),
+    )
+    .await
+    {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_customer_price_list_item(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_customer_price_list_item(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_packaging_values(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+    Query(pv_q): Query<catalogue::PaginatedQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    let returnable_id = q.search.as_deref().and_then(|s| s.parse::<i64>().ok());
+    let cq = catalogue::PaginatedQuery {
+        page: pv_q.page,
+        page_size: pv_q.page_size,
+        search: pv_q.search,
+        include_archived: pv_q.include_archived,
+    };
+    match auth::with_actor(
+        actor,
+        catalogue::list_packaging_values(&db, cq, returnable_id),
+    )
+    .await
+    {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn create_packaging_value(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<catalogue::CreatePackagingValueInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::create_packaging_value(&db, payload)).await {
+        Ok(c) => (StatusCode::CREATED, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn update_packaging_value(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdatePackagingValueInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::update_packaging_value(&db, id, payload)).await {
+        Ok(c) => (StatusCode::OK, Json(serde_json::to_value(c).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn delete_packaging_value(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::delete_packaging_value(&db, id)).await {
+        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn list_price_history(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+    Query(ph_q): Query<catalogue::PaginatedQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    let entity_type = q.search.as_deref().map(|s| s.to_string());
+    let entity_id = q.search.as_deref().and_then(|s| s.parse::<i64>().ok());
+    let cq = catalogue::PaginatedQuery {
+        page: ph_q.page,
+        page_size: ph_q.page_size,
+        search: ph_q.search,
+        include_archived: ph_q.include_archived,
+    };
+    match auth::with_actor(
+        actor,
+        catalogue::list_price_history(&db, cq, entity_type, entity_id),
+    )
+    .await
+    {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -1670,6 +2646,106 @@ fn build_router(state: AppState) -> Router {
         .route("/api/products/:id/packagings", post(upsert_packaging))
         .route("/api/products/export/csv", get(export_products_csv))
         .route("/api/products/import/csv", post(import_products_csv))
+        // ==================== CATALOGUE ROUTES ====================
+        .route("/api/brands", get(list_brands).post(create_brand))
+        .route("/api/brands/:id", put(update_brand).delete(delete_brand))
+        .route(
+            "/api/bottle-profiles",
+            get(list_bottle_profiles).post(create_bottle_profile),
+        )
+        .route(
+            "/api/bottle-profiles/:id",
+            put(update_bottle_profile).delete(delete_bottle_profile),
+        )
+        .route(
+            "/api/crate-types",
+            get(list_crate_types).post(create_crate_type),
+        )
+        .route(
+            "/api/crate-types/:id",
+            put(update_crate_type).delete(delete_crate_type),
+        )
+        .route(
+            "/api/compatibility-groups",
+            get(list_compatibility_groups).post(create_compatibility_group),
+        )
+        .route(
+            "/api/compatibility-groups/:id",
+            put(update_compatibility_group).delete(delete_compatibility_group),
+        )
+        .route(
+            "/api/disposable-packaging-types",
+            get(list_disposable_packaging_types).post(create_disposable_packaging_type),
+        )
+        .route(
+            "/api/disposable-packaging-types/:id",
+            put(update_disposable_packaging_type).delete(delete_disposable_packaging_type),
+        )
+        .route(
+            "/api/packaging-materials",
+            get(list_packaging_materials).post(create_packaging_material),
+        )
+        .route(
+            "/api/packaging-materials/:id",
+            put(update_packaging_material).delete(delete_packaging_material),
+        )
+        .route(
+            "/api/container-types",
+            get(list_container_types).post(create_container_type),
+        )
+        .route(
+            "/api/container-types/:id",
+            put(update_container_type).delete(delete_container_type),
+        )
+        .route(
+            "/api/units-of-measure",
+            get(list_units_of_measure).post(create_unit_of_measure),
+        )
+        .route(
+            "/api/units-of-measure/:id",
+            put(update_unit_of_measure).delete(delete_unit_of_measure),
+        )
+        .route(
+            "/api/product-variants",
+            get(list_product_variants).post(create_product_variant),
+        )
+        .route(
+            "/api/product-variants/:id",
+            put(update_product_variant).delete(delete_product_variant),
+        )
+        .route(
+            "/api/supplier-prices",
+            get(list_supplier_prices).post(create_supplier_price),
+        )
+        .route(
+            "/api/supplier-prices/:id",
+            put(update_supplier_price).delete(delete_supplier_price),
+        )
+        .route(
+            "/api/customer-price-lists",
+            get(list_customer_price_lists).post(create_customer_price_list),
+        )
+        .route(
+            "/api/customer-price-lists/:id",
+            put(update_customer_price_list).delete(delete_customer_price_list),
+        )
+        .route(
+            "/api/customer-price-list-items",
+            get(list_customer_price_list_items).post(create_customer_price_list_item),
+        )
+        .route(
+            "/api/customer-price-list-items/:id",
+            put(update_customer_price_list_item).delete(delete_customer_price_list_item),
+        )
+        .route(
+            "/api/packaging-values",
+            get(list_packaging_values).post(create_packaging_value),
+        )
+        .route(
+            "/api/packaging-values/:id",
+            put(update_packaging_value).delete(delete_packaging_value),
+        )
+        .route("/api/price-history", get(list_price_history))
         .route("/api/clients", get(list_clients).post(create_client))
         .route("/api/clients/:id", put(update_client))
         .route("/api/clients/:id/credit", put(update_client_credit))
@@ -1731,9 +2807,7 @@ fn build_router(state: AppState) -> Router {
     let dist_dir = PathBuf::from("./dist");
     if dist_dir.exists() {
         let index_file = dist_dir.join("index.html");
-        app = app.fallback_service(
-            ServeDir::new(&dist_dir).not_found_service(ServeFile::new(index_file)),
-        );
+        app = app.fallback_service(ServeDir::new(&dist_dir).fallback(ServeFile::new(index_file)));
     }
     app
 }

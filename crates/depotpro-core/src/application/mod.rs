@@ -1,9 +1,14 @@
 pub mod auth;
 pub mod cash;
+pub mod catalogue;
 pub mod consignments;
 pub mod inventory;
+pub mod packaging_components;
+pub mod partial_returns;
 pub mod pdf;
+pub mod product_catalogue;
 pub mod products;
 pub mod purchases;
 pub mod reports;
 pub mod sales;
+pub mod sales_validation;

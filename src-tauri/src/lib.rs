@@ -160,6 +160,7 @@ pub fn run() {
             commands::download_backup,
             commands::restore_backup,
             commands::restore_encrypted_backup,
+            commands::shutdown_app,
         ])
         .build(tauri::generate_context!())
         .expect("Erreur fatale au démarrage de DEPOTPRO Desktop");

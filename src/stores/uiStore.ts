@@ -21,6 +21,7 @@ export interface CartItem {
   coefficientMilli: number;
   allowFraction: boolean;
   quantity: string;
+  supportQuantity: string;  // Number of supports (plastic crates) - tracked separately from bottles
   unitPrice: number;
   discountAmount: number;
   depositPerPack: number;

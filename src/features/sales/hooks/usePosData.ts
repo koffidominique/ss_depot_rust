@@ -100,6 +100,7 @@ export function usePosMutations({
           product_id: c.productId,
           packaging_id: c.packagingId,
           quantity: c.quantity,
+          support_quantity: c.supportQuantity,
           discount_amount: c.discountAmount,
         })),
         payments: filteredPayments,

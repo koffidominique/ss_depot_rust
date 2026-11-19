@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use uuid::Uuid;
 
-pub const DEFAULT_SESSION_IDLE_SECS: i64 = 30 * 60;
+pub const DEFAULT_SESSION_IDLE_SECS: i64 = 10 * 60;
 pub const DEFAULT_SESSION_MAX_SECS: i64 = 12 * 60 * 60;
 pub const PIN_MAX_ATTEMPTS: i64 = 5;
 pub const PIN_LOCK_SECONDS: i64 = 30;

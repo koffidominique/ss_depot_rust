@@ -23,7 +23,7 @@ import type {
   SupplierDebt,
   UserAccount,
   UserRole,
-} from '../../types/erp.ts';
+} from "../../types/erp.ts";
 
 export class ApiError extends Error {
   public readonly code: string;
@@ -31,7 +31,7 @@ export class ApiError extends Error {
 
   constructor(code: string, message: string, status = 400) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.code = code;
     this.status = status;
   }
@@ -59,7 +59,10 @@ export interface ApiClient {
   // Auth
   getAuthStatus(): Promise<AuthStatus>;
   setupPin(pin: string): Promise<{ token: string; user?: SessionUser }>;
-  login(pin: string, username?: string): Promise<{ token: string; user?: SessionUser }>;
+  login(
+    pin: string,
+    username?: string,
+  ): Promise<{ token: string; user?: SessionUser }>;
   lock(): Promise<void>;
   changePin(currentPin: string, newPin: string): Promise<void>;
   getMe(): Promise<{ user: SessionUser }>;
@@ -88,17 +91,27 @@ export interface ApiClient {
   }): Promise<PaginatedResult<Product>>;
   createProduct(input: Record<string, unknown>): Promise<Product>;
   updateProduct(id: number, input: Record<string, unknown>): Promise<Product>;
-  upsertPackaging(productId: number, pkg: Record<string, unknown>): Promise<unknown>;
+  upsertPackaging(
+    productId: number,
+    pkg: Record<string, unknown>,
+  ): Promise<unknown>;
   exportProductsCsv(): Promise<string>;
   importProductsCsv(csv: string): Promise<{ created: number }>;
 
   // Clients & Sales
   listClients(search?: string): Promise<Client[]>;
   createClient(input: Record<string, unknown>): Promise<Client>;
-  updateClient(clientId: number, input: Record<string, unknown>): Promise<Client>;
+  updateClient(
+    clientId: number,
+    input: Record<string, unknown>,
+  ): Promise<Client>;
   updateClientCredit(
     clientId: number,
-    input: { credit_policy: CreditPolicy; credit_limit?: number | null; payment_terms_days?: number }
+    input: {
+      credit_policy: CreditPolicy;
+      credit_limit?: number | null;
+      payment_terms_days?: number;
+    },
   ): Promise<unknown>;
   listSales(params?: {
     search?: string;
@@ -110,28 +123,52 @@ export interface ApiClient {
   }): Promise<PaginatedResult<SaleSummary>>;
   getSaleDetail(saleId: number): Promise<SaleDetail>;
   createSale(input: Record<string, unknown>): Promise<SaleDetail>;
-  cancelSale(saleId: number, input: { reason: string; refund_method_code?: string; request_key: string }): Promise<SaleDetail>;
-  createSaleReturn(saleId: number, input: CreateSaleReturnPayload): Promise<SaleDetail>;
+  cancelSale(
+    saleId: number,
+    input: { reason: string; refund_method_code?: string; request_key: string },
+  ): Promise<SaleDetail>;
+  createSaleReturn(
+    saleId: number,
+    input: CreateSaleReturnPayload,
+  ): Promise<SaleDetail>;
 
   // Receivables
   listReceivables(): Promise<Receivable[]>;
   payReceivable(
     receivableId: number,
-    input: { request_key: string; note?: string; parts: Array<{ method_code: string; amount: number }> }
+    input: {
+      request_key: string;
+      note?: string;
+      parts: Array<{ method_code: string; amount: number }>;
+    },
   ): Promise<unknown>;
 
   // Suppliers & Purchases
   listSuppliers(search?: string): Promise<Supplier[]>;
   createSupplier(input: Record<string, unknown>): Promise<Supplier>;
-  updateSupplier(supplierId: number, input: Record<string, unknown>): Promise<Supplier>;
+  updateSupplier(
+    supplierId: number,
+    input: Record<string, unknown>,
+  ): Promise<Supplier>;
   listPurchases(): Promise<PurchaseOrder[]>;
   createPurchaseOrder(input: Record<string, unknown>): Promise<PurchaseOrder>;
-  receivePurchaseOrder(orderId: number, input: ReceivePurchaseOrderPayload): Promise<unknown>;
-  cancelPurchaseOrder(orderId: number, input: { reason: string }): Promise<PurchaseOrder>;
+  receivePurchaseOrder(
+    orderId: number,
+    input: ReceivePurchaseOrderPayload,
+  ): Promise<unknown>;
+  cancelPurchaseOrder(
+    orderId: number,
+    input: { reason: string },
+  ): Promise<PurchaseOrder>;
   listSupplierDebts(): Promise<SupplierDebt[]>;
   paySupplierDebt(
     debtId: number,
-    input: { method_code: string; amount: number; request_key: string; note?: string }
+    input: {
+      method_code: string;
+      amount: number;
+      request_key: string;
+      note?: string;
+    },
   ): Promise<unknown>;
 
   // Stock & Inventories
@@ -141,7 +178,7 @@ export interface ApiClient {
   }>;
   adjustStock(input: {
     product_id: number;
-    direction: 'in' | 'out';
+    direction: "in" | "out";
     quantity: string | number;
     reason: string;
     request_key: string;
@@ -150,7 +187,11 @@ export interface ApiClient {
   createInventory(notes?: string): Promise<Record<string, unknown>>;
   validateInventory(
     inventoryId: number,
-    lines: Array<{ product_id: number; counted_quantity: string | number; reason?: string }>
+    lines: Array<{
+      product_id: number;
+      counted_quantity: string | number;
+      reason?: string;
+    }>,
   ): Promise<Record<string, unknown>>;
 
   // Consignments
@@ -167,7 +208,10 @@ export interface ApiClient {
 
   // Cash & Expenses
   getCashStatus(): Promise<CashStatus>;
-  openCashSession(input: { opening_cash: number; request_key: string }): Promise<unknown>;
+  openCashSession(input: {
+    opening_cash: number;
+    request_key: string;
+  }): Promise<unknown>;
   closeCashSession(input: {
     session_id: number;
     physical_cash: number;
@@ -182,22 +226,37 @@ export interface ApiClient {
 
   // Reports, Settings & Backups
   getReports(from?: string, to?: string): Promise<ReportsOverview>;
-  getSettings(): Promise<{ settings: AppSettings; paymentMethods: PaymentMethodConfig[] }>;
+  getSettings(): Promise<{
+    settings: AppSettings;
+    paymentMethods: PaymentMethodConfig[];
+  }>;
   updateSettings(
-    input: Partial<Omit<AppSettings, 'allow_negative_stock' | 'setup_completed'>> & {
+    input: Partial<
+      Omit<AppSettings, "allow_negative_stock" | "setup_completed">
+    > & {
       allow_negative_stock?: boolean | number;
       setup_completed?: boolean | number;
-    }
+    },
   ): Promise<{ settings: AppSettings; paymentMethods: PaymentMethodConfig[] }>;
   addPaymentMethod(label: string): Promise<PaymentMethodConfig>;
-  togglePaymentMethod(code: string, active: boolean): Promise<PaymentMethodConfig>;
+  togglePaymentMethod(
+    code: string,
+    active: boolean,
+  ): Promise<PaymentMethodConfig>;
   listBackups(): Promise<BackupFile[]>;
   createBackup(): Promise<BackupFile>;
   createEncryptedBackup(passphrase: string): Promise<BackupFile>;
   verifyBackup(name: string): Promise<BackupVerifyResult>;
-  verifyEncryptedBackup(name: string, passphrase: string): Promise<BackupVerifyResult>;
+  verifyEncryptedBackup(
+    name: string,
+    passphrase: string,
+  ): Promise<BackupVerifyResult>;
   restoreBackup(name: string): Promise<BackupRestoreResult>;
-  restoreEncryptedBackup(name: string, passphrase: string): Promise<BackupRestoreResult>;
+  restoreEncryptedBackup(
+    name: string,
+    passphrase: string,
+  ): Promise<BackupRestoreResult>;
   downloadBackup(name: string): Promise<Uint8Array>;
   generateDocumentPdf(doc: Record<string, unknown>): Promise<Uint8Array>;
+  shutdownApp(): Promise<void>;
 }
