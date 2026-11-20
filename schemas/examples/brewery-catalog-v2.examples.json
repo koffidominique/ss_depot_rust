@@ -1,0 +1,278 @@
+{
+  "solibra": {
+    "schema_version": "2.0.0",
+    "catalog_id": "solibra_ci",
+    "producer": {
+      "code": "SOLIBRA",
+      "name": "SOLIBRA",
+      "country": "Côte d'Ivoire",
+      "currency": "XOF",
+      "website": "https://www.solibra.ci/"
+    },
+    "catalogue": {
+      "name": "Catalogue de référence SOLIBRA",
+      "version": "2.0.0",
+      "reference_date": "2026-11-20",
+      "source_description": "Adaptation canonique du fichier solibra_catalog.json",
+      "status": "published"
+    },
+    "import_notes": [
+      "Exemple canonique réduit, pas un tarif fournisseur.",
+      "Aucun prix, montant de consigne ou valeur de bouteille n'est importé.",
+      "La capacité commerciale du conditionnement casier ne vaut pas confirmation de la compatibilité avec un type de casier plastique physique précis."
+    ],
+    "categories": [
+      {
+        "id": "beer",
+        "name": "Bière",
+        "alcoholic": true
+      },
+      {
+        "id": "soft_drink",
+        "name": "Boisson gazeuse",
+        "alcoholic": false
+      }
+    ],
+    "brands": [
+      {
+        "id": "bock",
+        "name": "Bock",
+        "official_url": "https://www.solibra.ci/nos-marques/bieres/nos-marques/bieres-100.html",
+        "evidence_status": "verified"
+      }
+    ],
+    "products": [
+      {
+        "id": "bock",
+        "brand_id": "bock",
+        "name": "Bock",
+        "category_id": "beer",
+        "official_url": "https://www.solibra.ci/nos-marques/bieres/nos-marques/bieres-100.html",
+        "catalog_status": "current",
+        "active_in_reference": true,
+        "variants": [
+          {
+            "id": "bock_33_glass_crate24",
+            "sku": "bock_33_glass_crate24",
+            "display_name": "Bock 33 cl bouteille",
+            "volume_ml": 330,
+            "container": {
+              "kind": "bottle",
+              "material": "glass",
+              "reusable": true
+            },
+            "package_options": [
+              {
+                "unit_code": "unit",
+                "unit_name": "Bouteille",
+                "units_per_package": 1,
+                "base_unit": "unit",
+                "status": "confirmed"
+              },
+              {
+                "unit_code": "crate",
+                "unit_name": "Casier commercial",
+                "units_per_package": 24,
+                "base_unit": "unit",
+                "status": "confirmed"
+              }
+            ],
+            "crate_compatibility": [
+              {
+                "crate_type_id": "solibra_crate_24_unverified",
+                "bottles_per_crate": 24,
+                "status": "to_verify",
+                "source_id": "solibra_shop"
+              }
+            ],
+            "evidence_status": "verified",
+            "sources": [
+              "solibra_shop"
+            ]
+          },
+          {
+            "id": "bock_33_can_carton24",
+            "sku": "bock_33_can_carton24",
+            "display_name": "Bock 33 cl canette",
+            "volume_ml": 330,
+            "container": {
+              "kind": "can",
+              "material": "aluminium",
+              "reusable": false
+            },
+            "package_options": [
+              {
+                "unit_code": "unit",
+                "unit_name": "Canette",
+                "units_per_package": 1,
+                "base_unit": "unit",
+                "status": "confirmed"
+              },
+              {
+                "unit_code": "carton",
+                "unit_name": "Carton",
+                "units_per_package": 24,
+                "base_unit": "unit",
+                "status": "confirmed"
+              }
+            ],
+            "crate_compatibility": [],
+            "evidence_status": "verified",
+            "sources": [
+              "solibra_shop"
+            ]
+          }
+        ]
+      }
+    ],
+    "crate_types": [
+      {
+        "id": "solibra_crate_24_unverified",
+        "code": "SOLIBRA-CRATE-24-VERIFY",
+        "name": "Casier plastique SOLIBRA — compatibilité à confirmer",
+        "producer_code": "SOLIBRA",
+        "material": "plastic",
+        "capacity": 24,
+        "compatible_variant_ids": [
+          "bock_33_glass_crate24"
+        ],
+        "status": "to_verify",
+        "description": "Le conditionnement commercial indique 24 bouteilles ; identification physique du casier et compatibilité à confirmer avant utilisation opérationnelle."
+      }
+    ],
+    "sources": [
+      {
+        "id": "solibra_shop",
+        "url": "https://chezvous.solibra.ci/",
+        "type": "official_shop",
+        "supports": [
+          "Bock 33 cl bouteille",
+          "Conditionnement commercial de 24 bouteilles"
+        ]
+      }
+    ]
+  },
+  "brassivoire": {
+    "schema_version": "2.0.0",
+    "catalog_id": "brassivoire_ci",
+    "producer": {
+      "code": "BRASSIVOIRE",
+      "name": "BRASSIVOIRE",
+      "country": "Côte d'Ivoire",
+      "currency": "XOF",
+      "website": "https://brassivoire.ci/"
+    },
+    "catalogue": {
+      "name": "Catalogue de référence BRASSIVOIRE",
+      "version": "2.0.0",
+      "reference_date": "2026-11-20",
+      "source_description": "Adaptation canonique réduite du fichier brassivoire_catalog.json",
+      "status": "published"
+    },
+    "import_notes": [
+      "Exemple canonique réduit, pas un tarif fournisseur.",
+      "Les capacités de casiers non confirmées restent null.",
+      "Les mentions historiques de consigne ou de bouteilles retournables sont exclues du modèle financier DEPOTPRO."
+    ],
+    "categories": [
+      {
+        "id": "beer",
+        "name": "Bière",
+        "alcoholic": true
+      }
+    ],
+    "brands": [
+      {
+        "id": "heineken",
+        "name": "Heineken",
+        "official_url": "https://brassivoire.ci/nos_marques/heineken/",
+        "evidence_status": "verified"
+      }
+    ],
+    "products": [
+      {
+        "id": "heineken",
+        "brand_id": "heineken",
+        "name": "Heineken",
+        "category_id": "beer",
+        "official_url": "https://brassivoire.ci/nos_marques/heineken/",
+        "catalog_status": "current",
+        "active_in_reference": true,
+        "variants": [
+          {
+            "id": "heineken_50cl_bottle",
+            "sku": "heineken_50cl_bottle",
+            "display_name": "Heineken 50 cl bouteille",
+            "volume_ml": 500,
+            "alcohol_by_volume_percent": 5,
+            "container": {
+              "kind": "bottle",
+              "material": "glass",
+              "reusable": true
+            },
+            "package_options": [
+              {
+                "unit_code": "unit",
+                "unit_name": "Bouteille",
+                "units_per_package": 1,
+                "base_unit": "unit",
+                "status": "confirmed"
+              },
+              {
+                "unit_code": "crate",
+                "unit_name": "Casier commercial",
+                "units_per_package": null,
+                "base_unit": "unit",
+                "status": "to_verify"
+              }
+            ],
+            "crate_compatibility": [],
+            "evidence_status": "verified",
+            "sources": [
+              "heineken_page"
+            ]
+          },
+          {
+            "id": "heineken_50cl_can",
+            "sku": "heineken_50cl_can",
+            "display_name": "Heineken 50 cl canette",
+            "volume_ml": 500,
+            "alcohol_by_volume_percent": 5,
+            "container": {
+              "kind": "can",
+              "material": "aluminium",
+              "reusable": false
+            },
+            "package_options": [
+              {
+                "unit_code": "unit",
+                "unit_name": "Canette",
+                "units_per_package": 1,
+                "base_unit": "unit",
+                "status": "confirmed"
+              }
+            ],
+            "crate_compatibility": [],
+            "evidence_status": "verified",
+            "sources": [
+              "heineken_page"
+            ]
+          }
+        ]
+      }
+    ],
+    "crate_types": [],
+    "sources": [
+      {
+        "id": "heineken_page",
+        "url": "https://brassivoire.ci/nos_marques/heineken/",
+        "type": "official_product_page",
+        "supports": [
+          "Heineken bouteille 50 cl",
+          "Heineken canette 50 cl",
+          "ABV 5%"
+        ]
+      }
+    ]
+  }
+}
