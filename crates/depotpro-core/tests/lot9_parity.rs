@@ -828,7 +828,7 @@ async fn lot9_22_scenarios_business_parity() {
         )
         .await
         .unwrap();
-        assert_eq!(adj_empty.stock_after, 26);
+        assert_eq!(adj_empty.stock_after, 16);
 
         // Scénario 18 — Inventaire physique (-2 bouteilles)
         let inv = inventory::create_inventory(&db, Some("Inventaire Lot 9"))

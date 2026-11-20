@@ -1226,9 +1226,32 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         .await?;
 
         for (rid, pieces, unit_val, amt) in &line.deposit_items {
+            // Échéance selon la politique applicable (client > emballage > défaut).
+            let (policy_id, return_delay_days): (Option<i64>, i64) = sqlx::query_as(
+                "SELECT id, return_delay_days FROM packaging_policies
+                 WHERE is_active = 1
+                   AND ((client_id = ? AND returnable_id = ?)
+                     OR (client_id = ? AND returnable_id IS NULL)
+                     OR (client_id IS NULL AND returnable_id = ?)
+                     OR (client_id IS NULL AND returnable_id IS NULL))
+                 ORDER BY (client_id = ?) DESC, (returnable_id = ?) DESC
+                 LIMIT 1",
+            )
+            .bind(input.client_id)
+            .bind(rid)
+            .bind(input.client_id)
+            .bind(rid)
+            .bind(input.client_id)
+            .bind(rid)
+            .fetch_optional(&mut *tx)
+            .await?
+            .unwrap_or((None, 30));
+            let due_date = (chrono::Utc::now() + chrono::Duration::days(return_delay_days))
+                .format("%Y-%m-%d")
+                .to_string();
             sqlx::query(
-                "INSERT INTO deposit_issues (sale_id, sale_line_id, client_id, returnable_id, pieces, unit_value, amount)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO deposit_issues (sale_id, sale_line_id, client_id, returnable_id, pieces, unit_value, amount, due_date, policy_id, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')",
             )
             .bind(sale_id)
             .bind(line_id)
@@ -1237,6 +1260,8 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
             .bind(pieces)
             .bind(unit_val)
             .bind(amt)
+            .bind(&due_date)
+            .bind(policy_id)
             .execute(&mut *tx)
             .await?;
 

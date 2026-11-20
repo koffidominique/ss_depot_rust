@@ -225,7 +225,7 @@ export function PosCartPanel({
                         <span className="capitalize">{item.packagingName}</span> ·{' '}
                         {formatFcfa(item.unitPrice)}
                         {item.depositMode === 'deposit' && item.depositPerPack > 0
-                          ? ` + consigne ${formatFcfa(item.depositPerPack)}`
+                          ? ` + retour emballage ${formatFcfa(item.depositPerPack)}`
                           : ''}
                       </div>
                     </div>

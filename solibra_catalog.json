@@ -1,0 +1,1864 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_id": "solibra_ci",
+  "supplier": {
+    "name": "SOLIBRA",
+    "country": "Côte d'Ivoire",
+    "currency": "XOF",
+    "catalog_source": "SOLIBRA official website and SOLIBRA Chez Vous storefront",
+    "catalog_date": "2026-11-20"
+  },
+  "import_notes": [
+    "This is an initial seed catalog, not a supplier price list.",
+    "Prices and deposit amounts are intentionally null: configure them in DEPOTPRO using local supplier invoices or verified price lists.",
+    "Packaging quantities documented on the official storefront are marked confirmed_storefront; formats published by the brand website but without case quantity are marked confirmed_format_quantity_unknown.",
+    "Product availability and packaging may change. Owner/admin can edit, activate, deactivate, add variants and packaging.",
+    "For reusable glass bottles/cases, deposit status is marked as needs_verification unless a storefront filter or product listing explicitly confirms it; do not infer a deposit amount.",
+    "PET bottles and cans are treated as non-returnable packaging by default, but the owner can override."
+  ],
+  "categories": [
+    {
+      "id": "beer",
+      "name": "Bière",
+      "alcoholic": true
+    },
+    {
+      "id": "beer_flavoured",
+      "name": "Bière aromatisée / panachée",
+      "alcoholic": true
+    },
+    {
+      "id": "soft_drink",
+      "name": "Boisson gazeuse",
+      "alcoholic": false
+    },
+    {
+      "id": "malt_drink",
+      "name": "Boisson maltée",
+      "alcoholic": false
+    },
+    {
+      "id": "energy_drink",
+      "name": "Boisson énergisante",
+      "alcoholic": false
+    },
+    {
+      "id": "alcomix",
+      "name": "Cocktail alcoolisé / Alcomix",
+      "alcoholic": true
+    },
+    {
+      "id": "wine",
+      "name": "Vin",
+      "alcoholic": true
+    },
+    {
+      "id": "juice",
+      "name": "Jus de fruits",
+      "alcoholic": false
+    },
+    {
+      "id": "water",
+      "name": "Eau",
+      "alcoholic": false
+    }
+  ],
+  "packaging_types": [
+    {
+      "id": "returnable_glass_bottle",
+      "name": "Bouteille en verre consignée",
+      "returnable": true
+    },
+    {
+      "id": "one_way_glass_bottle",
+      "name": "Bouteille en verre perdu",
+      "returnable": false
+    },
+    {
+      "id": "can",
+      "name": "Canette",
+      "returnable": false
+    },
+    {
+      "id": "pet_bottle",
+      "name": "Bouteille PET",
+      "returnable": false
+    },
+    {
+      "id": "carton",
+      "name": "Carton",
+      "returnable": false
+    },
+    {
+      "id": "plastic_crate",
+      "name": "Casier plastique",
+      "returnable": true
+    },
+    {
+      "id": "plastic_pack",
+      "name": "Pack plastique",
+      "returnable": false
+    },
+    {
+      "id": "wine_bottle",
+      "name": "Bouteille de vin",
+      "returnable": false
+    }
+  ],
+  "products": [
+    {
+      "id": "bock",
+      "brand": "Bock",
+      "name": "Bock",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": "https://www.solibra.ci/nos-marques/bieres/nos-marques/bieres-100.html",
+      "variants": [
+        {
+          "id": "bock_33_glass_crate24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "bock_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "bock_65_glass_crate12",
+          "volume_ml": 650,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "bock_100_glass_crate12",
+          "volume_ml": 1000,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "bock_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "bock_50_can_carton24",
+          "volume_ml": 500,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        }
+      ]
+    },
+    {
+      "id": "beaufort_lager",
+      "brand": "Beaufort",
+      "name": "Beaufort Lager",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": "https://www.solibra.ci/engagements/nos-marques/bieres/nos-marques/bieres-97.html",
+      "variants": [
+        {
+          "id": "beaufort_25_glass_carton24",
+          "volume_ml": 250,
+          "container_type": "glass",
+          "packaging_type_id": "one_way_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "beaufort_33_glass_crate24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "beaufort_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "beaufort_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        }
+      ]
+    },
+    {
+      "id": "castel_beer",
+      "brand": "Castel Beer",
+      "name": "Castel Beer",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": "https://www.solibra.ci/nos-marques/bieres/nos-marques/bieres-98.html",
+      "variants": [
+        {
+          "id": "castel_33_glass_crate24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "castel_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        }
+      ]
+    },
+    {
+      "id": "doppel_munich",
+      "brand": "Doppel Munich",
+      "name": "Doppel Munich",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "doppel_33_glass_crate24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "doppel_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        }
+      ]
+    },
+    {
+      "id": "guinness",
+      "brand": "Guinness",
+      "name": "Guinness",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": "Formats carried forward from the earlier draft; verify current SOLIBRA distribution and packaging.",
+      "official_url": null,
+      "variants": [
+        {
+          "id": "guinness_33_glass_crate24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "guinness_65_glass_crate12",
+          "volume_ml": 650,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "guinness_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "budweiser",
+      "brand": "Budweiser",
+      "name": "Budweiser",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "budweiser_33_glass_carton24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "one_way_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        }
+      ]
+    },
+    {
+      "id": "corona_extra",
+      "brand": "Corona Extra",
+      "name": "Corona Extra",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "corona_33_glass_carton24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "one_way_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        }
+      ]
+    },
+    {
+      "id": "sombreros",
+      "brand": "Sombreros",
+      "name": "Sombreros",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "sombreros_33_glass_crate24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "sombreros_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "sombreros_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "chill",
+      "brand": "Chill",
+      "name": "Chill Citron",
+      "category_id": "beer_flavoured",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": "https://www.solibra.ci/chill-174841.html",
+      "variants": [
+        {
+          "id": "chill_25_glass_carton24",
+          "volume_ml": 250,
+          "container_type": "glass",
+          "packaging_type_id": "one_way_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "official_news_confirmed"
+        },
+        {
+          "id": "chill_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "chill_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_brand_site"
+        }
+      ]
+    },
+    {
+      "id": "youki",
+      "brand": "Youki",
+      "name": "Youki",
+      "category_id": "soft_drink",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": "Flavours reported by official brand page: Orange, Pomme, Cocktail, Tonic, Moka-café. Official format mapping: PET 30 cl; Orange PET 1 L; Moka-café PET 1.5 L; returnable glass 30/50 cl; can 33 cl. Confirm pack quantities.",
+      "official_url": "https://www.solibra.ci/nos-marques/boissons-gazeuses-91.html",
+      "variants": [
+        {
+          "id": "youki_30_glass_crate24",
+          "volume_ml": 300,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "official_brand_format_quantity_unknown"
+        },
+        {
+          "id": "youki_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "official_brand_format_quantity_unknown"
+        },
+        {
+          "id": "youki_30_pet_pack12",
+          "volume_ml": 300,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "official_brand_format_quantity_unknown"
+        },
+        {
+          "id": "youki_orange_100_pet_pack6",
+          "volume_ml": 1000,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 6,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "official_brand_format_quantity_unknown"
+        },
+        {
+          "id": "youki_moka_150_pet_pack6",
+          "volume_ml": 1500,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 6,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "official_brand_format_quantity_unknown"
+        },
+        {
+          "id": "youki_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "official_brand_format_quantity_unknown"
+        }
+      ],
+      "flavours": [
+        "Orange",
+        "Pomme",
+        "Cocktail",
+        "Tonic",
+        "Moka-café"
+      ]
+    },
+    {
+      "id": "world_cola",
+      "brand": "World Cola",
+      "name": "World Cola",
+      "category_id": "soft_drink",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "worldcola_30_glass_crate24",
+          "volume_ml": 300,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "worldcola_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "worldcola_30_pet_pack12",
+          "volume_ml": 300,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "worldcola_100_pet_pack6",
+          "volume_ml": 1000,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 6,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "worldcola_150_pet_pack6",
+          "volume_ml": 1500,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 6,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "worldcola_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "youzou",
+      "brand": "Youzou",
+      "name": "Youzou",
+      "category_id": "soft_drink",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": "Formats are an initial generic seed; confirm exact formats, flavours and pack counts.",
+      "official_url": null,
+      "variants": [
+        {
+          "id": "youzou_30_glass_crate24",
+          "volume_ml": 300,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "youzou_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "youzou_30_pet_pack12",
+          "volume_ml": 300,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "youzou_100_pet_pack6",
+          "volume_ml": 1000,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 6,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "youzou_150_pet_pack6",
+          "volume_ml": 1500,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 6,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "youzou_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "orangina",
+      "brand": "Orangina",
+      "name": "Orangina",
+      "category_id": "soft_drink",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "orangina_30_glass_crate24",
+          "volume_ml": 300,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "orangina_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "orangina_50_pet_pack6",
+          "volume_ml": 500,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 6,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "orangina_125_pet_pack6",
+          "volume_ml": 1250,
+          "container_type": "pet",
+          "packaging_type_id": "pet_bottle",
+          "package_size": {
+            "units_per_package": 6,
+            "package_unit": "pack"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "pack",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        },
+        {
+          "id": "orangina_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        }
+      ]
+    },
+    {
+      "id": "malta_guinness",
+      "brand": "Malta Guinness",
+      "name": "Malta Guinness",
+      "category_id": "malt_drink",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "malta_30_glass_crate24",
+          "volume_ml": 300,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "confirmed_storefront"
+        }
+      ]
+    },
+    {
+      "id": "doppel_energy_malt",
+      "brand": "Doppel Energy Malt",
+      "name": "Doppel Energy Malt",
+      "category_id": "malt_drink",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "doppel_energy_33_glass_crate24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "doppel_energy_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "ferox_energy",
+      "brand": "Ferox Energy",
+      "name": "Ferox Energy",
+      "category_id": "energy_drink",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "ferox_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "xxl_energy",
+      "brand": "XXL",
+      "name": "XXL Energy",
+      "category_id": "energy_drink",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "xxl_can_carton24",
+          "volume_ml": null,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "racines",
+      "brand": "Racines",
+      "name": "Racines",
+      "category_id": "alcomix",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "racines_33_glass_crate24",
+          "volume_ml": 330,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "racines_50_glass_crate20",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 20,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "racines_33_can_carton24",
+          "volume_ml": 330,
+          "container_type": "can",
+          "packaging_type_id": "can",
+          "package_size": {
+            "units_per_package": 24,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "racines_fort",
+      "brand": "Racines Fort",
+      "name": "Racines Fort",
+      "category_id": "alcomix",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "racines_fort_50_glass_crate12",
+          "volume_ml": 500,
+          "container_type": "glass",
+          "packaging_type_id": "returnable_glass_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "casier"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "casier",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "booster_mojito",
+      "brand": "Booster Mojito",
+      "name": "Booster Mojito",
+      "category_id": "alcomix",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "booster_mojito_variant_unknown",
+          "volume_ml": null,
+          "container_type": "unknown",
+          "packaging_type_id": "one_way_glass_bottle",
+          "package_size": {
+            "units_per_package": null,
+            "package_unit": "package"
+          },
+          "deposit": {
+            "applies": null,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "needs_verification",
+            "deposit_scope": null
+          },
+          "purchase_unit": "package",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "brand_only_needs_variant_verification"
+        }
+      ]
+    },
+    {
+      "id": "valpierre",
+      "brand": "Valpierre",
+      "name": "Valpierre",
+      "category_id": "wine",
+      "active": true,
+      "catalog_status": "documented",
+      "notes": null,
+      "official_url": null,
+      "variants": [
+        {
+          "id": "valpierre_50_bottle_case12",
+          "volume_ml": 500,
+          "container_type": "wine_bottle",
+          "packaging_type_id": "wine_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        },
+        {
+          "id": "valpierre_100_bottle_case12",
+          "volume_ml": 1000,
+          "container_type": "wine_bottle",
+          "packaging_type_id": "wine_bottle",
+          "package_size": {
+            "units_per_package": 12,
+            "package_unit": "carton"
+          },
+          "deposit": {
+            "applies": false,
+            "amount_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable",
+            "deposit_scope": null
+          },
+          "purchase_unit": "carton",
+          "sale_units": [
+            "package",
+            "individual_unit"
+          ],
+          "evidence_status": "needs_supplier_confirmation"
+        }
+      ]
+    },
+    {
+      "id": "flag",
+      "brand": "Flag",
+      "name": "Flag",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "brand_only_needs_variant_verification",
+      "notes": "Brand listed in SOLIBRA materials; packaging variants and case quantities require confirmation.",
+      "official_url": null,
+      "variants": []
+    },
+    {
+      "id": "tuborg",
+      "brand": "Tuborg",
+      "name": "Tuborg",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "brand_only_needs_variant_verification",
+      "notes": "Brand listed in SOLIBRA materials; packaging variants and case quantities require confirmation.",
+      "official_url": null,
+      "variants": []
+    },
+    {
+      "id": "number_one",
+      "brand": "Number One",
+      "name": "Number One",
+      "category_id": "beer",
+      "active": true,
+      "catalog_status": "brand_only_needs_variant_verification",
+      "notes": "Brand listed in SOLIBRA materials; packaging variants and case quantities require confirmation.",
+      "official_url": null,
+      "variants": []
+    },
+    {
+      "id": "vimto",
+      "brand": "Vimto",
+      "name": "Vimto",
+      "category_id": "soft_drink",
+      "active": true,
+      "catalog_status": "brand_only_needs_variant_verification",
+      "notes": "Brand listed in SOLIBRA materials; packaging variants and case quantities require confirmation.",
+      "official_url": null,
+      "variants": []
+    },
+    {
+      "id": "compal",
+      "brand": "Compal",
+      "name": "Compal",
+      "category_id": "juice",
+      "active": true,
+      "catalog_status": "brand_only_needs_variant_verification",
+      "notes": "Brand listed in SOLIBRA materials; packaging variants and case quantities require confirmation.",
+      "official_url": null,
+      "variants": []
+    },
+    {
+      "id": "awa",
+      "brand": "AWA",
+      "name": "AWA",
+      "category_id": "water",
+      "active": true,
+      "catalog_status": "brand_only_needs_variant_verification",
+      "notes": "Brand listed in SOLIBRA materials; packaging variants and case quantities require confirmation.",
+      "official_url": null,
+      "variants": []
+    },
+    {
+      "id": "cristaline",
+      "brand": "Cristaline",
+      "name": "Cristaline",
+      "category_id": "water",
+      "active": true,
+      "catalog_status": "brand_only_needs_variant_verification",
+      "notes": "Brand listed in SOLIBRA materials; packaging variants and case quantities require confirmation.",
+      "official_url": null,
+      "variants": []
+    },
+    {
+      "id": "nzed_energy_malt",
+      "brand": "N'Zed Energy Malt",
+      "name": "N'Zed Energy Malt",
+      "category_id": "energy_drink",
+      "active": true,
+      "catalog_status": "brand_only_needs_variant_verification",
+      "notes": "Brand listed in SOLIBRA materials; packaging variants and case quantities require confirmation.",
+      "official_url": null,
+      "variants": []
+    }
+  ],
+  "sources": [
+    {
+      "id": "solibra_official_brands",
+      "url": "https://www.solibra.ci/nos-marques-11.html",
+      "type": "official_brand_catalog"
+    },
+    {
+      "id": "solibra_official_youki",
+      "url": "https://www.solibra.ci/nos-marques/boissons-gazeuses-91.html",
+      "type": "official_brand_page"
+    },
+    {
+      "id": "solibra_official_beaufort",
+      "url": "https://www.solibra.ci/engagements/nos-marques/bieres/nos-marques/bieres-97.html",
+      "type": "official_brand_page"
+    },
+    {
+      "id": "solibra_official_bock",
+      "url": "https://www.solibra.ci/nos-marques/bieres/nos-marques/bieres-100.html",
+      "type": "official_brand_page"
+    },
+    {
+      "id": "solibra_storefront",
+      "url": "https://www.solibrachezvous.ci/boutique/",
+      "type": "official_storefront"
+    }
+  ]
+}

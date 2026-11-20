@@ -2,8 +2,8 @@ use crate::state::DesktopState;
 use chrono::Utc;
 use depotpro_core::application::auth::{self, Permission, SessionIdentity};
 use depotpro_core::application::{
-    cash, consignments, inventory, packaging_components, partial_returns, pdf, product_catalogue,
-    products, purchases, reports, sales, sales_validation,
+    cash, consignments, inventory, packaging_components, packaging_obligations, partial_returns,
+    pdf, product_catalogue, products, purchases, reports, sales, sales_validation,
 };
 use depotpro_core::infrastructure::backup;
 use tauri::State;
@@ -1472,6 +1472,64 @@ pub async fn list_catalogue_products_pc(
     serde_json::to_value(list).map_err(|e| e.to_string())
 }
 
+// ---- PHASE 4 catalogue_seed.md : administration OWNER du catalogue standard ----
+
+#[tauri::command]
+pub async fn set_catalogue_product_active_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    product_id: i64,
+    is_active: bool,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let dto = auth::with_actor(
+        actor,
+        product_catalogue::set_catalogue_product_active(&db, product_id, is_active),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(dto).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_catalogue_reference_price_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    product_id: i64,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let username = actor.username.clone();
+    let input: product_catalogue::SetReferencePriceInput =
+        serde_json::from_value(payload).map_err(|e| e.to_string())?;
+    let dto = auth::with_actor(
+        actor,
+        product_catalogue::set_reference_price(&db, product_id, input, Some(&username)),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(dto).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_catalogue_reference_price_history_pc(
+    state: State<'_, DesktopState>,
+    token: String,
+    product_id: i64,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogRead).await?;
+    let db = state.db().await;
+    let list = auth::with_actor(
+        actor,
+        product_catalogue::list_reference_price_history(&db, product_id),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(list).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn initialize_catalogue_pc(
     state: State<'_, DesktopState>,
@@ -1479,8 +1537,61 @@ pub async fn initialize_catalogue_pc(
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
     let db = state.db().await;
-    let rep = auth::with_actor(actor, product_catalogue::initialize_initial_catalogue(&db))
+    auth::with_actor(actor, product_catalogue::initialize_initial_catalogue(&db))
+        .await
+        .map_err(|e| e.to_string())
+        .and_then(|rep| serde_json::to_value(rep).map_err(|e| e.to_string()))
+}
+
+// ---- PHASE 6/7 MAJ.md : créances financières d'emballages ----
+
+#[tauri::command]
+pub async fn list_packaging_obligations(
+    state: State<'_, DesktopState>,
+    token: String,
+    client_id: Option<i64>,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
+    let db = state.db().await;
+    let list = auth::with_actor(actor, packaging_obligations::list_obligations(&db, client_id))
         .await
         .map_err(|e| e.to_string())?;
-    serde_json::to_value(rep).map_err(|e| e.to_string())
+    serde_json::to_value(list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_packaging_dashboard(
+    state: State<'_, DesktopState>,
+    token: String,
+    client_id: i64,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
+    let db = state.db().await;
+    let dto = auth::with_actor(
+        actor,
+        packaging_obligations::get_client_packaging_dashboard(&db, client_id),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(dto).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn pay_packaging_debt(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ReceivablesPay).await?;
+    let db = state.db().await;
+    let username = actor.username.clone();
+    let input: packaging_obligations::PayPackagingDebtInput =
+        serde_json::from_value(payload).map_err(|e| e.to_string())?;
+    let dto = auth::with_actor(
+        actor,
+        packaging_obligations::pay_packaging_financial_debt(&db, input, Some(&username)),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(dto).map_err(|e| e.to_string())
 }

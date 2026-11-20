@@ -30,7 +30,7 @@ export function ConsignmentsSummaryCards({
         hint="Bouteilles et casiers à récupérer"
       />
       <MetricCard
-        label="Dépôts de garantie retenus"
+        label="Valeurs d'emballages en attente"
         value={formatFcfa(totalHeldAmount)}
         hint="Séparés du chiffre d'affaires marchandises"
       />

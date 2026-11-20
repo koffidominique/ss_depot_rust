@@ -32,7 +32,7 @@ const SCREEN_SHORTCUTS: Array<{ title: string; subtitle: string; to: string; key
   { title: 'Catalogue produits', subtitle: 'Articles, conditionnements, tarifs', to: '/products', keywords: 'articles prix casier pack' },
   { title: 'Stocks & Mouvements', subtitle: 'Valorisation et ajustements', to: '/stock', keywords: 'stock alerte entree sortie' },
   { title: 'Inventaires physiques', subtitle: 'Comptages et écarts', to: '/inventories', keywords: 'inventaire comptage ecart' },
-  { title: 'Consignations & Emballages', subtitle: 'Casiers et palettes', to: '/consignments', keywords: 'consigne emballage vide' },
+  { title: 'Retour emballages', subtitle: 'Casiers et palettes', to: '/consignments', keywords: 'retour emballage vide casier palette' },
   { title: 'Fournisseurs', subtitle: 'Contacts et dettes', to: '/suppliers', keywords: 'fournisseur dette achat' },
   { title: 'Approvisionnements', subtitle: 'Commandes et réceptions', to: '/purchases', keywords: 'achat commande reception' },
   { title: 'Session de caisse', subtitle: 'Ouverture, mouvements et clôture', to: '/cash', keywords: 'caisse especes wave orange' },

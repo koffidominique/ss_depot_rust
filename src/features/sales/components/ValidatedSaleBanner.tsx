@@ -28,7 +28,7 @@ export function buildSalePrintableDoc(sale: SaleDetail): PrintableDocumentData {
         total: l.line_total,
       })),
       ...sale.deposits.map((d) => ({
-        label: `Consigne : ${d.packaging_name}`,
+        label: `Retour emballage : ${d.packaging_name}`,
         sublabel: `Code ${d.packaging_code}`,
         quantity: `${d.pieces} pcs`,
         unitPrice: d.unit_value,
@@ -38,7 +38,7 @@ export function buildSalePrintableDoc(sale: SaleDetail): PrintableDocumentData {
     summaryRows: [
       { label: 'Total marchandises', value: formatFcfa(sale.total_merchandise) },
       { label: 'Remise', value: formatFcfa(sale.discount_amount) },
-      { label: 'Consignes emballages', value: formatFcfa(sale.total_deposit) },
+      { label: 'Retour emballages', value: formatFcfa(sale.total_deposit) },
       { label: 'Total TTC', value: formatFcfa(sale.total_amount), bold: true },
       { label: 'Encaissé', value: formatFcfa(sale.paid_amount), tone: 'success' },
       {

@@ -14,7 +14,8 @@
     "test": "cargo test --workspace",
     "test:e2e": "playwright test",
     "benchmark": "cargo run -p depotpro-core --example benchmark_perf",
-    "seed:demo": "cargo run -p depotpro-core --example seed_demo"
+    "seed:demo": "cargo run -p depotpro-core --example seed_demo",
+    "seed:catalog": "python3 scripts/seed_catalog.py"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

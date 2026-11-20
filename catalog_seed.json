@@ -1,0 +1,543 @@
+{
+  "meta": {
+    "name": "ss-depot-rust-catalog-seed",
+    "version": "1.0.0",
+    "description": "Catalogue central de référence — brasseries, marques, catégories, produits, variantes et conditionnements du marché ivoirien. Prix à 0 : les tarifs sont configurés par l'OWNER (jamais de prix public importé comme prix d'achat).",
+    "currency": "FCFA",
+    "rules": {
+      "no_invented_packaging": "Un conditionnement non confirmé n'est jamais créé : la variante est marquée to_verify.",
+      "verification_statuses": ["verified", "to_verify", "historical", "custom", "inactive"],
+      "source_types": ["manufacturer_official", "manufacturer_announcement", "official_shop", "supplier_catalog", "retailer", "secondary_source", "manual_entry"]
+    }
+  },
+  "manufacturers": [
+    {
+      "code": "MFR-SOLIBRA",
+      "name": "SOLIBRA",
+      "country": "Côte d'Ivoire",
+      "website": "https://www.solibra.ci/",
+      "shop_url": "https://solibrachezvous.ci/boutique/",
+      "description": "Brasseries de Côte d'Ivoire — premier producteur de bières et boissons du pays.",
+      "source": "manufacturer_official",
+      "brewery": true,
+      "brands": [
+        {
+          "code": "BR-BOCK", "name": "Bock", "category": "Bières", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Bock Lager",
+              "variants": [
+                { "sku": "BOCK-B33-CAS24",   "name": "Bock 33 cl bouteille",   "volume_ml": 330,  "container": "glass_bottle", "packaging": { "type": "crate",   "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "BOCK-B50-CAS12",   "name": "Bock 50 cl bouteille",   "volume_ml": 500,  "container": "glass_bottle", "packaging": { "type": "crate",   "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "BOCK-B65-CAS12",   "name": "Bock 65 cl bouteille",   "volume_ml": 650,  "container": "glass_bottle", "packaging": { "type": "crate",   "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "BOCK-B100-CAS12",  "name": "Bock 100 cl bouteille",  "volume_ml": 1000, "container": "glass_bottle", "packaging": { "type": "crate",   "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "BOCK-C33-CT24",    "name": "Bock 33 cl canette",     "volume_ml": 330,  "container": "can",          "packaging": { "type": "carton",  "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "BOCK-C50-CT24",    "name": "Bock 50 cl canette",     "volume_ml": 500,  "container": "can",          "packaging": { "type": "carton",  "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-BEAUFORT", "name": "Beaufort", "category": "Bières", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Beaufort Lager",
+              "variants": [
+                { "sku": "BEA-B25-CT24",  "name": "Beaufort 25 cl bouteille", "volume_ml": 250, "container": "glass_bottle", "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "BEA-B33-CAS24", "name": "Beaufort 33 cl bouteille", "volume_ml": 330, "container": "glass_bottle", "packaging": { "type": "crate",  "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "BEA-B50-CAS12", "name": "Beaufort 50 cl bouteille", "volume_ml": 500, "container": "glass_bottle", "packaging": { "type": "crate",  "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "BEA-C33-CT24",  "name": "Beaufort 33 cl canette",   "volume_ml": 330, "container": "can",          "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-CASTEL", "name": "Castel Beer", "category": "Bières", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Castel Beer",
+              "variants": [
+                { "sku": "CAS-B33-CAS24", "name": "Castel 33 cl bouteille", "volume_ml": 330, "container": "glass_bottle", "packaging": { "type": "crate", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "CAS-B50-CAS12", "name": "Castel 50 cl bouteille", "volume_ml": 500, "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-DOPPEL", "name": "Doppel Munich", "category": "Bières", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Doppel Munich",
+              "variants": [
+                { "sku": "DOP-B33-CAS24", "name": "Doppel Munich 33 cl bouteille", "volume_ml": 330, "container": "glass_bottle", "packaging": { "type": "crate", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "DOP-B50-CAS12", "name": "Doppel Munich 50 cl bouteille", "volume_ml": 500, "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "DOP-B33-CT24-MALT", "name": "Doppel Energy Malt 33 cl bouteille", "volume_ml": 330, "container": "glass_bottle", "packaging": { "type": "crate", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "DOP-C33-CT24-MALT", "name": "Doppel Energy Malt 33 cl canette",   "volume_ml": 330, "container": "can",          "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-GUINNESS", "name": "Guinness", "category": "Bières", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Guinness Foreign Extra",
+              "variants": [
+                { "sku": "GUI-B33-CAS24", "name": "Guinness 33 cl bouteille", "volume_ml": 330, "container": "glass_bottle", "packaging": { "type": "crate",  "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "GUI-B65-CAS12", "name": "Guinness 65 cl bouteille", "volume_ml": 650, "container": "glass_bottle", "packaging": { "type": "crate",  "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "GUI-C33-CT24",  "name": "Guinness 33 cl canette",   "volume_ml": 330, "container": "can",          "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-MALTA-GUINNESS", "name": "Malta Guinness", "category": "Boissons maltées", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Malta Guinness",
+              "variants": [
+                { "sku": "MAL-B30-CAS24", "name": "Malta Guinness 30 cl bouteille", "volume_ml": 300, "container": "glass_bottle", "packaging": { "type": "crate", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-CHILL", "name": "Chill", "category": "Bières aromatisées", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Chill",
+              "variants": [
+                { "sku": "CHI-C33-CT24",      "name": "Chill 33 cl canette",        "volume_ml": 330, "container": "can",          "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "CHI-CIT-B50-CAS12", "name": "Chill Citron 50 cl bouteille", "volume_ml": 500, "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-RACINES", "name": "Racines", "category": "Bières aromatisées", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Racines",
+              "variants": [
+                { "sku": "RAC-B33-CAS24", "name": "Racines 33 cl bouteille", "volume_ml": 330, "container": "glass_bottle", "packaging": { "type": "crate",  "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "RAC-B50-CAS20", "name": "Racines 50 cl bouteille", "volume_ml": 500, "container": "glass_bottle", "packaging": { "type": "crate",  "units": 20 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "RAC-C33-CT24",  "name": "Racines 33 cl canette",   "volume_ml": 330, "container": "can",          "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-RACINES-FORT", "name": "Racines Fort", "category": "Bières aromatisées", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Racines Fort",
+              "variants": [
+                { "sku": "RCF-B50-CAS12", "name": "Racines Fort 50 cl bouteille", "volume_ml": 500, "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-SOMBREROS", "name": "Sombreros", "category": "Bières aromatisées", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Sombreros",
+              "variants": [
+                { "sku": "SOM-B33-CAS24", "name": "Sombreros 33 cl bouteille", "volume_ml": 330, "container": "glass_bottle", "packaging": { "type": "crate", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "SOM-B50-CAS12", "name": "Sombreros 50 cl bouteille", "volume_ml": 500, "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-FEROX", "name": "Ferox Energy", "category": "Boissons énergisantes", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Ferox Energy",
+              "variants": [
+                { "sku": "FER-C33-CT24", "name": "Ferox Energy 33 cl canette", "volume_ml": 330, "container": "can", "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-XXL", "name": "XXL Energy", "category": "Boissons énergisantes", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "XXL Energy",
+              "variants": [
+                { "sku": "XXL-C33-CT24", "name": "XXL Energy 33 cl canette", "volume_ml": 330, "container": "can", "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-VALPIERRE", "name": "Valpierre", "category": "Vins", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Valpierre",
+              "variants": [
+                { "sku": "VAL-B50-CAS12",  "name": "Valpierre 50 cl bouteille",  "volume_ml": 500,  "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "VAL-B100-CAS12", "name": "Valpierre 100 cl bouteille", "volume_ml": 1000, "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-ORANGINA", "name": "Orangina", "category": "Boissons gazeuses", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Orangina",
+              "variants": [
+                { "sku": "ORA-B30-CAS24", "name": "Orangina 30 cl verre",   "volume_ml": 300,  "container": "glass_bottle", "packaging": { "type": "crate", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "ORA-B50-CAS12", "name": "Orangina 50 cl verre",   "volume_ml": 500,  "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "ORA-P50-PK12",  "name": "Orangina 50 cl PET",     "volume_ml": 500,  "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "ORA-P125-PK6",  "name": "Orangina 1,25 L PET",    "volume_ml": 1250, "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 6 },  "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "ORA-C33-CT24",  "name": "Orangina 33 cl canette", "volume_ml": 330,  "container": "can",          "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-WORLD-COLA", "name": "World Cola", "category": "Boissons gazeuses", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "World Cola",
+              "variants": [
+                { "sku": "WCO-B30-CAS24", "name": "World Cola 30 cl verre",  "volume_ml": 300,  "container": "glass_bottle", "packaging": { "type": "crate", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "WCO-B50-CAS12", "name": "World Cola 50 cl verre",  "volume_ml": 500,  "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "WCO-P30-PK12",  "name": "World Cola 30 cl PET",    "volume_ml": 300,  "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "WCO-P100-PK6",  "name": "World Cola 1 L PET",      "volume_ml": 1000, "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 6 },  "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "WCO-P150-PK6",  "name": "World Cola 1,5 L PET",    "volume_ml": 1500, "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 6 },  "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "WCO-C33-CT24",  "name": "World Cola 33 cl canette","volume_ml": 330,  "container": "can",          "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-YOUKI", "name": "Youki", "category": "Boissons gazeuses", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Youki",
+              "description": "Variantes aromatiques à compléter selon le catalogue fournisseur.",
+              "variants": [
+                { "sku": "YOU-B30-CAS24", "name": "Youki 30 cl verre",   "volume_ml": 300,  "container": "glass_bottle", "packaging": { "type": "crate", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "YOU-B50-CAS12", "name": "Youki 50 cl verre",   "volume_ml": 500,  "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "YOU-P30-PK12",  "name": "Youki 30 cl PET",     "volume_ml": 300,  "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "YOU-P100-PK6",  "name": "Youki 1 L PET",       "volume_ml": 1000, "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 6 },  "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "YOU-P150-PK6",  "name": "Youki 1,5 L PET",     "volume_ml": 1500, "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 6 },  "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "YOU-C33-CT24",  "name": "Youki 33 cl canette", "volume_ml": 330,  "container": "can",          "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-YOUZOU", "name": "Youzou", "category": "Boissons gazeuses", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Youzou",
+              "variants": [
+                { "sku": "YZO-B30-CAS24", "name": "Youzou 30 cl verre",   "volume_ml": 300,  "container": "glass_bottle", "packaging": { "type": "crate", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "YZO-B50-CAS12", "name": "Youzou 50 cl verre",   "volume_ml": 500,  "container": "glass_bottle", "packaging": { "type": "crate", "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": true },
+                { "sku": "YZO-P30-PK12",  "name": "Youzou 30 cl PET",     "volume_ml": 300,  "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 12 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "YZO-P100-PK6",  "name": "Youzou 1 L PET",       "volume_ml": 1000, "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 6 },  "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "YZO-P150-PK6",  "name": "Youzou 1,5 L PET",     "volume_ml": 1500, "container": "pet_bottle",   "packaging": { "type": "pack",  "units": 6 },  "verification_status": "verified", "source": "official_shop", "returnable_packaging": false },
+                { "sku": "YZO-C33-CT24",  "name": "Youzou 33 cl canette", "volume_ml": 330,  "container": "can",          "packaging": { "type": "carton", "units": 24 }, "verification_status": "verified", "source": "official_shop", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-BUDWEISER", "name": "Budweiser", "category": "Bières importées", "verification_status": "to_verify",
+          "source": "manufacturer_announcement",
+          "description": "Marque distribuée — fabrication physique non attribuée à SOLIBRA.",
+          "products": [
+            {
+              "name": "Budweiser",
+              "variants": [
+                { "sku": "BUD-B33", "name": "Budweiser 33 cl", "volume_ml": 330, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_announcement", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-CORONA", "name": "Corona Extra", "category": "Bières importées", "verification_status": "to_verify",
+          "source": "manufacturer_announcement",
+          "description": "Marque distribuée — fabrication physique non attribuée à SOLIBRA.",
+          "products": [
+            {
+              "name": "Corona Extra",
+              "variants": [
+                { "sku": "COR-B33", "name": "Corona Extra 33 cl", "volume_ml": 330, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_announcement", "returnable_packaging": false }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "MFR-BRASSIVOIRE",
+      "name": "BRASSIVOIRE",
+      "country": "Côte d'Ivoire",
+      "website": "https://brassivoire.ci/nos-marques/",
+      "description": "Brassivoire Côte d'Ivoire (groupe HEINEKEN) — producteur des bières Ivoire, Heineken, Desperados.",
+      "source": "manufacturer_official",
+      "brewery": true,
+      "brands": [
+        {
+          "code": "BR-IVOIRE-CLASSIC", "name": "Ivoire Classic", "category": "Bières", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Ivoire Classic",
+              "variants": [
+                { "sku": "IVO-CL-B33", "name": "Ivoire Classic 33 cl", "volume_ml": 330, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "IVO-CL-B50", "name": "Ivoire Classic 50 cl", "volume_ml": 500, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "IVO-CL-B60", "name": "Ivoire Classic 60 cl", "volume_ml": 600, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-IVOIRE-BLACK", "name": "Ivoire Black", "category": "Bières", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Ivoire Black",
+              "variants": [
+                { "sku": "IVO-BK-B33", "name": "Ivoire Black 33 cl", "volume_ml": 330, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "IVO-BK-B60", "name": "Ivoire Black 60 cl", "volume_ml": 600, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-HEINEKEN-CI", "name": "Heineken", "category": "Bières", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Heineken",
+              "variants": [
+                { "sku": "HEI-B33", "name": "Heineken 33 cl bouteille", "volume_ml": 330, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "HEI-B50", "name": "Heineken 50 cl bouteille", "volume_ml": 500, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-DESPERADOS", "name": "Desperados", "category": "Bières", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Desperados",
+              "variants": [
+                { "sku": "DES-B25", "name": "Desperados 25 cl bouteille", "volume_ml": 250, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "DES-B33", "name": "Desperados 33 cl bouteille", "volume_ml": 330, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "DES-C50", "name": "Desperados 50 cl canette",   "volume_ml": 500, "container": "can",          "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-RHINO", "name": "Rhino Energy Malt", "category": "Boissons énergisantes", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Rhino Energy Malt",
+              "variants": [
+                { "sku": "RHI-B33", "name": "Rhino Energy Malt 33 cl", "volume_ml": 330, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-IVOIRE-HIST", "name": "Références historiques Brassivoire", "category": "Références historiques", "verification_status": "historical",
+          "source": "secondary_source",
+          "description": "Références historiques conservées — commercialisation actuelle non confirmée.",
+          "products": [
+            {
+              "name": "Ivoire Mix",
+              "variants": [ { "sku": "IVO-MIX", "name": "Ivoire Mix", "volume_ml": null, "container": "glass_bottle", "packaging": null, "verification_status": "historical", "source": "secondary_source", "returnable_packaging": false } ]
+            },
+            {
+              "name": "Ivoire Spéciale",
+              "variants": [ { "sku": "IVO-SPEC", "name": "Ivoire Spéciale", "volume_ml": null, "container": "glass_bottle", "packaging": null, "verification_status": "historical", "source": "secondary_source", "returnable_packaging": false } ]
+            },
+            {
+              "name": "Class",
+              "variants": [ { "sku": "CLASS-BRAV", "name": "Class", "volume_ml": null, "container": "glass_bottle", "packaging": null, "verification_status": "historical", "source": "secondary_source", "returnable_packaging": false } ]
+            },
+            {
+              "name": "Mützig",
+              "variants": [ { "sku": "MUTZ-CI", "name": "Mützig", "volume_ml": null, "container": "glass_bottle", "packaging": null, "verification_status": "historical", "source": "secondary_source", "returnable_packaging": false } ]
+            },
+            {
+              "name": "Amstel",
+              "variants": [ { "sku": "AMSTEL-CI", "name": "Amstel", "volume_ml": null, "container": "glass_bottle", "packaging": null, "verification_status": "historical", "source": "secondary_source", "returnable_packaging": false } ]
+            },
+            {
+              "name": "Sol",
+              "variants": [ { "sku": "SOL-CI", "name": "Sol", "volume_ml": null, "container": "glass_bottle", "packaging": null, "verification_status": "historical", "source": "secondary_source", "returnable_packaging": false } ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "MFR-NBCI",
+      "name": "Nouvelle Brasserie de Côte d'Ivoire (NBCI)",
+      "country": "Côte d'Ivoire",
+      "website": "https://digital-nb-ci.com/site/",
+      "description": "NBCI — boissons gazeuses et énergisantes.",
+      "source": "manufacturer_official",
+      "brewery": false,
+      "brands": [
+        {
+          "code": "BR-AMERICAN-COLA", "name": "American Cola", "category": "Boissons gazeuses", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "American Cola",
+              "variants": [
+                { "sku": "ACO-P33", "name": "American Cola 33 cl PET", "volume_ml": 330, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-PLANET", "name": "Planet", "category": "Boissons gazeuses", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "description": "Parfums à compléter selon le catalogue fournisseur.",
+          "products": [
+            {
+              "name": "Planet",
+              "variants": [
+                { "sku": "PLA-P33", "name": "Planet 33 cl PET", "volume_ml": 330, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-BUBBLE-UP", "name": "Bubble Up", "category": "Boissons gazeuses", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Bubble Up",
+              "variants": [
+                { "sku": "BUB-P33", "name": "Bubble Up 33 cl PET", "volume_ml": 330, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-REAKTOR", "name": "Reaktor", "category": "Boissons énergisantes", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Reaktor",
+              "variants": [
+                { "sku": "REA-P33", "name": "Reaktor 33 cl", "volume_ml": 330, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-ASSINIE", "name": "Assinie", "category": "Boissons gazeuses", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Assinie",
+              "variants": [
+                { "sku": "ASS-P33", "name": "Assinie 33 cl PET", "volume_ml": 330, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-JIRI", "name": "Jiri", "category": "Boissons gazeuses", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Jiri",
+              "variants": [
+                { "sku": "JIR-P33", "name": "Jiri 33 cl PET", "volume_ml": 330, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-VIMTO", "name": "Vimto", "category": "Boissons gazeuses", "verification_status": "to_verify",
+          "source": "secondary_source",
+          "products": [
+            {
+              "name": "Vimto",
+              "variants": [
+                { "sku": "VIM-P33", "name": "Vimto 33 cl PET", "volume_ml": 330, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "secondary_source", "returnable_packaging": false }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "MFR-SIPROCOM",
+      "name": "SIPROCOM",
+      "country": "Côte d'Ivoire",
+      "website": "https://siprocom.ci/",
+      "description": "SIPROCOM — producteur de boissons (jus, sangrias, vins). Ne pas classer comme brasserie de bière.",
+      "source": "manufacturer_official",
+      "brewery": false,
+      "brands": [
+        {
+          "code": "BR-JOYCE", "name": "Joyce", "category": "Jus et boissons fruitées", "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Joyce",
+              "description": "Volumes et conditionnements à compléter à partir des informations fournisseurs.",
+              "variants": [
+                { "sku": "JOY-CLASSIC",      "name": "Joyce",              "volume_ml": null, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "JOY-GINGEMBRE",    "name": "Joyce Gingembre",    "volume_ml": null, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "JOY-CAFE",         "name": "Joyce Café",         "volume_ml": null, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "JOY-COCO",         "name": "Joyce Coco",         "volume_ml": null, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "JOY-MANGUE",       "name": "Joyce Mangue",       "volume_ml": null, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false },
+                { "sku": "JOY-ANANAS",       "name": "Joyce Ananas",       "volume_ml": null, "container": "pet_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BR-SANGRIA-AKWABA", "name": "Sangrias & Vins", "category": "Vins et sangrias", "verification_status": "to_verify",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Sangria",
+              "variants": [ { "sku": "SAN-SIPRO", "name": "Sangria SIPROCOM", "volume_ml": null, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false } ]
+            },
+            {
+              "name": "Vin Akwaba",
+              "variants": [ { "sku": "AKW-VIN", "name": "Vin Akwaba", "volume_ml": null, "container": "glass_bottle", "packaging": null, "verification_status": "to_verify", "source": "manufacturer_official", "returnable_packaging": false } ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

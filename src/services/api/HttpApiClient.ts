@@ -311,6 +311,54 @@ export class HttpApiClient implements ApiClient {
     return request('/api/consignments/returns', { method: 'POST', body: JSON.stringify(input) });
   }
 
+  listPackagingObligations(clientId?: number) {
+    const qs = clientId ? `?client_id=${clientId}` : '';
+    return request<Awaited<ReturnType<ApiClient['listPackagingObligations']>>>(
+      `/api/packaging-obligations${qs}`,
+    );
+  }
+  getPackagingDashboard(clientId: number) {
+    return request<Awaited<ReturnType<ApiClient['getPackagingDashboard']>>>(
+      `/api/packaging-obligations/dashboard/${clientId}`,
+    );
+  }
+  getCatalogueReferencePriceHistory(id: number) {
+    return request<Awaited<ReturnType<ApiClient['getCatalogueReferencePriceHistory']>>>(
+      `/api/catalogue-products/${id}/reference-price`,
+    );
+  }
+  setCatalogueProductActive(id: number, is_active: boolean) {
+    return request(`/api/catalogue-products/${id}/active`, {
+      method: 'PUT',
+      body: JSON.stringify({ is_active }),
+    });
+  }
+  setCatalogueReferencePrice(
+    id: number,
+    input: { reference_price: number; reason?: string; request_key: string },
+  ) {
+    return request(`/api/catalogue-products/${id}/reference-price`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  }
+  getProductCatalogueOverview() {
+    return request<Awaited<ReturnType<ApiClient['getProductCatalogueOverview']>>>(
+      '/api/catalogue-v3/products',
+    );
+  }
+  payPackagingDebt(input: {
+    client_id: number;
+    parts: Array<{ method_code: string; amount: number }>;
+    request_key: string;
+    note?: string;
+  }) {
+    return request<Awaited<ReturnType<ApiClient['payPackagingDebt']>>>(
+      '/api/packaging-obligations/pay',
+      { method: 'POST', body: JSON.stringify(input) },
+    );
+  }
+
   getCashStatus() {
     return request<Awaited<ReturnType<ApiClient['getCashStatus']>>>('/api/cash');
   }

@@ -52,7 +52,7 @@ export function PosPaymentPanel({
           <MoneyInput value={globalDiscount} onChange={onGlobalDiscountChange} className="w-40" />
         </div>
         <div className="flex justify-between">
-          <span className="text-[#667085] dark:text-slate-400">Consignes emballages</span>
+          <span className="text-[#667085] dark:text-slate-400">Retour emballages</span>
           <span className="font-mono-num font-medium text-[#D9901A] dark:text-amber-400">
             {totals.totalDeposit !== null ? formatFcfa(totals.totalDeposit) : '—'}
           </span>

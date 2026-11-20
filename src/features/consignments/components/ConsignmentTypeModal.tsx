@@ -44,7 +44,7 @@ export function ConsignmentTypeModal({
     <ModalDialog
       open={open}
       onOpenChange={handleOpenChange}
-      title="Nouvel emballage consigné"
+      title="Nouvel emballage réutilisable"
       maxWidthClass="max-w-md"
       error={error}
       footer={
@@ -121,7 +121,7 @@ export function ConsignmentTypeModal({
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <MoneyInput label="Valeur consigne" value={depositValue} onChange={setDepositValue} />
+          <MoneyInput label="Valeur retour emballage" value={depositValue} onChange={setDepositValue} />
           <div>
             <label className="block font-medium">Stock vides initial</label>
             <input

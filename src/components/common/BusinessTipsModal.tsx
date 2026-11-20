@@ -112,7 +112,7 @@ export function BusinessTipsModal() {
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Chercher un champ, CUMP, consigne..."
+                  placeholder="Chercher un champ, CUMP, retour emballage..."
                   className="w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 py-1.5 pl-8 pr-3 text-xs text-[#182230] dark:text-slate-100 placeholder:text-slate-400 focus:border-[#2563EB] focus:outline-none"
                 />
               </div>

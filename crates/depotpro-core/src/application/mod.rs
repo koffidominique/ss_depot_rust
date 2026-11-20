@@ -4,6 +4,7 @@ pub mod catalogue;
 pub mod consignments;
 pub mod inventory;
 pub mod packaging_components;
+pub mod packaging_obligations;
 pub mod partial_returns;
 pub mod pdf;
 pub mod product_catalogue;

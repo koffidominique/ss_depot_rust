@@ -29,7 +29,7 @@ export function useConsignmentColumns(options: {
       },
       {
         accessorKey: 'name',
-        header: 'Emballage consigné',
+        header: 'Emballage réutilisable',
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.original.name}</div>
@@ -42,7 +42,7 @@ export function useConsignmentColumns(options: {
       },
       {
         accessorKey: 'deposit_value',
-        header: 'Tarif consigne',
+        header: 'Tarif retour emballage',
         cell: ({ row }) => (
           <span className="font-mono-num">{formatFcfa(row.original.deposit_value)}</span>
         ),
@@ -107,7 +107,7 @@ export function useConsignmentColumns(options: {
       },
       {
         id: 'val',
-        header: 'Valeur consignée restante',
+        header: "Valeur d'emballage restante",
         cell: ({ row }) => {
           const rem =
             (row.original.pieces - row.original.returned_pieces) * row.original.unit_value;

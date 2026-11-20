@@ -57,6 +57,8 @@ export interface DepositComponent {
   name: string;
   deposit_value: number;
   kind: "bottle" | "crate";
+  brand_name: string | null;
+  brand_id: number | null;
 }
 
 export interface ProductPackaging {

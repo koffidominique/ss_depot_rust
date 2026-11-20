@@ -206,6 +206,67 @@ export interface ApiClient {
   adjustReturnableStock(input: Record<string, unknown>): Promise<unknown>;
   returnClientEmpties(input: Record<string, unknown>): Promise<unknown>;
 
+  // Créances financières d'emballages (MAJ.md §6-8, §11)
+  listPackagingObligations(clientId?: number): Promise<
+    Array<{
+      id: number;
+      sale_id: number;
+      sale_reference: string | null;
+      client_id: number | null;
+      returnable_id: number;
+      pieces: number;
+      returned_pieces: number;
+      pending_pieces: number;
+      unit_value: number;
+      total_reference_value: number;
+      due_date: string | null;
+      overdue: boolean;
+      status: string;
+    }>
+  >;
+  getPackagingDashboard(clientId: number): Promise<{
+    client_id: number;
+    commercial_debt: number;
+    packaging_financial_debt: number;
+    pending_pieces: number;
+    pending_reference_value: number;
+    total_financial_due: number;
+  }>;
+  payPackagingDebt(input: {
+    client_id: number;
+    parts: Array<{ method_code: string; amount: number }>;
+    request_key: string;
+    note?: string;
+  }): Promise<{ client_id: number; packaging_financial_balance: number }>;
+
+  // Administration OWNER du catalogue standard (catalogue_seed.md PHASE 4)
+  getProductCatalogueOverview(): Promise<Record<string, unknown>>;
+  setCatalogueProductActive(id: number, is_active: boolean): Promise<unknown>;
+  setCatalogueReferencePrice(
+    id: number,
+    input: { reference_price: number; reason?: string; request_key: string },
+  ): Promise<unknown>;
+  getCatalogueReferencePriceHistory(id: number): Promise<
+    Array<{
+      id: number;
+      reference_price: number;
+      reason: string | null;
+      changed_by: string | null;
+      created_at: string;
+    }>
+  >;
+
+  // Administration OWNER du catalogue standard (catalogue_seed.md PHASE 4)
+  getProductCatalogueOverview(): Promise<Record<string, unknown>>;
+  setCatalogueProductActive(id: number, is_active: boolean): Promise<unknown>;
+  setCatalogueReferencePrice(
+    id: number,
+    input: { reference_price: number; reason?: string; request_key: string },
+  ): Promise<unknown>;
+  getCatalogueReferencePriceHistory(id: number): Promise<
+    Array<{ id: number; reference_price: number; reason: string | null; changed_by: string | null; created_at: string }>
+  >;
+
   // Cash & Expenses
   getCashStatus(): Promise<CashStatus>;
   openCashSession(input: {

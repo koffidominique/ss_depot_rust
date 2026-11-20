@@ -47,6 +47,8 @@ export interface PackagingFormState {
   deposit_mode: 'none' | 'deposit';
   returnable_id: number;
   returnable_pieces: number;
+  brand_name: string;
+  brand_id: number;
 }
 
 export function formatCoeffDot(milli: number): string {
@@ -57,6 +59,7 @@ export function formatCoeffDot(milli: number): string {
 }
 
 export function buildPackagingStateFromExisting(pk: ProductPackaging): PackagingFormState {
+  const firstComponent = pk.components?.[0];
   return {
     id: pk.id,
     name: pk.name,
@@ -69,8 +72,10 @@ export function buildPackagingStateFromExisting(pk: ProductPackaging): Packaging
     allow_fraction: pk.allow_fraction === 1,
     is_active: pk.is_active === 1,
     deposit_mode: pk.deposit_mode === 'deposit' ? 'deposit' : 'none',
-    returnable_id: pk.components?.[0]?.returnable_id ?? 0,
-    returnable_pieces: pk.components?.[0]?.pieces_per_pack ?? 1,
+    returnable_id: firstComponent?.returnable_id ?? 0,
+    returnable_pieces: firstComponent?.pieces_per_pack ?? 1,
+    brand_name: firstComponent?.brand_name ?? pk.brand_name ?? '',
+    brand_id: firstComponent?.brand_id ?? pk.brand_id ?? 0,
   };
 }
 
@@ -94,5 +99,7 @@ export function buildNewPackagingState(prod: Product): PackagingFormState {
     deposit_mode: 'none',
     returnable_id: 0,
     returnable_pieces: 1,
+    brand_name: prod.brand ?? '',
+    brand_id: 0,
   };
 }

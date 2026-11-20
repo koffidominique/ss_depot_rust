@@ -79,7 +79,7 @@ export function DashboardKpiGrid({ kpis }: { kpis: DashboardData['kpis'] }) {
       <MetricCard
         label="Chiffre d'affaires marchandises"
         value={formatFcfa(kpis.revenueMerchandise)}
-        subtext={`${kpis.salesCount} vente(s) · Consignes : ${formatFcfa(kpis.depositsTotal)}`}
+        subtext={`${kpis.salesCount} vente(s) · Retour emballages : ${formatFcfa(kpis.depositsTotal)}`}
         icon={TrendingUp}
         tone="accent"
       />

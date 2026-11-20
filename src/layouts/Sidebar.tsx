@@ -44,12 +44,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Stocks & Consignes',
+    label: 'Stocks & Retour emballages',
     items: [
       { to: '/products', label: 'Produits', icon: Package },
       { to: '/stock', label: 'Stocks', icon: Boxes },
       { to: '/inventories', label: 'Inventaires', icon: ClipboardCheck },
-      { to: '/consignments', label: 'Consignations', icon: Repeat },
+      { to: '/consignments', label: 'Retour emballages', icon: Repeat },
     ],
   },
   {

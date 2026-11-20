@@ -1,0 +1,1229 @@
+{
+  "schema_version": "1.1.0",
+  "catalog_id": "brassivoire_ci",
+  "catalog_name": "Catalogue Brassivoire - Côte d'Ivoire",
+  "supplier": {
+    "id": "brassivoire",
+    "name": "BRASSIVOIRE",
+    "country": "Côte d'Ivoire",
+    "currency": "XOF",
+    "website": "https://brassivoire.ci/",
+    "catalog_created_at": "2026-11-20"
+  },
+  "import_policy": {
+    "prices_are_included": false,
+    "deposit_amounts_are_included": false,
+    "owner_can_add_products": true,
+    "owner_can_edit_products": true,
+    "owner_can_edit_variants": true,
+    "owner_can_configure_packaging_quantities": true,
+    "owner_can_configure_deposit_rules": true,
+    "inactive_products_imported_as_sellable": false,
+    "unknown_package_quantities_must_not_be_assumed": true,
+    "notes": [
+      "Le catalogue est un jeu de données initial, pas un tarif officiel de Brassivoire.",
+      "Les prix d'achat, prix de vente et montants de consigne restent à configurer à partir des factures ou tarifs fournisseurs en vigueur.",
+      "Les formats de contenant sont renseignés lorsqu'ils sont affichés par Brassivoire ou dans une annonce de lancement identifiée.",
+      "Le nombre d'unités par casier, carton ou pack n'est pas inventé : il reste null lorsque les sources publiques ne le confirment pas.",
+      "Les références de lancement ancien ou de disponibilité incertaine sont conservées avec un statut séparé et peuvent être désactivées à l'import.",
+      "Les emballages consignés sont distingués du contenant et du conditionnement secondaire afin de suivre séparément bouteilles et casiers retournables."
+    ]
+  },
+  "categories": [
+    {
+      "id": "beer",
+      "name": "Bière",
+      "alcoholic": true
+    },
+    {
+      "id": "flavoured_beer",
+      "name": "Bière aromatisée",
+      "alcoholic": true
+    },
+    {
+      "id": "alcoholic_mixed_drink",
+      "name": "Cocktail alcoolisé / prémix",
+      "alcoholic": true
+    },
+    {
+      "id": "energy_malt_drink",
+      "name": "Boisson énergisante maltée",
+      "alcoholic": false
+    }
+  ],
+  "container_types": [
+    {
+      "id": "glass_bottle",
+      "name": "Bouteille en verre"
+    },
+    {
+      "id": "can",
+      "name": "Canette métallique"
+    },
+    {
+      "id": "unknown",
+      "name": "Contenant à confirmer"
+    }
+  ],
+  "packaging_types": [
+    {
+      "id": "returnable_bottle",
+      "name": "Bouteille retournable",
+      "returnable": true
+    },
+    {
+      "id": "glass_bottle_deposit_unverified",
+      "name": "Bouteille en verre - consigne à vérifier",
+      "returnable": null
+    },
+    {
+      "id": "can_non_returnable",
+      "name": "Canette non retournable",
+      "returnable": false
+    },
+    {
+      "id": "crate_returnable",
+      "name": "Casier réutilisable",
+      "returnable": true
+    },
+    {
+      "id": "carton_non_returnable",
+      "name": "Carton",
+      "returnable": false
+    },
+    {
+      "id": "shrink_pack_non_returnable",
+      "name": "Pack filmé",
+      "returnable": false
+    },
+    {
+      "id": "secondary_packaging_unknown",
+      "name": "Conditionnement secondaire à confirmer",
+      "returnable": null
+    }
+  ],
+  "commercial_units": [
+    {
+      "id": "unit",
+      "name": "Unité",
+      "is_base_unit": true
+    },
+    {
+      "id": "bottle",
+      "name": "Bouteille",
+      "is_base_unit": true
+    },
+    {
+      "id": "can_unit",
+      "name": "Canette",
+      "is_base_unit": true
+    },
+    {
+      "id": "crate",
+      "name": "Casier",
+      "is_base_unit": false
+    },
+    {
+      "id": "carton",
+      "name": "Carton",
+      "is_base_unit": false
+    },
+    {
+      "id": "pack",
+      "name": "Pack",
+      "is_base_unit": false
+    }
+  ],
+  "products": [
+    {
+      "id": "ivoire_classic",
+      "brand": "Ivoire",
+      "name": "Ivoire Classic",
+      "category_id": "beer",
+      "catalog_status": "current_official_portfolio",
+      "active_by_default": true,
+      "alcohol_by_volume_percent": 5.0,
+      "variants": [
+        {
+          "id": "ivoire_classic_60cl_bottle",
+          "display_name": "Ivoire Classic 60 cl bouteille",
+          "volume_ml": 600,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "glass_bottle_deposit_unverified",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_format_confirmed"
+        },
+        {
+          "id": "ivoire_classic_33cl_bottle",
+          "display_name": "Ivoire Classic 33 cl bouteille",
+          "volume_ml": 330,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "glass_bottle_deposit_unverified",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_format_confirmed"
+        }
+      ],
+      "source_ids": [
+        "brassivoire_ivoire_product_page"
+      ]
+    },
+    {
+      "id": "ivoire_black",
+      "brand": "Ivoire Black",
+      "name": "Ivoire Black",
+      "category_id": "beer",
+      "catalog_status": "current_official_portfolio",
+      "active_by_default": true,
+      "alcohol_by_volume_percent": 6.5,
+      "variants": [
+        {
+          "id": "ivoire_black_60cl_bottle",
+          "display_name": "Ivoire Black 60 cl bouteille",
+          "volume_ml": 600,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "glass_bottle_deposit_unverified",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_format_confirmed"
+        },
+        {
+          "id": "ivoire_black_33cl_bottle",
+          "display_name": "Ivoire Black 33 cl bouteille",
+          "volume_ml": 330,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "glass_bottle_deposit_unverified",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_format_confirmed"
+        }
+      ],
+      "source_ids": [
+        "brassivoire_black_product_page"
+      ]
+    },
+    {
+      "id": "heineken",
+      "brand": "Heineken",
+      "name": "Heineken",
+      "category_id": "beer",
+      "catalog_status": "current_official_portfolio",
+      "active_by_default": true,
+      "alcohol_by_volume_percent": 5.0,
+      "variants": [
+        {
+          "id": "heineken_50cl_returnable_bottle",
+          "display_name": "Heineken 50 cl bouteille retournable",
+          "volume_ml": 500,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "returnable_bottle",
+          "returnable_status": "confirmed_by_brassivoire_announcement",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": true,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "amount_to_configure"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_and_returnable_announcement"
+        },
+        {
+          "id": "heineken_33cl_returnable_bottle",
+          "display_name": "Heineken 33 cl bouteille retournable",
+          "volume_ml": 330,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "returnable_bottle",
+          "returnable_status": "confirmed_by_brassivoire_announcement",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": true,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "amount_to_configure"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_and_returnable_announcement"
+        },
+        {
+          "id": "heineken_25cl_bottle",
+          "display_name": "Heineken 25 cl bouteille",
+          "volume_ml": 250,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "glass_bottle_deposit_unverified",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "carton",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "carton",
+            "bottle"
+          ],
+          "purchase_unit": "carton",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_format_confirmed"
+        },
+        {
+          "id": "heineken_50cl_can",
+          "display_name": "Heineken 50 cl canette",
+          "volume_ml": 500,
+          "container_type_id": "can",
+          "packaging_type_id": "can_non_returnable",
+          "returnable_status": "not_returnable",
+          "commercial_packaging": [
+            {
+              "unit_id": "carton",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": false,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable"
+          },
+          "sale_units": [
+            "unit",
+            "carton",
+            "can_unit"
+          ],
+          "purchase_unit": "carton",
+          "base_stock_unit": "can_unit",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_format_confirmed"
+        }
+      ],
+      "source_ids": [
+        "brassivoire_heineken_product_page",
+        "brassivoire_heineken_returnable_announcement"
+      ]
+    },
+    {
+      "id": "desperados",
+      "brand": "Desperados",
+      "name": "Desperados",
+      "category_id": "flavoured_beer",
+      "catalog_status": "current_official_portfolio",
+      "active_by_default": true,
+      "alcohol_by_volume_percent": 5.9,
+      "variants": [
+        {
+          "id": "desperados_33cl_bottle",
+          "display_name": "Desperados 33 cl bouteille",
+          "volume_ml": 330,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "returnable_bottle",
+          "returnable_status": "confirmed_for_bottle_format_by_brassivoire_announcement",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": true,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "amount_to_configure"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_and_returnable_announcement"
+        },
+        {
+          "id": "desperados_25cl_bottle",
+          "display_name": "Desperados 25 cl bouteille",
+          "volume_ml": 250,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "glass_bottle_deposit_unverified",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "carton",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "carton",
+            "bottle"
+          ],
+          "purchase_unit": "carton",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_format_confirmed"
+        },
+        {
+          "id": "desperados_50cl_can",
+          "display_name": "Desperados 50 cl canette",
+          "volume_ml": 500,
+          "container_type_id": "can",
+          "packaging_type_id": "can_non_returnable",
+          "returnable_status": "not_returnable",
+          "commercial_packaging": [
+            {
+              "unit_id": "carton",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": false,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "not_applicable"
+          },
+          "sale_units": [
+            "unit",
+            "carton",
+            "can_unit"
+          ],
+          "purchase_unit": "carton",
+          "base_stock_unit": "can_unit",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_format_confirmed"
+        }
+      ],
+      "source_ids": [
+        "brassivoire_desperados_product_page",
+        "brassivoire_desperados_returnable_announcement"
+      ]
+    },
+    {
+      "id": "rhino_energy_malt",
+      "brand": "Rhino",
+      "name": "Rhino Energy Malt",
+      "category_id": "energy_malt_drink",
+      "catalog_status": "current_official_portfolio",
+      "active_by_default": true,
+      "alcohol_by_volume_percent": 0.0,
+      "variants": [
+        {
+          "id": "rhino_energy_malt_33cl_bottle",
+          "display_name": "Rhino Energy Malt 33 cl bouteille",
+          "volume_ml": 330,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "returnable_bottle",
+          "returnable_status": "confirmed_by_brassivoire_announcement",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": true,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "amount_to_configure"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_product_page_and_launch_announcement"
+        }
+      ],
+      "source_ids": [
+        "brassivoire_rhino_product_page",
+        "brassivoire_rhino_launch_announcement"
+      ]
+    },
+    {
+      "id": "imperial_whisky_cola",
+      "brand": "Imperial",
+      "name": "Imperial Whisky Cola",
+      "category_id": "alcoholic_mixed_drink",
+      "catalog_status": "officially_launched_availability_to_reconfirm",
+      "active_by_default": true,
+      "alcohol_by_volume_percent": 7.0,
+      "variants": [
+        {
+          "id": "imperial_whisky_cola_50cl_returnable",
+          "display_name": "Imperial Whisky Cola 50 cl bouteille retournable",
+          "volume_ml": 500,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "returnable_bottle",
+          "returnable_status": "confirmed_in_launch_announcement",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": true,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "amount_to_configure"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "launch_announcement_format_and_returnable_status_confirmed"
+        }
+      ],
+      "source_ids": [
+        "imperial_whisky_cola_launch"
+      ]
+    },
+    {
+      "id": "ivoire_mix",
+      "brand": "Ivoire",
+      "name": "Ivoire Mix",
+      "category_id": "flavoured_beer",
+      "catalog_status": "officially_launched_availability_to_reconfirm",
+      "active_by_default": false,
+      "alcohol_by_volume_percent": 2.0,
+      "variants": [
+        {
+          "id": "ivoire_mix_33cl_returnable",
+          "display_name": "Ivoire Mix 33 cl bouteille retournable",
+          "volume_ml": 330,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "returnable_bottle",
+          "returnable_status": "confirmed_in_launch_announcement",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": true,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "amount_to_configure"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_launch_announcement_format_and_returnable_status_confirmed"
+        }
+      ],
+      "source_ids": [
+        "ivoire_mix_launch"
+      ]
+    },
+    {
+      "id": "kunja",
+      "brand": "Kunja",
+      "name": "Kunja",
+      "category_id": "alcoholic_mixed_drink",
+      "catalog_status": "officially_announced_format_unknown",
+      "active_by_default": false,
+      "alcohol_by_volume_percent": null,
+      "variants": [],
+      "notes": "Cocktail alcoolisé inspiré des plantes africaines, annoncé par Brassivoire en janvier 2025. Le format, le volume et le conditionnement ne sont pas renseignés dans la publication consultée. Ajouter une variante après confirmation fournisseur.",
+      "source_ids": [
+        "kunja_launch"
+      ]
+    },
+    {
+      "id": "ivoire_speciale",
+      "brand": "Ivoire",
+      "name": "Ivoire Spéciale",
+      "category_id": "beer",
+      "catalog_status": "historical_availability_reconfirm_before_sale",
+      "active_by_default": false,
+      "alcohol_by_volume_percent": 5.5,
+      "variants": [
+        {
+          "id": "ivoire_speciale_60cl_bottle_historic",
+          "display_name": "Ivoire Spéciale 60 cl bouteille - historique",
+          "volume_ml": 600,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "glass_bottle_deposit_unverified",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_historical_launch_announcement_format_confirmed"
+        },
+        {
+          "id": "ivoire_speciale_33cl_bottle_historic",
+          "display_name": "Ivoire Spéciale 33 cl bouteille - historique",
+          "volume_ml": 330,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "glass_bottle_deposit_unverified",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_historical_launch_announcement_format_confirmed"
+        }
+      ],
+      "source_ids": [
+        "ivoire_speciale_launch"
+      ]
+    },
+    {
+      "id": "class",
+      "brand": "Class",
+      "name": "Class",
+      "category_id": "beer",
+      "catalog_status": "historical_availability_reconfirm_before_sale",
+      "active_by_default": false,
+      "alcohol_by_volume_percent": 5.0,
+      "variants": [
+        {
+          "id": "class_50cl_bottle_historic",
+          "display_name": "Class 50 cl bouteille - historique",
+          "volume_ml": 500,
+          "container_type_id": "glass_bottle",
+          "packaging_type_id": "glass_bottle_deposit_unverified",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "crate",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "crate",
+            "bottle"
+          ],
+          "purchase_unit": "crate",
+          "base_stock_unit": "bottle",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "official_2018_press_release_format_confirmed"
+        }
+      ],
+      "source_ids": [
+        "class_launch_press_release"
+      ]
+    },
+    {
+      "id": "smirnoff_ice",
+      "brand": "Smirnoff Ice",
+      "name": "Smirnoff Ice",
+      "category_id": "alcoholic_mixed_drink",
+      "catalog_status": "historical_portfolio_availability_reconfirm",
+      "active_by_default": false,
+      "alcohol_by_volume_percent": null,
+      "variants": [
+        {
+          "id": "smirnoff_ice_33cl_historic",
+          "display_name": "Smirnoff Ice 33 cl - format historique à confirmer",
+          "volume_ml": 330,
+          "container_type_id": "unknown",
+          "packaging_type_id": "secondary_packaging_unknown",
+          "returnable_status": "to_confirm_with_supplier",
+          "commercial_packaging": [
+            {
+              "unit_id": "carton",
+              "units_per_package": null,
+              "quantity_status": "to_confirm_with_supplier"
+            },
+            {
+              "unit_id": "unit",
+              "units_per_package": 1,
+              "quantity_status": "base_unit"
+            }
+          ],
+          "deposit": {
+            "applies": null,
+            "bottle_deposit_xof": null,
+            "crate_deposit_xof": null,
+            "currency": "XOF",
+            "status": "to_confirm_with_supplier"
+          },
+          "sale_units": [
+            "unit",
+            "carton"
+          ],
+          "purchase_unit": "carton",
+          "base_stock_unit": "unit",
+          "price": {
+            "purchase_price_xof": null,
+            "selling_price_xof": null,
+            "status": "not_configured"
+          },
+          "evidence_status": "historical_portfolio_reference_format_requires_supplier_confirmation"
+        }
+      ],
+      "notes": "Marque citée dans une communication Brassivoire de 2022. Le format 33 cl est repris d'une source secondaire; vérifier la référence, le contenant et la disponibilité avant activation.",
+      "source_ids": [
+        "smirnoff_ice_historical_mention",
+        "secondary_market_study"
+      ]
+    },
+    {
+      "id": "mutzig",
+      "brand": "Mützig",
+      "name": "Mützig",
+      "category_id": "beer",
+      "catalog_status": "historical_portfolio_format_unknown",
+      "active_by_default": false,
+      "alcohol_by_volume_percent": null,
+      "variants": [],
+      "notes": "Ancienne marque citée dans les communications historiques de Brassivoire. Formats et disponibilité actuelle non vérifiés.",
+      "source_ids": [
+        "brassivoire_historical_portfolio_2020"
+      ]
+    },
+    {
+      "id": "sol",
+      "brand": "Sol",
+      "name": "Sol",
+      "category_id": "beer",
+      "catalog_status": "historical_portfolio_format_and_current_availability_unknown",
+      "active_by_default": false,
+      "alcohol_by_volume_percent": null,
+      "variants": [],
+      "notes": "Marque mentionnée dans un article historique de Brassivoire en 2020. Aucun format ou conditionnement actuel vérifié; ne pas activer avant validation fournisseur.",
+      "source_ids": [
+        "brassivoire_historical_portfolio_2020"
+      ]
+    },
+    {
+      "id": "amstel",
+      "brand": "Amstel",
+      "name": "Amstel",
+      "category_id": "beer",
+      "catalog_status": "historical_portfolio_format_and_current_availability_unknown",
+      "active_by_default": false,
+      "alcohol_by_volume_percent": null,
+      "variants": [],
+      "notes": "Marque mentionnée dans un article historique de Brassivoire en 2020. Aucun format ou conditionnement actuel vérifié; ne pas activer avant validation fournisseur.",
+      "source_ids": [
+        "brassivoire_historical_portfolio_2020"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "brassivoire_current_portfolio",
+      "url": "https://brassivoire.ci/nos-marques/",
+      "type": "official_current_brand_portfolio",
+      "supports": [
+        "Ivoire",
+        "Black",
+        "Heineken",
+        "Desperados",
+        "Rhino Energy Malt"
+      ]
+    },
+    {
+      "id": "brassivoire_ivoire_product_page",
+      "url": "https://brassivoire.ci/nos_marques/ivoire/",
+      "type": "official_product_page",
+      "supports": [
+        "Ivoire 60 cl",
+        "Ivoire 33 cl",
+        "ABV 5%"
+      ]
+    },
+    {
+      "id": "brassivoire_black_product_page",
+      "url": "https://brassivoire.ci/nos_marques/black/",
+      "type": "official_product_page",
+      "supports": [
+        "Ivoire Black 60 cl",
+        "Ivoire Black 33 cl",
+        "ABV 6.5%"
+      ]
+    },
+    {
+      "id": "brassivoire_heineken_product_page",
+      "url": "https://brassivoire.ci/nos_marques/heineken/",
+      "type": "official_product_page",
+      "supports": [
+        "Heineken bottle 50 cl",
+        "Heineken bottle 33 cl",
+        "Heineken bottle 25 cl",
+        "Heineken can 50 cl",
+        "ABV 5%"
+      ]
+    },
+    {
+      "id": "brassivoire_desperados_product_page",
+      "url": "https://brassivoire.ci/nos_marques/desperados/",
+      "type": "official_product_page",
+      "supports": [
+        "Desperados bottle 33 cl",
+        "Desperados bottle 25 cl",
+        "Desperados can 50 cl",
+        "ABV 5.9%"
+      ]
+    },
+    {
+      "id": "brassivoire_rhino_product_page",
+      "url": "https://brassivoire.ci/nos_marques/rhino-energy-malt/",
+      "type": "official_product_page",
+      "supports": [
+        "Rhino Energy Malt 33 cl",
+        "ABV 0%"
+      ]
+    },
+    {
+      "id": "brassivoire_heineken_returnable_announcement",
+      "url": "https://brassivoire.ci/actus/brassivoire-celebre-la-marque-heineken-en-cote-divoire/",
+      "type": "official_launch_announcement",
+      "supports": [
+        "Heineken in returnable packaging",
+        "local Heineken launch"
+      ]
+    },
+    {
+      "id": "brassivoire_desperados_returnable_announcement",
+      "url": "https://brassivoire.ci/actus/brassivoire-celebre-la-biere-desperados-en-cote-d-ivoire/",
+      "type": "official_launch_announcement",
+      "supports": [
+        "Desperados bottle returnable"
+      ]
+    },
+    {
+      "id": "brassivoire_rhino_launch_announcement",
+      "url": "https://brassivoire.ci/actus/brassivoire-innove-avec-rhino-energy-malt-une-boisson-energisante-sans-alcool/",
+      "type": "official_launch_announcement",
+      "supports": [
+        "Rhino Energy Malt 33 cl returnable bottle",
+        "0% alcohol"
+      ]
+    },
+    {
+      "id": "ivoire_mix_launch",
+      "url": "https://brassivoire.ci/actus/brassivoire-lance-ivoire-mix-sa-nouvelle-biere-savoureuse-et-aromatisee-pour-ceux-qui-ont-soif-de-plus/",
+      "type": "official_launch_announcement",
+      "supports": [
+        "Ivoire Mix 33 cl",
+        "returnable bottle",
+        "ABV 2%"
+      ]
+    },
+    {
+      "id": "imperial_whisky_cola_launch",
+      "url": "https://www.fratmat.info/article/234549/focus/boisson-brassivoire-lance-imperial-whisky-cola-un-cocktail-fait-pour-les-audacieux-publi-info",
+      "type": "press_release_republished_by_fraternite_matin",
+      "supports": [
+        "Imperial Whisky Cola 50 cl returnable bottle",
+        "ABV 7%",
+        "launch October 2023"
+      ]
+    },
+    {
+      "id": "kunja_launch",
+      "url": "https://brassivoire.ci/actus/la-famille-sagrandit-avec-larrivee-de-kunja/",
+      "type": "official_launch_announcement",
+      "supports": [
+        "Kunja alcoholic botanical cocktail",
+        "launch January 2025",
+        "format not specified"
+      ]
+    },
+    {
+      "id": "ivoire_speciale_launch",
+      "url": "https://brassivoire.ci/actus/nouveaute-brassivoire-lance-ivoire-speciale/",
+      "type": "official_historical_launch_announcement",
+      "supports": [
+        "Ivoire Spéciale 60 cl",
+        "Ivoire Spéciale 33 cl",
+        "ABV 5.5%"
+      ]
+    },
+    {
+      "id": "class_launch_press_release",
+      "url": "https://brassivoire.ci/wp-content/uploads/2019/03/CP_CLASS.pdf",
+      "type": "official_historical_press_release",
+      "supports": [
+        "Class 50 cl",
+        "ABV 5%"
+      ]
+    },
+    {
+      "id": "brassivoire_historical_portfolio_2020",
+      "url": "https://brassivoire.ci/actus/brassivoire-celebre-la-biere-desperados-en-cote-d-ivoire/",
+      "type": "official_historical_portfolio_announcement",
+      "supports": [
+        "Amstel",
+        "Class",
+        "Ivoire Spéciale",
+        "Mützig",
+        "Sol"
+      ]
+    },
+    {
+      "id": "smirnoff_ice_historical_mention",
+      "url": "https://brassivoire.ci/actus/san-pedro-aux-couleurs-de-rhino-et-smirnoff-ice/",
+      "type": "official_historical_brand_mention",
+      "supports": [
+        "Smirnoff Ice event and brand mention in 2022"
+      ]
+    },
+    {
+      "id": "secondary_market_study",
+      "url": "https://fr.scribd.com/document/789029317/Memoire-4-Decembre-2023",
+      "type": "secondary_source_not_authoritative_for_current_stock",
+      "supports": [
+        "historical market portfolio and some packaging references"
+      ],
+      "caution": "Source secondaire. Ne pas utiliser pour activer une référence ni fixer les conditionnements ou prix sans confirmation fournisseur."
+    }
+  ]
+}

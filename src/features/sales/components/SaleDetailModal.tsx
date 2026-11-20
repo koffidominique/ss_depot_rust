@@ -65,7 +65,7 @@ export function SaleDetailModal({
                             total: l.line_total,
                           })),
                           ...sale.deposits.map((d) => ({
-                            label: `Consigne : ${d.packaging_name}`,
+                            label: `Retour emballage : ${d.packaging_name}`,
                             sublabel: `Code ${d.packaging_code}`,
                             quantity: `${d.pieces} pcs`,
                             unitPrice: d.unit_value,
@@ -82,7 +82,7 @@ export function SaleDetailModal({
                             value: formatFcfa(sale.total_merchandise),
                           },
                           {
-                            label: 'Consignes emballages',
+                            label: 'Retour emballages',
                             value: formatFcfa(sale.total_deposit),
                           },
                           {
@@ -156,7 +156,7 @@ export function SaleDetailModal({
                   <span className="font-mono-num">{formatFcfa(sale.total_merchandise)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Consignes</span>
+                  <span>Retour emballages</span>
                   <span className="font-mono-num">{formatFcfa(sale.total_deposit)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-sm pt-1 border-t border-slate-200 dark:border-slate-800">

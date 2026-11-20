@@ -6,6 +6,7 @@ import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
 import type { PackagingName, Product, ProductPackaging } from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
 import { formatCoeffDot, type PackagingFormState } from '../utils/productSchemas.ts';
+import { useMemo } from 'react';
 
 interface ReturnableTypeOption {
   id: number;
@@ -44,7 +45,7 @@ export function PackagingModal({
       onOpenChange={(o) => !o && onClose()}
       title={`Conditionnements · ${product?.name ?? ''}`}
       tipsTopicId="products"
-      tipsLabel="Aide coeff. & consigne"
+      tipsLabel="Aide coeff. & retour emballage"
       maxWidthClass="max-w-lg"
       scrollable
       error={error}
@@ -181,9 +182,9 @@ export function PackagingModal({
           Conditionnement actif
         </label>
         <div className="col-span-2 border-t border-slate-200 dark:border-slate-800 pt-3">
-          <label className="block text-xs font-medium">Régime de consigne</label>
+          <label className="block text-xs font-medium">Régime retour emballage</label>
           <select
-            aria-label="Régime de consigne"
+            aria-label="Régime retour emballage"
             value={state.deposit_mode}
             onChange={(e) =>
               onChangeState((prev) => ({
@@ -193,7 +194,7 @@ export function PackagingModal({
             }
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
           >
-            <option value="none">Sans consigne</option>
+            <option value="none">Sans retour emballage</option>
             <option value="deposit">Avec emballage consigné</option>
           </select>
         </div>

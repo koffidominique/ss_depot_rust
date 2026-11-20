@@ -706,20 +706,20 @@ pub async fn receive_purchase_order(
             .fetch_one(&mut *tx)
             .await?;
 
-    type PreparedReceiptLine = (i64, i64, i64, i64, i64, i64, Option<String>);
+    type PreparedReceiptLine = (i64, i64, i64, i64, i64, i64, i64, Option<String>);
     let mut receipt_total = Money::ZERO;
     let mut prepared: Vec<PreparedReceiptLine> = Vec::with_capacity(normalized_lines.len());
 
     for (po_line_id, qty, disc_reason) in &normalized_lines {
-        let pol: Option<(i64, i64, i64, i64, i64, i64)> = sqlx::query_as(
-            "SELECT id, product_id, coefficient_milli, ordered_quantity_milli, received_quantity_milli, unit_price
+        let pol: Option<(i64, i64, i64, i64, i64, i64, i64)> = sqlx::query_as(
+            "SELECT id, product_id, packaging_id, coefficient_milli, ordered_quantity_milli, received_quantity_milli, unit_price
              FROM purchase_order_lines WHERE id = ? AND purchase_order_id = ?",
         )
         .bind(po_line_id)
         .bind(purchase_order_id)
         .fetch_optional(&mut *tx)
         .await?;
-        let (pol_id, pid, coeff_milli, ordered_milli, received_milli, unit_price) =
+        let (pol_id, pid, pkg_id, coeff_milli, ordered_milli, received_milli, unit_price) =
             pol.ok_or_else(|| CoreError::Validation("Ligne de commande introuvable.".to_string()))?;
 
         if received_milli >= ordered_milli {
@@ -741,6 +741,7 @@ pub async fn receive_purchase_order(
         prepared.push((
             pol_id,
             pid,
+            pkg_id,
             qty.milli_units,
             base_qty.milli_units,
             unit_price,
@@ -763,7 +764,7 @@ pub async fn receive_purchase_order(
     .await?
     .last_insert_rowid();
 
-    for (pol_id, pid, qty_milli, base_qty_milli, unit_price, amount, disc_reason) in &prepared {
+    for (pol_id, pid, pkg_id, qty_milli, base_qty_milli, unit_price, amount, disc_reason) in &prepared {
         let updated = sqlx::query(
             "UPDATE purchase_order_lines
              SET received_quantity_milli = received_quantity_milli + ?
@@ -794,6 +795,80 @@ pub async fn receive_purchase_order(
         .bind(disc_reason.as_deref())
         .execute(&mut *tx)
         .await?;
+
+        // ===== ÉCHANGE D'EMBALLAGES AVEC LE FOURNISSEUR =====
+        // Récupérer les composants d'emballage consigné pour ce conditionnement
+        // (bouteilles, casiers) qui doivent être fournis au fournisseur
+        let packaging_components: Vec<(i64, i64)> = sqlx::query_as(
+            "SELECT returnable_id, pieces_per_pack
+             FROM deposit_packaging_components
+             WHERE packaging_id = ?",
+        )
+        .bind(pkg_id)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        // Pour chaque type d'emballage consigné, calculer la quantité à fournir au fournisseur
+        for (returnable_id, pieces_per_pack) in &packaging_components {
+            // Quantité totale d'emballages à fournir = qty_milli (en milli-unités de conditionnement) * pieces_per_pack / 1000
+            // qty_milli est en milli-unités (ex: 1000 = 1 casier), pieces_per_pack = nb bouteilles/casiers par conditionnement
+            let total_pieces_to_exchange = (*qty_milli as i128 * *pieces_per_pack as i128) / 1000;
+            if total_pieces_to_exchange > 0 {
+                let pieces_to_exchange = i64::try_from(total_pieces_to_exchange)
+                    .map_err(|_| CoreError::Validation("Débordement quantité échange fournisseur".to_string()))?;
+
+                // Vérifier le stock disponible
+                let bal: Option<(i64,)> = sqlx::query_as(
+                    "SELECT quantity FROM returnable_stock_balances WHERE packaging_id = ?"
+                )
+                .bind(returnable_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+                let before = bal.map(|b| b.0).unwrap_or(0);
+                if before < pieces_to_exchange {
+                    return Err(CoreError::InsufficientStock(format!(
+                        "Stock d'emballages vides insuffisant pour l'échange fournisseur (disponible: {}, requis: {})",
+                        before, pieces_to_exchange
+                    )));
+                }
+                let after = before - pieces_to_exchange;
+
+                // Mettre à jour le stock
+                if bal.is_some() {
+                    sqlx::query("UPDATE returnable_stock_balances SET quantity = ? WHERE packaging_id = ?")
+                        .bind(after)
+                        .bind(returnable_id)
+                        .execute(&mut *tx)
+                        .await?;
+                } else {
+                    // Ne devrait pas arriver si before > 0, mais au cas où
+                    sqlx::query(
+                        "INSERT INTO returnable_stock_balances (packaging_id, quantity) VALUES (?, ?)"
+                    )
+                    .bind(returnable_id)
+                    .bind(after)
+                    .execute(&mut *tx)
+                    .await?;
+                }
+
+                // Enregistrer le mouvement de stock (échange fournisseur)
+                let mov_key = format!("sup-exch:{request_key}:{returnable_id}:{pol_id}");
+                sqlx::query(
+                    "INSERT INTO returnable_stock_movements (request_key, packaging_id, movement_type, quantity, stock_before, stock_after, reason, reference_document)
+                     VALUES (?, ?, 'supplier_exchange', ?, ?, ?, ?, ?)"
+                )
+                .bind(&mov_key)
+                .bind(returnable_id)
+                .bind(pieces_to_exchange)
+                .bind(before)
+                .bind(after)
+                .bind(format!("Échange fournisseur réception {rec_ref} (CMD {po_ref})"))
+                .bind(&rec_ref)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+        // ===== FIN ÉCHANGE D'EMBALLAGES =====
 
         let (cur_stock, avg_num, avg_den): (i64, Option<String>, Option<String>) = sqlx::query_as(
             "SELECT stock_milli, average_cost_num, average_cost_den FROM products WHERE id = ?",

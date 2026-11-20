@@ -453,6 +453,58 @@ export class TauriApiClient implements ApiClient {
       payload: input,
     });
   }
+  listPackagingObligations(clientId?: number) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient["listPackagingObligations"]>>>(
+      "list_packaging_obligations",
+      { token: getStoredToken(), client_id: clientId ?? null },
+    );
+  }
+  getPackagingDashboard(clientId: number) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient["getPackagingDashboard"]>>>(
+      "get_packaging_dashboard",
+      { token: getStoredToken(), client_id: clientId },
+    );
+  }
+  payPackagingDebt(input: {
+    client_id: number;
+    parts: Array<{ method_code: string; amount: number }>;
+    request_key: string;
+    note?: string;
+  }) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient["payPackagingDebt"]>>>(
+      "pay_packaging_debt",
+      { token: getStoredToken(), payload: input },
+    );
+  }
+  getProductCatalogueOverview() {
+    return tauriInvoke<Awaited<ReturnType<ApiClient["getProductCatalogueOverview"]>>>(
+      "get_product_catalogue_overview_pc",
+      { token: getStoredToken() },
+    );
+  }
+  setCatalogueProductActive(id: number, is_active: boolean) {
+    return tauriInvoke("set_catalogue_product_active_pc", {
+      token: getStoredToken(),
+      product_id: id,
+      is_active,
+    });
+  }
+  setCatalogueReferencePrice(
+    id: number,
+    input: { reference_price: number; reason?: string; request_key: string },
+  ) {
+    return tauriInvoke("set_catalogue_reference_price_pc", {
+      token: getStoredToken(),
+      product_id: id,
+      payload: input,
+    });
+  }
+  getCatalogueReferencePriceHistory(id: number) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient["getCatalogueReferencePriceHistory"]>>>(
+      "get_catalogue_reference_price_history_pc",
+      { token: getStoredToken(), product_id: id },
+    );
+  }
   getCashStatus() {
     return tauriInvoke<Awaited<ReturnType<ApiClient["getCashStatus"]>>>(
       "get_cash_status",

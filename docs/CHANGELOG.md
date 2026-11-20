@@ -1,5 +1,11 @@
 # CHANGELOG — DEPOTPRO PREMIUM V3
 
+## [3.0.0] - 2026-11-19 — LOT 10 : Validation finale & préparation production
+- Validation complète du parcours métier (28 étapes de la section 10.1) via les 22 scénarios canoniques paritaires (`lot9_parity.rs` + suite Node `tests/lot9_parity.test.mjs`, 117/117 PASS).
+- Benchmarks charge validés (`npm run benchmark`, base 10k produits / 10k clients / 100k lignes) : recherche p50 37 ms (< 300 ms), détail vente p95 1.03 ms (< 150 ms), validation vente atomique p95 2.60 ms (< 500 ms).
+- Workspace clippy propre : suppression du champ `license` inutilisé et correction du let-binding unitaire (`initialize_catalogue_pc`, `src-tauri/src/commands.rs`); `cargo fmt --check` OK.
+- Ajout du rapport de préparation à la production (`docs/PRODUCTION_READINESS_REPORT.md`) : plateformes validées, limitations connues (signature/notarisation macOS, installateur Windows) et risques résiduels.
+
 ## [3.0.0] - 2026-11-17
 - Phase 0 : Audit complet du dépôt source `depot_python` (`78d9555`), matrice de migration et schéma cible unifié.
 - Schéma SQLite V3 unifié (`migrations/sqlite/0001_initial_v3.sql`) : FCFA entiers, quantités `*_milli`, transactions `BEGIN IMMEDIATE`, idempotence `request_key`, contre-écritures non destructives.

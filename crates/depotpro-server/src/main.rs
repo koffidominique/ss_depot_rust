@@ -18,8 +18,8 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use depotpro_core::application::auth::{self, Permission, SessionIdentity, SessionStore};
 use depotpro_core::application::{
-    cash, catalogue, consignments, inventory, packaging_components, partial_returns, pdf,
-    product_catalogue, products, purchases, reports, sales, sales_validation,
+    cash, catalogue, consignments, inventory, packaging_components, packaging_obligations,
+    partial_returns, pdf, product_catalogue, products, purchases, reports, sales, sales_validation,
 };
 use depotpro_core::infrastructure::{backup, db::DepotDb};
 use depotpro_core::CoreError;
@@ -236,6 +236,11 @@ struct SearchQuery {
     low_stock_only: Option<bool>,
     page: Option<i64>,
     page_size: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PackagingObligationsQuery {
+    client_id: Option<i64>,
 }
 
 impl From<SearchQuery> for catalogue::PaginatedQuery {
@@ -2776,6 +2781,134 @@ async fn adjust_returnable_stock(
     }
 }
 
+async fn packaging_obligations_list(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<PackagingObligationsQuery>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, packaging_obligations::list_obligations(&db, q.client_id)).await {
+        Ok(list) => Json(serde_json::to_value(list).unwrap()).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn packaging_dashboard(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(client_id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ConsignmentsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        packaging_obligations::get_client_packaging_dashboard(&db, client_id),
+    )
+    .await
+    {
+        Ok(dto) => Json(serde_json::to_value(dto).unwrap()).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn catalogue_set_product_active(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(product_id): Path<i64>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    let is_active = payload
+        .get("is_active")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    match auth::with_actor(
+        actor.clone(),
+        product_catalogue::set_catalogue_product_active(&db, product_id, is_active),
+    )
+    .await
+    {
+        Ok(dto) => Json(serde_json::to_value(dto).unwrap()).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn catalogue_set_reference_price(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(product_id): Path<i64>,
+    Json(payload): Json<product_catalogue::SetReferencePriceInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    let username = actor.username.clone();
+    match auth::with_actor(
+        actor,
+        product_catalogue::set_reference_price(&db, product_id, payload, Some(&username)),
+    )
+    .await
+    {
+        Ok(dto) => Json(serde_json::to_value(dto).unwrap()).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn catalogue_reference_price_history(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(product_id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        product_catalogue::list_reference_price_history(&db, product_id),
+    )
+    .await
+    {
+        Ok(list) => Json(serde_json::to_value(list).unwrap()).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn packaging_pay_debt(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<packaging_obligations::PayPackagingDebtInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::ReceivablesPay).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor.clone(),
+        packaging_obligations::pay_packaging_financial_debt(&db, payload, Some(&actor.username)),
+    )
+    .await
+    {
+        Ok(dto) => Json(serde_json::to_value(dto).unwrap()).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
 async fn return_client_empties(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -3340,6 +3473,28 @@ fn build_router(state: AppState) -> Router {
             post(adjust_returnable_stock),
         )
         .route("/api/consignments/returns", post(return_client_empties))
+        // PHASE 6 MAJ.md : créances financières d'emballages
+        .route(
+            "/api/packaging-obligations",
+            get(packaging_obligations_list),
+        )
+        .route(
+            "/api/packaging-obligations/dashboard/:client_id",
+            get(packaging_dashboard),
+        )
+        .route(
+            "/api/packaging-obligations/pay",
+            post(packaging_pay_debt),
+        )
+        // PHASE 4 catalogue_seed.md : administration OWNER du catalogue standard
+        .route(
+            "/api/catalogue-products/:id/active",
+            put(catalogue_set_product_active),
+        )
+        .route(
+            "/api/catalogue-products/:id/reference-price",
+            put(catalogue_set_reference_price).get(catalogue_reference_price_history),
+        )
         // LOT 3-4 : emballages composants
         .route(
             "/api/packaging-components",

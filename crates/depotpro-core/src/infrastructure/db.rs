@@ -35,6 +35,14 @@ pub const V3_MIGRATION_0012_SQL: &str =
     include_str!("../../../../migrations/sqlite/0012_catalogue_products.sql");
 pub const V3_MIGRATION_0013_SQL: &str =
     include_str!("../../../../migrations/sqlite/0013_pending_returns_pieces.sql");
+pub const V3_MIGRATION_0014_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0014_supplier_packaging_exchange.sql");
+pub const V3_MIGRATION_0015_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0015_packaging_obligations_conversions.sql");
+pub const V3_MIGRATION_0016_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0016_solibra_reference_catalogue.sql");
+pub const V3_MIGRATION_0017_SQL: &str =
+    include_str!("../../../../migrations/sqlite/0017_catalogue_reference_price_history.sql");
 #[derive(Debug, Clone, Copy)]
 pub struct MigrationDef {
     pub version: i64,
@@ -108,10 +116,30 @@ pub const MIGRATIONS: &[MigrationDef] = &[
         name: "0013_pending_returns_pieces",
         sql: V3_MIGRATION_0013_SQL,
     },
+    MigrationDef {
+        version: 14,
+        name: "0014_supplier_packaging_exchange",
+        sql: V3_MIGRATION_0014_SQL,
+    },
+    MigrationDef {
+        version: 15,
+        name: "0015_packaging_obligations_conversions",
+        sql: V3_MIGRATION_0015_SQL,
+    },
+    MigrationDef {
+        version: 16,
+        name: "0016_solibra_reference_catalogue",
+        sql: V3_MIGRATION_0016_SQL,
+    },
+    MigrationDef {
+        version: 17,
+        name: "0017_catalogue_reference_price_history",
+        sql: V3_MIGRATION_0017_SQL,
+    },
 ];
 
 pub const MIN_SUPPORTED_SCHEMA_VERSION: i64 = 1;
-pub const CURRENT_SCHEMA_VERSION: i64 = 13;
+pub const CURRENT_SCHEMA_VERSION: i64 = 17;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MigrationRunReport {
