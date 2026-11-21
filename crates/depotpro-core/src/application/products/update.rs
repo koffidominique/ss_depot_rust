@@ -62,8 +62,7 @@ pub async fn update_product(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let cur =
-        existing.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
+    let cur = existing.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
 
     let name = input
         .name
