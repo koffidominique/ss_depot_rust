@@ -41,10 +41,36 @@ function ConsignmentReturnFormBody({
   const [creditReduction, setCreditReduction] = useState(0);
   const [methodCode, setMethodCode] = useState('cash');
   const [reason, setReason] = useState('Retour emballages vides');
+  const [confirmMatchingProducts, setConfirmMatchingProducts] = useState(false);
 
   return (
     <>
       <div className="mt-4 space-y-3 text-xs">
+        {target.expected_products && (
+          <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/30 p-3 text-xs space-y-1.5">
+            <div className="font-semibold text-[#B45309] dark:text-amber-400">
+              Correspondance obligatoire des bouteilles vides
+            </div>
+            <p className="text-[#667085] dark:text-slate-300">
+              Produits commandés et livrés attendus :{' '}
+              <span className="font-medium text-[#182230] dark:text-slate-100">
+                {target.expected_products}
+              </span>
+            </p>
+            <label className="flex items-start gap-2 pt-1 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={confirmMatchingProducts}
+                onChange={(e) => setConfirmMatchingProducts(e.target.checked)}
+                className="mt-0.5 rounded border-slate-300 text-[#16A36A] focus:ring-[#16A36A]"
+              />
+              <span className="text-[#182230] dark:text-slate-200">
+                Je confirme que les bouteilles vides remises correspondent exactement aux produits
+                livrés ci-dessus.
+              </span>
+            </label>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block font-medium">Pièces retournées</label>
@@ -127,7 +153,7 @@ function ConsignmentReturnFormBody({
         </Dialog.Close>
         <button
           type="button"
-          disabled={isPending}
+          disabled={isPending || (Boolean(target.expected_products) && !confirmMatchingProducts)}
           onClick={() =>
             onSubmit({
               target,
@@ -139,7 +165,7 @@ function ConsignmentReturnFormBody({
               reason,
             })
           }
-          className="rounded-lg bg-[#16A36A] px-4 py-2 text-xs font-semibold text-white"
+          className="rounded-lg bg-[#16A36A] px-4 py-2 text-xs font-semibold text-white disabled:opacity-40"
         >
           Confirmer le retour
         </button>

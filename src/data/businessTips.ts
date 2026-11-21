@@ -97,7 +97,7 @@ export const BUSINESS_TIPS_TOPICS: TipTopic[] = [
         formName: 'Panier de vente',
         field: 'Quantité & Conditionnement',
         meaning: 'Seul le conditionnement casier est vendable et convertit votre saisie vers le stock de base via son coefficient exact.',
-        rule: 'Les quantités fractionnaires (ex : 0,5 casier) ne sont autorisées que si le conditionnement l’autorise et s’il n’est pas consigné.',
+        rule: 'Les quantités fractionnaires (ex : 0,5 casier) sont autorisées si le conditionnement l’autorise. En panachage consigné, deux demi-casiers partageant le même casier comptent pour un seul casier consigné et les bouteilles vides retournées doivent correspondre aux produits livrés.',
         example: '1 casier × 24 bouteilles = 24 bouteilles déduites du stock atomiquement.',
       },
       {

@@ -29,7 +29,9 @@ export function buildSalePrintableDoc(sale: SaleDetail): PrintableDocumentData {
       })),
       ...sale.deposits.map((d) => ({
         label: `Retour emballage : ${d.packaging_name}`,
-        sublabel: `Code ${d.packaging_code}`,
+        sublabel: d.expected_products
+          ? `Code ${d.packaging_code} · Bouteilles attendues : ${d.expected_products}`
+          : `Code ${d.packaging_code}`,
         quantity: `${d.pieces} pcs`,
         unitPrice: d.unit_value,
         total: d.amount,

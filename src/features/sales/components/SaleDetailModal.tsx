@@ -66,7 +66,9 @@ export function SaleDetailModal({
                           })),
                           ...sale.deposits.map((d) => ({
                             label: `Retour emballage : ${d.packaging_name}`,
-                            sublabel: `Code ${d.packaging_code}`,
+                            sublabel: d.expected_products
+                              ? `Code ${d.packaging_code} · Bouteilles attendues : ${d.expected_products}`
+                              : `Code ${d.packaging_code}`,
                             quantity: `${d.pieces} pcs`,
                             unitPrice: d.unit_value,
                             total: d.amount,
@@ -174,6 +176,32 @@ export function SaleDetailModal({
                   </div>
                 )}
               </div>
+
+              {sale.deposits.length > 0 && (
+                <div className="rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 p-3 text-xs space-y-1.5">
+                  <div className="font-semibold text-[#1D4ED8] dark:text-blue-400">
+                    Emballages consignés &amp; bouteilles vides à restituer
+                  </div>
+                  {sale.deposits.map((d) => (
+                    <div key={d.id} className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium">
+                          {d.packaging_name} ({d.packaging_code}) · {d.returned_pieces}/{d.pieces}{' '}
+                          retourné(s)
+                        </div>
+                        {d.expected_products && (
+                          <div className="text-[11px] text-[#667085] dark:text-slate-400">
+                            Produits attendus : {d.expected_products}
+                          </div>
+                        )}
+                      </div>
+                      <span className="font-mono-num font-semibold shrink-0">
+                        {formatFcfa(d.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {sale.returns.length > 0 && (
                 <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-3 text-xs space-y-2">

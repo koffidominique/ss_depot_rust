@@ -196,6 +196,7 @@ export interface SaleDetail extends SaleSummary {
     returned_pieces: number;
     unit_value: number;
     amount: number;
+    expected_products?: string | null;
   }>;
   cancellation: {
     id: number;

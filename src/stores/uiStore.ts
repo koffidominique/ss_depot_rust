@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PriceTier, SessionUser } from '../types/erp.ts';
+import type { DepositComponent, PriceTier, SessionUser } from '../types/erp.ts';
 import { parseQtyInputToMilliBigInt } from '../features/sales/utils/saleCalculations.ts';
 
 function formatDotMilli(milli: bigint): string {
@@ -26,6 +26,7 @@ export interface CartItem {
   discountAmount: number;
   depositPerPack: number;
   depositMode: 'none' | 'deposit' | null;
+  depositComponents?: DepositComponent[];
 }
 
 export interface HeldCart {

@@ -53,6 +53,7 @@ export interface OpenIssue {
   returned_pieces: number;
   unit_value: number;
   amount: number;
+  expected_products?: string | null;
 }
 
 export interface DepositReturnRow {

@@ -129,6 +129,7 @@ export function SalesPage() {
       discountAmount: 0,
       depositPerPack,
       depositMode: pkg.deposit_mode,
+      depositComponents: pkg.components,
     });
   };
 
