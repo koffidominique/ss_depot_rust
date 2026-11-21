@@ -22,7 +22,11 @@ pub(crate) async fn product_form_metadata(
     };
     let db = state.db().await;
     match auth::with_actor(actor, products::get_product_form_metadata(&db)).await {
-        Ok(metadata) => (StatusCode::OK, Json(serde_json::to_value(metadata).unwrap())).into_response(),
+        Ok(metadata) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(metadata).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
