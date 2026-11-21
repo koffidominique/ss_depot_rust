@@ -65,7 +65,7 @@ export function ProductsPage() {
   });
 
   /* --- 3. Requêtes & Mutations TanStack Query --- */
-  const { categoriesQuery, consignmentsQuery, productsQuery } = useProductsQueries({
+  const { categoriesQuery, productFormMetadataQuery, consignmentsQuery, productsQuery } = useProductsQueries({
     search,
     categoryId,
     includeArchived,
@@ -110,6 +110,7 @@ export function ProductsPage() {
   });
 
   const categories = categoriesQuery.data;
+  const productFormMetadata = productFormMetadataQuery.data;
   const consignments = consignmentsQuery.data;
   const { data, isLoading, error, refetch } = productsQuery;
 
@@ -128,14 +129,18 @@ export function ProductsPage() {
 
   const openCreateModal = () => {
     setEditingProduct(null);
-    productForm.reset(createProductDefaultValues(categories));
+    if (!productFormMetadata) {
+      setFormError('Le catalogue des brasseries et marques est encore en cours de chargement. Réessayez dans un instant.');
+      return;
+    }
+    productForm.reset(createProductDefaultValues(categories, productFormMetadata));
     setFormError(null);
     setCreateOpen(true);
   };
 
   const openEditModal = (prod: Product) => {
     setEditingProduct(prod);
-    productForm.reset(editProductDefaultValues(prod));
+    productForm.reset(editProductDefaultValues(prod, productFormMetadata));
     setFormError(null);
     setCreateOpen(true);
   };
@@ -213,6 +218,7 @@ export function ProductsPage() {
         editingProduct={editingProduct}
         form={productForm}
         categories={categories}
+        metadata={productFormMetadata}
         error={formError}
         isPending={saveProductMutation.isPending}
         onSubmit={(values) => saveProductMutation.mutate({ editingProduct, values })}

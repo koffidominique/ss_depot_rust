@@ -74,7 +74,12 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     ).toBeVisible();
     await page.getByRole('button', { name: 'Nouveau produit' }).click();
     const prodModal = page.getByRole('dialog');
-    await prodModal.locator('input[type="text"]').first().fill('Youki Cocktail 50cl');
+    // Le nouveau formulaire exige une relation producteur -> marque explicite.
+    await prodModal.locator('#product-brewery').selectOption({ label: 'SOLIBRA' });
+    await prodModal.locator('#product-brand').selectOption({ label: 'Youki' });
+    await prodModal.locator('#product-name').fill('Youki Cocktail 50cl');
+    await prodModal.locator('#product-volume').fill('500');
+    await prodModal.locator('#product-container').selectOption('pet');
     await prodModal.getByRole('button', { name: 'Enregistrer' }).click();
     await expect(page.getByRole('cell', { name: /Youki Cocktail 50cl/i })).toBeVisible();
 

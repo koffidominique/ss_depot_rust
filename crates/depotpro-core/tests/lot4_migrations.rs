@@ -5,8 +5,8 @@ use depotpro_core::infrastructure::db::{
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::path::PathBuf;
 
-const EXPECTED_SCHEMA_V15_JSON: &str =
-    include_str!("../../../migrations/sqlite/expected_schema_v15.json");
+const EXPECTED_SCHEMA_V18_JSON: &str =
+    include_str!("../../../migrations/sqlite/expected_schema_v18.json");
 
 fn temp_db_path(tag: &str) -> PathBuf {
     std::env::temp_dir().join(format!("depotpro_lot4_{tag}_{}.db", uuid::Uuid::new_v4()))
@@ -41,12 +41,12 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
     let db_path = temp_db_path("fresh_parity");
     let db = DepotDb::connect(&db_path).await.expect("connect fresh db");
 
-    // 1. Vérifier les versions 1..5 appliquées dans l'ordre
+    // 1. Vérifier les migrations appliquées dans l'ordre
     let snapshot = DepotDb::extract_schema_snapshot(&db.pool)
         .await
         .expect("extract schema");
     let expected: SchemaSnapshot =
-        serde_json::from_str(EXPECTED_SCHEMA_V15_JSON).expect("parse expected_schema_v15.json");
+        serde_json::from_str(EXPECTED_SCHEMA_V18_JSON).expect("parse expected_schema_v18.json");
     assert_eq!(
         normalize_snapshot(snapshot),
         normalize_snapshot(expected),
@@ -118,7 +118,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
     // 5. Rejeu idempotent
     let replay = DepotDb::apply_migrations(&db.pool).await.unwrap();
     assert!(replay.applied_versions.is_empty());
-    assert_eq!(replay.latest_version, 17);
+    assert_eq!(replay.latest_version, 18);
 
     let _ = std::fs::remove_file(&db_path);
     let _ = std::fs::remove_file(format!("{}-wal", db_path.display()));
@@ -214,7 +214,7 @@ async fn lot4_existing_columns_and_missing_columns_upgrade_cleanly() {
     assert_eq!(settings_b.setup_completed, 0);
 
     let snap_b = DepotDb::extract_schema_snapshot(&db_b.pool).await.unwrap();
-    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V15_JSON).unwrap();
+    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V18_JSON).unwrap();
     assert_eq!(normalize_snapshot(snap_b), normalize_snapshot(expected));
 
     let _ = std::fs::remove_file(&existing_cols_path);
@@ -289,7 +289,7 @@ async fn lot4_interrupted_migration_rolls_back_and_partial_migration_recovers() 
     let report = DepotDb::apply_migrations(&pool_p).await.unwrap();
     assert_eq!(
         report.applied_versions,
-        vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+        vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
     );
     assert_eq!(report.skipped_legacy_columns_for, vec![2]);
     pool_p.close().await;
@@ -313,4 +313,70 @@ async fn extract_schema_for_expected_file() {
     std::fs::remove_file(&db_path).ok();
     std::fs::remove_file(format!("{}-wal", db_path.display())).ok();
     std::fs::remove_file(format!("{}-shm", db_path.display())).ok();
+}
+
+#[tokio::test]
+async fn lot4_migration_18_creates_brewery_reference_and_brand_links() {
+    let db_path = temp_db_path("brewery_catalogue");
+    let db = DepotDb::connect(&db_path).await.expect("connect fresh db");
+
+    let brewery_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM breweries WHERE code IN ('SOLIBRA-CI', 'BRASSIVOIRE-CI')",
+    )
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(brewery_count, 2);
+
+    let solibra_id: i64 = sqlx::query_scalar("SELECT id FROM breweries WHERE code = 'SOLIBRA-CI'")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    let bock_producer: Option<i64> =
+        sqlx::query_scalar("SELECT brewery_id FROM brands WHERE lower(name) = 'bock'")
+            .fetch_optional(&db.pool)
+            .await
+            .unwrap();
+    assert_eq!(bock_producer, Some(solibra_id));
+
+    let brands_without_producer: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM brands WHERE code IN ('BR-BOCK', 'BR-BEAUFORT', 'BR-IVOIRE-CLASSIC') AND brewery_id IS NULL",
+    )
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(brands_without_producer, 0);
+
+    let variant_columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('product_variants')")
+            .fetch_all(&db.pool)
+            .await
+            .unwrap();
+    for required in [
+        "reference",
+        "container_type",
+        "alcohol_degree",
+        "updated_at",
+    ] {
+        assert!(
+            variant_columns.iter().any(|column| column == required),
+            "missing product_variants.{required}"
+        );
+    }
+
+    let brand_columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('brands')")
+            .fetch_all(&db.pool)
+            .await
+            .unwrap();
+    for required in ["brewery_id", "updated_at"] {
+        assert!(
+            brand_columns.iter().any(|column| column == required),
+            "missing brands.{required}"
+        );
+    }
+
+    let _ = std::fs::remove_file(&db_path);
+    let _ = std::fs::remove_file(format!("{}-wal", db_path.display()));
+    let _ = std::fs::remove_file(format!("{}-shm", db_path.display()));
 }

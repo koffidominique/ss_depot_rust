@@ -12,6 +12,7 @@ pub struct CreateBrandInput {
     pub code: String,
     pub name: String,
     pub description: Option<String>,
+    pub brewery_id: Option<i64>,
     #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
     pub is_active: Option<bool>,
 }
@@ -22,6 +23,7 @@ pub struct UpdateBrandInput {
     pub code: Option<String>,
     pub name: Option<String>,
     pub description: Option<Option<String>>,
+    pub brewery_id: Option<Option<i64>>,
     #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
     pub is_active: Option<bool>,
 }
@@ -34,6 +36,7 @@ pub struct CreateProductVariantInput {
     pub reference: Option<String>,
     pub barcode: Option<String>,
     pub volume_ml: Option<i64>,
+    pub container_type: Option<String>,
     pub alcohol_degree: Option<f64>,
     pub bottle_profile_id: Option<i64>,
     pub crate_type_id: Option<i64>,
@@ -49,6 +52,7 @@ pub struct UpdateProductVariantInput {
     pub reference: Option<Option<String>>,
     pub barcode: Option<Option<String>>,
     pub volume_ml: Option<Option<i64>>,
+    pub container_type: Option<Option<String>>,
     pub alcohol_degree: Option<Option<f64>>,
     pub bottle_profile_id: Option<Option<i64>>,
     pub crate_type_id: Option<Option<i64>>,

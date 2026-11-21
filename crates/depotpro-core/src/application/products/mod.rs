@@ -7,12 +7,15 @@ use sqlx::FromRow;
 
 mod create;
 mod csv_io;
+mod metadata;
 mod packaging;
 mod queries;
 mod serde_helpers;
 mod update;
 
 pub use create::create_product;
+pub use metadata::get_product_form_metadata;
+
 pub use csv_io::{export_products_csv, import_products_csv};
 pub use packaging::upsert_packaging;
 pub(crate) use queries::get_product_by_id;
@@ -23,7 +26,40 @@ pub(crate) use serde_helpers::{
 };
 pub use update::update_product;
 
-pub(crate) const ALLOWED_PACKAGING_NAMES: &[&str] = &["casier"];
+pub(crate) const ALLOWED_PACKAGING_NAMES: &[&str] =
+    &["casier", "carton", "bouteille", "pack", "canette"];
+pub(crate) const ALLOWED_CONTAINER_TYPES: &[&str] = &[
+    "glass_returnable",
+    "glass_disposable",
+    "pet",
+    "can",
+    "plastic_bottle",
+    "other",
+];
+
+#[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct BreweryOptionDto {
+    pub id: i64,
+    pub code: String,
+    pub name: String,
+    pub country_code: String,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct BrandOptionDto {
+    pub id: i64,
+    pub code: String,
+    pub name: String,
+    pub brewery_id: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProductFormMetadataDto {
+    pub breweries: Vec<BreweryOptionDto>,
+    pub brands: Vec<BrandOptionDto>,
+}
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct CategoryDto {
@@ -85,6 +121,17 @@ pub(crate) struct ProductRow {
     pub barcode: Option<String>,
     pub name: String,
     pub brand: Option<String>,
+    pub brand_id: Option<i64>,
+    pub brewery_id: Option<i64>,
+    pub brewery_name: Option<String>,
+    pub variant_id: Option<i64>,
+    pub variant_name: Option<String>,
+    pub volume_ml: Option<i64>,
+    pub container_type: Option<String>,
+    pub alcohol_degree: Option<f64>,
+    pub bottle_profile_id: Option<i64>,
+    pub crate_type_id: Option<i64>,
+    pub compatibility_group_id: Option<i64>,
     pub category_id: i64,
     pub category_name: String,
     pub supplier_id: Option<i64>,
@@ -111,6 +158,17 @@ pub struct ProductSummaryDto {
     pub barcode: Option<String>,
     pub name: String,
     pub brand: Option<String>,
+    pub brand_id: Option<i64>,
+    pub brewery_id: Option<i64>,
+    pub brewery_name: Option<String>,
+    pub variant_id: Option<i64>,
+    pub variant_name: Option<String>,
+    pub volume_ml: Option<i64>,
+    pub container_type: Option<String>,
+    pub alcohol_degree: Option<f64>,
+    pub bottle_profile_id: Option<i64>,
+    pub crate_type_id: Option<i64>,
+    pub compatibility_group_id: Option<i64>,
     pub category_id: i64,
     pub category_name: String,
     pub supplier_id: Option<i64>,
@@ -169,6 +227,15 @@ pub struct PackagingInput {
 pub struct CreateProductInput {
     pub name: String,
     pub brand: Option<String>,
+    pub brand_id: Option<i64>,
+    pub brewery_id: Option<i64>,
+    pub variant_name: Option<String>,
+    pub volume_ml: Option<i64>,
+    pub container_type: Option<String>,
+    pub alcohol_degree: Option<f64>,
+    pub bottle_profile_id: Option<i64>,
+    pub crate_type_id: Option<i64>,
+    pub compatibility_group_id: Option<i64>,
     pub barcode: Option<String>,
     pub category_id: i64,
     pub supplier_id: Option<i64>,
@@ -192,6 +259,15 @@ pub struct CreateProductInput {
 pub struct UpdateProductInput {
     pub name: Option<String>,
     pub brand: Option<String>,
+    pub brand_id: Option<i64>,
+    pub brewery_id: Option<i64>,
+    pub variant_name: Option<String>,
+    pub volume_ml: Option<i64>,
+    pub container_type: Option<String>,
+    pub alcohol_degree: Option<f64>,
+    pub bottle_profile_id: Option<i64>,
+    pub crate_type_id: Option<i64>,
+    pub compatibility_group_id: Option<i64>,
     pub barcode: Option<String>,
     pub category_id: Option<i64>,
     pub supplier_id: Option<i64>,

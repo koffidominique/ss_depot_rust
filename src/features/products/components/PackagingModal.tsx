@@ -91,20 +91,20 @@ export function PackagingModal({
               </button>
             );
           })}
-          {!product.packagings.some((p) => p.name === 'casier') && (
-            <button
-              type="button"
-              onClick={() => onStartNew(product)}
-              className={`inline-flex items-center gap-1 rounded-lg border border-dashed px-2.5 py-1 text-xs font-medium transition-colors ${
-                state.id === undefined
-                  ? 'border-[#2563EB] bg-blue-50 dark:bg-blue-950/40 text-[#2563EB]'
-                  : 'border-slate-300 dark:border-slate-700 text-[#667085] hover:border-[#2563EB] hover:text-[#2563EB]'
-              }`}
-            >
-              <Plus className="h-3 w-3" />
-              Nouveau
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={product.packagings.length >= 5}
+            onClick={() => onStartNew(product)}
+            className={`inline-flex items-center gap-1 rounded-lg border border-dashed px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
+              state.id === undefined
+                ? 'border-[#2563EB] bg-blue-50 dark:bg-blue-950/40 text-[#2563EB]'
+                : 'border-slate-300 dark:border-slate-700 text-[#667085] hover:border-[#2563EB] hover:text-[#2563EB]'
+            }`}
+            title={product.packagings.length >= 5 ? 'Tous les types de conditionnement sont déjà créés' : 'Ajouter un conditionnement'}
+          >
+            <Plus className="h-3 w-3" />
+            Nouveau
+          </button>
         </div>
       )}
 
@@ -115,11 +115,19 @@ export function PackagingModal({
             aria-label="Type de conditionnement"
             value={state.name}
             onChange={(e) =>
-              onChangeState((prev) => ({ ...prev, name: e.target.value as PackagingName }))
+              onChangeState((prev) => ({
+                ...prev,
+                name: e.target.value as PackagingName,
+                deposit_mode: e.target.value === 'casier' ? prev.deposit_mode : 'none',
+              }))
             }
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
           >
-            <option value="casier">casier</option>
+            <option value="casier" disabled={Boolean(product?.packagings.some((pk) => pk.name === 'casier' && pk.id !== state.id))}>casier</option>
+            <option value="carton" disabled={Boolean(product?.packagings.some((pk) => pk.name === 'carton' && pk.id !== state.id))}>carton</option>
+            <option value="pack" disabled={Boolean(product?.packagings.some((pk) => pk.name === 'pack' && pk.id !== state.id))}>pack</option>
+            <option value="bouteille" disabled={Boolean(product?.packagings.some((pk) => pk.name === 'bouteille' && pk.id !== state.id))}>bouteille</option>
+            <option value="canette" disabled={Boolean(product?.packagings.some((pk) => pk.name === 'canette' && pk.id !== state.id))}>canette</option>
           </select>
         </div>
         <QuantityInput
@@ -129,12 +137,12 @@ export function PackagingModal({
           unit={product?.base_unit}
         />
         <MoneyInput
-          label="Prix d'achat (casier)"
+          label={`Prix d'achat (${state.name})`}
           value={state.purchase_price}
           onChange={(v) => onChangeState((prev) => ({ ...prev, purchase_price: v }))}
         />
         <MoneyInput
-          label="Prix détail (casier)"
+          label={`Prix détail (${state.name})`}
           value={state.retail_price}
           onChange={(v) => onChangeState((prev) => ({ ...prev, retail_price: v }))}
         />
@@ -168,6 +176,7 @@ export function PackagingModal({
           />
           Conditionnement actif
         </label>
+        {state.name === 'casier' && (
         <div className="col-span-2 border-t border-slate-200 dark:border-slate-800 pt-3">
           <label className="block text-xs font-medium">
             Régime retour emballage (casier uniquement)
@@ -187,7 +196,8 @@ export function PackagingModal({
             <option value="deposit">Avec emballage consigné</option>
           </select>
         </div>
-        {state.deposit_mode === 'deposit' && (
+        )}
+        {state.name === 'casier' && state.deposit_mode === 'deposit' && (
           <>
             <div>
               <label className="block text-xs font-medium">Emballage consigné</label>

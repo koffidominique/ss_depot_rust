@@ -43,7 +43,7 @@ pub async fn list_product_variants(
     .await?;
 
     let rows = sqlx::query_as::<_, ProductVariantDto>(
-        "SELECT * FROM product_variants 
+        "SELECT id, product_id, name, reference, barcode, volume_ml, container_type, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at FROM product_variants 
          WHERE (? = 1 OR is_active = 1)
            AND (? = 0 OR product_id = ?)
            AND (? = 0 OR name LIKE ? OR COALESCE(reference, '') LIKE ? OR COALESCE(barcode, '') LIKE ?)
@@ -96,6 +96,35 @@ pub async fn create_product_variant(
             "Produit parent introuvable.".to_string(),
         ));
     }
+    if input.volume_ml.is_some_and(|v| v <= 0) {
+        return Err(CoreError::Validation(
+            "Le volume de la variante doit être positif.".to_string(),
+        ));
+    }
+    if let Some(ref kind) = input.container_type {
+        if ![
+            "glass_returnable",
+            "glass_disposable",
+            "pet",
+            "can",
+            "plastic_bottle",
+            "other",
+        ]
+        .contains(&kind.as_str())
+        {
+            return Err(CoreError::Validation(
+                "Type de contenant invalide.".to_string(),
+            ));
+        }
+    }
+    if input
+        .alcohol_degree
+        .is_some_and(|v| !v.is_finite() || !(0.0..=100.0).contains(&v))
+    {
+        return Err(CoreError::Validation(
+            "Le degré d'alcool doit être compris entre 0 et 100 %.".to_string(),
+        ));
+    }
     if let Some(ref code) = input.reference {
         let dup: Option<i64> =
             sqlx::query_scalar("SELECT id FROM product_variants WHERE reference = ?")
@@ -109,14 +138,15 @@ pub async fn create_product_variant(
         }
     }
     let id = sqlx::query(
-        "INSERT INTO product_variants (product_id, name, reference, barcode, volume_ml, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO product_variants (product_id, name, reference, barcode, volume_ml, container_type, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     )
     .bind(input.product_id)
     .bind(&clean_name)
     .bind(input.reference.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(input.barcode.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(input.volume_ml)
+    .bind(input.container_type.as_deref())
     .bind(input.alcohol_degree)
     .bind(input.bottle_profile_id)
     .bind(input.crate_type_id)
@@ -128,7 +158,7 @@ pub async fn create_product_variant(
     tx.commit().await?;
 
     let created =
-        sqlx::query_as::<_, ProductVariantDto>("SELECT * FROM product_variants WHERE id = ?")
+        sqlx::query_as::<_, ProductVariantDto>("SELECT id, product_id, name, reference, barcode, volume_ml, container_type, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at FROM product_variants WHERE id = ?")
             .bind(id)
             .fetch_one(&db.pool)
             .await?;
@@ -157,40 +187,141 @@ pub async fn update_product_variant(
         binds.push(clean.to_string());
     }
     if let Some(ref r) = input.reference {
-        if let Some(rr) = r {
-            updates.push("reference = ?".to_string());
-            binds.push(rr.trim().to_string());
+        match r {
+            Some(value) => {
+                let clean = value.trim();
+                if clean.is_empty() {
+                    return Err(CoreError::Validation(
+                        "La référence ne peut pas être vide.".to_string(),
+                    ));
+                }
+                updates.push("reference = ?".to_string());
+                binds.push(clean.to_string());
+            }
+            None => updates.push("reference = NULL".to_string()),
         }
     }
-    if let Some(ref b) = input.barcode {
-        if let Some(bb) = b {
-            updates.push("barcode = ?".to_string());
-            binds.push(bb.trim().to_string());
+    if let Some(ref barcode) = input.barcode {
+        match barcode {
+            Some(value) => {
+                let clean = value.trim();
+                if clean.is_empty() {
+                    updates.push("barcode = NULL".to_string());
+                } else {
+                    updates.push("barcode = ?".to_string());
+                    binds.push(clean.to_string());
+                }
+            }
+            None => updates.push("barcode = NULL".to_string()),
         }
     }
-    if let Some(vol) = input.volume_ml {
-        if let Some(v) = vol {
-            updates.push("volume_ml = ?".to_string());
-            binds.push(v.to_string());
+    if let Some(volume) = input.volume_ml {
+        match volume {
+            Some(value) => {
+                if value <= 0 {
+                    return Err(CoreError::Validation(
+                        "Le volume doit être positif.".to_string(),
+                    ));
+                }
+                updates.push("volume_ml = ?".to_string());
+                binds.push(value.to_string());
+            }
+            None => updates.push("volume_ml = NULL".to_string()),
         }
     }
-    if let Some(alc) = input.alcohol_degree {
-        if let Some(a) = alc {
-            updates.push("alcohol_degree = ?".to_string());
-            binds.push(a.to_string());
+    if let Some(ref container_type) = input.container_type {
+        match container_type {
+            Some(value) => {
+                if ![
+                    "glass_returnable",
+                    "glass_disposable",
+                    "pet",
+                    "can",
+                    "plastic_bottle",
+                    "other",
+                ]
+                .contains(&value.as_str())
+                {
+                    return Err(CoreError::Validation(
+                        "Type de contenant invalide.".to_string(),
+                    ));
+                }
+                updates.push("container_type = ?".to_string());
+                binds.push(value.clone());
+            }
+            None => updates.push("container_type = NULL".to_string()),
         }
     }
-    if let Some(ref b) = input.bottle_profile_id {
-        updates.push("bottle_profile_id = ?".to_string());
-        binds.push(b.map(|v| v.to_string()).unwrap_or_default());
+    if let Some(alcohol) = input.alcohol_degree {
+        match alcohol {
+            Some(value) => {
+                if !value.is_finite() || !(0.0..=100.0).contains(&value) {
+                    return Err(CoreError::Validation(
+                        "Le degré d'alcool doit être compris entre 0 et 100 %.".to_string(),
+                    ));
+                }
+                updates.push("alcohol_degree = ?".to_string());
+                binds.push(value.to_string());
+            }
+            None => updates.push("alcohol_degree = NULL".to_string()),
+        }
     }
-    if let Some(ref c) = input.crate_type_id {
-        updates.push("crate_type_id = ?".to_string());
-        binds.push(c.map(|v| v.to_string()).unwrap_or_default());
+    if let Some(ref profile) = input.bottle_profile_id {
+        match profile {
+            Some(value) => {
+                let exists: Option<i64> =
+                    sqlx::query_scalar("SELECT id FROM bottle_profiles WHERE id = ?")
+                        .bind(value)
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                if exists.is_none() {
+                    return Err(CoreError::Validation(
+                        "Profil de bouteille introuvable.".to_string(),
+                    ));
+                }
+                updates.push("bottle_profile_id = ?".to_string());
+                binds.push(value.to_string());
+            }
+            None => updates.push("bottle_profile_id = NULL".to_string()),
+        }
     }
-    if let Some(ref c) = input.compatibility_group_id {
-        updates.push("compatibility_group_id = ?".to_string());
-        binds.push(c.map(|v| v.to_string()).unwrap_or_default());
+    if let Some(ref crate_type) = input.crate_type_id {
+        match crate_type {
+            Some(value) => {
+                let exists: Option<i64> =
+                    sqlx::query_scalar("SELECT id FROM crate_types WHERE id = ?")
+                        .bind(value)
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                if exists.is_none() {
+                    return Err(CoreError::Validation(
+                        "Type de casier introuvable.".to_string(),
+                    ));
+                }
+                updates.push("crate_type_id = ?".to_string());
+                binds.push(value.to_string());
+            }
+            None => updates.push("crate_type_id = NULL".to_string()),
+        }
+    }
+    if let Some(ref group) = input.compatibility_group_id {
+        match group {
+            Some(value) => {
+                let exists: Option<i64> =
+                    sqlx::query_scalar("SELECT id FROM crate_compatibility_groups WHERE id = ?")
+                        .bind(value)
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                if exists.is_none() {
+                    return Err(CoreError::Validation(
+                        "Groupe de compatibilité introuvable.".to_string(),
+                    ));
+                }
+                updates.push("compatibility_group_id = ?".to_string());
+                binds.push(value.to_string());
+            }
+            None => updates.push("compatibility_group_id = NULL".to_string()),
+        }
     }
     if let Some(active) = input.is_active {
         updates.push("is_active = ?".to_string());
@@ -218,7 +349,7 @@ pub async fn update_product_variant(
     tx.commit().await?;
 
     let updated =
-        sqlx::query_as::<_, ProductVariantDto>("SELECT * FROM product_variants WHERE id = ?")
+        sqlx::query_as::<_, ProductVariantDto>("SELECT id, product_id, name, reference, barcode, volume_ml, container_type, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at FROM product_variants WHERE id = ?")
             .bind(id)
             .fetch_one(&db.pool)
             .await?;

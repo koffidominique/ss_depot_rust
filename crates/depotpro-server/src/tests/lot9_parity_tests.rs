@@ -165,7 +165,7 @@ async fn axum_lot9_http_json_and_error_code_parity() {
         "is_active": 1
     })
     .to_string();
-    let (st, _) = send_http(
+    let (st, pack_body) = send_http(
         addr,
         "POST",
         &format!("/api/products/{prod_id}/packagings"),
@@ -173,7 +173,10 @@ async fn axum_lot9_http_json_and_error_code_parity() {
         Some(&pack_payload),
     )
     .await;
-    assert_eq!(st, 400);
+    assert_eq!(
+        st, 200,
+        "un conditionnement pack de 6 doit être accepté : {pack_body}"
+    );
 
     let casier_payload = serde_json::json!({
         "id": pkg_id,

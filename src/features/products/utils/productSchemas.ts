@@ -6,6 +6,14 @@ export const qtyPattern = /^\d+(\.\d{1,3})?$/;
 export const productSchema = z.object({
   name: z.string().trim().min(1, 'Le nom du produit est obligatoire.'),
   brand: z.string().trim(),
+  brand_id: z.number().int().min(1, 'Sélectionnez une marque.'),
+  brewery_id: z.number().int().min(1, 'Sélectionnez une brasserie.'),
+  variant_name: z.string().trim(),
+  volume_ml: z.number().int().min(1, 'Le volume doit être supérieur à 0 ml.'),
+  container_type: z.enum(['glass_returnable', 'glass_disposable', 'pet', 'can', 'plastic_bottle', 'other']),
+  alcohol_degree: z.number().min(0).max(100, 'Le degré doit être compris entre 0 et 100 %.'),
+  packaging_type: z.enum(['casier', 'carton', 'pack']),
+  units_per_package: z.number().int().min(1).max(500, 'Entre 1 et 500 unités par conditionnement.'),
   barcode: z.string().trim(),
   category_id: z.number().int().min(1, 'Catégorie obligatoire.'),
   base_unit: z.string().min(1),
@@ -58,7 +66,7 @@ export function buildPackagingStateFromExisting(pk: ProductPackaging): Packaging
   const firstComponent = pk.components?.[0];
   return {
     id: pk.id,
-    name: 'casier',
+    name: pk.name,
     coefficient: formatCoeffDot(pk.coefficient_milli),
     purchase_price: pk.purchase_price ?? 0,
     retail_price: pk.retail_price ?? 0,
@@ -74,10 +82,14 @@ export function buildPackagingStateFromExisting(pk: ProductPackaging): Packaging
 }
 
 export function buildNewPackagingState(prod: Product): PackagingFormState {
+  const used = new Set(prod.packagings.map((packaging) => packaging.name));
+  const nextName = (['casier', 'carton', 'pack', 'bouteille', 'canette'] as const)
+    .find((name) => !used.has(name)) ?? 'casier';
+  const defaultCoefficient = nextName === 'bouteille' ? '1' : nextName === 'pack' ? '6' : '24';
   return {
     id: undefined,
-    name: 'casier',
-    coefficient: '24',
+    name: nextName,
+    coefficient: defaultCoefficient,
     purchase_price: prod.purchase_price ?? 0,
     retail_price: 0,
     barcode: '',

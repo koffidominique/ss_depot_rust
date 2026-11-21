@@ -162,6 +162,15 @@ async fn lot9_22_scenarios_business_parity() {
             products::CreateProductInput {
                 name: "Produit Prix Négatif".to_string(),
                 brand: None,
+                brand_id: None,
+                brewery_id: None,
+                variant_name: None,
+                volume_ml: None,
+                container_type: None,
+                alcohol_degree: None,
+                bottle_profile_id: None,
+                crate_type_id: None,
+                compatibility_group_id: None,
                 barcode: None,
                 category_id: cat.id,
                 supplier_id: None,
@@ -186,6 +195,15 @@ async fn lot9_22_scenarios_business_parity() {
             products::CreateProductInput {
                 name: "Flag Spéciale 65cl".to_string(),
                 brand: Some("SOLIBRA".to_string()),
+                brand_id: None,
+                brewery_id: None,
+                variant_name: None,
+                volume_ml: None,
+                container_type: None,
+                alcohol_degree: None,
+                bottle_profile_id: None,
+                crate_type_id: None,
+                compatibility_group_id: None,
                 barcode: Some("6181100000651".to_string()),
                 category_id: cat.id,
                 supplier_id: Some(sup.id),
@@ -247,7 +265,7 @@ async fn lot9_22_scenarios_business_parity() {
         .await
         .unwrap();
 
-        let bad_pkg_pack = products::upsert_packaging(
+        let pkg_pack = products::upsert_packaging(
             &db,
             prod.id,
             products::PackagingInput {
@@ -265,8 +283,10 @@ async fn lot9_22_scenarios_business_parity() {
                 components: None,
             },
         )
-        .await;
-        assert!(matches!(bad_pkg_pack, Err(CoreError::Validation(_))));
+        .await
+        .unwrap();
+        assert_eq!(pkg_pack.coefficient_milli, 6_000);
+        assert_eq!(pkg_pack.deposit_mode.as_deref(), Some("none"));
 
         let pkg_casier = products::upsert_packaging(
             &db,
@@ -1007,6 +1027,15 @@ async fn lot9_22_scenarios_business_parity() {
             products::CreateProductInput {
                 name: "Produit Éphémère Rust".to_string(),
                 brand: None,
+                brand_id: None,
+                brewery_id: None,
+                variant_name: None,
+                volume_ml: None,
+                container_type: None,
+                alcohol_degree: None,
+                bottle_profile_id: None,
+                crate_type_id: None,
+                compatibility_group_id: None,
                 barcode: None,
                 category_id: cat.id,
                 supplier_id: None,

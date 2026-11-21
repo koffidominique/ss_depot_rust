@@ -33,7 +33,7 @@ pub async fn list_brand(
     .await?;
 
     let rows = sqlx::query_as::<_, BrandDto>(
-        "SELECT * FROM brands WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
+        "SELECT id, code, name, description, brewery_id, is_active, created_at, updated_at FROM brands WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
     .bind(if has_search { 1_i64 } else { 0_i64 })
@@ -66,19 +66,32 @@ pub async fn create_brand(db: &DepotDb, input: CreateBrandInput) -> CoreResult<B
 
     let (_guard, mut tx) = db.begin_write().await?;
     check_duplicate(&mut tx, "brands", "code", &clean_code, None).await?;
+    if let Some(brewery_id) = input.brewery_id {
+        let exists: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM breweries WHERE id = ? AND is_active = 1")
+                .bind(brewery_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if exists.is_none() {
+            return Err(CoreError::Validation(
+                "Brasserie introuvable ou inactive.".to_string(),
+            ));
+        }
+    }
     let id = sqlx::query(
-        "INSERT INTO brands (code, name, description, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO brands (code, name, description, brewery_id, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     )
     .bind(&clean_code)
     .bind(&clean_name)
     .bind(input.description.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(input.brewery_id)
     .bind(if input.is_active.unwrap_or(true) { 1_i64 } else { 0_i64 })
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
     tx.commit().await?;
 
-    let created = sqlx::query_as::<_, BrandDto>("SELECT * FROM brands WHERE id = ?")
+    let created = sqlx::query_as::<_, BrandDto>("SELECT id, code, name, description, brewery_id, is_active, created_at, updated_at FROM brands WHERE id = ?")
         .bind(id)
         .fetch_one(&db.pool)
         .await?;
@@ -117,6 +130,26 @@ pub async fn update_brand(db: &DepotDb, id: i64, input: UpdateBrandInput) -> Cor
         updates.push("description = ?".to_string());
         binds.push(d.trim().to_string());
     }
+
+    if let Some(brewery_id) = input.brewery_id {
+        match brewery_id {
+            Some(id) => {
+                let exists: Option<i64> =
+                    sqlx::query_scalar("SELECT id FROM breweries WHERE id = ? AND is_active = 1")
+                        .bind(id)
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                if exists.is_none() {
+                    return Err(CoreError::Validation(
+                        "Brasserie introuvable ou inactive.".to_string(),
+                    ));
+                }
+                updates.push("brewery_id = ?".to_string());
+                binds.push(id.to_string());
+            }
+            None => updates.push("brewery_id = NULL".to_string()),
+        }
+    }
     if let Some(active) = input.is_active {
         updates.push("is_active = ?".to_string());
         binds.push(if active { "1" } else { "0" }.to_string());
@@ -139,7 +172,7 @@ pub async fn update_brand(db: &DepotDb, id: i64, input: UpdateBrandInput) -> Cor
     q.execute(&mut *tx).await?;
     tx.commit().await?;
 
-    let updated = sqlx::query_as::<_, BrandDto>("SELECT * FROM brands WHERE id = ?")
+    let updated = sqlx::query_as::<_, BrandDto>("SELECT id, code, name, description, brewery_id, is_active, created_at, updated_at FROM brands WHERE id = ?")
         .bind(id)
         .fetch_one(&db.pool)
         .await?;

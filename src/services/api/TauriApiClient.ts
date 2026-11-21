@@ -35,6 +35,7 @@ export class TauriApiClient implements ApiClient {
 
   /* --- Catégories & Produits --- */
   listCategories = tauriCatalogApi.listCategories;
+  getProductFormMetadata = tauriCatalogApi.getProductFormMetadata;
   createCategory = tauriCatalogApi.createCategory;
   listProducts = tauriCatalogApi.listProducts;
   createProduct = tauriCatalogApi.createProduct;

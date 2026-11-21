@@ -107,6 +107,7 @@ pub fn run() {
             commands::auth::auth_list_users,
             commands::auth::auth_create_user,
             commands::auth::auth_toggle_user,
+            commands::products::get_product_form_metadata,
             commands::products::list_categories,
             commands::products::create_category,
             commands::products::list_products,
