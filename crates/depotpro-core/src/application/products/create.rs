@@ -90,7 +90,9 @@ pub async fn create_product(
         _ => vec![PackagingInput {
             id: None,
             name: default_pkg_name,
-            coefficient: "24".to_string(),
+            // Les créations API historiques sans conditionnement explicite restent à l’unité.
+            // Le formulaire boissons transmet son coefficient réel (ex. 12 ou 24) explicitement.
+            coefficient: "1".to_string(),
             purchase_price,
             wholesale_price,
             semi_wholesale_price: semi_price,
