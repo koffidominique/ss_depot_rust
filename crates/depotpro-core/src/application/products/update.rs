@@ -21,11 +21,26 @@ pub async fn update_product(
 ) -> CoreResult<ProductSummaryDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
 
-    type ExistingProductRow = (
-        String, String, Option<String>, Option<String>, i64, Option<i64>, Option<String>,
-        i64, i64, Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<String>, i64,
-        Option<i64>, Option<i64>,
-    );
+    #[derive(Debug, sqlx::FromRow)]
+    struct ExistingProductRow {
+        reference: String,
+        name: String,
+        brand: Option<String>,
+        barcode: Option<String>,
+        category_id: i64,
+        supplier_id: Option<i64>,
+        description: Option<String>,
+        min_stock_milli: i64,
+        max_stock_milli: i64,
+        purchase_price: Option<i64>,
+        wholesale_price: Option<i64>,
+        semi_wholesale_price: Option<i64>,
+        retail_price: Option<i64>,
+        image_path: Option<String>,
+        is_active: i64,
+        brand_id: Option<i64>,
+        variant_id: Option<i64>,
+    }
     type ExistingVariantRow = (
         String, Option<i64>, Option<String>, Option<f64>,
         Option<i64>, Option<i64>, Option<i64>,
@@ -45,7 +60,7 @@ pub async fn update_product(
     let cur = existing.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
 
     let name = input.name.as_deref().map(str::trim).filter(|v| !v.is_empty())
-        .map(str::to_string).unwrap_or_else(|| cur.1.clone());
+        .map(str::to_string).unwrap_or_else(|| cur.name.clone());
     if name.is_empty() {
         return Err(CoreError::Validation("Nom produit invalide.".to_string()));
     }
@@ -86,7 +101,7 @@ pub async fn update_product(
         let clean = legacy_brand.trim();
         (None, if clean.is_empty() { None } else { Some(clean.to_string()) })
     } else {
-        (cur.15, cur.2.clone())
+        (cur.brand_id, cur.brand.clone())
     };
 
     let barcode = match input.barcode.as_deref() {
@@ -94,7 +109,7 @@ pub async fn update_product(
             let trimmed = value.trim();
             if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
         }
-        None => cur.3.clone(),
+        None => cur.barcode.clone(),
     };
     if let Some(ref bc) = barcode {
         let dup: Option<(i64,)> = sqlx::query_as(
@@ -110,29 +125,29 @@ pub async fn update_product(
 
     let min_stock = match input.min_stock.as_deref() {
         Some(value) => Quantity::parse_str(value, "Stock minimum")?.milli_units,
-        None => cur.7,
+        None => cur.min_stock_milli,
     };
     let max_stock = match input.max_stock.as_deref() {
         Some(value) => Quantity::parse_str(value, "Stock maximum")?.milli_units,
-        None => cur.8,
+        None => cur.max_stock_milli,
     };
     let purchase_price = input.purchase_price
         .map(|v| Money::from_non_negative(v, "Prix d'achat").map(|m| m.value()))
-        .transpose()?.or(cur.9);
+        .transpose()?.or(cur.purchase_price);
     let wholesale_price = input.wholesale_price
         .map(|v| Money::from_non_negative(v, "Prix gros").map(|m| m.value()))
-        .transpose()?.or(cur.10);
+        .transpose()?.or(cur.wholesale_price);
     let semi_price = input.semi_wholesale_price
         .map(|v| Money::from_non_negative(v, "Prix demi-gros").map(|m| m.value()))
-        .transpose()?.or(cur.11);
+        .transpose()?.or(cur.semi_wholesale_price);
     let retail_price = input.retail_price
         .map(|v| Money::from_non_negative(v, "Prix détail").map(|m| m.value()))
-        .transpose()?.or(cur.12);
+        .transpose()?.or(cur.retail_price);
     let image_path = match input.image_path.as_ref() {
         Some(opt) => sanitize_image_path(opt.as_deref())?,
-        None => cur.13.clone(),
+        None => cur.image_path.clone(),
     };
-    let is_active = input.is_active.map(|b| if b { 1_i64 } else { 0_i64 }).unwrap_or(cur.14);
+    let is_active = input.is_active.map(|b| if b { 1_i64 } else { 0_i64 }).unwrap_or(cur.is_active);
 
     sqlx::query(
         "UPDATE products
@@ -145,9 +160,9 @@ pub async fn update_product(
     .bind(brand_label.as_deref())
     .bind(brand_id)
     .bind(&barcode)
-    .bind(input.category_id.unwrap_or(cur.4))
-    .bind(input.supplier_id.or(cur.5))
-    .bind(input.description.as_deref().or(cur.6.as_deref()))
+    .bind(input.category_id.unwrap_or(cur.category_id))
+    .bind(input.supplier_id.or(cur.supplier_id))
+    .bind(input.description.as_deref().or(cur.description.as_deref()))
     .bind(min_stock).bind(max_stock).bind(purchase_price).bind(wholesale_price)
     .bind(semi_price).bind(retail_price).bind(image_path).bind(is_active).bind(id)
     .execute(&mut *tx).await?;
@@ -163,7 +178,7 @@ pub async fn update_product(
         || input.compatibility_group_id.is_some();
 
     if variant_changes_requested {
-        let current_variant: Option<ExistingVariantRow> = if let Some(variant_id) = cur.16 {
+        let current_variant: Option<ExistingVariantRow> = if let Some(variant_id) = cur.variant_id {
             sqlx::query_as(
                 "SELECT name, volume_ml, container_type, alcohol_degree,
                         bottle_profile_id, crate_type_id, compatibility_group_id
@@ -227,7 +242,7 @@ pub async fn update_product(
             }
         }
 
-        if let Some(variant_id) = cur.16 {
+        if let Some(variant_id) = cur.variant_id {
             if current_variant.is_none() {
                 return Err(CoreError::Validation("Variante physique liée introuvable.".to_string()));
             }
@@ -270,7 +285,7 @@ pub async fn update_product(
         "UPDATE_PRODUCT",
         "products",
         Some(id.to_string()),
-        &format!("Mise à jour produit {}", cur.0),
+        &format!("Mise à jour produit {}", cur.reference),
     )
     .await?;
     tx.commit().await?;
