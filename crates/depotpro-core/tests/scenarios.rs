@@ -1285,8 +1285,8 @@ async fn scenario_x_brewery_presets_and_supplier_active() {
 
     // Vérifier consignes initialisées avec solde 0
     let ov = consignments::get_overview(&db).await.unwrap();
-    assert!(!ov.returnable_types.is_empty());
-    assert!(ov.returnable_types.iter().all(|r| r.stock_quantity == 0));
+    assert!(!ov.types.is_empty());
+    assert!(ov.types.iter().all(|r| r.stock_quantity == 0));
 
     if let Some(parent) = db_path.parent() {
         let _ = std::fs::remove_dir_all(parent);

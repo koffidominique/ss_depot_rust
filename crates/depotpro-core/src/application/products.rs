@@ -1932,8 +1932,7 @@ pub async fn apply_catalog_presets(
         let min_stock = Quantity::parse_str(&preset.min_stock, "Stock minimum")?;
         let purchase_price = Money::from_non_negative(preset.purchase_price, "Prix d'achat")?;
         let wholesale_price = Money::from_non_negative(preset.wholesale_price, "Prix gros")?;
-        let semi_price =
-            Money::from_non_negative(preset.semi_wholesale_price, "Prix demi-gros")?;
+        let semi_price = Money::from_non_negative(preset.semi_wholesale_price, "Prix demi-gros")?;
         let retail_price = Money::from_non_negative(preset.retail_price, "Prix détail")?;
         let is_active = if activate { 1_i64 } else { 0_i64 };
 
@@ -2015,11 +2014,13 @@ pub async fn apply_catalog_presets(
             } else {
                 "none"
             };
-            sqlx::query("INSERT INTO deposit_packaging_profiles (packaging_id, mode) VALUES (?, ?)")
-                .bind(pkg_id)
-                .bind(mode)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query(
+                "INSERT INTO deposit_packaging_profiles (packaging_id, mode) VALUES (?, ?)",
+            )
+            .bind(pkg_id)
+            .bind(mode)
+            .execute(&mut *tx)
+            .await?;
 
             if mode == "deposit" {
                 for comp in &pk.components {
