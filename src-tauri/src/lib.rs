@@ -23,10 +23,18 @@ fn is_pid_alive(pid: u32) -> bool {
     }
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let pid_str = pid.to_string();
         std::process::Command::new("tasklist")
             .args(["/FI", &format!("PID eq {pid}"), "/NH"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).contains(&pid.to_string()))
+            .map(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .any(|line| line.split_whitespace().any(|tok| tok == pid_str))
+            })
             .unwrap_or(false)
     }
     #[cfg(not(any(unix, windows)))]
@@ -90,9 +98,15 @@ pub fn run() {
 
             let db_path = app_data_dir.join("depotpro_v3.db");
             let backup_dir = app_data_dir.join("backups");
+            std::fs::create_dir_all(&backup_dir).map_err(|e| {
+                format!("Impossible de créer le répertoire de sauvegardes local : {e}")
+            })?;
 
-            let db = tauri::async_runtime::block_on(DepotDb::connect(&db_path))
-                .expect("Échec initialisation SQLite DEPOTPRO");
+            let db = tauri::async_runtime::block_on(DepotDb::connect_with_backup_dir(
+                &db_path,
+                &backup_dir,
+            ))
+            .map_err(|e| format!("Échec initialisation SQLite DEPOTPRO : {e}"))?;
 
             app.manage(DesktopState::new(db, backup_dir, lock_path));
             Ok(())
@@ -172,6 +186,8 @@ pub fn run() {
             commands::backups::download_backup,
             commands::backups::restore_backup,
             commands::backups::restore_encrypted_backup,
+            commands::backups::get_local_db_status,
+            commands::backups::import_backup_file,
             commands::backups::shutdown_app,
             commands::packaging_components::get_packaging_components_overview,
             commands::packaging_components::list_crate_components_pc,
@@ -215,6 +231,21 @@ pub fn run() {
             commands::catalogue_v4::list_product_suppliers_v4,
             commands::catalogue_v4::upsert_product_supplier_v4,
             commands::catalogue_v4::list_deposit_rules_v4,
+            commands::orders::compose_order_preview_v4,
+            commands::orders::list_orders_v4,
+            commands::orders::get_order_v4,
+            commands::orders::create_order_v4,
+            commands::orders::update_order_v4,
+            commands::orders::confirm_order_v4,
+            commands::orders::deliver_order_v4,
+            commands::orders::invoice_order_v4,
+            commands::orders::pay_order_v4,
+            commands::orders::cancel_order_v4,
+            commands::orders::return_order_packaging_v4,
+            commands::orders::list_packaging_assets_v4,
+            commands::orders::get_customer_deposits_v4,
+            commands::orders::get_customer_deposit_history_v4,
+            commands::orders::return_customer_deposits_v4,
         ])
         .build(tauri::generate_context!())
         .expect("Erreur fatale au démarrage de DEPOTPRO Desktop");
@@ -222,6 +253,8 @@ pub fn run() {
     app.run(|app_handle, event| {
         if let RunEvent::Exit = event {
             if let Some(state) = app_handle.try_state::<DesktopState>() {
+                let db = tauri::async_runtime::block_on(state.db());
+                tauri::async_runtime::block_on(db.flush_wal_and_close());
                 let _ = std::fs::remove_file(&state.lock_path);
             }
         }

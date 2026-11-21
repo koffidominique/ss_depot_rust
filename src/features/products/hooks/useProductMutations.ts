@@ -119,15 +119,41 @@ export function useProductMutations(callbacks: {
         ],
         packaging_extras: [
           {
+            packaging_type_id: values.packaging_type_id,
+            display_label: `${values.packaging_name} (${values.packaging_coeff}x)`,
+            package_sku: values.package_sku.trim() || null,
             min_selling_price: values.min_selling_price || null,
             package_deposit_amount: values.package_deposit_amount,
             bottle_deposit_amount: values.bottle_deposit_amount,
-            is_reusable: values.container_returnable,
-            is_returnable: values.container_returnable,
+            package_cost: values.package_cost || null,
+            is_reusable: values.package_reusable,
+            is_returnable: values.package_returnable,
             is_default_sale: true,
             is_default_purchase: true,
           },
         ],
+        sales_units: values.sales_units
+          .filter((u) => u.label.trim().length > 0)
+          .map((u) => {
+            const factor = Math.max(1, Math.round(u.conversion_factor));
+            return {
+              label: u.label.trim(),
+              unit_type: u.unit_type,
+              conversion_factor: factor,
+              is_virtual: u.is_virtual,
+              allow_fraction: u.allow_fraction,
+              purchase_price: null,
+              wholesale_price: u.wholesale_price,
+              semi_wholesale_price: u.semi_wholesale_price,
+              retail_price: u.retail_price,
+              min_selling_price: u.min_selling_price,
+              bottle_deposit_amount: values.bottle_deposit_amount * factor,
+              crate_deposit_amount: u.unit_type === 'crate' ? values.package_deposit_amount : 0,
+              barcode: null,
+              is_default_sale: u.is_default_sale,
+              is_default_purchase: false,
+            };
+          }),
         product_suppliers: values.supplier_id
           ? [
               {

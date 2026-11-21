@@ -126,6 +126,19 @@ export interface BackupRestoreResult {
   counts?: BackupEntityCounts;
 }
 
+export interface LocalDbStatus {
+  dbPath: string;
+  backupDir: string;
+  dbSizeBytes: number;
+  walSizeBytes: number;
+  schemaVersion: number;
+  journalMode: string;
+  integrity: string;
+  foreignKeyErrors: number;
+  backupCount: number;
+  lastBackupAt: string | null;
+}
+
 export interface DailySalePoint {
   day: string;
   count: number;

@@ -7,6 +7,7 @@ use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Json};
 
 use depotpro_core::application::auth::{self, Permission};
+use depotpro_core::application::catalogue;
 use depotpro_core::application::products;
 
 use crate::dto::{
@@ -137,6 +138,44 @@ pub(crate) async fn create_product(
     .await
     {
         Ok(p) => (StatusCode::CREATED, Json(serde_json::to_value(p).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+pub(crate) async fn get_product(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, products::get_product_by_id(&db, id)).await {
+        Ok(p) => (StatusCode::OK, Json(serde_json::to_value(p).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+pub(crate) async fn list_product_variants_by_product(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    let q = catalogue::PaginatedQuery {
+        page: 1,
+        page_size: 200,
+        search: None,
+        include_archived: Some(false),
+    };
+    match auth::with_actor(actor, catalogue::list_product_variants(&db, q, Some(id))).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }

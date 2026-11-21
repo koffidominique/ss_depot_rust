@@ -9,6 +9,7 @@ import {
   httpPurchasesApi,
   httpSalesApi,
 } from './http/httpCommerceRoutes.ts';
+import { httpOrdersApi } from './http/httpOrdersRoutes.ts';
 import {
   httpConsignmentsApi,
   httpFinanceApi,
@@ -113,14 +114,33 @@ export class HttpApiClient implements ApiClient {
   createExpense = httpFinanceApi.createExpense;
   getReports = httpFinanceApi.getReports;
 
+  /* --- Commandes mixtes & consignes --- */
+  composeOrderPreview = httpOrdersApi.composeOrderPreview;
+  listCustomerOrders = httpOrdersApi.listCustomerOrders;
+  getCustomerOrder = httpOrdersApi.getCustomerOrder;
+  createCustomerOrder = httpOrdersApi.createCustomerOrder;
+  updateCustomerOrder = httpOrdersApi.updateCustomerOrder;
+  confirmCustomerOrder = httpOrdersApi.confirmCustomerOrder;
+  deliverCustomerOrder = httpOrdersApi.deliverCustomerOrder;
+  invoiceCustomerOrder = httpOrdersApi.invoiceCustomerOrder;
+  payCustomerOrder = httpOrdersApi.payCustomerOrder;
+  cancelCustomerOrder = httpOrdersApi.cancelCustomerOrder;
+  returnOrderPackaging = httpOrdersApi.returnOrderPackaging;
+  listPackagingAssets = httpOrdersApi.listPackagingAssets;
+  getCustomerDeposits = httpOrdersApi.getCustomerDeposits;
+  getCustomerDepositHistory = httpOrdersApi.getCustomerDepositHistory;
+  returnCustomerDeposits = httpOrdersApi.returnCustomerDeposits;
+
   /* --- Paramètres, Sauvegardes & PDF --- */
   getSettings = httpSystemApi.getSettings;
   updateSettings = httpSystemApi.updateSettings;
   addPaymentMethod = httpSystemApi.addPaymentMethod;
   togglePaymentMethod = httpSystemApi.togglePaymentMethod;
   listBackups = httpSystemApi.listBackups;
+  getLocalDbStatus = httpSystemApi.getLocalDbStatus;
   createBackup = httpSystemApi.createBackup;
   createEncryptedBackup = httpSystemApi.createEncryptedBackup;
+  importBackup = httpSystemApi.importBackup;
   verifyBackup = httpSystemApi.verifyBackup;
   verifyEncryptedBackup = httpSystemApi.verifyEncryptedBackup;
   restoreBackup = httpSystemApi.restoreBackup;

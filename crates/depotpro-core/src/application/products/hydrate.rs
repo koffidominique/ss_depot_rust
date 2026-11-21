@@ -76,7 +76,8 @@ pub(crate) async fn hydrate_products(
 
         let variants = sqlx::query_as::<_, ProductVariantSummaryDto>(
             "SELECT id, product_id, name, sku, barcode, volume_ml, container_type, container_type_id,
-                    container_material, container_returnable, container_recyclable, container_deposit_amount, is_active
+                    container_material, container_returnable, container_recyclable, container_deposit_amount,
+                    native_crate_capacity, compatibility_class, is_active
              FROM product_variants WHERE product_id = ? ORDER BY id ASC",
         )
         .bind(prod.id)

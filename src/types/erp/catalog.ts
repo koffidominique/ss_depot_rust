@@ -17,8 +17,10 @@ export interface Brewery {
   id: number;
   code: string;
   name: string;
-  country: string | null;
-  contact_info: string | null;
+  short_name?: string | null;
+  country_code?: string;
+  country?: string | null;
+  contact_info?: string | null;
   is_active: number;
 }
 
@@ -27,9 +29,10 @@ export interface BrandRef {
   code: string;
   name: string;
   brewery_id: number | null;
-  brewery_name: string | null;
-  manufacturer: string | null;
-  country: string | null;
+  brewery_name?: string | null;
+  manufacturer?: string | null;
+  country_of_origin?: string | null;
+  country?: string | null;
   description: string | null;
   is_active: number;
 }
@@ -39,10 +42,12 @@ export interface ContainerTypeRef {
   code: string;
   name: string;
   material: string | null;
-  volume_ml: number | null;
+  default_volume_ml: number | null;
+  volume_ml?: number | null;
   is_returnable: number;
   is_recyclable: number;
-  default_deposit_amount: number;
+  default_deposit_value: number;
+  default_deposit_amount?: number;
   is_active: number;
 }
 
@@ -50,11 +55,12 @@ export interface PackagingTypeRef {
   id: number;
   code: string;
   name: string;
-  default_capacity: number | null;
-  material: string | null;
+  default_name: PackagingName;
+  default_capacity?: number | null;
+  material?: string | null;
   is_reusable: number;
   is_returnable: number;
-  default_deposit_amount: number;
+  default_deposit_amount?: number;
   is_active: number;
 }
 
@@ -116,6 +122,8 @@ export interface ProductVariantSummary {
   volume_ml: number | null;
   container_type: string | null;
   container_type_id: number | null;
+  compatibility_class?: string | null;
+  native_crate_capacity?: number | null;
   container_material: string | null;
   container_returnable: number;
   container_recyclable: number;

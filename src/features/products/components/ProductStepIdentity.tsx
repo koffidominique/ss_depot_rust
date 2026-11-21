@@ -2,6 +2,7 @@ import { Controller, type UseFormReturn } from 'react-hook-form';
 import { Image as ImageIcon, Trash2 } from 'lucide-react';
 import type { BrandRef, Brewery, Category } from '../../../types/erp.ts';
 import type { ProductFormValues } from '../utils/productSchemas.ts';
+import { BrandQuickSelect, BreweryQuickSelect } from './ProductInlineRefs.tsx';
 
 interface ProductStepIdentityProps {
   form: UseFormReturn<ProductFormValues>;
@@ -20,13 +21,9 @@ export function ProductStepIdentity({
   brands,
   onImageFileChange,
 }: ProductStepIdentityProps) {
-  const selectedBreweryId = form.watch('brewery_id');
   const selectedCatId = form.watch('category_id');
   const rootCategories = categories?.filter((c) => !c.parent_id) ?? [];
   const subCategories = categories?.filter((c) => c.parent_id === selectedCatId) ?? [];
-  const filteredBrands =
-    brands?.filter((b) => !selectedBreweryId || !b.brewery_id || b.brewery_id === selectedBreweryId) ??
-    [];
 
   return (
     <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -52,81 +49,32 @@ export function ProductStepIdentity({
         )}
       </div>
 
-      <div>
-        <label
-          htmlFor="product-brewery"
-          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
-        >
-          Fabricant / Brasserie
-        </label>
-        <Controller
-          control={form.control}
-          name="brewery_id"
-          render={({ field }) => (
-            <select
-              id="product-brewery"
-              value={field.value ?? ''}
-              onChange={(e) => {
-                const nextId = e.target.value ? Number(e.target.value) : null;
-                field.onChange(nextId);
-                const curBrandId = form.getValues('brand_id');
-                if (nextId && curBrandId && brands) {
-                  const br = brands.find((b) => b.id === curBrandId);
-                  if (br?.brewery_id && br.brewery_id !== nextId) {
-                    form.setValue('brand_id', null);
-                  }
-                }
-              }}
-              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-            >
-              <option value="">-- Non précisé --</option>
-              {breweries?.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          )}
-        />
-      </div>
+      <Controller
+        control={form.control}
+        name="brewery_id"
+        render={({ field }) => (
+          <BreweryQuickSelect
+            form={form}
+            breweries={breweries}
+            brands={brands}
+            value={field.value}
+            onChange={field.onChange}
+          />
+        )}
+      />
 
-      <div>
-        <label
-          htmlFor="product-brand-ref"
-          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
-        >
-          Marque référentielle
-        </label>
-        <Controller
-          control={form.control}
-          name="brand_id"
-          render={({ field }) => (
-            <select
-              id="product-brand-ref"
-              value={field.value ?? ''}
-              onChange={(e) => {
-                const nextId = e.target.value ? Number(e.target.value) : null;
-                field.onChange(nextId);
-                const found = brands?.find((b) => b.id === nextId);
-                if (found) {
-                  form.setValue('brand', found.name);
-                  if (found.brewery_id && !form.getValues('brewery_id')) {
-                    form.setValue('brewery_id', found.brewery_id);
-                  }
-                }
-              }}
-              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-            >
-              <option value="">-- Saisie libre ou aucune --</option>
-              {filteredBrands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          )}
-        />
-      </div>
+      <Controller
+        control={form.control}
+        name="brand_id"
+        render={({ field }) => (
+          <BrandQuickSelect
+            form={form}
+            brands={brands}
+            value={field.value}
+            onChange={field.onChange}
+          />
+        )}
+      />
 
       <div>
         <label

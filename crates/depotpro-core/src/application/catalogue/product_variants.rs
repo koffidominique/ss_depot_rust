@@ -3,6 +3,7 @@
 // ============================================================================
 
 use crate::application::auth::{require_current_actor_permission, Permission};
+use crate::application::orders::{compute_compatibility_class, compute_native_crate_capacity};
 use crate::application::products::create_v4_helpers::{
     normalize_container_material, normalize_container_type,
 };
@@ -14,7 +15,8 @@ use super::{CreateProductVariantInput, PaginatedQuery, PaginatedResponse, Produc
 pub(super) const VARIANT_SELECT: &str =
     "SELECT id, product_id, name, sku, barcode, volume_ml, container_type,
     container_type_id, container_material, container_returnable, container_recyclable,
-    container_deposit_amount, net_weight_g, bottle_profile_id, crate_type_id,
+    container_deposit_amount, native_crate_capacity, compatibility_class,
+    net_weight_g, bottle_profile_id, crate_type_id,
     compatibility_group_id, disposable_packaging_id, is_active, created_at, updated_at
     FROM product_variants";
 
@@ -160,14 +162,17 @@ pub async fn create_product_variant(
 
     let norm_type = normalize_container_type(input.container_type.as_deref());
     let norm_mat = normalize_container_material(input.container_material.as_deref());
+    let compat_class = compute_compatibility_class(norm_type, input.volume_ml);
+    let native_cap = compute_native_crate_capacity(norm_type, input.volume_ml);
 
     let id = sqlx::query(
         "INSERT INTO product_variants (
             product_id, name, sku, barcode, volume_ml, container_type, container_type_id,
             container_material, container_returnable, container_recyclable, container_deposit_amount,
+            native_crate_capacity, compatibility_class,
             net_weight_g, bottle_profile_id, crate_type_id, compatibility_group_id,
             disposable_packaging_id, is_active, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     )
     .bind(input.product_id)
     .bind(clean_name)
@@ -188,6 +193,8 @@ pub async fn create_product_variant(
         0_i64
     })
     .bind(input.container_deposit_amount.unwrap_or(0))
+    .bind(native_cap)
+    .bind(&compat_class)
     .bind(input.net_weight_g)
     .bind(input.bottle_profile_id)
     .bind(input.crate_type_id)

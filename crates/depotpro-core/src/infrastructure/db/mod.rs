@@ -20,7 +20,8 @@ pub use migrations::{
     V3_MIGRATION_0004_SQL, V3_MIGRATION_0005_SQL, V3_MIGRATION_0006_SQL, V3_MIGRATION_0007_SQL,
     V3_MIGRATION_0008_SQL, V3_MIGRATION_0009_SQL, V3_MIGRATION_0010_SQL, V3_MIGRATION_0011_SQL,
     V3_MIGRATION_0012_SQL, V3_MIGRATION_0013_SQL, V3_MIGRATION_0014_SQL, V3_MIGRATION_0015_SQL,
-    V3_MIGRATION_0016_SQL, V3_MIGRATION_0017_SQL, V3_MIGRATION_0018_SQL, V3_SCHEMA_SQL,
+    V3_MIGRATION_0016_SQL, V3_MIGRATION_0017_SQL, V3_MIGRATION_0018_SQL, V3_MIGRATION_0019_SQL,
+    V3_SCHEMA_SQL,
 };
 pub use schema::{
     SchemaColumnSnapshot, SchemaIndexSnapshot, SchemaSnapshot, SchemaTableSnapshot,
@@ -43,20 +44,111 @@ fn default_busy_timeout_ms() -> u64 {
         .unwrap_or(5_000)
 }
 
+async fn backup_before_schema_upgrade(db_path: &Path, backup_dir: &Path) -> CoreResult<()> {
+    let Ok(meta) = std::fs::metadata(db_path) else {
+        return Ok(());
+    };
+    if !meta.is_file() || meta.len() < 100 {
+        return Ok(());
+    }
+
+    let ro_opts = SqliteConnectOptions::new()
+        .filename(db_path)
+        .read_only(true)
+        .create_if_missing(false);
+    let Ok(ro_pool) = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(ro_opts)
+        .await
+    else {
+        return Ok(());
+    };
+
+    let has_sv: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'",
+    )
+    .fetch_one(&ro_pool)
+    .await
+    .unwrap_or(0);
+    let current_v: i64 = if has_sv > 0 {
+        sqlx::query_scalar("SELECT COALESCE(MAX(version), 0) FROM schema_version")
+            .fetch_one(&ro_pool)
+            .await
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    ro_pool.close().await;
+
+    if current_v <= 0 || current_v >= CURRENT_SCHEMA_VERSION {
+        return Ok(());
+    }
+
+    std::fs::create_dir_all(backup_dir).map_err(|e| {
+        CoreError::Internal(format!(
+            "Création répertoire sauvegarde pré-migration : {e}"
+        ))
+    })?;
+    let ts = chrono::Utc::now().format("%Y%m%d%H%M%S");
+    let dest = backup_dir.join(format!("depotpro_backup_{ts}_pre{current_v}.db"));
+    let escaped = dest.to_string_lossy().replace('\'', "''");
+
+    let rw_opts = SqliteConnectOptions::new()
+        .filename(db_path)
+        .create_if_missing(false)
+        .busy_timeout(Duration::from_millis(5_000));
+    if let Ok(rw_pool) = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(rw_opts)
+        .await
+    {
+        let _ = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .execute(&rw_pool)
+            .await;
+        if sqlx::query(&format!("VACUUM INTO '{escaped}'"))
+            .execute(&rw_pool)
+            .await
+            .is_err()
+        {
+            let _ = std::fs::remove_file(&dest);
+            let _ = std::fs::copy(db_path, &dest);
+        }
+        rw_pool.close().await;
+    }
+
+    Ok(())
+}
+
 impl DepotDb {
     pub async fn connect(db_path: &Path) -> CoreResult<Self> {
-        Self::connect_with_busy_timeout(db_path, default_busy_timeout_ms()).await
+        Self::connect_full(db_path, default_busy_timeout_ms(), None).await
+    }
+
+    pub async fn connect_with_backup_dir(db_path: &Path, backup_dir: &Path) -> CoreResult<Self> {
+        Self::connect_full(db_path, default_busy_timeout_ms(), Some(backup_dir)).await
     }
 
     pub async fn connect_with_busy_timeout(
         db_path: &Path,
         busy_timeout_ms: u64,
     ) -> CoreResult<Self> {
+        Self::connect_full(db_path, busy_timeout_ms, None).await
+    }
+
+    pub async fn connect_full(
+        db_path: &Path,
+        busy_timeout_ms: u64,
+        backup_dir: Option<&Path>,
+    ) -> CoreResult<Self> {
         let clamped_timeout = busy_timeout_ms.clamp(1, 60_000);
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
                 CoreError::Internal(format!("Création répertoire SQLite impossible : {e}"))
             })?;
+        }
+        if let Some(bdir) = backup_dir {
+            let _ = std::fs::create_dir_all(bdir);
+            backup_before_schema_upgrade(db_path, bdir).await?;
         }
 
         let path_str = db_path.to_string_lossy().to_string();
@@ -92,6 +184,15 @@ impl DepotDb {
 
     pub fn busy_timeout_ms(&self) -> u64 {
         self.busy_timeout_ms
+    }
+
+    pub async fn flush_wal_and_close(&self) {
+        let _guard = self.lock_write().await;
+        let _ = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .execute(&self.pool)
+            .await;
+        drop(_guard);
+        self.pool.close().await;
     }
 
     pub async fn verify_integrity(&self) -> CoreResult<()> {

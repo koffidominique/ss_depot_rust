@@ -62,11 +62,24 @@ impl DepotDb {
         let cat_count_pre: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM categories")
             .fetch_one(pool)
             .await?;
+        let has_loc_tbl: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'stock_locations'",
+        )
+        .fetch_one(pool)
+        .await?;
+        let loc_count_pre: i64 = if has_loc_tbl > 0 {
+            sqlx::query_scalar("SELECT COUNT(*) FROM stock_locations")
+                .fetch_one(pool)
+                .await?
+        } else {
+            1
+        };
 
         if settings_count_pre > 0
             && methods_count_pre > 0
             && exp_cat_count_pre > 0
             && cat_count_pre > 0
+            && loc_count_pre > 0
         {
             return Ok(());
         }
@@ -140,6 +153,22 @@ impl DepotDb {
                     "Jus & Énergisants",
                     "Jus de fruits, nectars et boissons énergisantes",
                 ),
+                ("Eau gazeuse", "Eaux minérales gazeuses et tonics"),
+                ("Jus", "Jus de fruits naturels et conditionnés"),
+                ("Nectar", "Nectars de fruits"),
+                (
+                    "Boisson énergisante",
+                    "Boissons énergisantes et stimulantes",
+                ),
+                ("Boisson maltée sans alcool", "Boissons maltées sans alcool"),
+                ("Vin", "Vins rouges, blancs et rosés"),
+                ("Champagne / mousseux", "Champagnes et vins mousseux"),
+                ("Spiritueux", "Spiritueux et liqueurs"),
+                (
+                    "Cocktail prêt à boire",
+                    "Cocktails et panachés prêts à boire",
+                ),
+                ("Autres", "Autres boissons et produits divers"),
             ] {
                 sqlx::query("INSERT OR IGNORE INTO categories (name, description) VALUES (?, ?)")
                     .bind(name)
@@ -147,6 +176,15 @@ impl DepotDb {
                     .execute(&mut *tx)
                     .await?;
             }
+        }
+
+        if loc_count_pre == 0 {
+            sqlx::query(
+                "INSERT OR IGNORE INTO stock_locations (code, name, location_type, is_default)
+                 VALUES ('LOC-MAIN', 'Dépôt principal', 'depot', 1)",
+            )
+            .execute(&mut *tx)
+            .await?;
         }
 
         tx.commit().await?;

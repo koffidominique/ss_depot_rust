@@ -231,4 +231,105 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
 
     expect(errors).toEqual([]);
   });
+
+  test('Scénario 6 — Commandes mixtes (casier partagé 12+12), modification brouillon, livraison & retour casier', async ({
+    page,
+  }) => {
+    const errors = trackRuntimeErrors(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginWithPin(page, '123456');
+
+    const loginRes = await page.request.post('/api/auth/login', { data: { pin: '123456' } });
+    expect(loginRes.ok()).toBeTruthy();
+    const { token } = (await loginRes.json()) as { token: string };
+    const authHeaders = { Authorization: `Bearer ${token}` };
+
+    const catRes = await page.request.get('/api/categories', { headers: authHeaders });
+    expect(catRes.ok()).toBeTruthy();
+    const cats = (await catRes.json()) as Array<{ id: number }>;
+    const catId = cats[0].id;
+
+    const makeProd = async (name: string, sku: string) => {
+      const res = await page.request.post('/api/products', {
+        headers: authHeaders,
+        data: {
+          name,
+          category_id: catId,
+          base_unit: 'bouteille',
+          initial_stock: 100,
+          purchase_price: 300,
+          wholesale_price: 400,
+          retail_price: 400,
+          sku,
+          variant: {
+            name,
+            sku: `${sku}-VAR`,
+            volume_ml: 330,
+            container_type: 'glass_returnable',
+            container_returnable: true,
+          },
+        },
+      });
+      expect(res.ok()).toBeTruthy();
+      const data = (await res.json()) as { variant_id: number };
+      return data.variant_id;
+    };
+
+    const bockVarId = await makeProd('Bock 33cl E2E', 'BOCK-E2E');
+    const drogbaVarId = await makeProd('Drogba 33cl E2E', 'DROGBA-E2E');
+
+    await page.goto('/orders');
+    await expect(
+      page.getByRole('heading', { name: /Prise de commande clientèle/i, level: 1 })
+    ).toBeVisible();
+
+    // Étape 1 : création rapide client
+    await page.getByRole('button', { name: 'Nouveau client rapide' }).click();
+    await page.getByPlaceholder('Nom client *').fill('Maquis E2E Plateau');
+    await page.getByRole('button', { name: 'Créer', exact: true }).click();
+    await expect(page.getByText(/Solde consigné en cours — Maquis E2E Plateau/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Suivant' }).click();
+
+    // Étape 2 : casier mixte (12 Bock 33cl + 12 Drogba 33cl)
+    await page.getByRole('button', { name: '+ Ajouter un casier mixte' }).click();
+    const variantSelects = page.locator('select').filter({ hasText: 'Bock 33cl E2E' });
+    await variantSelects.nth(0).selectOption(String(bockVarId));
+    await variantSelects.nth(1).selectOption(String(drogbaVarId));
+    await page.getByRole('button', { name: 'Suivant' }).click();
+
+    // Étape 3 : 1 seul casier physique 24x33cl alloué (1 000 FCFA)
+    await expect(page.getByText('Casier 24 × 33cl verre').first()).toBeVisible();
+    await expect(page.getByText(/1[\s\u202f]*000\s*FCFA/).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Suivant' }).click();
+
+    // Étape 4 : récapitulatif CA vs Consigne
+    await expect(page.getByText(/9[\s\u202f]*600\s*FCFA/).first()).toBeVisible();
+    await expect(page.getByText(/10[\s\u202f]*600\s*FCFA/).first()).toBeVisible();
+    await page.getByPlaceholder('Zone / quartier / point de livraison...').fill('Plateau Rue 12');
+    await page.getByRole('button', { name: 'Valider la commande' }).click();
+
+    // Étape 5 : brouillon -> modification -> confirmation -> livraison -> encaissement -> retour casier
+    await expect(page.getByText(/Commande #ORD-.*\(DRAFT\)/)).toBeVisible();
+    await page.getByRole('button', { name: 'Modifier brouillon' }).click();
+    await page.getByRole('button', { name: 'Suivant' }).click();
+    await page.getByRole('button', { name: 'Suivant' }).click();
+    await page.getByRole('button', { name: 'Mettre à jour le brouillon' }).click();
+    await expect(page.getByText(/Commande #ORD-.*\(DRAFT\)/)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Confirmer (déduire stock)' }).click();
+    await expect(page.getByText(/\(CONFIRMED\)/)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Livrer (imputer consignes client)' }).click();
+    await expect(page.getByText(/\(DELIVERED\)/)).toBeVisible();
+
+    await page.getByRole('button', { name: /Encaisser solde/i }).click();
+    await expect(page.getByText(/\(PAID\)/)).toBeVisible();
+
+    await page.getByRole('button', { name: /Retourner 1 Casier 24 × 33cl verre/i }).click();
+    await expect(
+      page.getByRole('button', { name: /Retourner 1 Casier 24 × 33cl verre/i })
+    ).toBeHidden();
+
+    expect(errors).toEqual([]);
+  });
 });

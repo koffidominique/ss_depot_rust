@@ -3,6 +3,7 @@
 // ============================================================================
 
 use crate::application::auth::{require_current_actor_permission, Permission};
+use crate::application::orders::{compute_compatibility_class, compute_native_crate_capacity};
 use crate::application::products::create_v4_helpers::{
     normalize_container_material, normalize_container_type,
 };
@@ -105,11 +106,14 @@ pub async fn update_product_variant(
         .is_active
         .map(|b| if b { 1 } else { 0 })
         .unwrap_or(existing.is_active);
+    let compat_class = compute_compatibility_class(container_type.as_deref(), volume_ml);
+    let native_cap = compute_native_crate_capacity(container_type.as_deref(), volume_ml);
 
     sqlx::query(
         "UPDATE product_variants
          SET name = ?, sku = ?, barcode = ?, volume_ml = ?, container_type = ?, container_type_id = ?,
              container_material = ?, container_returnable = ?, container_recyclable = ?, container_deposit_amount = ?,
+             native_crate_capacity = ?, compatibility_class = ?,
              net_weight_g = ?, bottle_profile_id = ?, crate_type_id = ?, compatibility_group_id = ?,
              disposable_packaging_id = ?, is_active = ?, updated_at = datetime('now')
          WHERE id = ?",
@@ -124,6 +128,8 @@ pub async fn update_product_variant(
     .bind(container_returnable)
     .bind(container_recyclable)
     .bind(container_deposit_amount)
+    .bind(native_cap)
+    .bind(&compat_class)
     .bind(net_weight_g)
     .bind(bottle_profile_id)
     .bind(crate_type_id)

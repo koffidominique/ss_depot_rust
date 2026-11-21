@@ -38,6 +38,11 @@ export function useProductsQueries(filters: ProductFilters) {
     queryFn: () => apiClient.listContainerTypesV4(),
   });
 
+  const packagingTypesQuery = useQuery({
+    queryKey: ['packaging-types-v4'],
+    queryFn: () => apiClient.listPackagingTypesV4(),
+  });
+
   const stockLocationsQuery = useQuery({
     queryKey: ['stock-locations-v4'],
     queryFn: () => apiClient.listStockLocationsV4(),
@@ -74,6 +79,7 @@ export function useProductsQueries(filters: ProductFilters) {
     breweriesQuery,
     brandsQuery,
     containerTypesQuery,
+    packagingTypesQuery,
     stockLocationsQuery,
     suppliersQuery,
     productsQuery,

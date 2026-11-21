@@ -175,7 +175,7 @@ pub async fn list_active_products(
     Ok(res.items)
 }
 
-pub(crate) async fn get_product_by_id(db: &DepotDb, id: i64) -> CoreResult<ProductSummaryDto> {
+pub async fn get_product_by_id(db: &DepotDb, id: i64) -> CoreResult<ProductSummaryDto> {
     let row = sqlx::query_as::<_, ProductRow>(&format!("{PRODUCT_SELECT} WHERE p.id = ?"))
         .bind(id)
         .fetch_optional(&db.pool)

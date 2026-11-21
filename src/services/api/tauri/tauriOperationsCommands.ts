@@ -63,12 +63,12 @@ export const tauriConsignmentsApi = {
   listPackagingObligations: (clientId?: number) =>
     tauriInvoke<Awaited<ReturnType<ApiClient["listPackagingObligations"]>>>(
       "list_packaging_obligations",
-      { token: getStoredTauriToken(), client_id: clientId ?? null },
+      { token: getStoredTauriToken(), clientId: clientId ?? null },
     ),
   getPackagingDashboard: (clientId: number) =>
     tauriInvoke<Awaited<ReturnType<ApiClient["getPackagingDashboard"]>>>(
       "get_packaging_dashboard",
-      { token: getStoredTauriToken(), client_id: clientId },
+      { token: getStoredTauriToken(), clientId },
     ),
   payPackagingDebt: (input: Parameters<ApiClient["payPackagingDebt"]>[0]) =>
     tauriInvoke<Awaited<ReturnType<ApiClient["payPackagingDebt"]>>>(
@@ -83,8 +83,8 @@ export const tauriConsignmentsApi = {
   setCatalogueProductActive: (id: number, is_active: boolean) =>
     tauriInvoke("set_catalogue_product_active_pc", {
       token: getStoredTauriToken(),
-      product_id: id,
-      is_active,
+      productId: id,
+      isActive: is_active,
     }),
   setCatalogueReferencePrice: (
     id: number,
@@ -92,7 +92,7 @@ export const tauriConsignmentsApi = {
   ) =>
     tauriInvoke("set_catalogue_reference_price_pc", {
       token: getStoredTauriToken(),
-      product_id: id,
+      productId: id,
       payload: input,
     }),
   getCatalogueReferencePriceHistory: (id: number) =>
@@ -100,7 +100,7 @@ export const tauriConsignmentsApi = {
       Awaited<ReturnType<ApiClient["getCatalogueReferencePriceHistory"]>>
     >("get_catalogue_reference_price_history_pc", {
       token: getStoredTauriToken(),
-      product_id: id,
+      productId: id,
     }),
 };
 
@@ -162,6 +162,11 @@ export const tauriSystemApi = {
     tauriInvoke<Awaited<ReturnType<ApiClient["listBackups"]>>>("list_backups", {
       token: getStoredTauriToken(),
     }),
+  getLocalDbStatus: () =>
+    tauriInvoke<Awaited<ReturnType<ApiClient["getLocalDbStatus"]>>>(
+      "get_local_db_status",
+      { token: getStoredTauriToken() },
+    ),
   createBackup: () =>
     tauriInvoke<Awaited<ReturnType<ApiClient["createBackup"]>>>(
       "create_backup",
@@ -171,6 +176,15 @@ export const tauriSystemApi = {
     tauriInvoke<Awaited<ReturnType<ApiClient["createEncryptedBackup"]>>>(
       "create_encrypted_backup",
       { token: getStoredTauriToken(), passphrase },
+    ),
+  importBackup: (filename: string, bytes: Uint8Array) =>
+    tauriInvoke<Awaited<ReturnType<ApiClient["importBackup"]>>>(
+      "import_backup_file",
+      {
+        token: getStoredTauriToken(),
+        filename,
+        bytes: Array.from(bytes),
+      },
     ),
   verifyBackup: (name: string) =>
     tauriInvoke<Awaited<ReturnType<ApiClient["verifyBackup"]>>>(

@@ -9,8 +9,48 @@ use axum::response::{IntoResponse, Json};
 use depotpro_core::application::auth::{self, Permission};
 use depotpro_core::infrastructure::backup;
 
-use crate::dto::EncryptedBackupPayload;
+use crate::dto::{EncryptedBackupPayload, ImportBackupPayload};
 use crate::state::{map_err, require_perm, AppState};
+
+pub(crate) async fn get_local_db_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::BackupsRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, backup::inspect_local_db(&db, &state.backup_dir)).await {
+        Ok(status) => (StatusCode::OK, Json(serde_json::to_value(status).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+pub(crate) async fn import_backup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ImportBackupPayload>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::BackupsCreate).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        backup::import_backup_bytes(&db, &state.backup_dir, &payload.filename, &payload.bytes),
+    )
+    .await
+    {
+        Ok(dto) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(dto).unwrap()),
+        )
+            .into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
 
 pub(crate) async fn list_backups(
     State(state): State<AppState>,

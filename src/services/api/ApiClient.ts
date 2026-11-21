@@ -8,6 +8,7 @@ import type {
   PurchasesApiClient,
   SalesApiClient,
 } from "./contracts/commerceContracts.ts";
+import type { OrdersApiClient } from "./contracts/ordersContracts.ts";
 import type {
   ConsignmentsApiClient,
   FinanceApiClient,
@@ -25,6 +26,7 @@ export interface ApiClient
   extends AuthApiClient,
     CatalogApiClient,
     SalesApiClient,
+    OrdersApiClient,
     PurchasesApiClient,
     StockApiClient,
     ConsignmentsApiClient,

@@ -39,7 +39,10 @@ pub(crate) fn core_and_commerce_router() -> Router<AppState> {
         )
         .route(
             "/api/products/:id",
-            put(products::update_product).delete(products::delete_product),
+            get(products::get_product)
+                .put(products::update_product)
+                .patch(products::update_product)
+                .delete(products::delete_product),
         )
         .route(
             "/api/products/:id/packagings",
@@ -234,6 +237,12 @@ pub(crate) fn packaging_and_system_router() -> Router<AppState> {
         .route(
             "/api/backups",
             get(backups::list_backups).post(backups::create_backup),
+        )
+        .route("/api/backups/db-status", get(backups::get_local_db_status))
+        .route(
+            "/api/backups/import",
+            post(backups::import_backup)
+                .layer(axum::extract::DefaultBodyLimit::max(64 * 1024 * 1024)),
         )
         .route(
             "/api/backups/encrypted",

@@ -9,6 +9,7 @@ import {
   tauriPurchasesApi,
   tauriSalesApi,
 } from "./tauri/tauriCommerceCommands.ts";
+import { tauriOrdersApi } from "./tauri/tauriOrdersCommands.ts";
 import {
   tauriConsignmentsApi,
   tauriFinanceApi,
@@ -114,14 +115,33 @@ export class TauriApiClient implements ApiClient {
   createExpense = tauriFinanceApi.createExpense;
   getReports = tauriFinanceApi.getReports;
 
+  /* --- Commandes mixtes & consignes --- */
+  composeOrderPreview = tauriOrdersApi.composeOrderPreview;
+  listCustomerOrders = tauriOrdersApi.listCustomerOrders;
+  getCustomerOrder = tauriOrdersApi.getCustomerOrder;
+  createCustomerOrder = tauriOrdersApi.createCustomerOrder;
+  updateCustomerOrder = tauriOrdersApi.updateCustomerOrder;
+  confirmCustomerOrder = tauriOrdersApi.confirmCustomerOrder;
+  deliverCustomerOrder = tauriOrdersApi.deliverCustomerOrder;
+  invoiceCustomerOrder = tauriOrdersApi.invoiceCustomerOrder;
+  payCustomerOrder = tauriOrdersApi.payCustomerOrder;
+  cancelCustomerOrder = tauriOrdersApi.cancelCustomerOrder;
+  returnOrderPackaging = tauriOrdersApi.returnOrderPackaging;
+  listPackagingAssets = tauriOrdersApi.listPackagingAssets;
+  getCustomerDeposits = tauriOrdersApi.getCustomerDeposits;
+  getCustomerDepositHistory = tauriOrdersApi.getCustomerDepositHistory;
+  returnCustomerDeposits = tauriOrdersApi.returnCustomerDeposits;
+
   /* --- Paramètres, Sauvegardes & PDF --- */
   getSettings = tauriSystemApi.getSettings;
   updateSettings = tauriSystemApi.updateSettings;
   addPaymentMethod = tauriSystemApi.addPaymentMethod;
   togglePaymentMethod = tauriSystemApi.togglePaymentMethod;
   listBackups = tauriSystemApi.listBackups;
+  getLocalDbStatus = tauriSystemApi.getLocalDbStatus;
   createBackup = tauriSystemApi.createBackup;
   createEncryptedBackup = tauriSystemApi.createEncryptedBackup;
+  importBackup = tauriSystemApi.importBackup;
   verifyBackup = tauriSystemApi.verifyBackup;
   verifyEncryptedBackup = tauriSystemApi.verifyEncryptedBackup;
   restoreBackup = tauriSystemApi.restoreBackup;

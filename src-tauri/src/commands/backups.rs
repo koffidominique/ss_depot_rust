@@ -136,6 +136,37 @@ pub async fn restore_encrypted_backup(
 }
 
 #[tauri::command]
+pub async fn get_local_db_status(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::BackupsRead).await?;
+    let db = state.db().await;
+    let status = auth::with_actor(actor, backup::inspect_local_db(&db, &state.backup_dir))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(status).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn import_backup_file(
+    state: State<'_, DesktopState>,
+    token: String,
+    filename: String,
+    bytes: Vec<u8>,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::BackupsCreate).await?;
+    let db = state.db().await;
+    let dto = auth::with_actor(
+        actor,
+        backup::import_backup_bytes(&db, &state.backup_dir, &filename, &bytes),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(dto).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn shutdown_app(
     app_handle: tauri::AppHandle,
     _state: State<'_, DesktopState>,

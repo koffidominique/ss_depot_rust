@@ -5,6 +5,7 @@ import type {
   BackupVerifyResult,
   CashStatus,
   ExpenseItem,
+  LocalDbStatus,
   PaymentMethodConfig,
   ReportsOverview,
 } from "../../../types/erp.ts";
@@ -135,8 +136,10 @@ export interface SystemApiClient {
     active: boolean,
   ): Promise<PaymentMethodConfig>;
   listBackups(): Promise<BackupFile[]>;
+  getLocalDbStatus(): Promise<LocalDbStatus>;
   createBackup(): Promise<BackupFile>;
   createEncryptedBackup(passphrase: string): Promise<BackupFile>;
+  importBackup(filename: string, bytes: Uint8Array): Promise<BackupFile>;
   verifyBackup(name: string): Promise<BackupVerifyResult>;
   verifyEncryptedBackup(
     name: string,

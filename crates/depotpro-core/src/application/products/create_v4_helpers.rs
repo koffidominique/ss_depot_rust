@@ -4,6 +4,7 @@
 
 use sqlx::{Sqlite, Transaction};
 
+use crate::application::orders::{compute_compatibility_class, compute_native_crate_capacity};
 use crate::error::{CoreError, CoreResult};
 
 use super::v4_types::InitialVariantInput;
@@ -146,12 +147,44 @@ pub(crate) async fn create_initial_variant_tx(
 
     let norm_type = normalize_container_type(variant.container_type.as_deref());
     let norm_mat = normalize_container_material(variant.container_material.as_deref());
+    let compat_class = compute_compatibility_class(norm_type, Some(variant.volume_ml));
+    let native_cap = compute_native_crate_capacity(norm_type, Some(variant.volume_ml));
+
+    if let Some(ct_id) = variant.container_type_id {
+        let brand_id: Option<i64> =
+            sqlx::query_scalar("SELECT brand_id FROM products WHERE id = ?")
+                .bind(product_id)
+                .fetch_optional(&mut **tx)
+                .await?
+                .flatten();
+        if let Some(bid) = brand_id {
+            let dup: Option<i64> = sqlx::query_scalar(
+                "SELECT pv.id FROM product_variants pv
+                 JOIN products p ON p.id = pv.product_id
+                 WHERE p.brand_id = ? AND pv.volume_ml = ? AND pv.container_type_id = ?
+                   AND p.is_active = 1 AND pv.is_active = 1 AND pv.product_id != ?",
+            )
+            .bind(bid)
+            .bind(variant.volume_ml)
+            .bind(ct_id)
+            .bind(product_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+            if dup.is_some() {
+                return Err(CoreError::DuplicateOperation(
+                    "Une variante active identique (marque, volume, contenant) existe déjà."
+                        .to_string(),
+                ));
+            }
+        }
+    }
 
     let variant_id = sqlx::query(
         "INSERT INTO product_variants (
             product_id, name, sku, barcode, volume_ml, container_type, container_type_id,
-            container_material, container_returnable, container_recyclable, container_deposit_amount
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            container_material, container_returnable, container_recyclable, container_deposit_amount,
+            native_crate_capacity, compatibility_class
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(product_id)
     .bind(&vname)
@@ -172,6 +205,8 @@ pub(crate) async fn create_initial_variant_tx(
         0_i64
     })
     .bind(variant.container_deposit_amount.unwrap_or(0))
+    .bind(native_cap)
+    .bind(&compat_class)
     .execute(&mut **tx)
     .await?
     .last_insert_rowid();
