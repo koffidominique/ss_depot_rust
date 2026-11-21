@@ -17,6 +17,7 @@ fn temp_db_path(tag: &str) -> PathBuf {
         .join("depotpro.db")
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn make_beverage_variant(
     db: &DepotDb,
     cat_id: i64,
