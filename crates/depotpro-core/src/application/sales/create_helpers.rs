@@ -53,7 +53,16 @@ pub(crate) async fn prepare_sale_lines_tx(
     effective_price_tier: &str,
     sale_type: &str,
 ) -> CoreResult<PreparedSaleLines> {
-    type SaleProductRow = (i64, String, String, Option<String>, Option<String>, i64, i64, i64);
+    type SaleProductRow = (
+        i64,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        i64,
+        i64,
+        i64,
+    );
 
     let mut prepared_lines: Vec<PreparedSaleLine> = Vec::with_capacity(raw_lines.len());
     let mut product_deductions: HashMap<i64, i64> = HashMap::new();
@@ -70,10 +79,20 @@ pub(crate) async fn prepare_sale_lines_tx(
         .bind(line.product_id)
         .fetch_optional(&mut **tx)
         .await?;
-        let (pid, pname, base_unit, cost_num, cost_den, is_active, allow_unit_sale, allow_credit_sale) =
-            prod.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
+        let (
+            pid,
+            pname,
+            base_unit,
+            cost_num,
+            cost_den,
+            is_active,
+            allow_unit_sale,
+            allow_credit_sale,
+        ) = prod.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
         if is_active == 0 {
-            return Err(CoreError::Validation(format!("Produit \"{pname}\" archivé.")));
+            return Err(CoreError::Validation(format!(
+                "Produit \"{pname}\" archivé."
+            )));
         }
         if sale_type == "credit" && allow_credit_sale == 0 {
             return Err(CoreError::CreditPolicyViolation(format!(
@@ -91,7 +110,9 @@ pub(crate) async fn prepare_sale_lines_tx(
 
         let qty = Quantity::parse_str(&line.quantity, &format!("Quantité ({pname})"))?;
         if qty.milli_units <= 0 {
-            return Err(CoreError::Validation(format!("La quantité ({pname}) doit être > 0.")));
+            return Err(CoreError::Validation(format!(
+                "La quantité ({pname}) doit être > 0."
+            )));
         }
         if resolved.allow_fraction == 0 && qty.milli_units % 1000 != 0 {
             return Err(CoreError::Validation(format!(
@@ -100,7 +121,8 @@ pub(crate) async fn prepare_sale_lines_tx(
             )));
         }
 
-        let base_qty = qty.multiply_coefficient_to_base(Quantity::from_milli(resolved.coeff_milli))?;
+        let base_qty =
+            qty.multiply_coefficient_to_base(Quantity::from_milli(resolved.coeff_milli))?;
         let raw_tier_price = match effective_price_tier {
             "wholesale" => resolved.p_wholesale.or(resolved.p_retail),
             "semi_wholesale" => resolved.p_semi.or(resolved.p_retail),
@@ -124,9 +146,12 @@ pub(crate) async fn prepare_sale_lines_tx(
         }
 
         let gross_line = qty.compute_line_fcfa(unit_price.value())?;
-        let line_discount = Money::from_non_negative(line.discount_amount.unwrap_or(0), "Remise ligne")?;
+        let line_discount =
+            Money::from_non_negative(line.discount_amount.unwrap_or(0), "Remise ligne")?;
         if line_discount.value() > gross_line {
-            return Err(CoreError::Validation(format!("Remise supérieure au montant de la ligne ({pname}).")));
+            return Err(CoreError::Validation(format!(
+                "Remise supérieure au montant de la ligne ({pname})."
+            )));
         }
         let line_total = Money(gross_line - line_discount.value());
         subtotal_merchandise = subtotal_merchandise.checked_add(line_total, "Sous-total")?;
@@ -173,7 +198,9 @@ pub(crate) async fn prepare_sale_lines_tx(
                 let line_idx = prepared_lines.len();
                 for (rid, ppp, dep_val, r_name, r_kind) in comps {
                     let line_milli_pieces = qty.milli_units.checked_mul(ppp).ok_or_else(|| {
-                        CoreError::Validation("Débordement du nombre de pièces consignées.".to_string())
+                        CoreError::Validation(
+                            "Débordement du nombre de pièces consignées.".to_string(),
+                        )
                     })?;
                     if r_kind == "bottle" && line_milli_pieces % 1000 == 0 {
                         let pieces = line_milli_pieces / 1000;
@@ -182,9 +209,14 @@ pub(crate) async fn prepare_sale_lines_tx(
                         total_deposit = total_deposit.checked_add(amt, "Total consignes")?;
                         deposit_items.push((rid, pieces, dep_val, amt.value()));
                     } else if let Some(acc) = shared_deposit_totals.get_mut(&rid) {
-                        acc.milli_pieces = acc.milli_pieces.checked_add(line_milli_pieces).ok_or_else(|| {
-                            CoreError::Validation("Débordement du nombre de pièces consignées.".to_string())
-                        })?;
+                        acc.milli_pieces =
+                            acc.milli_pieces
+                                .checked_add(line_milli_pieces)
+                                .ok_or_else(|| {
+                                    CoreError::Validation(
+                                        "Débordement du nombre de pièces consignées.".to_string(),
+                                    )
+                                })?;
                     } else {
                         shared_deposit_order.push(rid);
                         shared_deposit_totals.insert(
@@ -232,7 +264,11 @@ pub(crate) async fn prepare_sale_lines_tx(
     for rid in shared_deposit_order {
         let acc = &shared_deposit_totals[&rid];
         if acc.milli_pieces % 1000 != 0 {
-            let formatted = format!("{}.{:03}", acc.milli_pieces / 1000, (acc.milli_pieces % 1000).abs());
+            let formatted = format!(
+                "{}.{:03}",
+                acc.milli_pieces / 1000,
+                (acc.milli_pieces % 1000).abs()
+            );
             let clean = formatted.trim_end_matches('0').trim_end_matches('.');
             return Err(CoreError::Validation(format!(
                 "Panachage incomplet pour « {} » : la somme des demi-casiers doit former un nombre entier de casiers (total actuel : {clean}).",
@@ -243,10 +279,17 @@ pub(crate) async fn prepare_sale_lines_tx(
         let amt = Money::from_non_negative(acc.unit_value, "Tarif consigne")?
             .checked_mul(pieces, "Montant consigne")?;
         total_deposit = total_deposit.checked_add(amt, "Total consignes")?;
-        prepared_lines[acc.first_line_idx].deposit_items.push((rid, pieces, acc.unit_value, amt.value()));
+        prepared_lines[acc.first_line_idx]
+            .deposit_items
+            .push((rid, pieces, acc.unit_value, amt.value()));
     }
 
-    Ok(PreparedSaleLines { lines: prepared_lines, product_deductions, subtotal_merchandise, total_deposit })
+    Ok(PreparedSaleLines {
+        lines: prepared_lines,
+        product_deductions,
+        subtotal_merchandise,
+        total_deposit,
+    })
 }
 
 pub(crate) async fn normalize_sale_payments_tx(
@@ -257,13 +300,18 @@ pub(crate) async fn normalize_sale_payments_tx(
     let mut paid_amount = Money::ZERO;
     for p in payments {
         let amt = Money::from_positive(p.amount, &format!("Montant ({})", p.method_code))?;
-        let pm: Option<(String, i64)> = sqlx::query_as("SELECT code, active FROM payment_methods WHERE code = ?")
-            .bind(&p.method_code).fetch_optional(&mut **tx).await?;
+        let pm: Option<(String, i64)> =
+            sqlx::query_as("SELECT code, active FROM payment_methods WHERE code = ?")
+                .bind(&p.method_code)
+                .fetch_optional(&mut **tx)
+                .await?;
         let (code, active) = pm.ok_or_else(|| {
             CoreError::InvalidPayment(format!("Moyen de paiement introuvable : {}", p.method_code))
         })?;
         if active == 0 {
-            return Err(CoreError::InvalidPayment(format!("Moyen de paiement inactif : {code}")));
+            return Err(CoreError::InvalidPayment(format!(
+                "Moyen de paiement inactif : {code}"
+            )));
         }
         paid_amount = paid_amount.checked_add(amt, "Total encaissé")?;
         normalized_payments.push((code, amt.value()));

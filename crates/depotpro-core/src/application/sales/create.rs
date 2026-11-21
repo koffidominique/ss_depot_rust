@@ -132,9 +132,13 @@ pub async fn create_sale_v4(db: &DepotDb, input: CreateSaleV4Input) -> CoreResul
     }
 
     let effective_price_tier = input.price_tier.as_str();
-    let prepared =
-        prepare_sale_lines_tx(&mut tx, &input.lines, effective_price_tier, &input.sale_type)
-            .await?;
+    let prepared = prepare_sale_lines_tx(
+        &mut tx,
+        &input.lines,
+        effective_price_tier,
+        &input.sale_type,
+    )
+    .await?;
 
     if global_discount > prepared.subtotal_merchandise {
         return Err(CoreError::Validation(
