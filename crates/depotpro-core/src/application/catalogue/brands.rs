@@ -67,14 +67,15 @@ pub async fn create_brand(db: &DepotDb, input: CreateBrandInput) -> CoreResult<B
     let (_guard, mut tx) = db.begin_write().await?;
     check_duplicate(&mut tx, "brands", "code", &clean_code, None).await?;
     if let Some(brewery_id) = input.brewery_id {
-        let exists: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM breweries WHERE id = ? AND is_active = 1",
-        )
-        .bind(brewery_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let exists: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM breweries WHERE id = ? AND is_active = 1")
+                .bind(brewery_id)
+                .fetch_optional(&mut *tx)
+                .await?;
         if exists.is_none() {
-            return Err(CoreError::Validation("Brasserie introuvable ou inactive.".to_string()));
+            return Err(CoreError::Validation(
+                "Brasserie introuvable ou inactive.".to_string(),
+            ));
         }
     }
     let id = sqlx::query(
@@ -133,14 +134,15 @@ pub async fn update_brand(db: &DepotDb, id: i64, input: UpdateBrandInput) -> Cor
     if let Some(brewery_id) = input.brewery_id {
         match brewery_id {
             Some(id) => {
-                let exists: Option<i64> = sqlx::query_scalar(
-                    "SELECT id FROM breweries WHERE id = ? AND is_active = 1",
-                )
-                .bind(id)
-                .fetch_optional(&mut *tx)
-                .await?;
+                let exists: Option<i64> =
+                    sqlx::query_scalar("SELECT id FROM breweries WHERE id = ? AND is_active = 1")
+                        .bind(id)
+                        .fetch_optional(&mut *tx)
+                        .await?;
                 if exists.is_none() {
-                    return Err(CoreError::Validation("Brasserie introuvable ou inactive.".to_string()));
+                    return Err(CoreError::Validation(
+                        "Brasserie introuvable ou inactive.".to_string(),
+                    ));
                 }
                 updates.push("brewery_id = ?".to_string());
                 binds.push(id.to_string());
