@@ -64,7 +64,9 @@ pub async fn create_product(
 
     if let Some(volume_ml) = input.volume_ml {
         if volume_ml <= 0 {
-            return Err(CoreError::Validation("Le volume du contenant doit être positif.".to_string()));
+            return Err(CoreError::Validation(
+                "Le volume du contenant doit être positif.".to_string(),
+            ));
         }
     }
     if input.volume_ml.is_some() != input.container_type.is_some() {
@@ -74,7 +76,9 @@ pub async fn create_product(
     }
     if let Some(kind) = input.container_type.as_deref() {
         if !ALLOWED_CONTAINER_TYPES.contains(&kind) {
-            return Err(CoreError::Validation("Type de contenant invalide.".to_string()));
+            return Err(CoreError::Validation(
+                "Type de contenant invalide.".to_string(),
+            ));
         }
     }
     if let Some(degree) = input.alcohol_degree {
@@ -177,25 +181,48 @@ pub async fn create_product(
                 "Sélectionnez une marque pour cette brasserie.".to_string(),
             ));
         }
-        input.brand.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string)
+        input
+            .brand
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
     };
 
     if let Some(profile_id) = input.bottle_profile_id {
         if sqlx::query_scalar::<_, i64>("SELECT id FROM bottle_profiles WHERE id = ?")
-            .bind(profile_id).fetch_optional(&mut *tx).await?.is_none() {
-            return Err(CoreError::Validation("Profil de bouteille introuvable.".to_string()));
+            .bind(profile_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .is_none()
+        {
+            return Err(CoreError::Validation(
+                "Profil de bouteille introuvable.".to_string(),
+            ));
         }
     }
     if let Some(crate_id) = input.crate_type_id {
         if sqlx::query_scalar::<_, i64>("SELECT id FROM crate_types WHERE id = ?")
-            .bind(crate_id).fetch_optional(&mut *tx).await?.is_none() {
-            return Err(CoreError::Validation("Type de casier introuvable.".to_string()));
+            .bind(crate_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .is_none()
+        {
+            return Err(CoreError::Validation(
+                "Type de casier introuvable.".to_string(),
+            ));
         }
     }
     if let Some(group_id) = input.compatibility_group_id {
         if sqlx::query_scalar::<_, i64>("SELECT id FROM crate_compatibility_groups WHERE id = ?")
-            .bind(group_id).fetch_optional(&mut *tx).await?.is_none() {
-            return Err(CoreError::Validation("Groupe de compatibilité introuvable.".to_string()));
+            .bind(group_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .is_none()
+        {
+            return Err(CoreError::Validation(
+                "Groupe de compatibilité introuvable.".to_string(),
+            ));
         }
     }
 
@@ -255,8 +282,12 @@ pub async fn create_product(
     // La fiche physique est enregistrée dans product_variants, puis liée au
     // produit. Le stock de référence reste compté en bouteilles/canettes.
     if input.volume_ml.is_some() && input.container_type.is_some() {
-        let variant_name = input.variant_name.as_deref()
-            .map(str::trim).filter(|s| !s.is_empty()).unwrap_or(&name);
+        let variant_name = input
+            .variant_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&name);
         let variant_id = sqlx::query(
             "INSERT INTO product_variants
                 (product_id, name, volume_ml, container_type, alcohol_degree,
