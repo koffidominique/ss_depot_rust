@@ -11,6 +11,7 @@ pub struct BrandDto {
     pub code: String,
     pub name: String,
     pub description: Option<String>,
+    pub brewery_id: Option<i64>,
     pub is_active: i64,
     pub created_at: String,
     pub updated_at: String,
