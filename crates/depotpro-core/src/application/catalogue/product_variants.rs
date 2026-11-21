@@ -185,8 +185,12 @@ pub async fn update_product_variant(
         match barcode {
             Some(value) => {
                 let clean = value.trim();
-                updates.push("barcode = ?".to_string());
-                binds.push(if clean.is_empty() { String::new() } else { clean.to_string() });
+                if clean.is_empty() {
+                    updates.push("barcode = NULL".to_string());
+                } else {
+                    updates.push("barcode = ?".to_string());
+                    binds.push(clean.to_string());
+                }
             }
             None => updates.push("barcode = NULL".to_string()),
         }
