@@ -122,12 +122,26 @@ pub async fn create_sales_unit(
     .bind(input.product_id)
     .bind(input.variant_id)
     .bind(input.packaging_id)
-    .bind(input.code.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        input
+            .code
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(label)
     .bind(&input.unit_type)
     .bind(input.conversion_factor)
-    .bind(if input.is_virtual.unwrap_or(false) { 1_i64 } else { 0_i64 })
-    .bind(if input.allow_fraction.unwrap_or(false) { 1_i64 } else { 0_i64 })
+    .bind(if input.is_virtual.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if input.allow_fraction.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
     .bind(input.purchase_price)
     .bind(input.wholesale_price)
     .bind(input.semi_wholesale_price)
@@ -136,9 +150,21 @@ pub async fn create_sales_unit(
     .bind(input.bottle_deposit_amount.unwrap_or(0))
     .bind(input.crate_deposit_amount.unwrap_or(0))
     .bind(clean_bc)
-    .bind(if input.is_default_sale.unwrap_or(false) { 1_i64 } else { 0_i64 })
-    .bind(if input.is_default_purchase.unwrap_or(false) { 1_i64 } else { 0_i64 })
-    .bind(if input.is_active.unwrap_or(true) { 1_i64 } else { 0_i64 })
+    .bind(if input.is_default_sale.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if input.is_default_purchase.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if input.is_active.unwrap_or(true) {
+        1_i64
+    } else {
+        0_i64
+    })
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
@@ -201,9 +227,13 @@ pub async fn update_sales_unit(
     if !ALLOWED_UNIT_TYPES.contains(&unit_type.as_str()) {
         return Err(CoreError::Validation("Type d'unité invalide.".into()));
     }
-    let conversion_factor = input.conversion_factor.unwrap_or(existing.conversion_factor);
+    let conversion_factor = input
+        .conversion_factor
+        .unwrap_or(existing.conversion_factor);
     if conversion_factor <= 0 {
-        return Err(CoreError::Validation("Facteur de conversion invalide.".into()));
+        return Err(CoreError::Validation(
+            "Facteur de conversion invalide.".into(),
+        ));
     }
     let purchase_price = input.purchase_price.unwrap_or(existing.purchase_price);
     let wholesale_price = input.wholesale_price.unwrap_or(existing.wholesale_price);
@@ -211,7 +241,9 @@ pub async fn update_sales_unit(
         .semi_wholesale_price
         .unwrap_or(existing.semi_wholesale_price);
     let retail_price = input.retail_price.unwrap_or(existing.retail_price);
-    let min_selling_price = input.min_selling_price.unwrap_or(existing.min_selling_price);
+    let min_selling_price = input
+        .min_selling_price
+        .unwrap_or(existing.min_selling_price);
     validate_opt_price(purchase_price, "Prix d'achat")?;
     validate_opt_price(wholesale_price, "Prix gros")?;
     validate_opt_price(semi_wholesale_price, "Prix demi-gros")?;

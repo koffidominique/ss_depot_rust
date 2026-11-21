@@ -323,11 +323,10 @@ pub async fn update_product_variant(
     .await?;
     tx.commit().await?;
 
-    let updated =
-        sqlx::query_as::<_, ProductVariantDto>(&format!("{VARIANT_SELECT} WHERE id = ?"))
-            .bind(id)
-            .fetch_one(&db.pool)
-            .await?;
+    let updated = sqlx::query_as::<_, ProductVariantDto>(&format!("{VARIANT_SELECT} WHERE id = ?"))
+        .bind(id)
+        .fetch_one(&db.pool)
+        .await?;
     Ok(updated)
 }
 

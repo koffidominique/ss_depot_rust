@@ -7,7 +7,7 @@ use sqlx::FromRow;
 
 mod create;
 mod create_packagings;
-mod create_v4_helpers;
+pub(crate) mod create_v4_helpers;
 mod csv_io;
 mod hydrate;
 mod packaging;
