@@ -12,6 +12,21 @@ use depotpro_core::application::products;
 use crate::dto::{CategoryPayload, CsvImportPayload, SearchQuery};
 use crate::state::{map_err, require_perm, AppState};
 
+pub(crate) async fn product_form_metadata(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, products::get_product_form_metadata(&db)).await {
+        Ok(metadata) => (StatusCode::OK, Json(serde_json::to_value(metadata).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
 pub(crate) async fn list_categories(
     State(state): State<AppState>,
     headers: HeaderMap,
