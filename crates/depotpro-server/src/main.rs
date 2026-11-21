@@ -626,6 +626,22 @@ async fn update_product(
     }
 }
 
+async fn delete_product(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogDelete).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, products::delete_product(&db, id)).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
 async fn upsert_packaging(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1699,7 +1715,7 @@ fn build_router(state: AppState) -> Router {
         .route("/api/products", get(list_products).post(create_product))
         .route("/api/products/presets", get(list_catalog_presets))
         .route("/api/products/presets/apply", post(apply_catalog_presets))
-        .route("/api/products/:id", put(update_product))
+        .route("/api/products/:id", put(update_product).delete(delete_product))
         .route("/api/products/:id/packagings", post(upsert_packaging))
         .route("/api/products/export/csv", get(export_products_csv))
         .route("/api/products/import/csv", post(import_products_csv))
@@ -2331,7 +2347,7 @@ mod tests {
         assert_eq!(st, 200);
         let presets_json: serde_json::Value = serde_json::from_str(&presets_body).unwrap();
         let items = presets_json["items"].as_array().unwrap();
-        assert_eq!(items.len(), 20);
+        assert_eq!(items.len(), 60);
         let first_key = items[0]["key"].as_str().unwrap();
 
         let apply_payload = serde_json::json!({
@@ -2351,6 +2367,35 @@ mod tests {
         let apply_json: serde_json::Value = serde_json::from_str(&apply_body).unwrap();
         assert_eq!(apply_json["created"], 1);
         assert_eq!(apply_json["products"][0]["is_active"], 1);
+        let applied_id = apply_json["products"][0]["id"].as_i64().unwrap();
+
+        // Suppression produit : refusé si lié à des mouvements/ventes, autorisé si vierge (Owner)
+        let (st_hist, hist_body) = send_http(
+            addr,
+            "DELETE",
+            &format!("/api/products/{prod_id}"),
+            &[("Authorization", &auth_hdr)],
+            None,
+        )
+        .await;
+        assert_eq!(st_hist, 400);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&hist_body).unwrap()["code"],
+            "HISTORICAL_IMMUTABLE"
+        );
+
+        let (st_del, del_body) = send_http(
+            addr,
+            "DELETE",
+            &format!("/api/products/{applied_id}"),
+            &[("Authorization", &auth_hdr)],
+            None,
+        )
+        .await;
+        assert_eq!(st_del, 200);
+        let del_json: serde_json::Value = serde_json::from_str(&del_body).unwrap();
+        assert_eq!(del_json["deleted"], true);
+        assert_eq!(del_json["id"], applied_id);
 
         srv.abort();
         let _ = std::fs::remove_dir_all(&dir);

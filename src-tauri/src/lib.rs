@@ -108,6 +108,7 @@ pub fn run() {
             commands::list_products,
             commands::create_product,
             commands::update_product,
+            commands::delete_product,
             commands::upsert_packaging,
             commands::export_products_csv,
             commands::import_products_csv,

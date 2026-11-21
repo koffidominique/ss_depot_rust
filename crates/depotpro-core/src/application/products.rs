@@ -1,4 +1,4 @@
-use crate::application::auth::{require_current_actor_permission, Permission};
+use crate::application::auth::{current_actor, require_current_actor_permission, Permission, Role};
 use crate::application::sales::audit_log_tx;
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
@@ -10,6 +10,63 @@ use std::collections::{HashMap, HashSet};
 
 const ALLOWED_PACKAGING_NAMES: &[&str] = &["casier", "carton", "bouteille", "pack", "canette"];
 const BREWERY_CATALOG_JSON: &str = include_str!("../../../../catalog/brewery_catalog.json");
+
+pub fn normalize_product_name(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut prev_space = true;
+    for ch in raw.trim().chars() {
+        if ch.is_whitespace() {
+            if !prev_space {
+                out.push(' ');
+                prev_space = true;
+            }
+            continue;
+        }
+        prev_space = false;
+        match ch {
+            'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' | 'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => out.push('a'),
+            'È' | 'É' | 'Ê' | 'Ë' | 'è' | 'é' | 'ê' | 'ë' => out.push('e'),
+            'Ì' | 'Í' | 'Î' | 'Ï' | 'ì' | 'í' | 'î' | 'ï' => out.push('i'),
+            'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'ò' | 'ó' | 'ô' | 'õ' | 'ö' => out.push('o'),
+            'Ù' | 'Ú' | 'Û' | 'Ü' | 'ù' | 'ú' | 'û' | 'ü' => out.push('u'),
+            'Ç' | 'ç' => out.push('c'),
+            'Ñ' | 'ñ' => out.push('n'),
+            'Ý' | 'Ÿ' | 'ý' | 'ÿ' => out.push('y'),
+            'Œ' | 'œ' => out.push_str("oe"),
+            'Æ' | 'æ' => out.push_str("ae"),
+            '\u{0300}'..='\u{036F}' => {}
+            other => {
+                for lc in other.to_lowercase() {
+                    out.push(lc);
+                }
+            }
+        }
+    }
+    out.trim_end().to_string()
+}
+
+async fn ensure_unique_product_name(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    name: &str,
+    exclude_id: Option<i64>,
+) -> CoreResult<()> {
+    let target = normalize_product_name(name);
+    let rows: Vec<(i64, String, String)> =
+        sqlx::query_as("SELECT id, name, reference FROM products")
+            .fetch_all(&mut **tx)
+            .await?;
+    for (pid, existing_name, existing_ref) in rows {
+        if exclude_id == Some(pid) {
+            continue;
+        }
+        if normalize_product_name(&existing_name) == target {
+            return Err(CoreError::DuplicateOperation(format!(
+                "Doublon : le produit \"{existing_name}\" ({existing_ref}) existe déjà."
+            )));
+        }
+    }
+    Ok(())
+}
 
 pub(crate) fn deserialize_nullable_opt<'de, D, T>(
     deserializer: D,
@@ -762,6 +819,8 @@ pub async fn create_product(
         }
     }
 
+    ensure_unique_product_name(&mut tx, &name, None).await?;
+
     let clean_barcode = input
         .barcode
         .as_deref()
@@ -964,6 +1023,7 @@ pub async fn update_product(
 
     let cur = existing.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
 
+    let has_name_update = input.name.is_some();
     let name = match input.name {
         Some(n) => {
             let trimmed = n.trim().to_string();
@@ -974,6 +1034,9 @@ pub async fn update_product(
         }
         None => cur.1.clone(),
     };
+    if has_name_update {
+        ensure_unique_product_name(&mut tx, &name, Some(id)).await?;
+    }
 
     if let Some(cid) = input.category_id {
         if sqlx::query_scalar::<_, i64>("SELECT id FROM categories WHERE id = ?")
@@ -1117,6 +1180,99 @@ pub async fn update_product(
     .await?;
     tx.commit().await?;
     get_product_by_id(db, id).await
+}
+
+#[derive(Debug, Serialize)]
+pub struct DeleteProductResultDto {
+    pub deleted: bool,
+    pub id: i64,
+    pub reference: String,
+    pub name: String,
+}
+
+pub async fn delete_product(db: &DepotDb, id: i64) -> CoreResult<DeleteProductResultDto> {
+    require_current_actor_permission(Permission::CatalogDelete)?;
+    if let Some(actor) = current_actor() {
+        if actor.role != Role::Owner {
+            return Err(CoreError::Forbidden(
+                "Seul le Propriétaire peut supprimer définitivement un produit.".to_string(),
+            ));
+        }
+    }
+
+    let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<(i64, String, String)> =
+        sqlx::query_as("SELECT id, reference, name FROM products WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let (prod_id, reference, name) =
+        existing.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
+
+    let has_sale: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM sale_lines WHERE product_id = ? LIMIT 1")
+            .bind(prod_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let has_po: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM purchase_order_lines WHERE product_id = ? LIMIT 1")
+            .bind(prod_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let has_inv: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM inventory_lines WHERE product_id = ? LIMIT 1")
+            .bind(prod_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let has_move: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM stock_movements WHERE product_id = ? LIMIT 1")
+            .bind(prod_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+    if has_sale.is_some() || has_po.is_some() || has_inv.is_some() || has_move.is_some() {
+        return Err(CoreError::HistoricalImmutable(
+            "Produit utilisé dans ventes, achats ou stocks : archivez-le.".to_string(),
+        ));
+    }
+
+    sqlx::query(
+        "DELETE FROM deposit_packaging_components WHERE packaging_id IN (SELECT id FROM product_packagings WHERE product_id = ?)",
+    )
+    .bind(prod_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "DELETE FROM deposit_packaging_profiles WHERE packaging_id IN (SELECT id FROM product_packagings WHERE product_id = ?)",
+    )
+    .bind(prod_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("DELETE FROM product_packagings WHERE product_id = ?")
+        .bind(prod_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM products WHERE id = ?")
+        .bind(prod_id)
+        .execute(&mut *tx)
+        .await?;
+
+    audit_log_tx(
+        &mut tx,
+        "DELETE_PRODUCT",
+        "products",
+        Some(prod_id.to_string()),
+        &format!("Suppression définitive produit {reference} — {name}"),
+    )
+    .await?;
+    tx.commit().await?;
+
+    Ok(DeleteProductResultDto {
+        deleted: true,
+        id: prod_id,
+        reference,
+        name,
+    })
 }
 
 pub async fn upsert_packaging(
@@ -1397,6 +1553,13 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
     })?;
 
     let (_guard, mut tx) = db.begin_write().await?;
+    let existing_prod_names: Vec<String> = sqlx::query_scalar("SELECT name FROM products")
+        .fetch_all(&mut *tx)
+        .await?;
+    let mut seen_norm_names: HashSet<String> = existing_prod_names
+        .iter()
+        .map(|n| normalize_product_name(n))
+        .collect();
     let mut created: i64 = 0;
 
     for (line_num, line) in lines.iter().enumerate().skip(1) {
@@ -1404,6 +1567,13 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
         let name = cols.get(name_idx).map(String::as_str).unwrap_or("").trim();
         if name.is_empty() {
             continue;
+        }
+        let norm_name = normalize_product_name(name);
+        if !seen_norm_names.insert(norm_name) {
+            return Err(CoreError::DuplicateOperation(format!(
+                "Ligne {} : un produit nommé « {name} » existe déjà.",
+                line_num + 1
+            )));
         }
         let base_unit = cols
             .get(unit_idx)
@@ -1702,6 +1872,8 @@ pub struct ApplyCatalogPresetsResultDto {
 struct ExistingPresetProductRow {
     id: i64,
     reference: String,
+    name: String,
+    barcode: Option<String>,
     is_active: i64,
 }
 
@@ -1719,17 +1891,27 @@ pub async fn list_catalog_presets(db: &DepotDb) -> CoreResult<CatalogPresetListD
         .map(|r| (r.code.clone(), r.name.clone()))
         .collect();
 
+    let existing_rows = sqlx::query_as::<_, ExistingPresetProductRow>(
+        "SELECT id, reference, name, barcode, is_active FROM products",
+    )
+    .fetch_all(&db.pool)
+    .await?;
+    let mut by_barcode: HashMap<String, (i64, String, i64)> = HashMap::new();
+    let mut by_norm_name: HashMap<String, (i64, String, i64)> = HashMap::new();
+    for r in existing_rows {
+        let info = (r.id, r.reference, r.is_active);
+        if let Some(bc) = r.barcode {
+            by_barcode.insert(bc, info.clone());
+        }
+        by_norm_name.insert(normalize_product_name(&r.name), info);
+    }
+
     let mut items = Vec::with_capacity(catalog.products.len());
     for p in catalog.products {
-        let existing = sqlx::query_as::<_, ExistingPresetProductRow>(
-            "SELECT id, reference, is_active FROM products
-             WHERE barcode = ? OR lower(name) = lower(?)
-             LIMIT 1",
-        )
-        .bind(&p.barcode)
-        .bind(&p.name)
-        .fetch_optional(&db.pool)
-        .await?;
+        let existing = by_barcode
+            .get(&p.barcode)
+            .or_else(|| by_norm_name.get(&normalize_product_name(&p.name)))
+            .cloned();
 
         let packagings = p
             .packagings
@@ -1778,9 +1960,9 @@ pub async fn list_catalog_presets(db: &DepotDb) -> CoreResult<CatalogPresetListD
             retail_price: p.retail_price,
             description: p.description,
             packagings,
-            existing_product_id: existing.as_ref().map(|r| r.id),
-            existing_reference: existing.as_ref().map(|r| r.reference.clone()),
-            existing_is_active: existing.as_ref().map(|r| r.is_active),
+            existing_product_id: existing.as_ref().map(|r| r.0),
+            existing_reference: existing.as_ref().map(|r| r.1.clone()),
+            existing_is_active: existing.as_ref().map(|r| r.2),
         });
     }
 
@@ -1834,6 +2016,21 @@ pub async fn apply_catalog_presets(
     let activate = input.activate.unwrap_or(true);
     let (_guard, mut tx) = db.begin_write().await?;
 
+    let existing_rows = sqlx::query_as::<_, ExistingPresetProductRow>(
+        "SELECT id, reference, name, barcode, is_active FROM products",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let mut by_barcode: HashMap<String, (i64, String, i64)> = HashMap::new();
+    let mut by_norm_name: HashMap<String, (i64, String, i64)> = HashMap::new();
+    for r in existing_rows {
+        let info = (r.id, r.reference, r.is_active);
+        if let Some(bc) = r.barcode {
+            by_barcode.insert(bc, info.clone());
+        }
+        by_norm_name.insert(normalize_product_name(&r.name), info);
+    }
+
     let mut created = 0_i64;
     let mut reactivated = 0_i64;
     let mut skipped = 0_i64;
@@ -1841,24 +2038,23 @@ pub async fn apply_catalog_presets(
 
     for key in &dedup_keys {
         let preset = preset_map[key.as_str()];
-        let existing = sqlx::query_as::<_, ExistingPresetProductRow>(
-            "SELECT id, reference, is_active FROM products
-             WHERE barcode = ? OR lower(name) = lower(?)
-             LIMIT 1",
-        )
-        .bind(&preset.barcode)
-        .bind(&preset.name)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let norm_preset_name = normalize_product_name(&preset.name);
+        let existing = by_barcode
+            .get(&preset.barcode)
+            .or_else(|| by_norm_name.get(&norm_preset_name))
+            .cloned();
 
-        if let Some(cur) = existing {
-            if activate && cur.is_active == 0 {
+        if let Some((cur_id, cur_ref, cur_active)) = existing {
+            if activate && cur_active == 0 {
                 sqlx::query("UPDATE products SET is_active = 1 WHERE id = ?")
-                    .bind(cur.id)
+                    .bind(cur_id)
                     .execute(&mut *tx)
                     .await?;
+                let updated_info = (cur_id, cur_ref, 1_i64);
+                by_barcode.insert(preset.barcode.clone(), updated_info.clone());
+                by_norm_name.insert(norm_preset_name, updated_info);
                 reactivated += 1;
-                affected_ids.push(cur.id);
+                affected_ids.push(cur_id);
             } else {
                 skipped += 1;
             }
@@ -2079,6 +2275,9 @@ pub async fn apply_catalog_presets(
             }
         }
 
+        let info = (prod_id, reference, is_active);
+        by_barcode.insert(preset.barcode.clone(), info.clone());
+        by_norm_name.insert(norm_preset_name, info);
         created += 1;
         affected_ids.push(prod_id);
     }

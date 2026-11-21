@@ -204,8 +204,74 @@ async fn lot6_rbac_six_roles_permissions_and_audit_identity() {
     assert_eq!(stock_mgr.role, Role::StockManager);
     assert!(admin.has_permission(Permission::SecurityManageUsers));
     assert!(!admin.has_permission(Permission::SecurityChangeOwnerPin));
+    assert!(!admin.has_permission(Permission::CatalogDelete));
+    assert!(owner.has_permission(Permission::CatalogDelete));
     assert!(manager.has_permission(Permission::BackupsCreate));
     assert!(!manager.has_permission(Permission::BackupsRestore));
+
+    // Création produit puis vérification suppression réservée au Owner
+    let cat_ok = auth::with_actor(
+        owner.clone(),
+        products::create_category(&db, "Bières Lot6", None),
+    )
+    .await
+    .unwrap();
+    let prod_del_target = auth::with_actor(
+        owner.clone(),
+        products::create_product(
+            &db,
+            products::CreateProductInput {
+                name: "Lot6 Suppression Test".to_string(),
+                brand: None,
+                barcode: None,
+                category_id: cat_ok.id,
+                supplier_id: None,
+                description: None,
+                base_unit: "bouteille".to_string(),
+                initial_stock: Some("0".to_string()),
+                min_stock: Some("0".to_string()),
+                max_stock: None,
+                purchase_price: Some(300),
+                wholesale_price: Some(400),
+                semi_wholesale_price: Some(450),
+                retail_price: Some(500),
+                image_path: None,
+                is_active: Some(true),
+                packagings: None,
+            },
+        ),
+    )
+    .await
+    .unwrap();
+
+    let denied_del_admin = auth::with_actor(
+        admin.clone(),
+        products::delete_product(&db, prod_del_target.id),
+    )
+    .await;
+    assert!(matches!(denied_del_admin, Err(CoreError::Forbidden(_))));
+
+    let denied_del_stock = auth::with_actor(
+        stock_mgr.clone(),
+        products::delete_product(&db, prod_del_target.id),
+    )
+    .await;
+    assert!(matches!(denied_del_stock, Err(CoreError::Forbidden(_))));
+
+    let owner_del = auth::with_actor(
+        owner.clone(),
+        products::delete_product(&db, prod_del_target.id),
+    )
+    .await
+    .unwrap();
+    assert!(owner_del.deleted);
+    let del_actor_role: Option<String> = sqlx::query_scalar(
+        "SELECT actor_role FROM audit_logs WHERE action = 'DELETE_PRODUCT' ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(del_actor_role.as_deref(), Some("owner"));
 
     // Utilisateur sans permission -> CoreError::Forbidden
     let denied_settings = auth::with_actor(

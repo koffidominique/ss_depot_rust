@@ -231,4 +231,50 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
 
     expect(errors).toEqual([]);
   });
+
+  test('Scénario 6 — Catalogue brasseries (60 produits dont Valpierre), anti-doublon et suppression Owner', async ({
+    page,
+  }) => {
+    const errors = trackRuntimeErrors(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginWithPin(page, '123456');
+
+    await page.goto('/products');
+    await expect(
+      page.getByRole('heading', { name: 'Catalogue produits & conditionnements', level: 1 })
+    ).toBeVisible();
+
+    // 1. Avertissement doublon a priori dans Nouveau produit
+    await page.getByRole('button', { name: 'Nouveau produit' }).click();
+    const newModal = page.getByRole('dialog');
+    await newModal.getByLabel(/Nom du produit/i).fill('  youki   cocktail 50cl ');
+    await expect(newModal.getByText(/Doublon détecté/i)).toBeVisible();
+    await newModal.getByRole('button', { name: 'Annuler' }).click();
+
+    // 2. Catalogue brasseries : 60 références (30 SOLIBRA + 30 BRASSIVOIRE), filtre Vins & Spiritueux -> Valpierre
+    await page.getByRole('button', { name: 'Catalogue brasseries' }).click();
+    const presetsDialog = page.getByRole('dialog');
+    await expect(presetsDialog.getByRole('button', { name: 'Toutes (60)' })).toBeVisible();
+    await expect(presetsDialog.getByRole('button', { name: 'SOLIBRA (30)' })).toBeVisible();
+    await expect(presetsDialog.getByRole('button', { name: 'BRASSIVOIRE (30)' })).toBeVisible();
+
+    await presetsDialog.getByRole('button', { name: 'Vins & Spiritueux' }).click();
+    await expect(presetsDialog.getByText('Valpierre Rouge 75cl')).toBeVisible();
+
+    // Charger Valpierre Rouge 75cl en inactif (archivé) à activer au besoin
+    await presetsDialog.getByLabel('Sélectionner Valpierre Rouge 75cl').check();
+    await presetsDialog.getByLabel(/Charger en inactif \(archivé\)/i).check();
+    await presetsDialog.getByRole('button', { name: /Charger en inactif \(1\)/i }).click();
+
+    await expect(page.getByRole('cell', { name: /Valpierre Rouge 75cl/i })).toBeVisible();
+
+    // 3. Suppression Owner du produit vierge Valpierre Rouge 75cl
+    await page.getByRole('button', { name: 'Supprimer Valpierre Rouge 75cl' }).click();
+    const delDialog = page.getByRole('dialog');
+    await expect(delDialog.getByText(/Supprimer définitivement le produit/i)).toBeVisible();
+    await delDialog.getByRole('button', { name: 'Supprimer définitivement' }).click();
+    await expect(page.getByRole('cell', { name: /Valpierre Rouge 75cl/i })).toHaveCount(0);
+
+    expect(errors).toEqual([]);
+  });
 });

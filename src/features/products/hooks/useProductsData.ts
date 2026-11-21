@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../services/api/createApiClient.ts';
-import type { ApplyCatalogPresetsResult, Category, Product } from '../../../types/erp.ts';
+import type {
+  ApplyCatalogPresetsResult,
+  Category,
+  DeleteProductResult,
+  Product,
+} from '../../../types/erp.ts';
 import type {
   CategoryFormValues,
   PackagingFormState,
@@ -72,6 +77,8 @@ export function useProductMutations(callbacks: {
   onSavedProduct: () => void;
   onSavedPackaging: (isUpdate: boolean) => void;
   onArchivedProduct: () => void;
+  onDeletedProduct?: (result: DeleteProductResult) => void;
+  onDeleteError?: (message: string) => void;
   onCreatedCategory: (cat: Category) => void;
   onImportedCsv: (createdCount: number) => void;
   onAppliedPresets?: (result: ApplyCatalogPresetsResult) => void;
@@ -122,6 +129,7 @@ export function useProductMutations(callbacks: {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['catalogPresets'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       callbacks.onSavedProduct();
     },
@@ -133,7 +141,23 @@ export function useProductMutations(callbacks: {
     mutationFn: (prod: Product) => apiClient.updateProduct(prod.id, { is_active: !prod.is_active }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['catalogPresets'] });
       callbacks.onArchivedProduct();
+    },
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: (productId: number) => apiClient.deleteProduct(productId),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['catalogPresets'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      callbacks.onDeletedProduct?.(res);
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : 'Erreur lors de la suppression.';
+      if (callbacks.onDeleteError) callbacks.onDeleteError(msg);
+      else callbacks.onError(msg);
     },
   });
 
@@ -213,6 +237,7 @@ export function useProductMutations(callbacks: {
   return {
     saveProductMutation,
     archiveMutation,
+    deleteProductMutation,
     upsertPkgMutation,
     createCategoryMutation,
     importCsvMutation,

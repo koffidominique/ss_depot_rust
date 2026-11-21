@@ -237,6 +237,20 @@ pub async fn update_product(
 }
 
 #[tauri::command]
+pub async fn delete_product(
+    state: State<'_, DesktopState>,
+    token: String,
+    id: i64,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogDelete).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(actor, products::delete_product(&db, id))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn upsert_packaging(
     state: State<'_, DesktopState>,
     token: String,

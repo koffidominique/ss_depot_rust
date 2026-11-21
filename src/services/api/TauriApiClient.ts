@@ -118,6 +118,12 @@ export class TauriApiClient implements ApiClient {
       payload: input,
     });
   }
+  deleteProduct(id: number) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['deleteProduct']>>>('delete_product', {
+      token: getStoredToken(),
+      id,
+    });
+  }
   upsertPackaging(productId: number, pkg: Record<string, unknown>) {
     return tauriInvoke('upsert_packaging', { token: getStoredToken(), productId, pkg });
   }

@@ -148,6 +148,11 @@ export class HttpApiClient implements ApiClient {
       body: JSON.stringify(input),
     });
   }
+  deleteProduct(id: number) {
+    return request<Awaited<ReturnType<ApiClient['deleteProduct']>>>(`/api/products/${id}`, {
+      method: 'DELETE',
+    });
+  }
   upsertPackaging(productId: number, pkg: Record<string, unknown>) {
     return request(`/api/products/${productId}/packagings`, {
       method: 'POST',

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
-import { getDb, withWriteTx, nextSequence, auditLog } from '../db.ts';
+import { getDb, withWriteTx, nextSequence, auditLog, getCurrentActor } from '../db.ts';
 import { requireCurrentActorPermission } from './auth.ts';
 import {
   BusinessError,
@@ -220,6 +220,61 @@ export interface CreateProductInput {
 
 const ALLOWED_PACKAGING_NAMES = new Set(['casier', 'carton', 'bouteille', 'pack', 'canette']);
 
+export function normalizeProductName(raw: string): string {
+  return raw
+    .replace(/œ/gi, 'oe')
+    .replace(/æ/gi, 'ae')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function assertUniqueProductName(db: DatabaseSync, name: string, excludeId?: number) {
+  const target = normalizeProductName(name);
+  const rows = db.prepare('SELECT id, name, reference FROM products').all() as Array<{
+    id: number;
+    name: string;
+    reference: string;
+  }>;
+  const dup = rows.find(
+    (r) => Number(r.id) !== Number(excludeId ?? -1) && normalizeProductName(r.name) === target
+  );
+  if (dup) {
+    throw new BusinessError(
+      'DUPLICATE_OPERATION',
+      `Un produit avec un nom similaire existe déjà : "${dup.name}" (${dup.reference}).`,
+      409
+    );
+  }
+}
+
+function findProductByBarcodeOrNormName(
+  db: DatabaseSync,
+  barcode: string | null | undefined,
+  name: string
+) {
+  const cleanBc = barcode?.trim() || null;
+  if (cleanBc) {
+    const byBc = db
+      .prepare('SELECT id, reference, is_active FROM products WHERE barcode = ? LIMIT 1')
+      .get(cleanBc) as { id: number; reference: string; is_active: number } | undefined;
+    if (byBc) return byBc;
+  }
+  const target = normalizeProductName(name);
+  const rows = db.prepare('SELECT id, reference, name, is_active FROM products').all() as Array<{
+    id: number;
+    reference: string;
+    name: string;
+    is_active: number;
+  }>;
+  const matched = rows.find((r) => normalizeProductName(r.name) === target);
+  return matched
+    ? { id: matched.id, reference: matched.reference, is_active: matched.is_active }
+    : undefined;
+}
+
 export function sanitizeImagePath(raw?: string | null): string | null {
   if (raw === null || raw === undefined) return null;
   const trimmed = raw.trim();
@@ -273,6 +328,7 @@ export async function createProduct(input: CreateProductInput) {
       const sup = db.prepare('SELECT id FROM suppliers WHERE id = ?').get(input.supplier_id);
       if (!sup) throw new BusinessError('SUPPLIER_NOT_FOUND', 'Fournisseur introuvable.');
     }
+    assertUniqueProductName(db, name);
     const cleanBarcode = input.barcode?.trim() || null;
     if (cleanBarcode) {
       const dupBarcode = db
@@ -442,6 +498,9 @@ export async function updateProduct(
 
     const name = input.name !== undefined ? input.name.trim() : String(existing.name);
     if (!name) throw new BusinessError('VALIDATION_ERROR', 'Nom produit invalide.');
+    if (input.name !== undefined) {
+      assertUniqueProductName(db, name, id);
+    }
 
     if (input.category_id !== undefined) {
       const cat = db.prepare('SELECT id FROM categories WHERE id = ?').get(Number(input.category_id));
@@ -529,6 +588,64 @@ export async function updateProduct(
 
     auditLog(db, 'UPDATE_PRODUCT', 'products', id, `Mise à jour produit ${existing.reference}`);
     return getProductById(db, id);
+  });
+}
+
+export async function deleteProduct(id: number) {
+  requireCurrentActorPermission('catalog:delete');
+  const actor = getCurrentActor();
+  if (!actor || actor.role !== 'owner') {
+    throw new BusinessError(
+      'FORBIDDEN',
+      'Seul le Propriétaire (Owner) peut supprimer définitivement un produit.',
+      403
+    );
+  }
+  return withWriteTx((db) => {
+    const existing = db
+      .prepare('SELECT id, reference, name FROM products WHERE id = ?')
+      .get(id) as { id: number; reference: string; name: string } | undefined;
+    if (!existing) {
+      throw new BusinessError('VALIDATION_ERROR', 'Produit introuvable.', 400);
+    }
+
+    const hasHistoricalRef =
+      db.prepare('SELECT 1 FROM sale_lines WHERE product_id = ? LIMIT 1').get(id) ||
+      db.prepare('SELECT 1 FROM purchase_order_lines WHERE product_id = ? LIMIT 1').get(id) ||
+      db.prepare('SELECT 1 FROM inventory_lines WHERE product_id = ? LIMIT 1').get(id) ||
+      db.prepare('SELECT 1 FROM stock_movements WHERE product_id = ? LIMIT 1').get(id);
+
+    if (hasHistoricalRef) {
+      throw new BusinessError(
+        'HISTORICAL_IMMUTABLE',
+        'Impossible de supprimer définitivement ce produit car il est lié à des mouvements de stock, ventes, achats ou inventaires existants. Archivez-le plutôt.',
+        400
+      );
+    }
+
+    db.prepare(
+      'DELETE FROM deposit_packaging_components WHERE packaging_id IN (SELECT id FROM product_packagings WHERE product_id = ?)'
+    ).run(id);
+    db.prepare(
+      'DELETE FROM deposit_packaging_profiles WHERE packaging_id IN (SELECT id FROM product_packagings WHERE product_id = ?)'
+    ).run(id);
+    db.prepare('DELETE FROM product_packagings WHERE product_id = ?').run(id);
+    db.prepare('DELETE FROM products WHERE id = ?').run(id);
+
+    auditLog(
+      db,
+      'DELETE_PRODUCT',
+      'products',
+      id,
+      `Suppression définitive produit ${existing.reference} — ${existing.name}`
+    );
+
+    return {
+      deleted: true,
+      id: Number(existing.id),
+      reference: String(existing.reference),
+      name: String(existing.name),
+    };
   });
 }
 
@@ -745,10 +862,24 @@ export async function importProductsCsv(csvContent: string) {
 
   let created = 0;
   await withWriteTx((db) => {
+    const existingNames = new Set(
+      (db.prepare('SELECT name FROM products').all() as Array<{ name: string }>).map((r) =>
+        normalizeProductName(r.name)
+      )
+    );
     for (let i = 1; i < lines.length; i++) {
       const cols = parseRow(lines[i]);
-      const name = cols[idx('name')] || '';
+      const name = (cols[idx('name')] || '').trim();
       if (!name) continue;
+      const normName = normalizeProductName(name);
+      if (existingNames.has(normName)) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          `Ligne ${i + 1} : un produit nommé « ${name} » existe déjà.`,
+          409
+        );
+      }
+      existingNames.add(normName);
       const catName = idx('category') >= 0 && cols[idx('category')] ? cols[idx('category')] : 'Divers';
       let cat = db.prepare('SELECT id FROM categories WHERE lower(name) = lower(?)').get(catName) as
         | { id: number }
@@ -885,14 +1016,9 @@ export function listCatalogPresets() {
   const db = getDb();
   const catalog = loadBreweryCatalog();
   const retNames = new Map(catalog.returnables.map((r) => [r.code, r.name]));
-  const matchStmt = db.prepare(
-    'SELECT id, reference, is_active FROM products WHERE barcode = ? OR lower(name) = lower(?) LIMIT 1'
-  );
 
   const items = catalog.products.map((p) => {
-    const existing = matchStmt.get(p.barcode, p.name) as
-      | { id: number; reference: string; is_active: number }
-      | undefined;
+    const existing = findProductByBarcodeOrNormName(db, p.barcode, p.name);
 
     return {
       ...p,
@@ -948,11 +1074,7 @@ export async function applyCatalogPresets(input: { keys: string[]; activate?: bo
 
     for (const key of dedupKeys) {
       const preset = presetMap.get(key)!;
-      const existing = db
-        .prepare('SELECT id, reference, is_active FROM products WHERE barcode = ? OR lower(name) = lower(?) LIMIT 1')
-        .get(preset.barcode, preset.name) as
-        | { id: number; reference: string; is_active: number }
-        | undefined;
+      const existing = findProductByBarcodeOrNormName(db, preset.barcode, preset.name);
 
       if (existing) {
         if (activate && Number(existing.is_active) === 0) {

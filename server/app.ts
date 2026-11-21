@@ -21,6 +21,7 @@ import {
   listProducts,
   createProduct,
   updateProduct,
+  deleteProduct,
   addOrUpdatePackaging,
   exportProductsCsv,
   importProductsCsv,
@@ -483,6 +484,12 @@ export function createApiApp() {
     '/api/products/:id',
     withPerm('catalog:write', async (req, res) =>
       res.json(await updateProduct(Number(req.params.id), req.body))
+    )
+  );
+  app.delete(
+    '/api/products/:id',
+    withPerm('catalog:delete', async (req, res) =>
+      res.json(await deleteProduct(Number(req.params.id)))
     )
   );
   app.post(

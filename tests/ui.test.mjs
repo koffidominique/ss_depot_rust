@@ -4167,17 +4167,22 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       );
 
       fireEvent.click(screen.getByRole('button', { name: /Catalogue brasseries/i }));
-      await waitFor(() => assert.ok(screen.getByText('Toutes (20)')));
-      assert.ok(screen.getByText('SOLIBRA (10)'));
-      assert.ok(screen.getByText('BRASSIVOIRE (10)'));
+      await waitFor(() => assert.ok(screen.getByText('Toutes (60)')));
+      assert.ok(screen.getByText('SOLIBRA (30)'));
+      assert.ok(screen.getByText('BRASSIVOIRE (30)'));
+
+      // Filtrer par famille Vins & Spiritueux -> Valpierre visible
+      fireEvent.click(screen.getByRole('button', { name: 'Vins & Spiritueux' }));
+      await waitFor(() => assert.ok(screen.getByText(/Valpierre Rouge 75cl/i)));
+      fireEvent.click(screen.getByRole('button', { name: 'Toutes familles' }));
 
       // Sélectionner tous les produits SOLIBRA en mode inactif
-      fireEvent.click(screen.getByRole('button', { name: /\+ Sélectionner SOLIBRA \(10\)/i }));
+      fireEvent.click(screen.getByRole('button', { name: /\+ Sélectionner SOLIBRA \(30\)/i }));
       fireEvent.click(screen.getByLabelText(/Charger en inactif \(archivé\)/i));
-      fireEvent.click(screen.getByRole('button', { name: /Charger en inactif \(10\)/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Charger en inactif \(30\)/i }));
 
       await waitFor(() => assert.equal(applyCalls.length, 1));
-      assert.equal(applyCalls[0].keys.length, 10);
+      assert.equal(applyCalls[0].keys.length, 30);
       assert.equal(applyCalls[0].activate, false);
       await waitFor(() =>
         assert.ok(listProductsCalls.some((c) => c.includeArchived === true))
@@ -4191,6 +4196,137 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       apiClient.listProducts = origListProducts;
       apiClient.listCatalogPresets = origListPresets;
       apiClient.applyCatalogPresets = origApplyPresets;
+    }
+  });
+
+  it('ProductsPage affiche le bouton Supprimer uniquement pour le Owner et alerte sur doublon a priori', async () => {
+    const origListCategories = apiClient.listCategories;
+    const origListSuppliers = apiClient.listSuppliers;
+    const origGetConsignments = apiClient.getConsignmentsOverview;
+    const origListProducts = apiClient.listProducts;
+    const origDeleteProduct = apiClient.deleteProduct;
+    const origUser = useUiStore.getState().currentUser;
+
+    const deletedIds = [];
+    const sampleProduct = {
+      id: 77,
+      reference: 'PROD-2026-00077',
+      barcode: '6181102000376',
+      name: 'Valpierre Rouge 75cl',
+      brand: 'Valpierre',
+      category_id: 1,
+      category_name: 'Vins & Spiritueux',
+      supplier_id: null,
+      supplier_name: null,
+      description: null,
+      base_unit: 'bouteille',
+      stock_milli: 0,
+      min_stock_milli: 12000,
+      max_stock_milli: 0,
+      average_cost_fcfa: 1800,
+      purchase_price: 1800,
+      wholesale_price: 2200,
+      semi_wholesale_price: 2350,
+      retail_price: 2500,
+      image_path: null,
+      is_active: 1,
+      packagings: [],
+    };
+
+    apiClient.listCategories = async () => [{ id: 1, name: 'Vins & Spiritueux', description: null, is_active: 1 }];
+    apiClient.listSuppliers = async () => [];
+    apiClient.getConsignmentsOverview = async () => ({
+      types: [],
+      clientBalances: [],
+      recentMovements: [],
+      openIssues: [],
+      returns: [],
+    });
+    apiClient.listProducts = async () => ({
+      items: [sampleProduct],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+    apiClient.deleteProduct = async (id) => {
+      deletedIds.push(id);
+      return { deleted: true, id, reference: 'PROD-2026-00077', name: 'Valpierre Rouge 75cl' };
+    };
+
+    const qc1 = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      // 1) Admin : aucun bouton Supprimer
+      useUiStore.setState({
+        currentUser: {
+          id: '2',
+          username: 'admin1',
+          display_name: 'Admin Test',
+          role: 'admin',
+          permissions: ['catalog:read', 'catalog:write'],
+        },
+      });
+      render(
+        React.createElement(QueryClientProvider, { client: qc1 }, React.createElement(ProductsPage))
+      );
+      await waitFor(() => assert.ok(screen.getByText('Valpierre Rouge 75cl')));
+      assert.equal(screen.queryByRole('button', { name: 'Supprimer Valpierre Rouge 75cl' }), null);
+
+      // Alerte doublon a priori lors de la saisie d'un nom similaire
+      fireEvent.click(screen.getByRole('button', { name: 'Nouveau produit' }));
+      await waitFor(() => assert.ok(screen.getByLabelText(/Nom du produit/i)));
+      fireEvent.change(screen.getByLabelText(/Nom du produit/i), {
+        target: { value: '  valpierre   rouge 75cl ' },
+      });
+      await waitFor(() => assert.ok(screen.getByText(/Doublon détecté/i)));
+    } finally {
+      qc1.clear();
+      cleanup();
+    }
+
+    const qc2 = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      // 2) Owner : bouton Supprimer visible + confirmation modal -> suppression
+      useUiStore.setState({
+        currentUser: {
+          id: '1',
+          username: 'owner',
+          display_name: 'Propriétaire',
+          role: 'owner',
+          permissions: ['catalog:read', 'catalog:write', 'catalog:delete'],
+        },
+      });
+      render(
+        React.createElement(QueryClientProvider, { client: qc2 }, React.createElement(ProductsPage))
+      );
+      await waitFor(() =>
+        assert.ok(screen.getByRole('button', { name: 'Supprimer Valpierre Rouge 75cl' }))
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Supprimer Valpierre Rouge 75cl' }));
+      await waitFor(() =>
+        assert.ok(screen.getByText(/Supprimer définitivement le produit/i))
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Supprimer définitivement' }));
+      await waitFor(() => assert.deepEqual(deletedIds, [77]));
+    } finally {
+      qc2.clear();
+      cleanup();
+      useUiStore.setState({ currentUser: origUser });
+      apiClient.listCategories = origListCategories;
+      apiClient.listSuppliers = origListSuppliers;
+      apiClient.getConsignmentsOverview = origGetConsignments;
+      apiClient.listProducts = origListProducts;
+      apiClient.deleteProduct = origDeleteProduct;
     }
   });
 });

@@ -264,6 +264,26 @@ describe('LOT 6 — Sécurité, Sessions, Concurrence PIN, Origines, RBAC & Sauv
     assert.equal(prodAudit.actor_name, 'Kouassi Stock');
     assert.equal(prodAudit.actor_role, 'stock_manager');
 
+    // Suppression définitive produit réservée au Owner (Admin / Manager / Stock refusés -> 403)
+    const createAdmin = await api(
+      '/api/auth/users',
+      { method: 'POST', body: { username: 'admin_del', displayName: 'Moussa Admin', role: 'admin', pin: '445566' } },
+      ownerTok
+    );
+    assert.equal(createAdmin.status, 201);
+    const adminTok = (
+      await api('/api/auth/login', { method: 'POST', body: { username: 'admin_del', pin: '445566' } })
+    ).data.token;
+    assert.equal((await api(`/api/products/${prodOk.data.id}`, { method: 'DELETE' }, adminTok)).status, 403);
+    assert.equal((await api(`/api/products/${prodOk.data.id}`, { method: 'DELETE' }, stockTok)).status, 403);
+    const ownerDel = await api(`/api/products/${prodOk.data.id}`, { method: 'DELETE' }, ownerTok);
+    assert.equal(ownerDel.status, 200);
+    assert.equal(ownerDel.data.deleted, true);
+    const delAudit = db
+      .prepare("SELECT actor_role FROM audit_logs WHERE action = 'DELETE_PRODUCT' ORDER BY id DESC LIMIT 1")
+      .get();
+    assert.equal(delAudit.actor_role, 'owner');
+
     // Désactivation utilisateur révoque immédiatement sa session active
     const deactivate = await api(
       `/api/auth/users/${createCashier.data.id}/status`,

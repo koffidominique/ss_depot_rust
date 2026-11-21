@@ -3,6 +3,17 @@ import type { PackagingName, Product, ProductPackaging } from '../../../types/er
 
 export const qtyPattern = /^\d+(\.\d{1,3})?$/;
 
+export function normalizeProductName(raw: string): string {
+  return raw
+    .replace(/œ/gi, 'oe')
+    .replace(/æ/gi, 'ae')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
 export const productSchema = z.object({
   name: z.string().trim().min(1, 'Le nom du produit est obligatoire.'),
   brand: z.string().trim(),

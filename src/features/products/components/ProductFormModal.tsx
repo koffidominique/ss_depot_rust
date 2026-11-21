@@ -5,7 +5,7 @@ import { ModalDialog } from '../../../components/dialogs/ModalDialog.tsx';
 import { MoneyInput } from '../../../components/common/MoneyInput.tsx';
 import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
 import type { Category, Product, Supplier } from '../../../types/erp.ts';
-import type { ProductFormValues } from '../utils/productSchemas.ts';
+import { normalizeProductName, type ProductFormValues } from '../utils/productSchemas.ts';
 
 interface ProductFormModalProps {
   open: boolean;
@@ -14,6 +14,7 @@ interface ProductFormModalProps {
   form: UseFormReturn<ProductFormValues>;
   categories?: Category[];
   suppliers?: Supplier[];
+  existingProducts?: Product[];
   error: string | null;
   isPending: boolean;
   onSubmit: (values: ProductFormValues) => void;
@@ -27,11 +28,21 @@ export function ProductFormModal({
   form,
   categories,
   suppliers,
+  existingProducts,
   error,
   isPending,
   onSubmit,
   onImageFileChange,
 }: ProductFormModalProps) {
+  const watchedName = form.watch('name');
+  const normTypedName = watchedName ? normalizeProductName(watchedName) : '';
+  const potentialDuplicate =
+    normTypedName && existingProducts
+      ? existingProducts.find(
+          (p) =>
+            p.id !== editingProduct?.id && normalizeProductName(p.name) === normTypedName
+        )
+      : undefined;
   return (
     <ModalDialog
       open={open}
@@ -62,6 +73,12 @@ export function ProductFormModal({
             {form.formState.errors.name && (
               <p className="mt-1 text-[11px] text-[#DC4545]" role="alert">
                 {form.formState.errors.name.message}
+              </p>
+            )}
+            {!form.formState.errors.name && potentialDuplicate && (
+              <p className="mt-1 text-[11px] text-[#D9901A]" role="status">
+                Doublon détecté : « {potentialDuplicate.name} » ({potentialDuplicate.reference})
+                existe déjà dans le catalogue.
               </p>
             )}
           </div>

@@ -1892,7 +1892,7 @@ describe('LOT 9 — Parité métier Node.js / Rust (22 scénarios canoniques)', 
     }
   });
 
-  it('Scénario 23 — Parité Node.js / Rust : catalogue brasseries (10 SOLIBRA + 10 BRASSIVOIRE), is_active et supplier_id', async () => {
+  it('Scénario 23 — Parité Node.js / Rust : catalogue brasseries (30 SOLIBRA + 30 BRASSIVOIRE), anti-doublons et suppression Owner', async () => {
     const createInactive = await callBoth(
       'POST',
       '/api/products',
@@ -1921,6 +1921,22 @@ describe('LOT 9 — Parité métier Node.js / Rust (22 scénarios canoniques)', 
       ids.rust.inactive23 = createInactive.rust.data.id;
     }
 
+    // Parité anti-doublon a priori (casse / accents / espaces)
+    const dupProd = await callBoth(
+      'POST',
+      '/api/products',
+      (_e, ctx) => ({
+        name: '  produit   inactif parite 23  ',
+        category_id: ctx.category,
+        base_unit: 'bouteille',
+      }),
+      409
+    );
+    assert.equal(dupProd.node.data.code, 'DUPLICATE_OPERATION');
+    if (dupProd.rust) {
+      assert.equal(dupProd.rust.data.code, 'DUPLICATE_OPERATION');
+    }
+
     const clearedSup = await callBoth(
       'PUT',
       (_e, ctx) => `/api/products/${ctx.inactive23}`,
@@ -1935,7 +1951,7 @@ describe('LOT 9 — Parité métier Node.js / Rust (22 scénarios canoniques)', 
     }
 
     const presets0 = await callBoth('GET', '/api/products/presets', undefined, 200);
-    assert.equal(presets0.node.data.items.length, 20);
+    assert.equal(presets0.node.data.items.length, 60);
     if (presets0.rust) {
       assert.deepEqual(presets0.rust.data, presets0.node.data);
     }
@@ -1946,8 +1962,8 @@ describe('LOT 9 — Parité métier Node.js / Rust (22 scénarios canoniques)', 
     const brvKeys = presets0.node.data.items
       .filter((i) => i.brewery === 'BRASSIVOIRE')
       .map((i) => i.key);
-    assert.equal(solKeys.length, 10);
-    assert.equal(brvKeys.length, 10);
+    assert.equal(solKeys.length, 30);
+    assert.equal(brvKeys.length, 30);
 
     const applySolInactive = await callBoth(
       'POST',
@@ -1955,12 +1971,12 @@ describe('LOT 9 — Parité métier Node.js / Rust (22 scénarios canoniques)', 
       { keys: solKeys, activate: false },
       200
     );
-    assert.equal(applySolInactive.node.data.created, 10);
+    assert.equal(applySolInactive.node.data.created, 30);
     assert.equal(applySolInactive.node.data.reactivated, 0);
     assert.equal(applySolInactive.node.data.skipped, 0);
     assert.ok(applySolInactive.node.data.products.every((p) => p.is_active === 0));
     if (applySolInactive.rust) {
-      assert.equal(applySolInactive.rust.data.created, 10);
+      assert.equal(applySolInactive.rust.data.created, 30);
       assert.equal(applySolInactive.rust.data.reactivated, 0);
       assert.equal(applySolInactive.rust.data.skipped, 0);
       assert.ok(applySolInactive.rust.data.products.every((p) => p.is_active === 0));
@@ -1972,11 +1988,11 @@ describe('LOT 9 — Parité métier Node.js / Rust (22 scénarios canoniques)', 
       { keys: [solKeys[0], solKeys[1], ...brvKeys], activate: true },
       200
     );
-    assert.equal(applyMixActive.node.data.created, 10);
+    assert.equal(applyMixActive.node.data.created, 30);
     assert.equal(applyMixActive.node.data.reactivated, 2);
     assert.equal(applyMixActive.node.data.skipped, 0);
     if (applyMixActive.rust) {
-      assert.equal(applyMixActive.rust.data.created, 10);
+      assert.equal(applyMixActive.rust.data.created, 30);
       assert.equal(applyMixActive.rust.data.reactivated, 2);
       assert.equal(applyMixActive.rust.data.skipped, 0);
     }
@@ -1989,11 +2005,36 @@ describe('LOT 9 — Parité métier Node.js / Rust (22 scénarios canoniques)', 
     );
     assert.equal(applyIdemp.node.data.created, 0);
     assert.equal(applyIdemp.node.data.reactivated, 0);
-    assert.equal(applyIdemp.node.data.skipped, 12);
+    assert.equal(applyIdemp.node.data.skipped, 32);
     if (applyIdemp.rust) {
       assert.equal(applyIdemp.rust.data.created, 0);
       assert.equal(applyIdemp.rust.data.reactivated, 0);
-      assert.equal(applyIdemp.rust.data.skipped, 12);
+      assert.equal(applyIdemp.rust.data.skipped, 32);
+    }
+
+    // Parité suppression Owner : refus sur produit avec historique, succès sur produit vierge
+    const delHistorical = await callBoth(
+      'DELETE',
+      (_e, ctx) => `/api/products/${ctx.product}`,
+      undefined,
+      400
+    );
+    assert.equal(delHistorical.node.data.code, 'HISTORICAL_IMMUTABLE');
+    if (delHistorical.rust) {
+      assert.equal(delHistorical.rust.data.code, 'HISTORICAL_IMMUTABLE');
+    }
+
+    const delUnused = await callBoth(
+      'DELETE',
+      (_e, ctx) => `/api/products/${ctx.inactive23}`,
+      undefined,
+      200
+    );
+    assert.equal(delUnused.node.data.deleted, true);
+    assert.equal(delUnused.node.data.id, ids.node.inactive23);
+    if (delUnused.rust) {
+      assert.equal(delUnused.rust.data.deleted, true);
+      assert.equal(delUnused.rust.data.id, ids.rust.inactive23);
     }
   });
 });

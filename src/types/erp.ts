@@ -142,6 +142,13 @@ export interface ApplyCatalogPresetsResult {
   products: Product[];
 }
 
+export interface DeleteProductResult {
+  deleted: boolean;
+  id: number;
+  reference: string;
+  name: string;
+}
+
 export interface PaginatedResult<T> {
   items: T[];
   total: number;

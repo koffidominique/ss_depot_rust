@@ -2,6 +2,7 @@ use depotpro_core::application::{
     auth, cash, consignments, inventory, pdf, products, purchases, reports, sales,
 };
 use depotpro_core::domain::quantity::Quantity;
+use depotpro_core::error::CoreError;
 use depotpro_core::infrastructure::{backup, db::DepotDb};
 use std::path::PathBuf;
 
@@ -1219,9 +1220,42 @@ async fn scenario_x_brewery_presets_and_supplier_active() {
     assert_eq!(cleared_sup.supplier_id, None);
     assert_eq!(cleared_sup.is_active, 1);
 
-    // 2) Catalogue prédéfini SOLIBRA / BRASSIVOIRE (20 produits)
+    // Anti-doublon a priori (création & import CSV)
+    let dup_create = products::create_product(
+        &db,
+        products::CreateProductInput {
+            name: "  produit   archive x ".to_string(),
+            brand: None,
+            barcode: None,
+            category_id: cat.id,
+            supplier_id: None,
+            description: None,
+            base_unit: "bouteille".to_string(),
+            initial_stock: Some("0".to_string()),
+            min_stock: Some("0".to_string()),
+            max_stock: None,
+            purchase_price: Some(400),
+            wholesale_price: Some(500),
+            semi_wholesale_price: Some(550),
+            retail_price: Some(600),
+            image_path: None,
+            is_active: Some(true),
+            packagings: None,
+        },
+    )
+    .await;
+    assert!(matches!(dup_create, Err(CoreError::DuplicateOperation(_))));
+
+    let dup_csv = products::import_products_csv(
+        &db,
+        "name;base_unit;category;retail_price\nPRODUIT ARCHIVE X;bouteille;Bières X;600",
+    )
+    .await;
+    assert!(matches!(dup_csv, Err(CoreError::DuplicateOperation(_))));
+
+    // 2) Catalogue prédéfini SOLIBRA / BRASSIVOIRE (60 produits : 30 + 30)
     let list_0 = products::list_catalog_presets(&db).await.unwrap();
-    assert_eq!(list_0.items.len(), 20);
+    assert_eq!(list_0.items.len(), 60);
     let solibra_keys: Vec<String> = list_0
         .items
         .iter()
@@ -1234,10 +1268,16 @@ async fn scenario_x_brewery_presets_and_supplier_active() {
         .filter(|i| i.brewery == "BRASSIVOIRE")
         .map(|i| i.key.clone())
         .collect();
-    assert_eq!(solibra_keys.len(), 10);
-    assert_eq!(brassivoire_keys.len(), 10);
+    assert_eq!(solibra_keys.len(), 30);
+    assert_eq!(brassivoire_keys.len(), 30);
+    let has_valpierre = list_0
+        .items
+        .iter()
+        .any(|i| i.name.contains("Valpierre") && i.category == "Vins & Spiritueux");
+    assert!(has_valpierre);
+    assert!(list_0.items.iter().any(|i| i.category == "Boissons gazeuses"));
 
-    // 3) Chargement en mode inactif (is_active = 0) pour SOLIBRA
+    // 3) Chargement en mode inactif (is_active = 0) pour SOLIBRA (30)
     let res_inactive = products::apply_catalog_presets(
         &db,
         products::ApplyCatalogPresetsInput {
@@ -1247,7 +1287,7 @@ async fn scenario_x_brewery_presets_and_supplier_active() {
     )
     .await
     .unwrap();
-    assert_eq!(res_inactive.created, 10);
+    assert_eq!(res_inactive.created, 30);
     assert_eq!(res_inactive.reactivated, 0);
     assert_eq!(res_inactive.skipped, 0);
     assert!(res_inactive.products.iter().all(|p| p.is_active == 0));
@@ -1265,7 +1305,7 @@ async fn scenario_x_brewery_presets_and_supplier_active() {
     )
     .await
     .unwrap();
-    assert_eq!(res_active.created, 10);
+    assert_eq!(res_active.created, 30);
     assert_eq!(res_active.reactivated, 2);
     assert_eq!(res_active.skipped, 0);
 
@@ -1281,7 +1321,12 @@ async fn scenario_x_brewery_presets_and_supplier_active() {
     .unwrap();
     assert_eq!(res_idemp.created, 0);
     assert_eq!(res_idemp.reactivated, 0);
-    assert_eq!(res_idemp.skipped, 12);
+    assert_eq!(res_idemp.skipped, 32);
+
+    // 6) Suppression définitive d'un produit vierge (sans mouvements/ventes)
+    let del_res = products::delete_product(&db, inactive_prod.id).await.unwrap();
+    assert!(del_res.deleted);
+    assert_eq!(del_res.id, inactive_prod.id);
 
     // Vérifier consignes initialisées avec solde 0
     let ov = consignments::get_overview(&db).await.unwrap();

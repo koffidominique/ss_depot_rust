@@ -11,6 +11,7 @@ import type {
   Client,
   CreditPolicy,
   DashboardData,
+  DeleteProductResult,
   ExpenseItem,
   PaginatedResult,
   PaymentMethodConfig,
@@ -90,6 +91,7 @@ export interface ApiClient {
   }): Promise<PaginatedResult<Product>>;
   createProduct(input: Record<string, unknown>): Promise<Product>;
   updateProduct(id: number, input: Record<string, unknown>): Promise<Product>;
+  deleteProduct(id: number): Promise<DeleteProductResult>;
   upsertPackaging(productId: number, pkg: Record<string, unknown>): Promise<unknown>;
   exportProductsCsv(): Promise<string>;
   importProductsCsv(csv: string): Promise<{ created: number }>;

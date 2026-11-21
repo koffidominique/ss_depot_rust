@@ -1364,7 +1364,7 @@ describe('DEPOTPRO PREMIUM V3 — Scénarios métier de référence (A à L)', (
     assert.equal(afterLock.status, 401);
   });
 
-  it('Scénario Y — Catalogue brasseries (10 SOLIBRA + 10 BRASSIVOIRE), produit inactif et suppression supplier_id', async () => {
+  it('Scénario Y — Catalogue brasseries (30 SOLIBRA + 30 BRASSIVOIRE), anti-doublons et suppression Owner', async () => {
     // 1) Création d'un produit directement inactif avec fournisseur, puis dissociation fournisseur
     const createdInactive = await api('POST', '/api/products', {
       name: 'Boisson Pré-Enregistrée Y',
@@ -1384,6 +1384,28 @@ describe('DEPOTPRO PREMIUM V3 — Scénarios métier de référence (A à L)', (
     assert.equal(createdInactive.data.is_active, 0);
     assert.equal(createdInactive.data.supplier_id, supplierId);
 
+    // Anti-doublon a priori : variante casse / accents / espaces bloquée (409)
+    const dupCreate = await api('POST', '/api/products', {
+      name: '  boisson   pre-enregistree y  ',
+      brand: 'TEST',
+      category_id: 1,
+      base_unit: 'bouteille',
+      initial_stock: 0,
+      min_stock: 12,
+      purchase_price: 400,
+      wholesale_price: 500,
+      semi_wholesale_price: 550,
+      retail_price: 600,
+    });
+    assert.equal(dupCreate.status, 409);
+    assert.equal(dupCreate.data.code, 'DUPLICATE_OPERATION');
+
+    const dupCsv = await api('POST', '/api/products/import/csv', {
+      csv: 'name;base_unit;category;retail_price\nBOISSON PRE-ENREGISTREE Y;bouteille;Bières;600',
+    });
+    assert.equal(dupCsv.status, 409);
+    assert.equal(dupCsv.data.code, 'DUPLICATE_OPERATION');
+
     const updated = await api('PUT', `/api/products/${createdInactive.data.id}`, {
       supplier_id: null,
       is_active: true,
@@ -1392,35 +1414,44 @@ describe('DEPOTPRO PREMIUM V3 — Scénarios métier de référence (A à L)', (
     assert.equal(updated.data.supplier_id, null);
     assert.equal(updated.data.is_active, 1);
 
-    // 2) Liste des presets SOLIBRA + BRASSIVOIRE
+    // Doublon à la mise à jour (sur un autre produit existant) bloqué (409)
+    const dupUpdate = await api('PUT', `/api/products/${createdInactive.data.id}`, {
+      name: '  flag   speciale 65cl ',
+    });
+    assert.equal(dupUpdate.status, 409);
+    assert.equal(dupUpdate.data.code, 'DUPLICATE_OPERATION');
+
+    // 2) Liste des presets SOLIBRA + BRASSIVOIRE (30 + 30 = 60, dont sucreries et vin Valpierre)
     const presets0 = await api('GET', '/api/products/presets');
     assert.equal(presets0.status, 200);
-    assert.equal(presets0.data.items.length, 20);
+    assert.equal(presets0.data.items.length, 60);
     const solibra = presets0.data.items.filter((i) => i.brewery === 'SOLIBRA');
     const brassivoire = presets0.data.items.filter((i) => i.brewery === 'BRASSIVOIRE');
-    assert.equal(solibra.length, 10);
-    assert.equal(brassivoire.length, 10);
+    assert.equal(solibra.length, 30);
+    assert.equal(brassivoire.length, 30);
+    assert.ok(presets0.data.items.some((i) => /valpierre/i.test(i.name) && i.category === 'Vins & Spiritueux'));
+    assert.ok(presets0.data.items.some((i) => i.category === 'Boissons gazeuses'));
 
-    // 3) Chargement en mode inactif pour SOLIBRA
+    // 3) Chargement en mode inactif pour les 30 produits SOLIBRA
     const applySolInactive = await api('POST', '/api/products/presets/apply', {
       keys: solibra.map((i) => i.key),
       activate: false,
     });
     assert.equal(applySolInactive.status, 200);
-    assert.equal(applySolInactive.data.created, 10);
+    assert.equal(applySolInactive.data.created, 30);
     assert.equal(applySolInactive.data.reactivated, 0);
     assert.equal(applySolInactive.data.skipped, 0);
     assert.ok(applySolInactive.data.products.every((p) => p.is_active === 0));
     assert.ok(applySolInactive.data.products.every((p) => p.stock_milli === 0));
 
-    // 4) Activation de 2 SOLIBRA + 10 BRASSIVOIRE puis vérification idempotence
+    // 4) Activation de 2 SOLIBRA + 30 BRASSIVOIRE puis vérification idempotence
     const nextKeys = [solibra[0].key, solibra[1].key, ...brassivoire.map((i) => i.key)];
     const applyActive = await api('POST', '/api/products/presets/apply', {
       keys: nextKeys,
       activate: true,
     });
     assert.equal(applyActive.status, 200);
-    assert.equal(applyActive.data.created, 10);
+    assert.equal(applyActive.data.created, 30);
     assert.equal(applyActive.data.reactivated, 2);
     assert.equal(applyActive.data.skipped, 0);
 
@@ -1431,7 +1462,7 @@ describe('DEPOTPRO PREMIUM V3 — Scénarios métier de référence (A à L)', (
     assert.equal(applyIdemp.status, 200);
     assert.equal(applyIdemp.data.created, 0);
     assert.equal(applyIdemp.data.reactivated, 0);
-    assert.equal(applyIdemp.data.skipped, 12);
+    assert.equal(applyIdemp.data.skipped, 32);
 
     const presets1 = await api('GET', '/api/products/presets');
     assert.equal(presets1.status, 200);
@@ -1439,5 +1470,18 @@ describe('DEPOTPRO PREMIUM V3 — Scénarios métier de référence (A à L)', (
     const sol2 = presets1.data.items.find((i) => i.key === solibra[2].key);
     assert.equal(sol0.existing_is_active, 1);
     assert.equal(sol2.existing_is_active, 0);
+
+    // 5) Suppression Owner : produit lié à l'historique refusé (HISTORICAL_IMMUTABLE), produit vierge supprimé
+    const delHist = await api('DELETE', `/api/products/${productId}`);
+    assert.equal(delHist.status, 400);
+    assert.equal(delHist.data.code, 'HISTORICAL_IMMUTABLE');
+
+    const delUnused = await api('DELETE', `/api/products/${createdInactive.data.id}`);
+    assert.equal(delUnused.status, 200);
+    assert.equal(delUnused.data.deleted, true);
+    assert.equal(delUnused.data.id, createdInactive.data.id);
+
+    const delMissing = await api('DELETE', `/api/products/${createdInactive.data.id}`);
+    assert.equal(delMissing.status, 400);
   });
 });

@@ -3,6 +3,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Download, PackagePlus, Plus, Upload } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
+import { useUiStore } from '../stores/uiStore.ts';
+import { ModalDialog } from '../components/dialogs/ModalDialog.tsx';
 import { SearchInput } from '../components/forms/SearchInput.tsx';
 import { InlineAlert } from '../components/common/InlineAlert.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
@@ -45,6 +47,11 @@ const INITIAL_PACKAGING_STATE: PackagingFormState = {
 };
 
 export function ProductsPage() {
+  const currentUser = useUiStore((s) => s.currentUser);
+  const canDeleteProduct =
+    currentUser?.role === 'owner' ||
+    Boolean(currentUser?.permissions?.includes('catalog:delete'));
+
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -54,6 +61,8 @@ export function ProductsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pkgProduct, setPkgProduct] = useState<Product | null>(null);
   const [pkgState, setPkgState] = useState<PackagingFormState>(INITIAL_PACKAGING_STATE);
   const [csvOpen, setCsvOpen] = useState(false);
@@ -105,6 +114,7 @@ export function ProductsPage() {
   const {
     saveProductMutation,
     archiveMutation,
+    deleteProductMutation,
     upsertPkgMutation,
     createCategoryMutation,
     importCsvMutation,
@@ -123,8 +133,16 @@ export function ProductsPage() {
       setFeedback(isUpdate ? 'Conditionnement mis à jour.' : 'Conditionnement enregistré.');
     },
     onArchivedProduct: () => {
+      setDeletingProduct(null);
+      setDeleteError(null);
       setFeedback('Statut du produit mis à jour.');
     },
+    onDeletedProduct: (res) => {
+      setDeletingProduct(null);
+      setDeleteError(null);
+      setFeedback(`Produit « ${res.name} » (${res.reference}) supprimé définitivement.`);
+    },
+    onDeleteError: (msg) => setDeleteError(msg),
     onCreatedCategory: (created) => {
       setCatOpen(false);
       categoryForm.reset({ name: '', description: '' });
@@ -377,6 +395,11 @@ export function ProductsPage() {
           onEdit={openEditModal}
           onManagePackagings={openPackagingModal}
           onToggleArchive={(prod) => archiveMutation.mutate(prod)}
+          canDelete={canDeleteProduct}
+          onDelete={(prod) => {
+            setDeleteError(null);
+            setDeletingProduct(prod);
+          }}
         />
       )}
 
@@ -387,11 +410,72 @@ export function ProductsPage() {
         form={productForm}
         categories={categories}
         suppliers={suppliers}
+        existingProducts={data?.items}
         error={formError}
         isPending={saveProductMutation.isPending}
         onSubmit={(values) => saveProductMutation.mutate({ editingProduct, values })}
         onImageFileChange={handleImageFileChange}
       />
+
+      <ModalDialog
+        open={Boolean(deletingProduct)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeletingProduct(null);
+            setDeleteError(null);
+          }
+        }}
+        title="Supprimer définitivement le produit ?"
+        description={
+          deletingProduct
+            ? `${deletingProduct.reference} — ${deletingProduct.name}`
+            : undefined
+        }
+        maxWidthClass="max-w-md"
+      >
+        <div className="mt-3 space-y-4">
+          {deleteError && <InlineAlert variant="error" message={deleteError} />}
+          <p className="text-xs leading-relaxed text-[#667085] dark:text-slate-300">
+            Cette action supprime définitivement le produit et ses conditionnements (réservé au
+            rôle Propriétaire). S&apos;il possède déjà des ventes, achats ou mouvements de stock,
+            il devra être archivé à la place.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setDeletingProduct(null);
+                setDeleteError(null);
+              }}
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-3.5 py-2 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              Annuler
+            </button>
+            {deleteError && deletingProduct && deletingProduct.is_active === 1 && (
+              <button
+                type="button"
+                disabled={archiveMutation.isPending}
+                onClick={() => archiveMutation.mutate(deletingProduct)}
+                className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-3.5 py-2 text-xs font-semibold text-[#D9901A] hover:bg-amber-100 disabled:opacity-50"
+              >
+                Archiver à la place
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={!deletingProduct || deleteProductMutation.isPending}
+              onClick={() => {
+                if (!deletingProduct) return;
+                setDeleteError(null);
+                deleteProductMutation.mutate(deletingProduct.id);
+              }}
+              className="rounded-lg bg-[#DC4545] px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+            >
+              {deleteProductMutation.isPending ? 'Suppression...' : 'Supprimer définitivement'}
+            </button>
+          </div>
+        </div>
+      </ModalDialog>
 
       <CatalogPresetsModal
         open={presetsOpen}

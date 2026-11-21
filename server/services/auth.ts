@@ -8,6 +8,7 @@ export type Role = 'owner' | 'admin' | 'manager' | 'cashier' | 'stock_manager' |
 export type Permission =
   | 'catalog:read'
   | 'catalog:write'
+  | 'catalog:delete'
   | 'sales:read'
   | 'sales:write'
   | 'sales:cancel_return'
@@ -36,6 +37,7 @@ export type Permission =
 export const ALL_PERMISSIONS: readonly Permission[] = [
   'catalog:read',
   'catalog:write',
+  'catalog:delete',
   'sales:read',
   'sales:write',
   'sales:cancel_return',
@@ -73,7 +75,9 @@ export const ROLE_LABELS_FR: Record<Role, string> = {
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   owner: ALL_PERMISSIONS,
-  admin: ALL_PERMISSIONS.filter((p) => p !== 'security:change_owner_pin'),
+  admin: ALL_PERMISSIONS.filter(
+    (p) => p !== 'security:change_owner_pin' && p !== 'catalog:delete'
+  ),
   manager: [
     'catalog:read',
     'catalog:write',
