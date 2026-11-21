@@ -10,6 +10,12 @@ import {
 import { newRequestKey } from '../utils/format.ts';
 import { calculateSaleCart } from '../features/sales/utils/saleCalculations.ts';
 import {
+  buildCartItemFromPackaging,
+  buildCartItemFromSalesUnit,
+  matchBarcodeProduct,
+} from '../features/sales/utils/posCartBuilders.ts';
+import {
+  getSalesUnitTierPrice,
   getTierPrice,
   usePosMutations,
   usePosQueries,
@@ -20,7 +26,13 @@ import { PosCartPanel } from '../features/sales/components/PosCartPanel.tsx';
 import { ValidatedSaleBanner } from '../features/sales/components/ValidatedSaleBanner.tsx';
 import { HeldSalesModal } from '../features/sales/components/HeldSalesModal.tsx';
 import { QuickClientModal } from '../features/sales/components/QuickClientModal.tsx';
-import type { Product, ProductPackaging, SaleDetail } from '../types/erp.ts';
+import type {
+  PriceTier,
+  Product,
+  ProductPackaging,
+  ProductSalesUnit,
+  SaleDetail,
+} from '../types/erp.ts';
 
 export function SalesPage() {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -41,6 +53,7 @@ export function SalesPage() {
   const {
     posCart,
     posClientId,
+    posPriceTier,
     posSaleType,
     heldCarts,
     addToCart,
@@ -51,11 +64,11 @@ export function SalesPage() {
     resumeHeldCart,
     deleteHeldCart,
     setPosClientId,
+    setPosPriceTier,
     setPosSaleType,
   } = useUiStore();
 
   const { productsRes, clients, cashStatus, activeMethods } = usePosQueries(search);
-
   const totals = useMemo(
     () => calculateSaleCart(posCart, globalDiscount, paymentRows),
     [posCart, globalDiscount, paymentRows]
@@ -64,6 +77,7 @@ export function SalesPage() {
   const { createSaleMutation, quickClientMutation } = usePosMutations({
     requestKey,
     posClientId,
+    posPriceTier,
     posSaleType,
     globalDiscount,
     dueDate,
@@ -102,42 +116,45 @@ export function SalesPage() {
     onEscape: handleEscape,
   });
 
-  const handleAddPackaging = (prod: Product, pkg: ProductPackaging) => {
-    if (pkg.name !== 'casier') {
-      setErrorMsg('Seul le conditionnement "casier" est autorisé à la vente.');
+  const handleAddPackaging = (prod: Product, pkg: ProductPackaging, tier = posPriceTier) => {
+    const built = buildCartItemFromPackaging(prod, pkg, tier);
+    if (!built.ok) {
+      setErrorMsg(built.error);
       return;
     }
     setErrorMsg(null);
-    const depositPerPack =
-      pkg.deposit_mode === 'deposit' && pkg.name === 'casier'
-        ? pkg.components.reduce((acc, c) => acc + c.pieces_per_pack * c.deposit_value, 0)
-        : 0;
-    addToCart({
-      key: `${prod.id}-${pkg.id}`,
-      productId: prod.id,
-      productName: prod.name,
-      reference: prod.reference,
-      baseUnit: prod.base_unit,
-      stockMilli: prod.stock_milli,
-      packagingId: pkg.id,
-      packagingName: pkg.name,
-      coefficientMilli: pkg.coefficient_milli,
-      allowFraction: pkg.allow_fraction === 1,
-      quantity: '1',
-      supportQuantity: '1', // Default: 1 support per crate
-      unitPrice: getTierPrice(pkg),
-      discountAmount: 0,
-      depositPerPack,
-      depositMode: pkg.deposit_mode,
-      depositComponents: pkg.components,
-    });
+    addToCart(built.item);
+  };
+
+  const handleAddSalesUnit = (prod: Product, unit: ProductSalesUnit, tier = posPriceTier) => {
+    const built = buildCartItemFromSalesUnit(prod, unit, tier);
+    if (!built.ok) {
+      setErrorMsg(built.error);
+      return;
+    }
+    setErrorMsg(null);
+    addToCart(built.item);
+  };
+
+  const handlePriceTierChange = (tier: PriceTier) => {
+    setPosPriceTier(tier);
+    for (const cartItem of posCart) {
+      const prod = (productsRes?.items ?? []).find((p) => p.id === cartItem.productId);
+      if (!prod) continue;
+      if (cartItem.salesUnitId) {
+        const su = prod.sales_units?.find((u) => u.id === cartItem.salesUnitId);
+        if (su) updateCartItem(cartItem.key, { unitPrice: getSalesUnitTierPrice(su, tier) });
+      } else {
+        const pk = prod.packagings.find((p) => p.id === cartItem.packagingId);
+        if (pk) updateCartItem(cartItem.key, { unitPrice: getTierPrice(pk, tier) });
+      }
+    }
   };
 
   const handleHoldCart = () => {
     if (posCart.length === 0) return;
     const selectedClient = clients?.find((c) => c.id === posClientId);
-    const label = selectedClient ? selectedClient.name : `Ticket ${heldCarts.length + 1}`;
-    holdCurrentCart(label, globalDiscount);
+    holdCurrentCart(selectedClient ? selectedClient.name : `Ticket ${heldCarts.length + 1}`, globalDiscount);
     setGlobalDiscount(0);
     setDueDate('');
     setPaymentRows([{ method_code: 'cash', amount: 0 }]);
@@ -145,41 +162,18 @@ export function SalesPage() {
   };
 
   const handleScanEnter = async (rawCode: string) => {
-    const code = rawCode.trim();
-    if (!code) return;
-    const findAndAdd = (products: Product[]): boolean => {
-      for (const prod of products) {
-        const matchedPkg = prod.packagings.find(
-          (pk) =>
-            pk.is_active &&
-            pk.name === 'casier' &&
-            pk.barcode &&
-            pk.barcode.trim().toLowerCase() === code.toLowerCase()
-        );
-        if (matchedPkg) {
-          handleAddPackaging(prod, matchedPkg);
-          setSearch('');
-          return true;
-        }
-      }
-      const matchedProd = products.find(
-        (prod) =>
-          (prod.barcode && prod.barcode.trim().toLowerCase() === code.toLowerCase()) ||
-          prod.reference.toLowerCase() === code.toLowerCase()
-      );
-      const defaultPkg = matchedProd?.packagings.find((pk) => pk.is_active && pk.name === 'casier');
-      if (matchedProd && defaultPkg) {
-        handleAddPackaging(matchedProd, defaultPkg);
-        setSearch('');
-        return true;
-      }
-      return false;
+    const applyMatch = (prods: Product[]) => {
+      const m = matchBarcodeProduct(prods, rawCode);
+      if (!m) return false;
+      if (m.type === 'unit') handleAddSalesUnit(m.prod, m.unit);
+      else handleAddPackaging(m.prod, m.pkg);
+      setSearch('');
+      return true;
     };
-
-    if (findAndAdd(productsRes?.items || [])) return;
+    if (applyMatch(productsRes?.items || [])) return;
     try {
-      const fresh = await apiClient.listProducts({ search: code, page: 1, pageSize: 20 });
-      findAndAdd(fresh.items || []);
+      const fresh = await apiClient.listProducts({ search: rawCode.trim(), page: 1, pageSize: 20 });
+      applyMatch(fresh.items || []);
     } catch {
       // L'utilisateur verra le résultat filtré normal si l'appel échoue
     }
@@ -191,14 +185,9 @@ export function SalesPage() {
         <div className="flex items-center justify-between gap-4 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/30 px-4 py-3 text-xs text-[#D9901A] dark:text-amber-400">
           <div className="flex items-center gap-2 font-medium">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span>
-              Aucune session de caisse ouverte. Ouvrez la caisse avant d&apos;encaisser une vente.
-            </span>
+            <span>Aucune session de caisse ouverte. Ouvrez la caisse avant d&apos;encaisser une vente.</span>
           </div>
-          <Link
-            to="/cash"
-            className="rounded-lg bg-[#D9901A] px-3 py-1.5 font-semibold text-white whitespace-nowrap shrink-0"
-          >
+          <Link to="/cash" className="rounded-lg bg-[#D9901A] px-3 py-1.5 font-semibold text-white whitespace-nowrap shrink-0">
             Ouvrir la caisse
           </Link>
         </div>
@@ -210,10 +199,12 @@ export function SalesPage() {
           search={search}
           onSearchChange={setSearch}
           onScanEnter={handleScanEnter}
+          priceTier={posPriceTier}
+          onPriceTierChange={handlePriceTierChange}
           products={productsRes?.items || []}
-          onAddPackaging={handleAddPackaging}
+          onAddPackaging={(p, pk) => handleAddPackaging(p, pk)}
+          onAddSalesUnit={(p, su) => handleAddSalesUnit(p, su)}
         />
-
         <PosCartPanel
           posCart={posCart}
           heldCarts={heldCarts}
@@ -245,14 +236,7 @@ export function SalesPage() {
         />
       </div>
 
-      {validatedSale && (
-        <ValidatedSaleBanner
-          sale={validatedSale}
-          onPrint={setPrintDoc}
-          onClose={() => setValidatedSale(null)}
-        />
-      )}
-
+      {validatedSale && <ValidatedSaleBanner sale={validatedSale} onPrint={setPrintDoc} onClose={() => setValidatedSale(null)} />}
       <HeldSalesModal
         open={heldModalOpen}
         onOpenChange={setHeldModalOpen}
@@ -264,7 +248,6 @@ export function SalesPage() {
         }}
         onDelete={deleteHeldCart}
       />
-
       <QuickClientModal
         open={quickClientOpen}
         onOpenChange={setQuickClientOpen}
@@ -272,7 +255,6 @@ export function SalesPage() {
         isPending={quickClientMutation.isPending}
         onSubmit={(values) => quickClientMutation.mutate(values)}
       />
-
       <DocumentPrintModal doc={printDoc} onClose={() => setPrintDoc(null)} />
     </div>
   );

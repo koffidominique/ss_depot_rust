@@ -88,14 +88,14 @@ async fn rust_core_scenarios_a_through_l() {
     .await
     .unwrap();
 
-    // Seul le conditionnement "casier" est autorisé (bouteille, pack, carton rejetés)
-    for forbidden_pkg in ["bouteille", "canette", "pack", "carton"] {
+    // Tous les conditionnements boissons (bouteille, canette, pack, carton) sont autorisés ; un type inconnu est rejeté
+    for allowed_pkg in ["bouteille", "canette", "pack", "carton"] {
         assert!(products::upsert_packaging(
             &db,
             prod.id,
             products::PackagingInput {
                 id: None,
-                name: forbidden_pkg.to_string(),
+                name: allowed_pkg.to_string(),
                 coefficient: "1".to_string(),
                 purchase_price: None,
                 wholesale_price: None,
@@ -109,8 +109,28 @@ async fn rust_core_scenarios_a_through_l() {
             },
         )
         .await
-        .is_err());
+        .is_ok());
     }
+    assert!(products::upsert_packaging(
+        &db,
+        prod.id,
+        products::PackagingInput {
+            id: None,
+            name: "inconnu".to_string(),
+            coefficient: "1".to_string(),
+            purchase_price: None,
+            wholesale_price: None,
+            semi_wholesale_price: None,
+            retail_price: Some(500),
+            barcode: None,
+            allow_fraction: Some(false),
+            is_active: Some(true),
+            deposit_mode: Some("none".to_string()),
+            components: None,
+        },
+    )
+    .await
+    .is_err());
 
     let pkg_casier = prod.packagings.iter().find(|p| p.name == "casier").unwrap();
     assert_eq!(pkg_casier.coefficient_milli, 24_000);

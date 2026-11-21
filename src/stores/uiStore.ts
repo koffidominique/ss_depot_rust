@@ -18,6 +18,8 @@ export interface CartItem {
   stockMilli: number;
   packagingId: number;
   packagingName: string;
+  salesUnitId?: number | null;
+  salesUnitLabel?: string | null;
   coefficientMilli: number;
   allowFraction: boolean;
   quantity: string;

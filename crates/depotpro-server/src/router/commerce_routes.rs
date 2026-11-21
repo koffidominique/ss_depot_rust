@@ -32,11 +32,15 @@ pub(crate) fn core_and_commerce_router() -> Router<AppState> {
             "/api/categories",
             get(products::list_categories).post(products::create_category),
         )
+        .route("/api/categories/:id", put(products::update_category))
         .route(
             "/api/products",
             get(products::list_products).post(products::create_product),
         )
-        .route("/api/products/:id", put(products::update_product))
+        .route(
+            "/api/products/:id",
+            put(products::update_product).delete(products::delete_product),
+        )
         .route(
             "/api/products/:id/packagings",
             post(products::upsert_packaging),

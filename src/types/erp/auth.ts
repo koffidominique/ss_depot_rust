@@ -2,8 +2,25 @@
  * Types métier : Authentification, Rôles & Tarification
  * ============================================================================ */
 
-export type PackagingName = "casier";
-export type PriceTier = "retail";
+export type PackagingName =
+  | "casier"
+  | "carton"
+  | "bouteille"
+  | "pack"
+  | "canette";
+
+export type SalesUnitType =
+  | "bottle"
+  | "can"
+  | "pack"
+  | "carton"
+  | "half_crate"
+  | "crate"
+  | "film"
+  | "pallet"
+  | "custom";
+
+export type PriceTier = "retail" | "semi_wholesale" | "wholesale";
 export type CreditPolicy = "forbidden" | "limited" | "unlimited";
 export type UserRole =
   | "owner"

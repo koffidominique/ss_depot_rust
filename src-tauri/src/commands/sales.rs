@@ -121,11 +121,11 @@ pub async fn get_sale_detail(
 pub async fn create_sale(
     state: State<'_, DesktopState>,
     token: String,
-    payload: sales::CreateSaleInput,
+    payload: sales::CreateSaleV4Input,
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::SalesWrite).await?;
     let db = state.db().await;
-    let sale = auth::with_actor(actor, sales::create_sale(&db, payload))
+    let sale = auth::with_actor(actor, sales::create_sale_v4(&db, payload))
         .await
         .map_err(|e| e.to_string())?;
     serde_json::to_value(sale).map_err(|e| e.to_string())

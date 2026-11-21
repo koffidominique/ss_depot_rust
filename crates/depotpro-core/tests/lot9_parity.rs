@@ -210,7 +210,7 @@ async fn lot9_22_scenarios_business_parity() {
         assert_eq!(prod.average_cost_fcfa, Some(450));
         let default_casier_id = prod.packagings[0].id;
 
-        // Scénario 4 — Conditionnement casier=24 consigné, rejet pack/carton/bouteille/canette, doublon
+        // Scénario 4 — Conditionnement casier=24 consigné, pack autorisé, rejet type inconnu & doublon
         let dup_pkg = products::upsert_packaging(
             &db,
             prod.id,
@@ -247,7 +247,28 @@ async fn lot9_22_scenarios_business_parity() {
         .await
         .unwrap();
 
-        let bad_pkg_pack = products::upsert_packaging(
+        let bad_pkg_invalid = products::upsert_packaging(
+            &db,
+            prod.id,
+            products::PackagingInput {
+                id: None,
+                name: "palette_invalide".to_string(),
+                coefficient: "6".to_string(),
+                purchase_price: Some(2_700),
+                wholesale_price: Some(3_300),
+                semi_wholesale_price: Some(3_600),
+                retail_price: Some(3_750),
+                barcode: None,
+                allow_fraction: Some(false),
+                is_active: Some(true),
+                deposit_mode: Some("none".to_string()),
+                components: None,
+            },
+        )
+        .await;
+        assert!(matches!(bad_pkg_invalid, Err(CoreError::Validation(_))));
+
+        let ok_pkg_pack = products::upsert_packaging(
             &db,
             prod.id,
             products::PackagingInput {
@@ -266,7 +287,7 @@ async fn lot9_22_scenarios_business_parity() {
             },
         )
         .await;
-        assert!(matches!(bad_pkg_pack, Err(CoreError::Validation(_))));
+        assert!(ok_pkg_pack.is_ok());
 
         let pkg_casier = products::upsert_packaging(
             &db,

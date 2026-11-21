@@ -3,13 +3,37 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../services/api/createApiClient.ts';
 import type { CartItem } from '../../../stores/uiStore.ts';
 import type {
+  PriceTier,
   ProductPackaging,
+  ProductSalesUnit,
   SaleDetail,
 } from '../../../types/erp.ts';
 import type { SaleCalculationResult } from '../utils/saleCalculations.ts';
 
-export function getTierPrice(pkg: ProductPackaging): number {
+export function getTierPrice(
+  pkg: ProductPackaging,
+  tier: PriceTier = 'retail'
+): number {
+  if (tier === 'wholesale') {
+    return pkg.wholesale_price ?? pkg.retail_price ?? 0;
+  }
+  if (tier === 'semi_wholesale') {
+    return pkg.semi_wholesale_price ?? pkg.retail_price ?? 0;
+  }
   return pkg.retail_price ?? 0;
+}
+
+export function getSalesUnitTierPrice(
+  unit: ProductSalesUnit,
+  tier: PriceTier = 'retail'
+): number {
+  if (tier === 'wholesale') {
+    return unit.wholesale_price ?? unit.retail_price ?? 0;
+  }
+  if (tier === 'semi_wholesale') {
+    return unit.semi_wholesale_price ?? unit.retail_price ?? 0;
+  }
+  return unit.retail_price ?? 0;
 }
 
 export function usePosQueries(search: string) {
@@ -50,6 +74,7 @@ export function usePosQueries(search: string) {
 interface UsePosMutationsOptions {
   requestKey: string;
   posClientId: number | null;
+  posPriceTier: PriceTier;
   posSaleType: 'cash' | 'credit';
   globalDiscount: number;
   dueDate: string;
@@ -65,6 +90,7 @@ interface UsePosMutationsOptions {
 export function usePosMutations({
   requestKey,
   posClientId,
+  posPriceTier,
   posSaleType,
   globalDiscount,
   dueDate,
@@ -88,12 +114,13 @@ export function usePosMutations({
         request_key: requestKey,
         client_id: posClientId,
         sale_type: posSaleType,
-        price_tier: 'retail',
+        price_tier: posPriceTier,
         discount_amount: globalDiscount,
         due_date: posSaleType === 'credit' && dueDate ? dueDate : undefined,
         lines: posCart.map((c) => ({
           product_id: c.productId,
           packaging_id: c.packagingId,
+          sales_unit_id: c.salesUnitId ?? undefined,
           quantity: c.quantity,
           support_quantity: c.supportQuantity,
           discount_amount: c.discountAmount,

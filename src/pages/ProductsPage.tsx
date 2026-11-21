@@ -65,7 +65,16 @@ export function ProductsPage() {
   });
 
   /* --- 3. Requêtes & Mutations TanStack Query --- */
-  const { categoriesQuery, consignmentsQuery, productsQuery } = useProductsQueries({
+  const {
+    categoriesQuery,
+    consignmentsQuery,
+    breweriesQuery,
+    brandsQuery,
+    containerTypesQuery,
+    stockLocationsQuery,
+    suppliersQuery,
+    productsQuery,
+  } = useProductsQueries({
     search,
     categoryId,
     includeArchived,
@@ -213,6 +222,11 @@ export function ProductsPage() {
         editingProduct={editingProduct}
         form={productForm}
         categories={categories}
+        breweries={breweriesQuery.data?.items}
+        brands={brandsQuery.data?.items}
+        containerTypes={containerTypesQuery.data?.items}
+        stockLocations={stockLocationsQuery.data}
+        suppliers={suppliersQuery.data}
         error={formError}
         isPending={saveProductMutation.isPending}
         onSubmit={(values) => saveProductMutation.mutate({ editingProduct, values })}
@@ -260,6 +274,7 @@ export function ProductsPage() {
         open={catOpen}
         onOpenChange={setCatOpen}
         form={categoryForm}
+        categories={categories}
         error={formError}
         isPending={createCategoryMutation.isPending}
         onSubmit={(values) => createCategoryMutation.mutate(values)}

@@ -63,9 +63,15 @@ export function ProductsTable({
           <div className="min-w-0">
             <div className="font-medium text-[#182230] dark:text-slate-100 truncate">
               {row.original.name}
+              {row.original.variant_label ? (
+                <span className="ml-1.5 text-xs font-normal text-[#667085] dark:text-slate-400">
+                  ({row.original.variant_label})
+                </span>
+              ) : null}
             </div>
             <div className="text-xs text-[#667085] dark:text-slate-400 truncate">
               {row.original.category_name}
+              {row.original.brewery_name ? ` · ${row.original.brewery_name}` : ''}
               {row.original.brand ? ` · ${row.original.brand}` : ''}
             </div>
           </div>
@@ -122,10 +128,20 @@ export function ProductsTable({
                 {formatFcfa(pk.retail_price)}
               </span>
               {pk.deposit_mode === 'deposit' && (
-                <span className="text-[11px] text-[#D9901A] dark:text-amber-400">Consigné</span>
+                <span className="text-[11px] text-[#D9901A] dark:text-amber-400">
+                  Consigné
+                  {((pk.bottle_deposit_amount ?? 0) > 0 || (pk.package_deposit_amount ?? 0) > 0)
+                    ? ` (${formatFcfa((pk.bottle_deposit_amount ?? 0) + (pk.package_deposit_amount ?? 0))})`
+                    : ''}
+                </span>
               )}
             </button>
           ))}
+          {row.original.sales_units && row.original.sales_units.length > 0 && (
+            <div className="text-[11px] text-[#667085] dark:text-slate-400 pt-0.5">
+              +{row.original.sales_units.length} unité{row.original.sales_units.length > 1 ? 's' : ''} de vente V4
+            </div>
+          )}
         </div>
       ),
     },

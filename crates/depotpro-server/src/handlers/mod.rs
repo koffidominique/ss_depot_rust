@@ -12,6 +12,7 @@ pub(crate) mod catalogue_price_items_and_history;
 pub(crate) mod catalogue_refs;
 pub(crate) mod catalogue_units;
 pub(crate) mod catalogue_v3;
+pub(crate) mod catalogue_v4;
 pub(crate) mod catalogue_variants_and_prices;
 pub(crate) mod consignments;
 pub(crate) mod packaging_components;

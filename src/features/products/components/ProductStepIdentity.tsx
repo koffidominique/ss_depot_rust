@@ -1,0 +1,295 @@
+import { Controller, type UseFormReturn } from 'react-hook-form';
+import { Image as ImageIcon, Trash2 } from 'lucide-react';
+import type { BrandRef, Brewery, Category } from '../../../types/erp.ts';
+import type { ProductFormValues } from '../utils/productSchemas.ts';
+
+interface ProductStepIdentityProps {
+  form: UseFormReturn<ProductFormValues>;
+  isEditing: boolean;
+  categories?: Category[];
+  breweries?: Brewery[];
+  brands?: BrandRef[];
+  onImageFileChange: (file: File | undefined) => Promise<void>;
+}
+
+export function ProductStepIdentity({
+  form,
+  isEditing,
+  categories,
+  breweries,
+  brands,
+  onImageFileChange,
+}: ProductStepIdentityProps) {
+  const selectedBreweryId = form.watch('brewery_id');
+  const selectedCatId = form.watch('category_id');
+  const rootCategories = categories?.filter((c) => !c.parent_id) ?? [];
+  const subCategories = categories?.filter((c) => c.parent_id === selectedCatId) ?? [];
+  const filteredBrands =
+    brands?.filter((b) => !selectedBreweryId || !b.brewery_id || b.brewery_id === selectedBreweryId) ??
+    [];
+
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <label
+          htmlFor="product-name"
+          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+        >
+          Nom du produit *
+        </label>
+        <input
+          id="product-name"
+          type="text"
+          aria-invalid={Boolean(form.formState.errors.name)}
+          {...form.register('name')}
+          placeholder="Ex : Bock Solibra 65cl ou Youki Cocktail 50cl"
+          className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+        />
+        {form.formState.errors.name && (
+          <p className="mt-1 text-[11px] text-[#DC4545]" role="alert">
+            {form.formState.errors.name.message}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label
+          htmlFor="product-brewery"
+          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+        >
+          Fabricant / Brasserie
+        </label>
+        <Controller
+          control={form.control}
+          name="brewery_id"
+          render={({ field }) => (
+            <select
+              id="product-brewery"
+              value={field.value ?? ''}
+              onChange={(e) => {
+                const nextId = e.target.value ? Number(e.target.value) : null;
+                field.onChange(nextId);
+                const curBrandId = form.getValues('brand_id');
+                if (nextId && curBrandId && brands) {
+                  const br = brands.find((b) => b.id === curBrandId);
+                  if (br?.brewery_id && br.brewery_id !== nextId) {
+                    form.setValue('brand_id', null);
+                  }
+                }
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            >
+              <option value="">-- Non précisé --</option>
+              {breweries?.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="product-brand-ref"
+          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+        >
+          Marque référentielle
+        </label>
+        <Controller
+          control={form.control}
+          name="brand_id"
+          render={({ field }) => (
+            <select
+              id="product-brand-ref"
+              value={field.value ?? ''}
+              onChange={(e) => {
+                const nextId = e.target.value ? Number(e.target.value) : null;
+                field.onChange(nextId);
+                const found = brands?.find((b) => b.id === nextId);
+                if (found) {
+                  form.setValue('brand', found.name);
+                  if (found.brewery_id && !form.getValues('brewery_id')) {
+                    form.setValue('brewery_id', found.brewery_id);
+                  }
+                }
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            >
+              <option value="">-- Saisie libre ou aucune --</option>
+              {filteredBrands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="product-brand"
+          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+        >
+          Libellé marque
+        </label>
+        <input
+          id="product-brand"
+          type="text"
+          {...form.register('brand')}
+          placeholder="Ex : Bock, Beaufort, Coca-Cola..."
+          className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="product-variant-label"
+          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+        >
+          Variante / arôme
+        </label>
+        <input
+          id="product-variant-label"
+          type="text"
+          {...form.register('variant_label')}
+          placeholder="Ex : Pomme, Cocktail, Zéro sucre..."
+          className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="product-category"
+          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+        >
+          Catégorie *
+        </label>
+        <Controller
+          control={form.control}
+          name="category_id"
+          render={({ field }) => (
+            <select
+              id="product-category"
+              value={field.value}
+              onChange={(e) => {
+                field.onChange(Number(e.target.value));
+                form.setValue('subcategory_id', null);
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            >
+              {(rootCategories.length > 0 ? rootCategories : categories ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="product-subcategory"
+          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+        >
+          Sous-catégorie
+        </label>
+        <Controller
+          control={form.control}
+          name="subcategory_id"
+          render={({ field }) => (
+            <select
+              id="product-subcategory"
+              value={field.value ?? ''}
+              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            >
+              <option value="">-- Aucune --</option>
+              {subCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="product-barcode"
+          className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+        >
+          Code-barres principal
+        </label>
+        <input
+          id="product-barcode"
+          type="text"
+          {...form.register('barcode')}
+          className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 font-mono-num text-sm"
+        />
+      </div>
+
+      {!isEditing && (
+        <div>
+          <label
+            htmlFor="product-sku"
+            className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+          >
+            SKU / Référence (auto si vide)
+          </label>
+          <input
+            id="product-sku"
+            type="text"
+            {...form.register('sku')}
+            placeholder="Ex : SOL-BOCK-65CL"
+            className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 font-mono-num text-sm"
+          />
+        </div>
+      )}
+
+      <div className="sm:col-span-2 rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+        <label className="block text-xs font-medium text-[#182230] dark:text-slate-200">
+          Photo produit (optionnelle, redimensionnée automatiquement)
+        </label>
+        <div className="mt-2 flex items-center gap-3">
+          {form.watch('image_path') ? (
+            <img
+              src={form.watch('image_path') || undefined}
+              alt={form.watch('name') || 'Aperçu produit'}
+              className="h-14 w-14 rounded-lg border border-slate-200 dark:border-slate-700 object-cover shrink-0"
+            />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-slate-400 shrink-0">
+              <ImageIcon className="h-5 w-5" />
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                void onImageFileChange(e.target.files?.[0]);
+                e.currentTarget.value = '';
+              }}
+              className="text-xs text-[#667085] file:mr-2 file:rounded-md file:border-0 file:bg-slate-100 dark:file:bg-slate-800 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-[#182230] dark:file:text-slate-200"
+            />
+            {form.watch('image_path') && (
+              <button
+                type="button"
+                onClick={() => form.setValue('image_path', null)}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-xs text-[#DC4545] hover:bg-red-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Retirer
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

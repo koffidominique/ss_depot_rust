@@ -1,5 +1,5 @@
 // ============================================================================
-// CRUD des variantes de produits (product_variants)
+// CRUD des variantes physiques de produits (product_variants)
 // ============================================================================
 
 use crate::application::auth::{require_current_actor_permission, Permission};
@@ -10,6 +10,12 @@ use super::{
     CreateProductVariantInput, PaginatedQuery, PaginatedResponse, ProductVariantDto,
     UpdateProductVariantInput,
 };
+
+const VARIANT_SELECT: &str = "SELECT id, product_id, name, sku, barcode, volume_ml, container_type,
+    container_type_id, container_material, container_returnable, container_recyclable,
+    container_deposit_amount, net_weight_g, bottle_profile_id, crate_type_id,
+    compatibility_group_id, disposable_packaging_id, is_active, created_at, updated_at
+    FROM product_variants";
 
 pub async fn list_product_variants(
     db: &DepotDb,
@@ -27,10 +33,10 @@ pub async fn list_product_variants(
     let prod_filter = product_id.unwrap_or(0);
 
     let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM product_variants 
+        "SELECT COUNT(*) FROM product_variants
          WHERE (? = 1 OR is_active = 1)
            AND (? = 0 OR product_id = ?)
-           AND (? = 0 OR name LIKE ? OR COALESCE(reference, '') LIKE ? OR COALESCE(barcode, '') LIKE ?)",
+           AND (? = 0 OR name LIKE ? OR COALESCE(sku, '') LIKE ? OR COALESCE(barcode, '') LIKE ?)",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
     .bind(prod_filter)
@@ -42,25 +48,25 @@ pub async fn list_product_variants(
     .fetch_one(&db.pool)
     .await?;
 
-    let rows = sqlx::query_as::<_, ProductVariantDto>(
-        "SELECT * FROM product_variants 
+    let sql = format!(
+        "{VARIANT_SELECT}
          WHERE (? = 1 OR is_active = 1)
            AND (? = 0 OR product_id = ?)
-           AND (? = 0 OR name LIKE ? OR COALESCE(reference, '') LIKE ? OR COALESCE(barcode, '') LIKE ?)
-         ORDER BY name ASC
-         LIMIT ? OFFSET ?",
-    )
-    .bind(if include_archived { 1_i64 } else { 0_i64 })
-    .bind(prod_filter)
-    .bind(prod_filter)
-    .bind(if has_search { 1_i64 } else { 0_i64 })
-    .bind(&pattern)
-    .bind(&pattern)
-    .bind(&pattern)
-    .bind(ps)
-    .bind(offset)
-    .fetch_all(&db.pool)
-    .await?;
+           AND (? = 0 OR name LIKE ? OR COALESCE(sku, '') LIKE ? OR COALESCE(barcode, '') LIKE ?)
+         ORDER BY name ASC LIMIT ? OFFSET ?"
+    );
+    let rows = sqlx::query_as::<_, ProductVariantDto>(&sql)
+        .bind(if include_archived { 1_i64 } else { 0_i64 })
+        .bind(prod_filter)
+        .bind(prod_filter)
+        .bind(if has_search { 1_i64 } else { 0_i64 })
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(ps)
+        .bind(offset)
+        .fetch_all(&db.pool)
+        .await?;
 
     let total_pages = ((total + ps - 1) / ps).max(1);
     Ok(PaginatedResponse {
@@ -86,6 +92,19 @@ pub async fn create_product_variant(
             "L'ID du produit est obligatoire.".to_string(),
         ));
     }
+    if let Some(v) = input.volume_ml {
+        if v <= 0 {
+            return Err(CoreError::Validation(
+                "Le volume en ml doit être strictement positif.".to_string(),
+            ));
+        }
+    }
+    if input.container_deposit_amount.unwrap_or(0) < 0 {
+        return Err(CoreError::Validation(
+            "La consigne contenant ne peut pas être négative.".to_string(),
+        ));
+    }
+
     let (_guard, mut tx) = db.begin_write().await?;
     let prod_exists: Option<i64> = sqlx::query_scalar("SELECT id FROM products WHERE id = ?")
         .bind(input.product_id)
@@ -96,42 +115,82 @@ pub async fn create_product_variant(
             "Produit parent introuvable.".to_string(),
         ));
     }
-    if let Some(ref code) = input.reference {
-        let dup: Option<i64> =
-            sqlx::query_scalar("SELECT id FROM product_variants WHERE reference = ?")
-                .bind(code.trim())
-                .fetch_optional(&mut *tx)
-                .await?;
+
+    let clean_sku = input
+        .sku
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_uppercase);
+    if let Some(ref sku) = clean_sku {
+        let dup: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM product_variants WHERE sku = ? UNION SELECT id FROM products WHERE reference = ?",
+        )
+        .bind(sku)
+        .bind(sku)
+        .fetch_optional(&mut *tx)
+        .await?;
         if dup.is_some() {
-            return Err(CoreError::DuplicateOperation(
-                "Cette référence de variante existe déjà.".to_string(),
-            ));
+            return Err(CoreError::DuplicateOperation(format!(
+                "Ce code SKU existe déjà : {sku}"
+            )));
         }
     }
+
+    let clean_bc = input
+        .barcode
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    if let Some(bc) = clean_bc {
+        let dup: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM product_variants WHERE barcode = ? UNION SELECT id FROM products WHERE barcode = ?",
+        )
+        .bind(bc)
+        .bind(bc)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if dup.is_some() {
+            return Err(CoreError::DuplicateOperation(format!(
+                "Code-barres déjà utilisé : {bc}"
+            )));
+        }
+    }
+
     let id = sqlx::query(
-        "INSERT INTO product_variants (product_id, name, reference, barcode, volume_ml, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO product_variants (
+            product_id, name, sku, barcode, volume_ml, container_type, container_type_id,
+            container_material, container_returnable, container_recyclable, container_deposit_amount,
+            net_weight_g, bottle_profile_id, crate_type_id, compatibility_group_id,
+            disposable_packaging_id, is_active, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     )
     .bind(input.product_id)
-    .bind(&clean_name)
-    .bind(input.reference.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(input.barcode.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(clean_name)
+    .bind(clean_sku)
+    .bind(clean_bc)
     .bind(input.volume_ml)
-    .bind(input.alcohol_degree)
+    .bind(input.container_type.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(input.container_type_id)
+    .bind(input.container_material.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(if input.container_returnable.unwrap_or(false) { 1_i64 } else { 0_i64 })
+    .bind(if input.container_recyclable.unwrap_or(false) { 1_i64 } else { 0_i64 })
+    .bind(input.container_deposit_amount.unwrap_or(0))
+    .bind(input.net_weight_g)
     .bind(input.bottle_profile_id)
     .bind(input.crate_type_id)
     .bind(input.compatibility_group_id)
+    .bind(input.disposable_packaging_id)
     .bind(if input.is_active.unwrap_or(true) { 1_i64 } else { 0_i64 })
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
     tx.commit().await?;
 
-    let created =
-        sqlx::query_as::<_, ProductVariantDto>("SELECT * FROM product_variants WHERE id = ?")
-            .bind(id)
-            .fetch_one(&db.pool)
-            .await?;
+    let created = sqlx::query_as::<_, ProductVariantDto>(&format!("{VARIANT_SELECT} WHERE id = ?"))
+        .bind(id)
+        .fetch_one(&db.pool)
+        .await?;
     Ok(created)
 }
 
@@ -142,96 +201,94 @@ pub async fn update_product_variant(
 ) -> CoreResult<ProductVariantDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<ProductVariantDto> =
+        sqlx::query_as(&format!("{VARIANT_SELECT} WHERE id = ?"))
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let existing =
+        existing.ok_or_else(|| CoreError::NotFound("Variante introuvable.".to_string()))?;
 
-    let mut updates = Vec::new();
-    let mut binds: Vec<String> = Vec::new();
+    let name = match input.name {
+        Some(n) => {
+            let clean = n.trim().to_string();
+            if clean.is_empty() {
+                return Err(CoreError::Validation("Le nom est obligatoire.".into()));
+            }
+            clean
+        }
+        None => existing.name,
+    };
+    let sku = match input.sku {
+        Some(o) => {
+            let clean = o.map(|s| s.trim().to_uppercase()).filter(|s| !s.is_empty());
+            if let Some(ref s) = clean {
+                let dup: Option<i64> = sqlx::query_scalar(
+                    "SELECT id FROM product_variants WHERE sku = ? AND id != ?",
+                )
+                .bind(s)
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await?;
+                if dup.is_some() {
+                    return Err(CoreError::DuplicateOperation(format!(
+                        "Ce code SKU existe déjà : {s}"
+                    )));
+                }
+            }
+            clean
+        }
+        None => existing.sku,
+    };
+    let volume_ml = input.volume_ml.unwrap_or(existing.volume_ml);
+    if volume_ml.is_some_and(|v| v <= 0) {
+        return Err(CoreError::Validation("Le volume en ml doit être > 0.".into()));
+    }
+    let barcode = input.barcode.map(|o| o.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).unwrap_or(existing.barcode);
+    let container_type = input.container_type.map(|o| o.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).unwrap_or(existing.container_type);
+    let container_type_id = input.container_type_id.unwrap_or(existing.container_type_id);
+    let container_material = input.container_material.map(|o| o.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).unwrap_or(existing.container_material);
+    let container_returnable = input.container_returnable.map(|b| if b { 1 } else { 0 }).unwrap_or(existing.container_returnable);
+    let container_recyclable = input.container_recyclable.map(|b| if b { 1 } else { 0 }).unwrap_or(existing.container_recyclable);
+    let container_deposit_amount = input.container_deposit_amount.unwrap_or(existing.container_deposit_amount).max(0);
+    let net_weight_g = input.net_weight_g.unwrap_or(existing.net_weight_g);
+    let bottle_profile_id = input.bottle_profile_id.unwrap_or(existing.bottle_profile_id);
+    let crate_type_id = input.crate_type_id.unwrap_or(existing.crate_type_id);
+    let compatibility_group_id = input.compatibility_group_id.unwrap_or(existing.compatibility_group_id);
+    let disposable_packaging_id = input.disposable_packaging_id.unwrap_or(existing.disposable_packaging_id);
+    let is_active = input.is_active.map(|b| if b { 1 } else { 0 }).unwrap_or(existing.is_active);
 
-    if let Some(name) = &input.name {
-        let clean = name.trim();
-        if clean.is_empty() {
-            return Err(CoreError::Validation(
-                "Le nom ne peut pas être vide.".to_string(),
-            ));
-        }
-        updates.push("name = ?".to_string());
-        binds.push(clean.to_string());
-    }
-    if let Some(ref r) = input.reference {
-        if let Some(rr) = r {
-            updates.push("reference = ?".to_string());
-            binds.push(rr.trim().to_string());
-        }
-    }
-    if let Some(ref b) = input.barcode {
-        if let Some(bb) = b {
-            updates.push("barcode = ?".to_string());
-            binds.push(bb.trim().to_string());
-        }
-    }
-    if let Some(vol) = input.volume_ml {
-        if let Some(v) = vol {
-            updates.push("volume_ml = ?".to_string());
-            binds.push(v.to_string());
-        }
-    }
-    if let Some(alc) = input.alcohol_degree {
-        if let Some(a) = alc {
-            updates.push("alcohol_degree = ?".to_string());
-            binds.push(a.to_string());
-        }
-    }
-    if let Some(ref b) = input.bottle_profile_id {
-        updates.push("bottle_profile_id = ?".to_string());
-        binds.push(b.map(|v| v.to_string()).unwrap_or_default());
-    }
-    if let Some(ref c) = input.crate_type_id {
-        updates.push("crate_type_id = ?".to_string());
-        binds.push(c.map(|v| v.to_string()).unwrap_or_default());
-    }
-    if let Some(ref c) = input.compatibility_group_id {
-        updates.push("compatibility_group_id = ?".to_string());
-        binds.push(c.map(|v| v.to_string()).unwrap_or_default());
-    }
-    if let Some(active) = input.is_active {
-        updates.push("is_active = ?".to_string());
-        binds.push(if active { "1" } else { "0" }.to_string());
-    }
-
-    updates.push("updated_at = datetime('now')".to_string());
-
-    if updates.is_empty() {
-        return Err(CoreError::Validation(
-            "Aucun champ à mettre à jour.".to_string(),
-        ));
-    }
-
-    let sql = format!(
-        "UPDATE product_variants SET {} WHERE id = ?",
-        updates.join(", ")
-    );
-    let mut q = sqlx::query(&sql);
-    for b in binds {
-        q = q.bind(b);
-    }
-    q = q.bind(id);
-    q.execute(&mut *tx).await?;
+    sqlx::query(
+        "UPDATE product_variants
+         SET name = ?, sku = ?, barcode = ?, volume_ml = ?, container_type = ?, container_type_id = ?,
+             container_material = ?, container_returnable = ?, container_recyclable = ?, container_deposit_amount = ?,
+             net_weight_g = ?, bottle_profile_id = ?, crate_type_id = ?, compatibility_group_id = ?,
+             disposable_packaging_id = ?, is_active = ?, updated_at = datetime('now')
+         WHERE id = ?",
+    )
+    .bind(&name).bind(&sku).bind(&barcode).bind(volume_ml).bind(&container_type).bind(container_type_id)
+    .bind(&container_material).bind(container_returnable).bind(container_recyclable).bind(container_deposit_amount)
+    .bind(net_weight_g).bind(bottle_profile_id).bind(crate_type_id).bind(compatibility_group_id)
+    .bind(disposable_packaging_id).bind(is_active).bind(id)
+    .execute(&mut *tx).await?;
     tx.commit().await?;
 
-    let updated =
-        sqlx::query_as::<_, ProductVariantDto>("SELECT * FROM product_variants WHERE id = ?")
-            .bind(id)
-            .fetch_one(&db.pool)
-            .await?;
-    Ok(updated)
+    Ok(sqlx::query_as::<_, ProductVariantDto>(&format!("{VARIANT_SELECT} WHERE id = ?"))
+        .bind(id).fetch_one(&db.pool).await?)
 }
 
 pub async fn delete_product_variant(db: &DepotDb, id: i64) -> CoreResult<()> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
-    let result = sqlx::query("DELETE FROM product_variants WHERE id = ?")
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
+    let used: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sale_lines WHERE variant_id = ?")
+        .bind(id).fetch_one(&mut *tx).await?;
+    if used > 0 {
+        sqlx::query("UPDATE product_variants SET is_active = 0, updated_at = datetime('now') WHERE id = ?")
+            .bind(id).execute(&mut *tx).await?;
+        tx.commit().await?;
+        return Ok(());
+    }
+    let result = sqlx::query("DELETE FROM product_variants WHERE id = ?").bind(id).execute(&mut *tx).await?;
     if result.rows_affected() == 0 {
         return Err(CoreError::NotFound("Variante introuvable.".to_string()));
     }

@@ -136,14 +136,14 @@ pub(crate) async fn get_sale(
 pub(crate) async fn create_sale(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(payload): Json<sales::CreateSaleInput>,
+    Json(payload): Json<sales::CreateSaleV4Input>,
 ) -> impl IntoResponse {
     let actor = match require_perm(&state, &headers, Permission::SalesWrite).await {
         Ok(a) => a,
         Err(e) => return e.into_response(),
     };
     let db = state.db().await;
-    match auth::with_actor(actor, sales::create_sale(&db, payload)).await {
+    match auth::with_actor(actor, sales::create_sale_v4(&db, payload)).await {
         Ok(s) => (StatusCode::CREATED, Json(serde_json::to_value(s).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }

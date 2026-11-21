@@ -33,6 +33,9 @@ export interface SaleDetail extends SaleSummary {
     id: number;
     product_id: number;
     packaging_id: number;
+    variant_id?: number | null;
+    sales_unit_id?: number | null;
+    sales_unit_label?: string | null;
     product_name: string;
     packaging_name: string;
     base_unit: string;

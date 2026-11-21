@@ -5,7 +5,11 @@ import { MoneyInput } from '../../../components/common/MoneyInput.tsx';
 import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
 import type { PackagingName, Product, ProductPackaging } from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
-import { formatCoeffDot, type PackagingFormState } from '../utils/productSchemas.ts';
+import {
+  PACKAGING_OPTIONS,
+  formatCoeffDot,
+  type PackagingFormState,
+} from '../utils/productSchemas.ts';
 
 interface ReturnableTypeOption {
   id: number;
@@ -38,6 +42,8 @@ export function PackagingModal({
   onClose,
   onSubmit,
 }: PackagingModalProps) {
+  const canAddMore = (product?.packagings.length ?? 0) < PACKAGING_OPTIONS.length;
+
   return (
     <ModalDialog
       open={Boolean(product)}
@@ -45,7 +51,7 @@ export function PackagingModal({
       title={`Conditionnements · ${product?.name ?? ''}`}
       tipsTopicId="products"
       tipsLabel="Aide coeff. & retour emballage"
-      maxWidthClass="max-w-lg"
+      maxWidthClass="max-w-xl"
       scrollable
       error={error}
       footer={
@@ -91,7 +97,7 @@ export function PackagingModal({
               </button>
             );
           })}
-          {!product.packagings.some((p) => p.name === 'casier') && (
+          {canAddMore && (
             <button
               type="button"
               onClick={() => onStartNew(product)}
@@ -117,9 +123,13 @@ export function PackagingModal({
             onChange={(e) =>
               onChangeState((prev) => ({ ...prev, name: e.target.value as PackagingName }))
             }
-            className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm capitalize"
           >
-            <option value="casier">casier</option>
+            {PACKAGING_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
           </select>
         </div>
         <QuantityInput
@@ -129,14 +139,34 @@ export function PackagingModal({
           unit={product?.base_unit}
         />
         <MoneyInput
-          label="Prix d'achat (casier)"
+          label="Prix d'achat"
           value={state.purchase_price}
           onChange={(v) => onChangeState((prev) => ({ ...prev, purchase_price: v }))}
         />
         <MoneyInput
-          label="Prix détail (casier)"
+          label="Tarif gros"
+          value={state.wholesale_price}
+          onChange={(v) => onChangeState((prev) => ({ ...prev, wholesale_price: v }))}
+        />
+        <MoneyInput
+          label="Tarif demi-gros"
+          value={state.semi_wholesale_price}
+          onChange={(v) => onChangeState((prev) => ({ ...prev, semi_wholesale_price: v }))}
+        />
+        <MoneyInput
+          label="Prix détail"
           value={state.retail_price}
           onChange={(v) => onChangeState((prev) => ({ ...prev, retail_price: v }))}
+        />
+        <MoneyInput
+          label="Consigne bouteille"
+          value={state.bottle_deposit_amount}
+          onChange={(v) => onChangeState((prev) => ({ ...prev, bottle_deposit_amount: v }))}
+        />
+        <MoneyInput
+          label="Consigne caisse / casier"
+          value={state.package_deposit_amount}
+          onChange={(v) => onChangeState((prev) => ({ ...prev, package_deposit_amount: v }))}
         />
         <div className="col-span-2">
           <label className="block text-xs font-medium">Code-barres conditionnement</label>
@@ -157,7 +187,7 @@ export function PackagingModal({
             }
             className="rounded border-slate-300 text-[#2563EB]"
           />
-          Autoriser quantités fractionnaires
+          Autoriser quantités fractionnaires (demi-casier)
         </label>
         <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
           <input
@@ -166,14 +196,12 @@ export function PackagingModal({
             onChange={(e) => onChangeState((prev) => ({ ...prev, is_active: e.target.checked }))}
             className="rounded border-slate-300 text-[#2563EB]"
           />
-          Conditionnement actif
+          Conditionnement actif à la vente
         </label>
         <div className="col-span-2 border-t border-slate-200 dark:border-slate-800 pt-3">
-          <label className="block text-xs font-medium">
-            Régime retour emballage (casier uniquement)
-          </label>
+          <label className="block text-xs font-medium">Profil consigne / emballage</label>
           <select
-            aria-label="Régime retour emballage"
+            aria-label="Profil consigne / emballage"
             value={state.deposit_mode}
             onChange={(e) =>
               onChangeState((prev) => ({
@@ -183,41 +211,39 @@ export function PackagingModal({
             }
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
           >
-            <option value="none">Sans retour emballage</option>
-            <option value="deposit">Avec emballage consigné</option>
+            <option value="none">Sans retour emballage (perdu / jetable)</option>
+            <option value="deposit">Avec consigne & suivi retour d'emballage</option>
           </select>
         </div>
         {state.deposit_mode === 'deposit' && (
           <>
             <div>
-              <label className="block text-xs font-medium">Emballage consigné</label>
+              <label className="block text-xs font-medium">Type d'emballage consigné</label>
               <select
-                aria-label="Emballage consigné"
                 value={state.returnable_id}
                 onChange={(e) =>
                   onChangeState((prev) => ({ ...prev, returnable_id: Number(e.target.value) }))
                 }
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
               >
-                <option value={0}>Sélectionner...</option>
-                {returnableTypes?.map((t) => (
-                  <option key={Number(t.id)} value={Number(t.id)}>
-                    {String(t.name)} ({formatFcfa(Number(t.deposit_value))})
+                <option value={0}>-- Choisir --</option>
+                {returnableTypes?.map((rt) => (
+                  <option key={rt.id} value={rt.id}>
+                    {rt.name} ({formatFcfa(rt.deposit_value)})
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium">Nombre d&apos;emballages / casier</label>
+              <label className="block text-xs font-medium">Pièces par conditionnement</label>
               <input
-                aria-label="Nombre d'emballages / casier"
                 type="number"
                 min={1}
                 value={state.returnable_pieces}
                 onChange={(e) =>
                   onChangeState((prev) => ({
                     ...prev,
-                    returnable_pieces: Math.max(1, Number(e.target.value)),
+                    returnable_pieces: Math.max(1, Number(e.target.value) || 1),
                   }))
                 }
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 font-mono-num text-sm"

@@ -4,7 +4,7 @@
 
 use serde::Deserialize;
 
-use depotpro_core::application::{catalogue, inventory};
+use depotpro_core::application::{catalogue, inventory, products};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,7 +71,38 @@ pub(crate) struct ReportQuery {
 #[derive(Deserialize)]
 pub(crate) struct CategoryPayload {
     pub(crate) name: String,
+    pub(crate) parent_id: Option<i64>,
     pub(crate) description: Option<String>,
+    pub(crate) is_active: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ProductQueryFilter {
+    pub(crate) product_id: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct CreateProductV4Payload {
+    #[serde(flatten)]
+    pub(crate) base: products::CreateProductInput,
+    #[serde(flatten)]
+    pub(crate) extras: products::ProductV4CreateExtras,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct UpdateProductV4Payload {
+    #[serde(flatten)]
+    pub(crate) base: products::UpdateProductInput,
+    #[serde(flatten)]
+    pub(crate) extras: products::ProductV4UpdateExtras,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct PackagingV4Payload {
+    #[serde(flatten)]
+    pub(crate) base: products::PackagingInput,
+    #[serde(flatten)]
+    pub(crate) extras: products::PackagingV4Extras,
 }
 
 #[derive(Deserialize)]

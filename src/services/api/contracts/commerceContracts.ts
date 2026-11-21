@@ -1,16 +1,24 @@
 import type {
   AuthStatus,
+  BrandRef,
+  Brewery,
   Category,
   Client,
+  ContainerTypeRef,
   CreditPolicy,
   DashboardData,
+  DepositRuleRef,
+  PackagingTypeRef,
   PaginatedResult,
   Product,
+  ProductSalesUnit,
+  ProductSupplierLink,
   PurchaseOrder,
   Receivable,
   SaleDetail,
   SaleSummary,
   SessionUser,
+  StockLocationRef,
   Supplier,
   SupplierDebt,
   UserAccount,
@@ -48,7 +56,20 @@ export interface AuthApiClient {
 
 export interface CatalogApiClient {
   listCategories(): Promise<Category[]>;
-  createCategory(name: string, description?: string): Promise<Category>;
+  createCategory(
+    name: string,
+    description?: string,
+    parentId?: number | null,
+  ): Promise<Category>;
+  updateCategory(
+    id: number,
+    input: {
+      name: string;
+      parent_id?: number | null;
+      description?: string;
+      is_active?: boolean;
+    },
+  ): Promise<Category>;
   listProducts(params?: {
     search?: string;
     categoryId?: number;
@@ -59,10 +80,43 @@ export interface CatalogApiClient {
   }): Promise<PaginatedResult<Product>>;
   createProduct(input: Record<string, unknown>): Promise<Product>;
   updateProduct(id: number, input: Record<string, unknown>): Promise<Product>;
+  deleteProduct(
+    id: number,
+  ): Promise<{ id: number; action: string; is_active: number }>;
   upsertPackaging(
     productId: number,
     pkg: Record<string, unknown>,
   ): Promise<unknown>;
+  listBreweries(search?: string): Promise<PaginatedResult<Brewery>>;
+  createBrewery(input: {
+    name: string;
+    code?: string;
+    country?: string;
+    contact_info?: string;
+  }): Promise<Brewery>;
+  listBrandsV4(search?: string): Promise<PaginatedResult<BrandRef>>;
+  createBrandV4(input: {
+    name: string;
+    code?: string;
+    brewery_id?: number | null;
+    country?: string;
+  }): Promise<BrandRef>;
+  listContainerTypesV4(): Promise<PaginatedResult<ContainerTypeRef>>;
+  listPackagingTypesV4(): Promise<PackagingTypeRef[]>;
+  listStockLocationsV4(): Promise<StockLocationRef[]>;
+  listSalesUnits(productId: number): Promise<ProductSalesUnit[]>;
+  createSalesUnit(input: Record<string, unknown>): Promise<ProductSalesUnit>;
+  updateSalesUnit(
+    id: number,
+    input: Record<string, unknown>,
+  ): Promise<ProductSalesUnit>;
+  deleteSalesUnit(id: number): Promise<void>;
+  listProductSuppliers(productId: number): Promise<ProductSupplierLink[]>;
+  upsertProductSupplier(
+    productId: number,
+    input: Record<string, unknown>,
+  ): Promise<ProductSupplierLink>;
+  listDepositRules(productId?: number): Promise<DepositRuleRef[]>;
   exportProductsCsv(): Promise<string>;
   importProductsCsv(csv: string): Promise<{ created: number }>;
 }

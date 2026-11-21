@@ -10,7 +10,7 @@ async fn main() {
         .await
         .expect("extract schema");
     let json = serde_json::to_string_pretty(&snap).expect("serialize");
-    std::fs::write("migrations/sqlite/expected_schema_v6.json", json).expect("write");
-    println!("Generated expected_schema_v6.json");
+    std::fs::write("migrations/sqlite/expected_schema_v18.json", json).expect("write");
+    println!("Generated expected_schema_v18.json");
     let _ = std::fs::remove_file(&db_path);
 }
