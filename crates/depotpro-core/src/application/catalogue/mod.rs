@@ -5,7 +5,7 @@
 #![allow(clippy::needless_borrows_for_generic_args, clippy::collapsible_match)]
 
 mod bottle_profiles;
-mod breweries;
+
 mod brands;
 mod compatibility_groups;
 mod container_types;
@@ -26,7 +26,7 @@ mod units_of_measure;
 pub use bottle_profiles::{
     create_bottle_profile, delete_bottle_profile, list_bottle_profile, update_bottle_profile,
 };
-pub use breweries::{create_brewery, list_breweries, update_brewery, BreweryDto, CreateBreweryInput, UpdateBreweryInput};
+
 pub use brands::{create_brand, delete_brand, list_brand, update_brand};
 pub use compatibility_groups::{
     create_compatibility_group, delete_compatibility_group, list_compatibility_group,
