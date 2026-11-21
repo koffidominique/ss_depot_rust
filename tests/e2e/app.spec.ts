@@ -258,19 +258,21 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await expect(newModal).toBeHidden();
 
     // 2. Catalogue brasseries : 60 références (30 SOLIBRA + 30 BRASSIVOIRE), filtre Vins & Spiritueux -> Valpierre
-    await page.getByRole('button', { name: 'Catalogue brasseries' }).click();
+    await page.getByRole('button', { name: 'Catalogue brasseries', exact: true }).click();
     const presetsDialog = page.getByRole('dialog');
-    await expect(presetsDialog.getByRole('button', { name: 'Toutes (60)' })).toBeVisible();
-    await expect(presetsDialog.getByRole('button', { name: 'SOLIBRA (30)' })).toBeVisible();
-    await expect(presetsDialog.getByRole('button', { name: 'BRASSIVOIRE (30)' })).toBeVisible();
+    await expect(presetsDialog.getByRole('button', { name: 'Toutes (60)', exact: true })).toBeVisible();
+    await expect(presetsDialog.getByRole('button', { name: 'SOLIBRA (30)', exact: true })).toBeVisible();
+    await expect(
+      presetsDialog.getByRole('button', { name: 'BRASSIVOIRE (30)', exact: true })
+    ).toBeVisible();
 
     await presetsDialog.getByRole('button', { name: 'Vins & Spiritueux', exact: true }).click();
     await expect(presetsDialog.getByText('Vin Valpierre Rouge 75cl', { exact: true })).toBeVisible();
 
     // Charger Vin Valpierre Rouge 75cl en inactif (archivé) à activer au besoin
-    await presetsDialog.getByLabel('Sélectionner Vin Valpierre Rouge 75cl').check();
+    await presetsDialog.getByLabel('Sélectionner Vin Valpierre Rouge 75cl', { exact: true }).check();
     await presetsDialog.getByLabel(/Charger en inactif \(archivé\)/i).check();
-    await presetsDialog.getByRole('button', { name: /Charger en inactif \(1\)/i }).click();
+    await presetsDialog.getByRole('button', { name: 'Charger en inactif (1)', exact: true }).click();
     await expect(presetsDialog).toBeHidden();
 
     await expect(
@@ -278,12 +280,15 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     ).toBeVisible();
 
     // 3. Suppression Owner du produit vierge Vin Valpierre Rouge 75cl
-    const deleteBtn = page.getByRole('button', { name: 'Supprimer Vin Valpierre Rouge 75cl' });
+    const deleteBtn = page.getByRole('button', {
+      name: 'Supprimer Vin Valpierre Rouge 75cl',
+      exact: true,
+    });
     await expect(deleteBtn).toBeVisible();
     await deleteBtn.click();
     const delDialog = page.getByRole('dialog');
     await expect(delDialog.getByText(/Supprimer définitivement le produit/i)).toBeVisible();
-    await delDialog.getByRole('button', { name: 'Supprimer définitivement' }).click();
+    await delDialog.getByRole('button', { name: 'Supprimer définitivement', exact: true }).click();
     await expect(delDialog).toBeHidden();
     await expect(
       page.locator('tbody').getByText('Vin Valpierre Rouge 75cl', { exact: true })
