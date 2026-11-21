@@ -25,6 +25,7 @@ pub struct ProductVariantDto {
     pub reference: Option<String>,
     pub barcode: Option<String>,
     pub volume_ml: Option<i64>,
+    pub container_type: Option<String>,
     pub alcohol_degree: Option<f64>,
     pub bottle_profile_id: Option<i64>,
     pub crate_type_id: Option<i64>,
