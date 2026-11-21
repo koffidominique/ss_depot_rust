@@ -74,8 +74,8 @@ export function buildPackagingStateFromExisting(pk: ProductPackaging): Packaging
     deposit_mode: pk.deposit_mode === 'deposit' ? 'deposit' : 'none',
     returnable_id: firstComponent?.returnable_id ?? 0,
     returnable_pieces: firstComponent?.pieces_per_pack ?? 1,
-    brand_name: firstComponent?.brand_name ?? pk.brand_name ?? '',
-    brand_id: firstComponent?.brand_id ?? pk.brand_id ?? 0,
+    brand_name: firstComponent?.brand_name ?? '',
+    brand_id: firstComponent?.brand_id ?? 0,
   };
 }
 

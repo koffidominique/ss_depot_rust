@@ -37,7 +37,10 @@ async fn seed_fixture(db: &DepotDb) -> (i64, i64) {
     let sale_id: i64 =
         sqlx::query_scalar("SELECT id FROM sales WHERE reference = 'VTE-TEST-1'")
             .fetch_one(&mut **tx).await.unwrap();
-    sqlx::query("INSERT INTO categories (name) VALUES ('Bières test')").execute(&mut **tx).await.unwrap();
+    sqlx::query("INSERT INTO categories (name) VALUES ('Bières test')")
+        .execute(&mut **tx)
+        .await
+        .unwrap();
     let cat_id: i64 = sqlx::query_scalar("SELECT id FROM categories WHERE name = 'Bières test'")
         .fetch_one(&mut **tx).await.unwrap();
     sqlx::query(

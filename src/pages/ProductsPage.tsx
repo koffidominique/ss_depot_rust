@@ -41,6 +41,8 @@ const INITIAL_PACKAGING_STATE: PackagingFormState = {
   deposit_mode: 'none',
   returnable_id: 0,
   returnable_pieces: 1,
+  brand_name: '',
+  brand_id: 0,
 };
 
 export function ProductsPage() {

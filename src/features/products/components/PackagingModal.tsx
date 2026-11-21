@@ -6,7 +6,6 @@ import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
 import type { PackagingName, Product, ProductPackaging } from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
 import { formatCoeffDot, type PackagingFormState } from '../utils/productSchemas.ts';
-import { useMemo } from 'react';
 
 interface ReturnableTypeOption {
   id: number;

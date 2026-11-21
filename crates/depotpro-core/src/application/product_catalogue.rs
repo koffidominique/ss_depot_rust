@@ -441,11 +441,13 @@ pub async fn set_catalogue_product_active(
     let (code, name) = row
         .ok_or_else(|| CoreError::Validation("Référence catalogue introuvable.".to_string()))?;
 
-    sqlx::query("UPDATE catalogue_products SET is_active = ?, updated_at = datetime('now') WHERE id = ?")
-        .bind(if is_active { 1 } else { 0 })
-        .bind(product_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE catalogue_products SET is_active = ?, updated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(if is_active { 1 } else { 0 })
+    .bind(product_id)
+    .execute(&mut *tx)
+    .await?;
 
     crate::application::sales::audit_log_tx(
         &mut tx,
@@ -556,11 +558,13 @@ pub async fn set_reference_price(
         ));
     }
 
-    sqlx::query("UPDATE catalogue_products SET unit_price = ?, updated_at = datetime('now') WHERE id = ?")
-        .bind(input.reference_price)
-        .bind(product_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE catalogue_products SET unit_price = ?, updated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(input.reference_price)
+    .bind(product_id)
+    .execute(&mut *tx)
+    .await?;
 
     sqlx::query(
         "INSERT INTO catalogue_reference_price_history

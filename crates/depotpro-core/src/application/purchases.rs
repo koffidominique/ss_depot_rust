@@ -764,7 +764,9 @@ pub async fn receive_purchase_order(
     .await?
     .last_insert_rowid();
 
-    for (pol_id, pid, pkg_id, qty_milli, base_qty_milli, unit_price, amount, disc_reason) in &prepared {
+    for (pol_id, pid, pkg_id, qty_milli, base_qty_milli, unit_price, amount, disc_reason) in
+        &prepared
+    {
         let updated = sqlx::query(
             "UPDATE purchase_order_lines
              SET received_quantity_milli = received_quantity_milli + ?
@@ -814,12 +816,13 @@ pub async fn receive_purchase_order(
             // qty_milli est en milli-unités (ex: 1000 = 1 casier), pieces_per_pack = nb bouteilles/casiers par conditionnement
             let total_pieces_to_exchange = (*qty_milli as i128 * *pieces_per_pack as i128) / 1000;
             if total_pieces_to_exchange > 0 {
-                let pieces_to_exchange = i64::try_from(total_pieces_to_exchange)
-                    .map_err(|_| CoreError::Validation("Débordement quantité échange fournisseur".to_string()))?;
+                let pieces_to_exchange = i64::try_from(total_pieces_to_exchange).map_err(|_| {
+                    CoreError::Validation("Débordement quantité échange fournisseur".to_string())
+                })?;
 
                 // Vérifier le stock disponible
                 let bal: Option<(i64,)> = sqlx::query_as(
-                    "SELECT quantity FROM returnable_stock_balances WHERE packaging_id = ?"
+                    "SELECT quantity FROM returnable_stock_balances WHERE packaging_id = ?",
                 )
                 .bind(returnable_id)
                 .fetch_optional(&mut *tx)
@@ -835,15 +838,17 @@ pub async fn receive_purchase_order(
 
                 // Mettre à jour le stock
                 if bal.is_some() {
-                    sqlx::query("UPDATE returnable_stock_balances SET quantity = ? WHERE packaging_id = ?")
-                        .bind(after)
-                        .bind(returnable_id)
-                        .execute(&mut *tx)
-                        .await?;
+                    sqlx::query(
+                        "UPDATE returnable_stock_balances SET quantity = ? WHERE packaging_id = ?",
+                    )
+                    .bind(after)
+                    .bind(returnable_id)
+                    .execute(&mut *tx)
+                    .await?;
                 } else {
                     // Ne devrait pas arriver si before > 0, mais au cas où
                     sqlx::query(
-                        "INSERT INTO returnable_stock_balances (packaging_id, quantity) VALUES (?, ?)"
+                        "INSERT INTO returnable_stock_balances (packaging_id, quantity) VALUES (?, ?)",
                     )
                     .bind(returnable_id)
                     .bind(after)
@@ -855,7 +860,7 @@ pub async fn receive_purchase_order(
                 let mov_key = format!("sup-exch:{request_key}:{returnable_id}:{pol_id}");
                 sqlx::query(
                     "INSERT INTO returnable_stock_movements (request_key, packaging_id, movement_type, quantity, stock_before, stock_after, reason, reference_document)
-                     VALUES (?, ?, 'supplier_exchange', ?, ?, ?, ?, ?)"
+                     VALUES (?, ?, 'supplier_exchange', ?, ?, ?, ?, ?)",
                 )
                 .bind(&mov_key)
                 .bind(returnable_id)
