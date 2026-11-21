@@ -39,12 +39,42 @@ export interface ProductPackaging {
   components: DepositComponent[];
 }
 
+export interface BreweryOption {
+  id: number;
+  code: string;
+  name: string;
+  countryCode: string;
+}
+
+export interface BrandOption {
+  id: number;
+  code: string;
+  name: string;
+  breweryId: number | null;
+}
+
+export interface ProductFormMetadata {
+  breweries: BreweryOption[];
+  brands: BrandOption[];
+}
+
 export interface Product {
   id: number;
   reference: string;
   barcode: string | null;
   name: string;
   brand: string | null;
+  brand_id: number | null;
+  brewery_id: number | null;
+  brewery_name: string | null;
+  variant_id: number | null;
+  variant_name: string | null;
+  volume_ml: number | null;
+  container_type: 'glass_returnable' | 'glass_disposable' | 'pet' | 'can' | 'plastic_bottle' | 'other' | null;
+  alcohol_degree: number | null;
+  bottle_profile_id: number | null;
+  crate_type_id: number | null;
+  compatibility_group_id: number | null;
   category_id: number;
   category_name: string;
   supplier_id: number | null;
