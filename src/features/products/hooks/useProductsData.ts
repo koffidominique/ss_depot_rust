@@ -22,6 +22,12 @@ export function useProductsQueries(filters: ProductFilters) {
     queryFn: () => apiClient.listCategories(),
   });
 
+  const productFormMetadataQuery = useQuery({
+    queryKey: ['product-form-metadata'],
+    queryFn: () => apiClient.getProductFormMetadata(),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const consignmentsQuery = useQuery({
     queryKey: ['consignments'],
     queryFn: () => apiClient.getConsignmentsOverview(),
@@ -49,6 +55,7 @@ export function useProductsQueries(filters: ProductFilters) {
 
   return {
     categoriesQuery,
+    productFormMetadataQuery,
     consignmentsQuery,
     productsQuery,
   };
@@ -76,6 +83,12 @@ export function useProductMutations(callbacks: {
         return apiClient.updateProduct(editingProduct.id, {
           name: values.name.trim(),
           brand: values.brand.trim(),
+          brand_id: values.brand_id,
+          brewery_id: values.brewery_id,
+          variant_name: values.variant_name.trim(),
+          volume_ml: values.volume_ml,
+          container_type: values.container_type,
+          alcohol_degree: values.alcohol_degree,
           barcode: values.barcode.trim() || null,
           category_id: values.category_id,
           min_stock: values.min_stock || '0',
@@ -87,6 +100,12 @@ export function useProductMutations(callbacks: {
       return apiClient.createProduct({
         name: values.name.trim(),
         brand: values.brand.trim(),
+        brand_id: values.brand_id,
+        brewery_id: values.brewery_id,
+        variant_name: values.variant_name.trim(),
+        volume_ml: values.volume_ml,
+        container_type: values.container_type,
+        alcohol_degree: values.alcohol_degree,
         barcode: values.barcode.trim() || null,
         category_id: values.category_id,
         base_unit: values.base_unit,
@@ -95,6 +114,19 @@ export function useProductMutations(callbacks: {
         purchase_price: values.purchase_price,
         retail_price: values.retail_price,
         image_path: values.image_path,
+        packagings: [{
+          name: values.packaging_type,
+          coefficient: String(values.units_per_package),
+          purchase_price: null,
+          wholesale_price: null,
+          semi_wholesale_price: null,
+          retail_price: null,
+          barcode: null,
+          allow_fraction: true,
+          is_active: true,
+          deposit_mode: 'none',
+          components: [],
+        }],
       });
     },
     onSuccess: () => {
