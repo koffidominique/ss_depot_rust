@@ -1,6 +1,7 @@
 import { Component, Suspense, lazy, useEffect, type ErrorInfo, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MotionConfig } from 'motion/react';
 import { AppLayout } from './layouts/AppLayout.tsx';
 import { LoadingState } from './components/common/States.tsx';
 import { ApiError } from './services/api/ApiClient.ts';
@@ -106,34 +107,36 @@ export default function App() {
 
   return (
     <AppErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route element={<AppLayout />}>
-                <Route path="/" element={<DashboardPage />} />
-                <Route path="/sales/new" element={<SalesPage />} />
-                <Route path="/sales" element={<SalesHistoryPage />} />
-                <Route path="/clients" element={<ClientsPage />} />
-                <Route path="/debts" element={<DebtsPage />} />
-                <Route path="/products" element={<ProductsPage />} />
-                <Route path="/stock" element={<StockPage />} />
-                <Route path="/inventories" element={<InventoryPage />} />
-                <Route path="/consignments" element={<ConsignmentsPage />} />
-                <Route path="/suppliers" element={<SuppliersPage />} />
-                <Route path="/purchases" element={<PurchasesPage />} />
-                <Route path="/cash" element={<CashPage />} />
-                <Route path="/expenses" element={<ExpensesPage />} />
-                <Route path="/reports" element={<ReportsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/backups" element={<BackupsPage />} />
-              </Route>
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </QueryClientProvider>
+      <MotionConfig reducedMotion="user">
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route element={<AppLayout />}>
+                  <Route path="/" element={<DashboardPage />} />
+                  <Route path="/sales/new" element={<SalesPage />} />
+                  <Route path="/sales" element={<SalesHistoryPage />} />
+                  <Route path="/clients" element={<ClientsPage />} />
+                  <Route path="/debts" element={<DebtsPage />} />
+                  <Route path="/products" element={<ProductsPage />} />
+                  <Route path="/stock" element={<StockPage />} />
+                  <Route path="/inventories" element={<InventoryPage />} />
+                  <Route path="/consignments" element={<ConsignmentsPage />} />
+                  <Route path="/suppliers" element={<SuppliersPage />} />
+                  <Route path="/purchases" element={<PurchasesPage />} />
+                  <Route path="/cash" element={<CashPage />} />
+                  <Route path="/expenses" element={<ExpensesPage />} />
+                  <Route path="/reports" element={<ReportsPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/backups" element={<BackupsPage />} />
+                </Route>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </QueryClientProvider>
+      </MotionConfig>
     </AppErrorBoundary>
   );
 }

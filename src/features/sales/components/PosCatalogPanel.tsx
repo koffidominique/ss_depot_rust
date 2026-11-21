@@ -1,6 +1,14 @@
 import type { RefObject } from 'react';
+import { motion } from 'motion/react';
 import { Package, Plus } from 'lucide-react';
 import { SearchInput } from '../../../components/forms/SearchInput.tsx';
+import {
+  DP_BUTTON_HOVER,
+  DP_BUTTON_TAP,
+  DP_SPRING_SNAPPY,
+  MotionStaggerGrid,
+  MotionStaggerItem,
+} from '../../../components/motion/MotionPrimitives.tsx';
 import { formatFcfa, formatQty } from '../../../utils/format.ts';
 import type { Product, ProductPackaging } from '../../../types/erp.ts';
 import { getTierPrice } from '../hooks/usePosData.ts';
@@ -40,16 +48,17 @@ export function PosCatalogPanel({
           className="flex-1 min-w-[220px]"
           inputClassName="py-2.5"
         />
-        <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-1.5 text-xs font-medium text-[#2563EB]">
+        <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] dp-surface px-3 py-1.5 text-xs font-medium text-[#2563EB]">
           Tarif Détail · Casier uniquement
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <MotionStaggerGrid className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {products.map((prod) => (
-          <div
+          <MotionStaggerItem
             key={prod.id}
-            className="flex flex-col justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-4"
+            interactive
+            className="flex flex-col justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-4"
           >
             <div>
               <div className="flex items-start justify-between gap-2.5">
@@ -59,7 +68,7 @@ export function PosCatalogPanel({
                       src={prod.image_path}
                       alt={prod.name}
                       loading="lazy"
-                      className="h-10 w-10 rounded-lg border border-slate-200 dark:border-slate-700 object-cover shrink-0 bg-slate-50"
+                      className="h-10 w-10 rounded-lg border border-slate-200 dark:border-slate-700 object-cover shrink-0 bg-slate-50 shadow-xs"
                     />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-400 shrink-0">
@@ -93,23 +102,26 @@ export function PosCatalogPanel({
               {prod.packagings
                 .filter((pk) => pk.is_active && pk.name === 'casier')
                 .map((pk) => (
-                  <button
+                  <motion.button
                     key={pk.id}
                     type="button"
+                    whileHover={DP_BUTTON_HOVER}
+                    whileTap={DP_BUTTON_TAP}
+                    transition={DP_SPRING_SNAPPY}
                     onClick={() => onAddPackaging(prod, pk)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 hover:border-[#2563EB] hover:text-[#2563EB] transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-[#182230] dark:text-slate-200 hover:border-[#2563EB] hover:text-[#2563EB] hover:shadow-sm transition-colors"
                   >
                     <Plus className="h-3 w-3" />
                     <span className="capitalize">{pk.name}</span>
                     <span className="font-mono-num text-[#667085] dark:text-slate-400">
                       {formatFcfa(getTierPrice(pk))}
                     </span>
-                  </button>
+                  </motion.button>
                 ))}
             </div>
-          </div>
+          </MotionStaggerItem>
         ))}
-      </div>
+      </MotionStaggerGrid>
     </div>
   );
 }

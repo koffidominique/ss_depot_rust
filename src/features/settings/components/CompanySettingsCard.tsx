@@ -41,7 +41,7 @@ export function CompanySettingsCard({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-5">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-display text-sm font-semibold">Général &amp; société</h3>
         <FormTipsButton topicId="settings" label="Aide paramètres" />

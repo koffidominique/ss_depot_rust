@@ -1,5 +1,12 @@
 import { isValidElement, type ReactNode } from 'react';
+import { motion } from 'motion/react';
 import type { LucideIcon } from 'lucide-react';
+import {
+  DP_CARD_HOVER,
+  DP_CARD_TAP,
+  DP_EASE,
+  DP_SPRING,
+} from '../motion/MotionPrimitives.tsx';
 import { cn } from '../../utils/format.ts';
 
 interface MetricCardProps {
@@ -37,19 +44,31 @@ export function MetricCard({
   let renderedIcon: ReactNode = null;
   if (icon) {
     if (isValidElement(icon)) {
-      renderedIcon = <span className="text-slate-400 dark:text-slate-500 shrink-0">{icon}</span>;
+      renderedIcon = (
+        <span className="text-slate-400 dark:text-slate-500 transition-transform duration-200 group-hover:scale-110 shrink-0">
+          {icon}
+        </span>
+      );
     } else {
       const IconComponent = icon as LucideIcon;
       renderedIcon = (
-        <IconComponent className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" aria-hidden="true" />
+        <IconComponent
+          className="h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform duration-200 group-hover:scale-110 shrink-0"
+          aria-hidden="true"
+        />
       );
     }
   }
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 8, scale: 0.99 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={DP_CARD_HOVER}
+      whileTap={DP_CARD_TAP}
+      transition={{ ...DP_SPRING, opacity: { duration: 0.2, ease: DP_EASE } }}
       className={cn(
-        'rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-4 transition-colors',
+        'group rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-4 dp-surface-interactive',
         className
       )}
     >
@@ -67,6 +86,6 @@ export function MetricCard({
           {noteText}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

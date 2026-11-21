@@ -18,7 +18,7 @@ export function PaymentMethodsCard({
   isAdding: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-4">
       <h3 className="font-display text-sm font-semibold">Moyens de paiement</h3>
       <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
         {paymentMethods.map((pm) => (
@@ -78,7 +78,7 @@ export function PinSecurityCard({
   isPending: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-4">
       <div className="flex items-center gap-2">
         <KeyRound className="h-4 w-4 text-[#2563EB]" />
         <h3 className="font-display text-sm font-semibold">Sécurité · Code PIN propriétaire</h3>
