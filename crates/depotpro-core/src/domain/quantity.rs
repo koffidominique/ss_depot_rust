@@ -131,7 +131,10 @@ mod tests {
         let half_crate = Quantity::parse_str("0.5", "Demi-casier").unwrap();
         let crate_of_24 = Quantity::from_milli(24_000);
         assert_eq!(
-            half_crate.multiply_coefficient_to_base(crate_of_24).unwrap().milli_units,
+            half_crate
+                .multiply_coefficient_to_base(crate_of_24)
+                .unwrap()
+                .milli_units,
             12_000
         );
 
@@ -139,12 +142,18 @@ mod tests {
         // il utilise le coefficient paramétré pour chaque conditionnement.
         let one_carton = Quantity::parse_str("1", "Carton").unwrap();
         assert_eq!(
-            one_carton.multiply_coefficient_to_base(Quantity::from_milli(24_000)).unwrap().milli_units,
+            one_carton
+                .multiply_coefficient_to_base(Quantity::from_milli(24_000))
+                .unwrap()
+                .milli_units,
             24_000
         );
         let two_packs = Quantity::parse_str("2", "Packs").unwrap();
         assert_eq!(
-            two_packs.multiply_coefficient_to_base(Quantity::from_milli(6_000)).unwrap().milli_units,
+            two_packs
+                .multiply_coefficient_to_base(Quantity::from_milli(6_000))
+                .unwrap()
+                .milli_units,
             12_000
         );
 
