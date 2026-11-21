@@ -117,12 +117,15 @@ pub async fn upsert_packaging_v4(
     let clean_sku = ex.package_sku.as_deref().map(str::trim).filter(|s| !s.is_empty());
 
     let pkg_id = if let Some(id) = pkg.id {
-        let prev_prices: Option<(Option<i64>, Option<i64>, Option<i64>, Option<i64>)> =
-            sqlx::query_as(
-                "SELECT purchase_price, wholesale_price, semi_wholesale_price, retail_price
+        type PrevPkgPrices = (Option<i64>, Option<i64>, Option<i64>, Option<i64>);
+        let prev_prices: Option<PrevPkgPrices> = sqlx::query_as(
+            "SELECT purchase_price, wholesale_price, semi_wholesale_price, retail_price
                  FROM product_packagings WHERE id = ? AND product_id = ?",
-            )
-            .bind(id).bind(product_id).fetch_optional(&mut *tx).await?;
+        )
+        .bind(id)
+        .bind(product_id)
+        .fetch_optional(&mut *tx)
+        .await?;
         let prev = prev_prices.ok_or_else(|| {
             CoreError::Validation("Conditionnement introuvable pour ce produit.".to_string())
         })?;

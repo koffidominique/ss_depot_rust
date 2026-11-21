@@ -171,7 +171,9 @@ pub async fn update_container_type(
     if !ALLOWED_MATERIALS.contains(&material.as_str()) {
         return Err(CoreError::Validation("Matériau invalide.".to_string()));
     }
-    let default_volume_ml = input.default_volume_ml.unwrap_or(existing.default_volume_ml);
+    let default_volume_ml = input
+        .default_volume_ml
+        .unwrap_or(existing.default_volume_ml);
     if let Some(v) = default_volume_ml {
         if v <= 0 {
             return Err(CoreError::Validation("Le volume doit être > 0 ml.".into()));

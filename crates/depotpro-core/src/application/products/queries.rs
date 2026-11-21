@@ -270,7 +270,13 @@ pub async fn list_products(
 
     let items = hydrate_products(db, rows).await?;
     let total_pages = ((total + ps - 1) / ps).max(1);
-    Ok(PaginatedProductsDto { items, total, page: p, page_size: ps, total_pages })
+    Ok(PaginatedProductsDto {
+        items,
+        total,
+        page: p,
+        page_size: ps,
+        total_pages,
+    })
 }
 
 pub async fn list_active_products(
@@ -280,7 +286,8 @@ pub async fn list_active_products(
     offset: i64,
 ) -> CoreResult<Vec<ProductSummaryDto>> {
     let page = (offset / limit.max(1)) + 1;
-    Ok(list_products(db, search, None, false, false, page, limit).await?.items)
+    let res = list_products(db, search, None, false, false, page, limit).await?;
+    Ok(res.items)
 }
 
 pub(crate) async fn get_product_by_id(db: &DepotDb, id: i64) -> CoreResult<ProductSummaryDto> {

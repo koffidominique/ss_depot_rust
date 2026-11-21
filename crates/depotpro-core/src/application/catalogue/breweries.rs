@@ -20,7 +20,10 @@ fn auto_code(prefix: &str, name: &str) -> String {
         .collect();
     let trimmed = slug.trim_matches('-');
     let short: String = trimmed.chars().take(16).collect();
-    format!("{prefix}-{}", if short.is_empty() { "ITEM" } else { &short })
+    format!(
+        "{prefix}-{}",
+        if short.is_empty() { "ITEM" } else { &short }
+    )
 }
 
 pub async fn list_breweries(

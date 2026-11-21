@@ -59,7 +59,7 @@ pub async fn create_category(
     let db = state.db().await;
     let cat = auth::with_actor(
         actor,
-        products::create_category_with_parent(&db, &name, parent_id, description.as_deref()),
+        products::create_category_with_parent(&db, &name, description.as_deref(), parent_id),
     )
     .await
     .map_err(|e| e.to_string())?;
@@ -84,8 +84,8 @@ pub async fn update_category(
             &db,
             id,
             name.as_deref(),
-            parent_id.map(Some),
             description.as_deref(),
+            parent_id.map(Some),
             is_active,
         ),
     )

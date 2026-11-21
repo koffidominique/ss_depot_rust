@@ -71,7 +71,14 @@ pub async fn create_compatibility_group(
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    check_duplicate(&mut tx, "crate_compatibility_groups", "code", &clean_code, None).await?;
+    check_duplicate(
+        &mut tx,
+        "crate_compatibility_groups",
+        "code",
+        &clean_code,
+        None,
+    )
+    .await?;
     let id = sqlx::query(
         "INSERT INTO crate_compatibility_groups (code, name, description, allows_mixed_brands, allows_mixed_volumes, is_active)
          VALUES (?, ?, ?, ?, ?, ?)",

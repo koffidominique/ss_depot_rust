@@ -14,7 +14,8 @@ pub struct CreateBrandInput {
     pub brewery_id: Option<i64>,
     pub country_of_origin: Option<String>,
     pub description: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")] pub is_active: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
+    pub is_active: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,7 +26,8 @@ pub struct UpdateBrandInput {
     pub brewery_id: Option<Option<i64>>,
     pub country_of_origin: Option<Option<String>>,
     pub description: Option<Option<String>>,
-    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")] pub is_active: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
+    pub is_active: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -284,7 +286,8 @@ pub struct CreateUnitOfMeasureInput {
     pub base_unit_id: Option<i64>,
     pub conversion_factor_num: Option<i64>,
     pub conversion_factor_den: Option<i64>,
-    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")] pub is_active: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
+    pub is_active: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -296,5 +299,6 @@ pub struct UpdateUnitOfMeasureInput {
     pub base_unit_id: Option<Option<i64>>,
     pub conversion_factor_num: Option<i64>,
     pub conversion_factor_den: Option<i64>,
-    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")] pub is_active: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
+    pub is_active: Option<bool>,
 }

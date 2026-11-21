@@ -242,7 +242,9 @@ pub async fn update_product_variant(
     };
     let volume_ml = input.volume_ml.unwrap_or(existing.volume_ml);
     if volume_ml.is_some_and(|v| v <= 0) {
-        return Err(CoreError::Validation("Le volume en ml doit être > 0.".into()));
+        return Err(CoreError::Validation(
+            "Le volume en ml doit être > 0.".into(),
+        ));
     }
     let barcode = input.barcode.map(|o| o.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).unwrap_or(existing.barcode);
     let container_type = input.container_type.map(|o| o.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).unwrap_or(existing.container_type);

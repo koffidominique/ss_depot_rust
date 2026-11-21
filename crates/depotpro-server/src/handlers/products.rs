@@ -45,8 +45,8 @@ pub(crate) async fn create_category(
         products::create_category_with_parent(
             &db,
             &payload.name,
-            payload.parent_id,
             payload.description.as_deref(),
+            payload.parent_id,
         ),
     )
     .await
@@ -77,8 +77,8 @@ pub(crate) async fn update_category(
             &db,
             id,
             Some(&payload.name),
-            payload.parent_id.map(Some),
             payload.description.as_deref(),
+            payload.parent_id.map(Some),
             payload.is_active,
         ),
     )

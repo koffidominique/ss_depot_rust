@@ -45,12 +45,12 @@ async fn bdboisson_v4_end_to_end_catalog_and_pos() {
     let brand_bock = catalogue::create_brand(
         &db,
         catalogue::CreateBrandInput {
-            code: Some("BRD-BOCK".to_string()),
+            code: "BRD-BOCK".to_string(),
             name: "Bock".to_string(),
             brewery_id: Some(solibra.id),
-            manufacturer: Some("SOLIBRA".to_string()),
-            country: Some("Côte d'Ivoire".to_string()),
+            country_of_origin: Some("Côte d'Ivoire".to_string()),
             description: None,
+            is_active: Some(true),
         },
     )
     .await
@@ -64,8 +64,8 @@ async fn bdboisson_v4_end_to_end_catalog_and_pos() {
     let sub_cat = products::create_category_with_parent(
         &db,
         "Blondes 65cl",
-        Some(parent_cat.id),
         Some("Grand format"),
+        Some(parent_cat.id),
     )
     .await
     .unwrap();
@@ -296,7 +296,7 @@ async fn bdboisson_v4_end_to_end_catalog_and_pos() {
     let archived = products::delete_or_archive_product(&db, prod.id)
         .await
         .unwrap();
-    assert_eq!(archived["action"], "archived");
+    assert!(!archived);
 
     let unused = products::create_product(
         &db,
@@ -324,5 +324,5 @@ async fn bdboisson_v4_end_to_end_catalog_and_pos() {
     let deleted = products::delete_or_archive_product(&db, unused.id)
         .await
         .unwrap();
-    assert_eq!(deleted["action"], "deleted");
+    assert!(deleted);
 }

@@ -19,7 +19,10 @@ fn slug_code(prefix: &str, name: &str) -> String {
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
     let trimmed = s.trim_matches('-').chars().take(18).collect::<String>();
-    format!("{prefix}-{}", if trimmed.is_empty() { "REF" } else { &trimmed })
+    format!(
+        "{prefix}-{}",
+        if trimmed.is_empty() { "REF" } else { &trimmed }
+    )
 }
 
 pub async fn list_packaging_types(db: &DepotDb) -> CoreResult<Vec<PackagingTypeDto>> {
@@ -128,7 +131,11 @@ pub async fn create_stock_location(
     .bind(&code)
     .bind(name)
     .bind(ltype)
-    .bind(if input.is_default.unwrap_or(false) { 1_i64 } else { 0_i64 })
+    .bind(if input.is_default.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();

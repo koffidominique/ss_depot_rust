@@ -121,7 +121,9 @@ pub async fn update_brand(db: &DepotDb, id: i64, input: UpdateBrandInput) -> Cor
         Some(c) => {
             let clean = c.trim().to_uppercase();
             if clean.is_empty() {
-                return Err(CoreError::Validation("Le code ne peut pas être vide.".into()));
+                return Err(CoreError::Validation(
+                    "Le code ne peut pas être vide.".into(),
+                ));
             }
             check_duplicate(&mut tx, "brands", "code", &clean, Some(id)).await?;
             clean
@@ -132,7 +134,9 @@ pub async fn update_brand(db: &DepotDb, id: i64, input: UpdateBrandInput) -> Cor
         Some(n) => {
             let clean = n.trim().to_string();
             if clean.is_empty() {
-                return Err(CoreError::Validation("Le nom ne peut pas être vide.".into()));
+                return Err(CoreError::Validation(
+                    "Le nom ne peut pas être vide.".into(),
+                ));
             }
             check_duplicate(&mut tx, "brands", "name", &clean, Some(id)).await?;
             clean
