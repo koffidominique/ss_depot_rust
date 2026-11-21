@@ -265,7 +265,7 @@ async fn lot9_22_scenarios_business_parity() {
         .await
         .unwrap();
 
-        let bad_pkg_pack = products::upsert_packaging(
+        let pkg_pack = products::upsert_packaging(
             &db,
             prod.id,
             products::PackagingInput {
@@ -283,8 +283,10 @@ async fn lot9_22_scenarios_business_parity() {
                 components: None,
             },
         )
-        .await;
-        assert!(matches!(bad_pkg_pack, Err(CoreError::Validation(_))));
+        .await
+        .unwrap();
+        assert_eq!(pkg_pack.coefficient_milli, 6_000);
+        assert_eq!(pkg_pack.deposit_mode.as_deref(), Some("none"));
 
         let pkg_casier = products::upsert_packaging(
             &db,
