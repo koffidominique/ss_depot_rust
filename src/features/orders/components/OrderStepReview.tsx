@@ -6,6 +6,10 @@ interface OrderStepReviewProps {
   preview: ComposePreviewResult;
   paymentMethod: 'cash' | 'mobile_money' | 'credit' | 'mixed';
   onChangePaymentMethod: (m: 'cash' | 'mobile_money' | 'credit' | 'mixed') => void;
+  discountXof: number;
+  onChangeDiscountXof: (v: number) => void;
+  deliveryAddress: string;
+  onChangeDeliveryAddress: (v: string) => void;
   notes: string;
   onChangeNotes: (v: string) => void;
 }
@@ -15,11 +19,20 @@ export function OrderStepReview({
   preview,
   paymentMethod,
   onChangePaymentMethod,
+  discountXof,
+  onChangeDiscountXof,
+  deliveryAddress,
+  onChangeDeliveryAddress,
   notes,
   onChangeNotes,
 }: OrderStepReviewProps) {
-  const creditBlocked =
+  const creditForbidden =
     paymentMethod === 'credit' && (!client || client.credit_policy === 'forbidden');
+  const creditExceeded =
+    paymentMethod === 'credit' &&
+    client?.credit_policy === 'limited' &&
+    client.credit_limit !== null &&
+    client.unpaid_balance + preview.totals.total_to_collect_xof > client.credit_limit;
 
   return (
     <div className="space-y-4">
@@ -106,14 +119,39 @@ export function OrderStepReview({
             <option value="credit">Crédit client</option>
             <option value="mixed">Paiement mixte</option>
           </select>
-          {creditBlocked && (
+          {creditForbidden && (
             <p className="mt-1 text-[11px] text-[#DC4545]">
               Ce client n&apos;est pas autorisé à commander à crédit.
             </p>
           )}
+          {creditExceeded && (
+            <p className="mt-1 text-[11px] text-[#DC4545]">
+              Plafond crédit dépassé ({formatFcfa(client?.credit_limit ?? 0)} max).
+            </p>
+          )}
         </div>
         <div>
-          <label className="block text-xs font-medium">Notes / livraison</label>
+          <label className="block text-xs font-medium">Remise commerciale (FCFA)</label>
+          <input
+            type="number"
+            min={0}
+            value={discountXof}
+            onChange={(e) => onChangeDiscountXof(Math.max(0, Number(e.target.value) || 0))}
+            className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-mono-num"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium">Adresse de livraison</label>
+          <input
+            type="text"
+            value={deliveryAddress}
+            onChange={(e) => onChangeDeliveryAddress(e.target.value)}
+            placeholder="Zone / quartier / point de livraison..."
+            className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium">Notes / instructions</label>
           <input
             type="text"
             value={notes}

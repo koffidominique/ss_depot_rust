@@ -66,6 +66,21 @@ pub async fn create_order_v4(
 }
 
 #[tauri::command]
+pub async fn update_order_v4(
+    state: State<'_, DesktopState>,
+    token: String,
+    id: i64,
+    payload: orders::UpdateOrderInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::SalesWrite).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(actor, orders::update_order(&db, id, payload))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn confirm_order_v4(
     state: State<'_, DesktopState>,
     token: String,
@@ -173,6 +188,20 @@ pub async fn get_customer_deposits_v4(
     let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
     let db = state.db().await;
     let res = auth::with_actor(actor, orders::get_customer_deposits(&db, customer_id))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_customer_deposit_history_v4(
+    state: State<'_, DesktopState>,
+    token: String,
+    customer_id: i64,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(actor, orders::get_customer_deposit_history(&db, customer_id))
         .await
         .map_err(|e| e.to_string())?;
     serde_json::to_value(res).map_err(|e| e.to_string())

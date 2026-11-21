@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 mod lot9_parity_tests;
+mod orders_http_tests;
 mod security_tests;
 
 pub(super) async fn send_http(

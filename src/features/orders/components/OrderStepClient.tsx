@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { Plus, PackageCheck } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../services/api/createApiClient.ts';
-import type { Client, CustomerDepositBalance } from '../../../types/erp.ts';
+import type {
+  Client,
+  CustomerDepositBalance,
+  PackagingMovementRecord,
+} from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
 
 interface OrderStepClientProps {
@@ -10,6 +14,7 @@ interface OrderStepClientProps {
   customerId: number | null;
   onSelectCustomer: (id: number | null) => void;
   deposits: CustomerDepositBalance[];
+  depositHistory?: PackagingMovementRecord[];
 }
 
 export function OrderStepClient({
@@ -17,6 +22,7 @@ export function OrderStepClient({
   customerId,
   onSelectCustomer,
   deposits,
+  depositHistory = [],
 }: OrderStepClientProps) {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -162,6 +168,15 @@ export function OrderStepClient({
               {heldDeposits.map((d) => `${d.quantity_held} ${d.packaging_name}`).join(', ')}{' '}
               (valeur : <strong>{formatFcfa(heldValue)}</strong>).
             </p>
+          )}
+          {depositHistory.length > 0 && (
+            <div className="pt-1.5 border-t border-amber-200/70 dark:border-amber-900/40 text-[11px] text-[#667085] dark:text-slate-400">
+              Derniers mouvements :{' '}
+              {depositHistory
+                .slice(0, 3)
+                .map((m) => `${m.movement_type} (${m.quantity} × ${m.packaging_name})`)
+                .join(' · ')}
+            </div>
           )}
         </div>
       )}

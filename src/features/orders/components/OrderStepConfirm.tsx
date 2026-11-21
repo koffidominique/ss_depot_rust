@@ -1,4 +1,4 @@
-import { CheckCircle2, RotateCcw, Truck } from 'lucide-react';
+import { CheckCircle2, Pencil, RotateCcw, Truck, XCircle } from 'lucide-react';
 import type { CustomerOrderDetail } from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
 
@@ -9,6 +9,8 @@ interface OrderStepConfirmProps {
   onDeliver: () => void;
   onInvoice: () => void;
   onPayFull: () => void;
+  onCancel: () => void;
+  onEditDraft: () => void;
   onReturnCrate: (assetId: number) => void;
   onResetWizard: () => void;
 }
@@ -20,6 +22,8 @@ export function OrderStepConfirm({
   onDeliver,
   onInvoice,
   onPayFull,
+  onCancel,
+  onEditDraft,
   onReturnCrate,
   onResetWizard,
 }: OrderStepConfirmProps) {
@@ -49,14 +53,25 @@ export function OrderStepConfirm({
 
       <div className="flex flex-wrap gap-2">
         {order.status === 'draft' && (
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={onConfirm}
-            className="rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
-          >
-            Confirmer (déduire stock)
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={onConfirm}
+              className="rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              Confirmer (déduire stock)
+            </button>
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={onEditDraft}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Modifier brouillon
+            </button>
+          </>
         )}
         {order.status === 'confirmed' && (
           <button
@@ -87,6 +102,17 @@ export function OrderStepConfirm({
             className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
           >
             Encaisser solde ({formatFcfa(remainingToPay)})
+          </button>
+        )}
+        {['draft', 'confirmed'].includes(order.status) && (
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={onCancel}
+            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-[#DC4545]"
+          >
+            <XCircle className="h-3.5 w-3.5" />
+            Annuler commande
           </button>
         )}
         {['delivered', 'invoiced', 'paid'].includes(order.status) &&

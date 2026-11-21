@@ -10,6 +10,8 @@ import type {
   CustomerOrderSummary,
   OrderLineInput,
   PackagingAsset,
+  PackagingMovementRecord,
+  UpdateCustomerOrderInput,
 } from "../../../types/erp.ts";
 import { getStoredTauriToken, tauriInvoke } from "./tauriTransport.ts";
 
@@ -42,6 +44,12 @@ export const tauriOrdersApi = {
   createCustomerOrder(payload: CreateCustomerOrderInput): Promise<CustomerOrderDetail> {
     return tauriInvokeWithToken<CustomerOrderDetail>("create_order_v4", { payload });
   },
+  updateCustomerOrder(
+    id: number,
+    payload: UpdateCustomerOrderInput,
+  ): Promise<CustomerOrderDetail> {
+    return tauriInvokeWithToken<CustomerOrderDetail>("update_order_v4", { id, payload });
+  },
   confirmCustomerOrder(id: number): Promise<CustomerOrderDetail> {
     return tauriInvokeWithToken<CustomerOrderDetail>("confirm_order_v4", { id });
   },
@@ -73,6 +81,12 @@ export const tauriOrdersApi = {
     return tauriInvokeWithToken<CustomerDepositBalance[]>("get_customer_deposits_v4", {
       customerId,
     });
+  },
+  getCustomerDepositHistory(customerId: number): Promise<PackagingMovementRecord[]> {
+    return tauriInvokeWithToken<PackagingMovementRecord[]>(
+      "get_customer_deposit_history_v4",
+      { customerId },
+    );
   },
   returnCustomerDeposits(
     customerId: number,

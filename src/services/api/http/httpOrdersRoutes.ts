@@ -10,6 +10,8 @@ import type {
   CustomerOrderSummary,
   OrderLineInput,
   PackagingAsset,
+  PackagingMovementRecord,
+  UpdateCustomerOrderInput,
 } from "../../../types/erp.ts";
 import { httpRequest } from "./httpTransport.ts";
 
@@ -40,6 +42,15 @@ export const httpOrdersApi = {
   createCustomerOrder(payload: CreateCustomerOrderInput): Promise<CustomerOrderDetail> {
     return httpRequest<CustomerOrderDetail>("/api/orders", {
       method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateCustomerOrder(
+    id: number,
+    payload: UpdateCustomerOrderInput,
+  ): Promise<CustomerOrderDetail> {
+    return httpRequest<CustomerOrderDetail>(`/api/orders/${id}`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
   },
@@ -78,6 +89,11 @@ export const httpOrdersApi = {
   },
   getCustomerDeposits(customerId: number): Promise<CustomerDepositBalance[]> {
     return httpRequest<CustomerDepositBalance[]>(`/api/customers/${customerId}/deposits`);
+  },
+  getCustomerDepositHistory(customerId: number): Promise<PackagingMovementRecord[]> {
+    return httpRequest<PackagingMovementRecord[]>(
+      `/api/customers/${customerId}/deposits/history`,
+    );
   },
   returnCustomerDeposits(
     customerId: number,

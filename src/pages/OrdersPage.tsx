@@ -23,17 +23,22 @@ export function OrdersPage() {
     setStep,
     draft,
     setDraft,
+    editingOrderId,
+    setEditingOrderId,
     activeOrder,
     setActiveOrder,
     error,
     setError,
     clients,
     deposits,
+    depositHistory,
     orders,
     variantOptions,
     effectivePreview,
+    isServerPreview,
     createMutation,
     actionMutation,
+    startEditingDraft,
   } = useOrdersWizard();
 
   const activeClient = clients.find((c) => c.id === draft.customer_id) ?? null;
@@ -47,7 +52,9 @@ export function OrdersPage() {
               Prise de commande clientèle &amp; casiers mixtes
             </h1>
             <p className="text-xs text-[#667085]">
-              Brouillon sauvegardé hors-ligne automatiquement · Casiers partagés et consignes séparées du CA.
+              Brouillon sauvegardé hors-ligne ·{' '}
+              {isServerPreview ? 'Prévisualisation serveur synchronisée' : 'Calcul local'} ·
+              Consignes séparées du CA.
             </p>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -82,6 +89,7 @@ export function OrdersPage() {
               customerId={draft.customer_id}
               onSelectCustomer={(id) => setDraft((d) => ({ ...d, customer_id: id }))}
               deposits={deposits}
+              depositHistory={depositHistory}
             />
           )}
           {step === 2 && (
@@ -110,6 +118,12 @@ export function OrdersPage() {
               preview={effectivePreview}
               paymentMethod={draft.payment_method}
               onChangePaymentMethod={(pm) => setDraft((d) => ({ ...d, payment_method: pm }))}
+              discountXof={draft.discount_xof}
+              onChangeDiscountXof={(discount_xof) => setDraft((d) => ({ ...d, discount_xof }))}
+              deliveryAddress={draft.delivery_address}
+              onChangeDeliveryAddress={(delivery_address) =>
+                setDraft((d) => ({ ...d, delivery_address }))
+              }
               notes={draft.notes}
               onChangeNotes={(notes) => setDraft((d) => ({ ...d, notes }))}
             />
@@ -138,6 +152,10 @@ export function OrdersPage() {
                   }),
                 )
               }
+              onCancel={() =>
+                actionMutation.mutate(() => apiClient.cancelCustomerOrder(activeOrder.order.id))
+              }
+              onEditDraft={() => startEditingDraft(activeOrder)}
               onReturnCrate={(assetId) =>
                 actionMutation.mutate(() =>
                   apiClient.returnOrderPackaging(activeOrder.order.id, {
@@ -148,6 +166,7 @@ export function OrdersPage() {
                 )
               }
               onResetWizard={() => {
+                setEditingOrderId(null);
                 setActiveOrder(null);
                 setStep(1);
               }}
@@ -181,7 +200,7 @@ export function OrdersPage() {
                   onClick={() => createMutation.mutate()}
                   className="rounded-lg bg-[#16A36A] px-4 py-2 text-xs font-semibold text-white disabled:opacity-40"
                 >
-                  Valider la commande
+                  {editingOrderId ? 'Mettre à jour le brouillon' : 'Valider la commande'}
                 </button>
               )}
             </div>

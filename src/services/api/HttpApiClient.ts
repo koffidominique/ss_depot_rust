@@ -119,6 +119,7 @@ export class HttpApiClient implements ApiClient {
   listCustomerOrders = httpOrdersApi.listCustomerOrders;
   getCustomerOrder = httpOrdersApi.getCustomerOrder;
   createCustomerOrder = httpOrdersApi.createCustomerOrder;
+  updateCustomerOrder = httpOrdersApi.updateCustomerOrder;
   confirmCustomerOrder = httpOrdersApi.confirmCustomerOrder;
   deliverCustomerOrder = httpOrdersApi.deliverCustomerOrder;
   invoiceCustomerOrder = httpOrdersApi.invoiceCustomerOrder;
@@ -127,6 +128,7 @@ export class HttpApiClient implements ApiClient {
   returnOrderPackaging = httpOrdersApi.returnOrderPackaging;
   listPackagingAssets = httpOrdersApi.listPackagingAssets;
   getCustomerDeposits = httpOrdersApi.getCustomerDeposits;
+  getCustomerDepositHistory = httpOrdersApi.getCustomerDepositHistory;
   returnCustomerDeposits = httpOrdersApi.returnCustomerDeposits;
 
   /* --- Paramètres, Sauvegardes & PDF --- */

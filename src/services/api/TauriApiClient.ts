@@ -120,6 +120,7 @@ export class TauriApiClient implements ApiClient {
   listCustomerOrders = tauriOrdersApi.listCustomerOrders;
   getCustomerOrder = tauriOrdersApi.getCustomerOrder;
   createCustomerOrder = tauriOrdersApi.createCustomerOrder;
+  updateCustomerOrder = tauriOrdersApi.updateCustomerOrder;
   confirmCustomerOrder = tauriOrdersApi.confirmCustomerOrder;
   deliverCustomerOrder = tauriOrdersApi.deliverCustomerOrder;
   invoiceCustomerOrder = tauriOrdersApi.invoiceCustomerOrder;
@@ -128,6 +129,7 @@ export class TauriApiClient implements ApiClient {
   returnOrderPackaging = tauriOrdersApi.returnOrderPackaging;
   listPackagingAssets = tauriOrdersApi.listPackagingAssets;
   getCustomerDeposits = tauriOrdersApi.getCustomerDeposits;
+  getCustomerDepositHistory = tauriOrdersApi.getCustomerDepositHistory;
   returnCustomerDeposits = tauriOrdersApi.returnCustomerDeposits;
 
   /* --- Paramètres, Sauvegardes & PDF --- */

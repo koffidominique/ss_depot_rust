@@ -179,6 +179,23 @@ export interface CustomerDepositBalance {
   last_movement_at: string | null;
 }
 
+export interface PackagingMovementRecord {
+  id: number;
+  packaging_asset_id: number;
+  packaging_name: string;
+  customer_id: number | null;
+  order_id: number | null;
+  order_packaging_allocation_id: number | null;
+  movement_type: string;
+  quantity: number;
+  unit_deposit_xof: number;
+  total_deposit_xof: number;
+  notes: string | null;
+  created_at: string;
+}
+
+export type UpdateCustomerOrderInput = Partial<CreateCustomerOrderInput>;
+
 export interface CustomerOrderDetail {
   order: CustomerOrderSummary;
   lines: CustomerOrderLine[];

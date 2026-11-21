@@ -10,6 +10,8 @@ import type {
   CustomerOrderSummary,
   OrderLineInput,
   PackagingAsset,
+  PackagingMovementRecord,
+  UpdateCustomerOrderInput,
 } from "../../../types/erp.ts";
 
 export interface OrdersApiClient {
@@ -24,6 +26,10 @@ export interface OrdersApiClient {
   }): Promise<CustomerOrderSummary[]>;
   getCustomerOrder(id: number): Promise<CustomerOrderDetail>;
   createCustomerOrder(payload: CreateCustomerOrderInput): Promise<CustomerOrderDetail>;
+  updateCustomerOrder(
+    id: number,
+    payload: UpdateCustomerOrderInput,
+  ): Promise<CustomerOrderDetail>;
   confirmCustomerOrder(id: number): Promise<CustomerOrderDetail>;
   deliverCustomerOrder(id: number): Promise<CustomerOrderDetail>;
   invoiceCustomerOrder(id: number): Promise<CustomerOrderDetail>;
@@ -38,6 +44,7 @@ export interface OrdersApiClient {
   ): Promise<CustomerOrderDetail>;
   listPackagingAssets(): Promise<PackagingAsset[]>;
   getCustomerDeposits(customerId: number): Promise<CustomerDepositBalance[]>;
+  getCustomerDepositHistory(customerId: number): Promise<PackagingMovementRecord[]>;
   returnCustomerDeposits(
     customerId: number,
     payload: { packaging_asset_id: number; quantity: number; notes?: string },
