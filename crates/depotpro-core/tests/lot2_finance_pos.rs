@@ -103,6 +103,7 @@ async fn lot2_pos_parity_credit_limits_cash_diff_and_consignments() {
             semi_wholesale_price: Some(480),
             retail_price: Some(500),
             image_path: None,
+            is_active: None,
             packagings: Some(vec![products::PackagingInput {
                 id: None,
                 name: "bouteille".to_string(),
@@ -141,6 +142,7 @@ async fn lot2_pos_parity_credit_limits_cash_diff_and_consignments() {
             semi_wholesale_price: Some(95),
             retail_price: Some(100),
             image_path: None,
+            is_active: None,
             packagings: Some(vec![products::PackagingInput {
                 id: None,
                 name: "bouteille".to_string(),
@@ -179,6 +181,7 @@ async fn lot2_pos_parity_credit_limits_cash_diff_and_consignments() {
             semi_wholesale_price: Some(480),
             retail_price: Some(500),
             image_path: None,
+            is_active: None,
             packagings: Some(vec![products::PackagingInput {
                 id: None,
                 name: "casier".to_string(),

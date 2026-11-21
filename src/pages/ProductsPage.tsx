@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Download, Plus, Upload } from 'lucide-react';
+import { Download, PackagePlus, Plus, Upload } from 'lucide-react';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { SearchInput } from '../components/forms/SearchInput.tsx';
 import { InlineAlert } from '../components/common/InlineAlert.tsx';
@@ -26,6 +26,7 @@ import { ProductFormModal } from '../features/products/components/ProductFormMod
 import { PackagingModal } from '../features/products/components/PackagingModal.tsx';
 import { ImportCsvModal } from '../features/products/components/ImportCsvModal.tsx';
 import { CategoryModal } from '../features/products/components/CategoryModal.tsx';
+import { CatalogPresetsModal } from '../features/products/components/CatalogPresetsModal.tsx';
 
 const INITIAL_PACKAGING_STATE: PackagingFormState = {
   id: undefined,
@@ -56,6 +57,7 @@ export function ProductsPage() {
   const [pkgProduct, setPkgProduct] = useState<Product | null>(null);
   const [pkgState, setPkgState] = useState<PackagingFormState>(INITIAL_PACKAGING_STATE);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const [csvText, setCsvText] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -67,6 +69,7 @@ export function ProductsPage() {
       brand: '',
       barcode: '',
       category_id: 1,
+      supplier_id: null,
       base_unit: 'bouteille',
       initial_stock: '0',
       min_stock: '24',
@@ -75,6 +78,7 @@ export function ProductsPage() {
       semi_wholesale_price: 0,
       retail_price: 0,
       image_path: null,
+      is_active: true,
     },
   });
 
@@ -83,12 +87,19 @@ export function ProductsPage() {
     defaultValues: { name: '', description: '' },
   });
 
-  const { categoriesQuery, consignmentsQuery, productsQuery } = useProductsQueries({
+  const {
+    categoriesQuery,
+    suppliersQuery,
+    consignmentsQuery,
+    catalogPresetsQuery,
+    productsQuery,
+  } = useProductsQueries({
     search,
     categoryId,
     includeArchived,
     lowStockOnly,
     page,
+    presetsOpen,
   });
 
   const {
@@ -97,6 +108,7 @@ export function ProductsPage() {
     upsertPkgMutation,
     createCategoryMutation,
     importCsvMutation,
+    applyPresetsMutation,
   } = useProductMutations({
     onSavedProduct: () => {
       setCreateOpen(false);
@@ -126,10 +138,28 @@ export function ProductsPage() {
       setFormError(null);
       setFeedback(`${created} produit(s) importé(s) depuis le CSV.`);
     },
+    onAppliedPresets: (res) => {
+      setPresetsOpen(false);
+      setFormError(null);
+      if (!res.activate) {
+        setIncludeArchived(true);
+      }
+      const parts: string[] = [];
+      if (res.created > 0) parts.push(`${res.created} créé(s)`);
+      if (res.reactivated > 0) parts.push(`${res.reactivated} réactivé(s)`);
+      if (res.skipped > 0) parts.push(`${res.skipped} déjà présent(s)`);
+      const modeHint = res.activate
+        ? 'actifs et prêts à la vente'
+        : 'chargés en inactif (filtre archivés activé)';
+      setFeedback(
+        `Catalogue brasseries appliqué : ${parts.join(', ') || 'aucune modification'} (${modeHint}).`
+      );
+    },
     onError: (msg) => setFormError(msg),
   });
 
   const categories = categoriesQuery.data;
+  const suppliers = suppliersQuery.data;
   const consignments = consignmentsQuery.data;
   const { data, isLoading, error, refetch } = productsQuery;
 
@@ -152,6 +182,7 @@ export function ProductsPage() {
       brand: '',
       barcode: '',
       category_id: categories?.[0]?.id ?? 1,
+      supplier_id: null,
       base_unit: 'bouteille',
       initial_stock: '0',
       min_stock: '24',
@@ -160,6 +191,7 @@ export function ProductsPage() {
       semi_wholesale_price: 0,
       retail_price: 0,
       image_path: null,
+      is_active: true,
     });
     setFormError(null);
     setCreateOpen(true);
@@ -172,6 +204,7 @@ export function ProductsPage() {
       brand: prod.brand || '',
       barcode: prod.barcode || '',
       category_id: prod.category_id,
+      supplier_id: prod.supplier_id ?? null,
       base_unit: prod.base_unit,
       initial_stock: '0',
       min_stock: String(prod.min_stock_milli / 1000),
@@ -180,6 +213,7 @@ export function ProductsPage() {
       semi_wholesale_price: prod.semi_wholesale_price ?? 0,
       retail_price: prod.retail_price ?? 0,
       image_path: prod.image_path ?? null,
+      is_active: prod.is_active === 1,
     });
     setFormError(null);
     setCreateOpen(true);
@@ -306,6 +340,17 @@ export function ProductsPage() {
           </button>
           <button
             type="button"
+            onClick={() => {
+              setFormError(null);
+              setPresetsOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-950/30 px-3.5 py-2 text-xs font-medium text-[#2563EB] dark:text-blue-300 hover:bg-blue-100/70 dark:hover:bg-blue-900/40 whitespace-nowrap shrink-0"
+          >
+            <PackagePlus className="h-3.5 w-3.5" />
+            Catalogue brasseries
+          </button>
+          <button
+            type="button"
             onClick={openCreateModal}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 whitespace-nowrap shrink-0"
           >
@@ -341,10 +386,26 @@ export function ProductsPage() {
         editingProduct={editingProduct}
         form={productForm}
         categories={categories}
+        suppliers={suppliers}
         error={formError}
         isPending={saveProductMutation.isPending}
         onSubmit={(values) => saveProductMutation.mutate({ editingProduct, values })}
         onImageFileChange={handleImageFileChange}
+      />
+
+      <CatalogPresetsModal
+        open={presetsOpen}
+        onOpenChange={setPresetsOpen}
+        items={catalogPresetsQuery.data?.items}
+        isLoading={catalogPresetsQuery.isLoading}
+        loadError={
+          catalogPresetsQuery.error instanceof Error
+            ? catalogPresetsQuery.error.message
+            : null
+        }
+        submitError={formError}
+        isPending={applyPresetsMutation.isPending}
+        onApply={(keys, activate) => applyPresetsMutation.mutate({ keys, activate })}
       />
 
       <PackagingModal

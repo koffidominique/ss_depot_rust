@@ -67,6 +67,7 @@ export function ProductsTable({
             <div className="text-xs text-[#667085] dark:text-slate-400 truncate">
               {row.original.category_name}
               {row.original.brand ? ` · ${row.original.brand}` : ''}
+              {row.original.supplier_name ? ` · ${row.original.supplier_name}` : ''}
             </div>
           </div>
         </div>

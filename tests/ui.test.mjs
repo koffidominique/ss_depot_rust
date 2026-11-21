@@ -1,5 +1,7 @@
 import { after, afterEach, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { Window } from 'happy-dom';
 
 const win = new Window({ url: 'http://localhost:3000/' });
@@ -960,12 +962,14 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
 
   it('ProductsPage charge les valeurs réelles d’un conditionnement existant lors de l’édition', async () => {
     const origListCategories = apiClient.listCategories;
+    const origListSuppliers = apiClient.listSuppliers;
     const origGetConsignments = apiClient.getConsignmentsOverview;
     const origListProducts = apiClient.listProducts;
     const origUpsertPackaging = apiClient.upsertPackaging;
     const savedPkgs = [];
 
     apiClient.listCategories = async () => [{ id: 1, name: 'Bières', description: null, is_active: 1 }];
+    apiClient.listSuppliers = async () => [];
     apiClient.getConsignmentsOverview = async () => ({
       types: [],
       clientBalances: [],
@@ -1053,6 +1057,7 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
     } finally {
       qc.clear();
       apiClient.listCategories = origListCategories;
+      apiClient.listSuppliers = origListSuppliers;
       apiClient.getConsignmentsOverview = origGetConsignments;
       apiClient.listProducts = origListProducts;
       apiClient.upsertPackaging = origUpsertPackaging;
@@ -2176,12 +2181,29 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
 
   it('ProductsPage valide avec Zod/RHF et crée un nouveau produit', async () => {
     const origListCategories = apiClient.listCategories;
+    const origListSuppliers = apiClient.listSuppliers;
     const origGetConsignments = apiClient.getConsignmentsOverview;
     const origListProducts = apiClient.listProducts;
     const origCreateProduct = apiClient.createProduct;
 
     const createdPayloads = [];
     apiClient.listCategories = async () => [{ id: 1, name: 'Bières', description: null }];
+    apiClient.listSuppliers = async () => [
+      {
+        id: 7,
+        code: 'FRN-007',
+        name: 'SOLIBRA SA',
+        company_name: 'SOLIBRA SA',
+        phone: '+225 27 21 24 00 00',
+        address: null,
+        email: null,
+        contact_person: null,
+        payment_terms_days: 15,
+        total_purchases: 0,
+        balance_due: 0,
+        is_active: 1,
+      },
+    ];
     apiClient.getConsignmentsOverview = async () => ({
       types: [],
       clientBalances: [],
@@ -2200,8 +2222,8 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
         brand: null,
         category_id: 1,
         category_name: 'Bières',
-        supplier_id: null,
-        supplier_name: null,
+        supplier_id: input.supplier_id ?? null,
+        supplier_name: input.supplier_id ? 'SOLIBRA SA' : null,
         description: null,
         base_unit: 'bouteille',
         stock_milli: 0,
@@ -2213,7 +2235,7 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
         retail_price: 700,
         average_cost_fcfa: null,
         image_path: null,
-        is_active: 1,
+        is_active: input.is_active === false ? 0 : 1,
         packagings: [],
       };
     };
@@ -2237,16 +2259,23 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       await waitFor(() => assert.ok(screen.getByText(/Le nom du produit est obligatoire/i)));
       assert.equal(createdPayloads.length, 0);
 
-      // Saisie valide
+      // Saisie valide avec fournisseur et statut inactif
       fireEvent.change(screen.getByLabelText(/Nom du produit/i), {
         target: { value: 'Castel Beer 65cl' },
       });
+      fireEvent.change(screen.getByLabelText(/Fournisseur \/ Brasserie/i), {
+        target: { value: '7' },
+      });
+      fireEvent.click(screen.getByLabelText(/Produit actif/i));
       fireEvent.click(screen.getByRole('button', { name: /^Enregistrer$/i }));
       await waitFor(() => assert.equal(createdPayloads.length, 1));
       assert.equal(createdPayloads[0].name, 'Castel Beer 65cl');
+      assert.equal(createdPayloads[0].supplier_id, 7);
+      assert.equal(createdPayloads[0].is_active, false);
     } finally {
       qc.clear();
       apiClient.listCategories = origListCategories;
+      apiClient.listSuppliers = origListSuppliers;
       apiClient.getConsignmentsOverview = origGetConsignments;
       apiClient.listProducts = origListProducts;
       apiClient.createProduct = origCreateProduct;
@@ -3633,12 +3662,14 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
   it('Lot 8 — États de chargement (LoadingState) et d’erreur (ErrorState + Réessayer)', async () => {
     const origListProducts = apiClient.listProducts;
     const origListCategories = apiClient.listCategories;
+    const origListSuppliers = apiClient.listSuppliers;
     const origConsignments = apiClient.getConsignmentsOverview;
     let shouldFail = true;
     let resolvePending;
 
     try {
       apiClient.listCategories = async () => [];
+      apiClient.listSuppliers = async () => [];
       apiClient.getConsignmentsOverview = async () => ({ types: [], clientBalances: [], movements: [] });
       apiClient.listProducts = () =>
         new Promise((resolve) => {
@@ -3728,6 +3759,7 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
     } finally {
       apiClient.listProducts = origListProducts;
       apiClient.listCategories = origListCategories;
+      apiClient.listSuppliers = origListSuppliers;
       apiClient.getConsignmentsOverview = origConsignments;
     }
   });
@@ -4063,6 +4095,102 @@ describe('DEPOTPRO PREMIUM V3 — Tests React Composants, Formulaires & Interact
       apiClient.getSettings = origGetSettings;
       apiClient.getCashStatus = origGetCash;
       apiClient.createSale = origCreateSale;
+    }
+  });
+
+  it('ProductsPage ouvre le catalogue brasseries (SOLIBRA & BRASSIVOIRE) et applique en actif ou inactif', async () => {
+    const origListCategories = apiClient.listCategories;
+    const origListSuppliers = apiClient.listSuppliers;
+    const origGetConsignments = apiClient.getConsignmentsOverview;
+    const origListProducts = apiClient.listProducts;
+    const origListPresets = apiClient.listCatalogPresets;
+    const origApplyPresets = apiClient.applyCatalogPresets;
+
+    const listProductsCalls = [];
+    const applyCalls = [];
+    const presetCatalog = JSON.parse(
+      fs.readFileSync(path.resolve('catalog/brewery_catalog.json'), 'utf8')
+    );
+
+    apiClient.listCategories = async () => [{ id: 1, name: 'Bières', description: null, is_active: 1 }];
+    apiClient.listSuppliers = async () => [];
+    apiClient.getConsignmentsOverview = async () => ({
+      types: [],
+      clientBalances: [],
+      recentMovements: [],
+      openIssues: [],
+      returns: [],
+    });
+    apiClient.listProducts = async (params) => {
+      listProductsCalls.push(params);
+      return { items: [], total: 0, page: 1, pageSize: 20, totalPages: 1 };
+    };
+    apiClient.listCatalogPresets = async () => ({
+      items: presetCatalog.products.map((p) => ({
+        ...p,
+        packagings: p.packagings.map((pk) => ({
+          ...pk,
+          barcode: pk.barcode ?? null,
+          components: (pk.components ?? []).map((c) => ({
+            ...c,
+            returnable_name: c.returnable_code,
+          })),
+        })),
+        existing_product_id: null,
+        existing_reference: null,
+        existing_is_active: null,
+      })),
+    });
+    apiClient.applyCatalogPresets = async (input) => {
+      applyCalls.push(input);
+      return {
+        created: input.keys.length,
+        reactivated: 0,
+        skipped: 0,
+        activate: Boolean(input.activate),
+        products: [],
+      };
+    };
+
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+        mutations: { gcTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    try {
+      render(
+        React.createElement(QueryClientProvider, { client: qc }, React.createElement(ProductsPage))
+      );
+      await waitFor(() =>
+        assert.ok(screen.getByRole('button', { name: /Catalogue brasseries/i }))
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Catalogue brasseries/i }));
+      await waitFor(() => assert.ok(screen.getByText('Toutes (20)')));
+      assert.ok(screen.getByText('SOLIBRA (10)'));
+      assert.ok(screen.getByText('BRASSIVOIRE (10)'));
+
+      // Sélectionner tous les produits SOLIBRA en mode inactif
+      fireEvent.click(screen.getByRole('button', { name: /\+ Sélectionner SOLIBRA \(10\)/i }));
+      fireEvent.click(screen.getByLabelText(/Charger en inactif \(archivé\)/i));
+      fireEvent.click(screen.getByRole('button', { name: /Charger en inactif \(10\)/i }));
+
+      await waitFor(() => assert.equal(applyCalls.length, 1));
+      assert.equal(applyCalls[0].keys.length, 10);
+      assert.equal(applyCalls[0].activate, false);
+      await waitFor(() =>
+        assert.ok(listProductsCalls.some((c) => c.includeArchived === true))
+      );
+    } finally {
+      qc.clear();
+      cleanup();
+      apiClient.listCategories = origListCategories;
+      apiClient.listSuppliers = origListSuppliers;
+      apiClient.getConsignmentsOverview = origGetConsignments;
+      apiClient.listProducts = origListProducts;
+      apiClient.listCatalogPresets = origListPresets;
+      apiClient.applyCatalogPresets = origApplyPresets;
     }
   });
 });

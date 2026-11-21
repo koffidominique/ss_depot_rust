@@ -175,6 +175,7 @@ async fn lot9_22_scenarios_business_parity() {
                 semi_wholesale_price: None,
                 retail_price: Some(-100),
                 image_path: None,
+                is_active: None,
                 packagings: None,
             },
         )
@@ -199,6 +200,7 @@ async fn lot9_22_scenarios_business_parity() {
                 semi_wholesale_price: Some(600),
                 retail_price: Some(650),
                 image_path: None,
+                is_active: None,
                 packagings: None,
             },
         )
@@ -1028,6 +1030,7 @@ async fn lot9_22_scenarios_business_parity() {
                 semi_wholesale_price: None,
                 retail_price: Some(500),
                 image_path: None,
+                is_active: None,
                 packagings: None,
             },
         )

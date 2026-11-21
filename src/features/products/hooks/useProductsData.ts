@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../services/api/createApiClient.ts';
-import type { Category, Product } from '../../../types/erp.ts';
+import type { ApplyCatalogPresetsResult, Category, Product } from '../../../types/erp.ts';
 import type {
   CategoryFormValues,
   PackagingFormState,
@@ -14,6 +14,7 @@ export interface ProductFilters {
   lowStockOnly: boolean;
   page: number;
   pageSize?: number;
+  presetsOpen?: boolean;
 }
 
 export function useProductsQueries(filters: ProductFilters) {
@@ -22,9 +23,20 @@ export function useProductsQueries(filters: ProductFilters) {
     queryFn: () => apiClient.listCategories(),
   });
 
+  const suppliersQuery = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: () => apiClient.listSuppliers(),
+  });
+
   const consignmentsQuery = useQuery({
     queryKey: ['consignments'],
     queryFn: () => apiClient.getConsignmentsOverview(),
+  });
+
+  const catalogPresetsQuery = useQuery({
+    queryKey: ['catalogPresets'],
+    queryFn: () => apiClient.listCatalogPresets(),
+    enabled: Boolean(filters.presetsOpen),
   });
 
   const productsQuery = useQuery({
@@ -49,7 +61,9 @@ export function useProductsQueries(filters: ProductFilters) {
 
   return {
     categoriesQuery,
+    suppliersQuery,
     consignmentsQuery,
+    catalogPresetsQuery,
     productsQuery,
   };
 }
@@ -60,6 +74,7 @@ export function useProductMutations(callbacks: {
   onArchivedProduct: () => void;
   onCreatedCategory: (cat: Category) => void;
   onImportedCsv: (createdCount: number) => void;
+  onAppliedPresets?: (result: ApplyCatalogPresetsResult) => void;
   onError: (message: string) => void;
 }) {
   const qc = useQueryClient();
@@ -78,12 +93,14 @@ export function useProductMutations(callbacks: {
           brand: values.brand.trim(),
           barcode: values.barcode.trim() || null,
           category_id: values.category_id,
+          supplier_id: values.supplier_id,
           min_stock: values.min_stock || '0',
           purchase_price: values.purchase_price,
           wholesale_price: values.wholesale_price,
           semi_wholesale_price: values.semi_wholesale_price,
           retail_price: values.retail_price,
           image_path: values.image_path,
+          is_active: values.is_active,
         });
       }
       return apiClient.createProduct({
@@ -91,6 +108,7 @@ export function useProductMutations(callbacks: {
         brand: values.brand.trim(),
         barcode: values.barcode.trim() || null,
         category_id: values.category_id,
+        supplier_id: values.supplier_id,
         base_unit: values.base_unit,
         initial_stock: values.initial_stock || '0',
         min_stock: values.min_stock || '0',
@@ -99,6 +117,7 @@ export function useProductMutations(callbacks: {
         semi_wholesale_price: values.semi_wholesale_price,
         retail_price: values.retail_price,
         image_path: values.image_path,
+        is_active: values.is_active,
       });
     },
     onSuccess: () => {
@@ -173,11 +192,30 @@ export function useProductMutations(callbacks: {
       callbacks.onError(err instanceof Error ? err.message : 'Erreur import CSV.'),
   });
 
+  const applyPresetsMutation = useMutation({
+    mutationFn: (input: { keys: string[]; activate: boolean }) =>
+      apiClient.applyCatalogPresets(input),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['categories'] });
+      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      qc.invalidateQueries({ queryKey: ['consignments'] });
+      qc.invalidateQueries({ queryKey: ['catalogPresets'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      callbacks.onAppliedPresets?.(res);
+    },
+    onError: (err) =>
+      callbacks.onError(
+        err instanceof Error ? err.message : 'Erreur chargement catalogue brasseries.'
+      ),
+  });
+
   return {
     saveProductMutation,
     archiveMutation,
     upsertPkgMutation,
     createCategoryMutation,
     importCsvMutation,
+    applyPresetsMutation,
   };
 }

@@ -692,6 +692,37 @@ async fn import_products_csv(
     }
 }
 
+async fn list_catalog_presets(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogRead).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, products::list_catalog_presets(&db)).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+async fn apply_catalog_presets(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<products::ApplyCatalogPresetsInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, products::apply_catalog_presets(&db, payload)).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
 async fn list_clients(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1666,6 +1697,8 @@ fn build_router(state: AppState) -> Router {
             get(list_categories).post(create_category),
         )
         .route("/api/products", get(list_products).post(create_product))
+        .route("/api/products/presets", get(list_catalog_presets))
+        .route("/api/products/presets/apply", post(apply_catalog_presets))
         .route("/api/products/:id", put(update_product))
         .route("/api/products/:id/packagings", post(upsert_packaging))
         .route("/api/products/export/csv", get(export_products_csv))
@@ -2285,6 +2318,39 @@ mod tests {
         assert_eq!(rest_json["integrity"], "ok");
         assert_eq!(rest_json["foreignKeyErrors"], 0);
         assert!(rest_json["safetyBackup"].as_str().is_some());
+
+        // Catalogue prédéfini brasseries SOLIBRA / BRASSIVOIRE
+        let (st, presets_body) = send_http(
+            addr,
+            "GET",
+            "/api/products/presets",
+            &[("Authorization", &auth_hdr)],
+            None,
+        )
+        .await;
+        assert_eq!(st, 200);
+        let presets_json: serde_json::Value = serde_json::from_str(&presets_body).unwrap();
+        let items = presets_json["items"].as_array().unwrap();
+        assert_eq!(items.len(), 20);
+        let first_key = items[0]["key"].as_str().unwrap();
+
+        let apply_payload = serde_json::json!({
+            "keys": [first_key],
+            "activate": true
+        })
+        .to_string();
+        let (st, apply_body) = send_http(
+            addr,
+            "POST",
+            "/api/products/presets/apply",
+            &[("Authorization", &auth_hdr)],
+            Some(&apply_payload),
+        )
+        .await;
+        assert_eq!(st, 200);
+        let apply_json: serde_json::Value = serde_json::from_str(&apply_body).unwrap();
+        assert_eq!(apply_json["created"], 1);
+        assert_eq!(apply_json["products"][0]["is_active"], 1);
 
         srv.abort();
         let _ = std::fs::remove_dir_all(&dir);

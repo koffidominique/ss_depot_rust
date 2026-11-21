@@ -46,6 +46,7 @@ async fn lot1_sale_returns_prevent_duplicates_and_preserve_atomicity() {
             semi_wholesale_price: Some(550),
             retail_price: Some(600),
             image_path: None,
+            is_active: None,
             packagings: None,
         },
     )
@@ -70,6 +71,7 @@ async fn lot1_sale_returns_prevent_duplicates_and_preserve_atomicity() {
             semi_wholesale_price: Some(950),
             retail_price: Some(1_000),
             image_path: None,
+            is_active: None,
             packagings: None,
         },
     )
@@ -467,6 +469,7 @@ async fn lot1_purchase_receipts_prevent_duplicates_concurrency_and_partial_write
             semi_wholesale_price: Some(550),
             retail_price: Some(600),
             image_path: None,
+            is_active: None,
             packagings: Some(vec![products::PackagingInput {
                 id: None,
                 name: "casier".to_string(),
@@ -504,6 +507,7 @@ async fn lot1_purchase_receipts_prevent_duplicates_concurrency_and_partial_write
             semi_wholesale_price: Some(650),
             retail_price: Some(700),
             image_path: None,
+            is_active: None,
             packagings: None,
         },
     )

@@ -6,17 +6,19 @@ use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::FromRow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 const ALLOWED_PACKAGING_NAMES: &[&str] = &["casier", "carton", "bouteille", "pack", "canette"];
+const BREWERY_CATALOG_JSON: &str = include_str!("../../../../catalog/brewery_catalog.json");
 
-pub(crate) fn deserialize_nullable_opt<'de, D>(
+pub(crate) fn deserialize_nullable_opt<'de, D, T>(
     deserializer: D,
-) -> Result<Option<Option<String>>, D::Error>
+) -> Result<Option<Option<T>>, D::Error>
 where
     D: Deserializer<'de>,
+    T: Deserialize<'de>,
 {
-    Ok(Some(Option::deserialize(deserializer)?))
+    Ok(Some(Option::<T>::deserialize(deserializer)?))
 }
 
 pub(crate) fn deserialize_qty_str<'de, D>(deserializer: D) -> Result<String, D::Error>
@@ -318,7 +320,7 @@ pub struct PackagingInput {
     pub components: Option<Vec<DepositComponentInput>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct CreateProductInput {
     pub name: String,
     pub brand: Option<String>,
@@ -338,16 +340,19 @@ pub struct CreateProductInput {
     pub semi_wholesale_price: Option<i64>,
     pub retail_price: Option<i64>,
     pub image_path: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
+    pub is_active: Option<bool>,
     pub packagings: Option<Vec<PackagingInput>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct UpdateProductInput {
     pub name: Option<String>,
     pub brand: Option<String>,
     pub barcode: Option<String>,
     pub category_id: Option<i64>,
-    pub supplier_id: Option<i64>,
+    #[serde(default, deserialize_with = "deserialize_nullable_opt")]
+    pub supplier_id: Option<Option<i64>>,
     pub description: Option<String>,
     #[serde(default, deserialize_with = "deserialize_opt_qty_str")]
     pub min_stock: Option<String>,
@@ -780,12 +785,17 @@ pub async fn create_product(
     let reference = DepotDb::next_sequence(&mut tx, "PROD").await?;
     let avg_num = purchase_price.map(|v| v.to_string());
     let avg_den = purchase_price.map(|_| "1".to_string());
+    let is_active = if input.is_active.unwrap_or(true) {
+        1_i64
+    } else {
+        0_i64
+    };
 
     let product_id = sqlx::query(
         "INSERT INTO products (reference, barcode, name, brand, category_id, supplier_id, description, base_unit,
                                stock_milli, min_stock_milli, max_stock_milli, average_cost_num, average_cost_den,
-                               purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&reference)
     .bind(clean_barcode)
@@ -805,6 +815,7 @@ pub async fn create_product(
     .bind(semi_price)
     .bind(retail_price)
     .bind(image_path)
+    .bind(is_active)
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
@@ -974,7 +985,7 @@ pub async fn update_product(
             return Err(CoreError::Validation("Catégorie introuvable.".to_string()));
         }
     }
-    if let Some(sid) = input.supplier_id {
+    if let Some(Some(sid)) = input.supplier_id {
         if sqlx::query_scalar::<_, i64>("SELECT id FROM suppliers WHERE id = ?")
             .bind(sid)
             .fetch_optional(&mut *tx)
@@ -1047,6 +1058,29 @@ pub async fn update_product(
         .is_active
         .map(|b| if b { 1_i64 } else { 0_i64 })
         .unwrap_or(cur.14);
+    let brand = match input.brand {
+        Some(b) => {
+            let trimmed = b.trim().to_string();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        }
+        None => cur.2,
+    };
+    let supplier_id = input.supplier_id.unwrap_or(cur.5);
+    let description = match input.description {
+        Some(d) => {
+            let trimmed = d.trim().to_string();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        }
+        None => cur.6,
+    };
 
     sqlx::query(
         "UPDATE products
@@ -1056,11 +1090,11 @@ pub async fn update_product(
          WHERE id = ?",
     )
     .bind(&name)
-    .bind(input.brand.or(cur.2))
+    .bind(brand)
     .bind(&barcode)
     .bind(input.category_id.unwrap_or(cur.4))
-    .bind(input.supplier_id.or(cur.5))
-    .bind(input.description.or(cur.6))
+    .bind(supplier_id)
+    .bind(description)
     .bind(min_stock)
     .bind(max_stock)
     .bind(purchase_price)
@@ -1531,4 +1565,547 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
     .await?;
     tx.commit().await?;
     Ok(created)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PresetBreweryMeta {
+    brewery: String,
+    name: String,
+    company_name: String,
+    phone: String,
+    address: String,
+    payment_terms_days: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PresetReturnableMeta {
+    code: String,
+    name: String,
+    producer: String,
+    kind: String,
+    description: Option<String>,
+    deposit_value: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PresetComponentRaw {
+    returnable_code: String,
+    pieces_per_pack: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PresetPackagingRaw {
+    name: String,
+    coefficient: String,
+    purchase_price: i64,
+    wholesale_price: i64,
+    semi_wholesale_price: i64,
+    retail_price: i64,
+    barcode: Option<String>,
+    allow_fraction: bool,
+    deposit_mode: String,
+    #[serde(default)]
+    components: Vec<PresetComponentRaw>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PresetProductRaw {
+    key: String,
+    brewery: String,
+    name: String,
+    brand: String,
+    barcode: String,
+    category: String,
+    base_unit: String,
+    initial_stock: String,
+    min_stock: String,
+    purchase_price: i64,
+    wholesale_price: i64,
+    semi_wholesale_price: i64,
+    retail_price: i64,
+    description: String,
+    packagings: Vec<PresetPackagingRaw>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BreweryCatalogFile {
+    breweries: Vec<PresetBreweryMeta>,
+    returnables: Vec<PresetReturnableMeta>,
+    products: Vec<PresetProductRaw>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CatalogPresetComponentDto {
+    pub returnable_code: String,
+    pub returnable_name: String,
+    pub pieces_per_pack: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CatalogPresetPackagingDto {
+    pub name: String,
+    pub coefficient: String,
+    pub purchase_price: i64,
+    pub wholesale_price: i64,
+    pub semi_wholesale_price: i64,
+    pub retail_price: i64,
+    pub barcode: Option<String>,
+    pub allow_fraction: bool,
+    pub deposit_mode: String,
+    pub components: Vec<CatalogPresetComponentDto>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CatalogPresetItemDto {
+    pub key: String,
+    pub brewery: String,
+    pub name: String,
+    pub brand: String,
+    pub barcode: String,
+    pub category: String,
+    pub base_unit: String,
+    pub initial_stock: String,
+    pub min_stock: String,
+    pub purchase_price: i64,
+    pub wholesale_price: i64,
+    pub semi_wholesale_price: i64,
+    pub retail_price: i64,
+    pub description: String,
+    pub packagings: Vec<CatalogPresetPackagingDto>,
+    pub existing_product_id: Option<i64>,
+    pub existing_reference: Option<String>,
+    pub existing_is_active: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CatalogPresetListDto {
+    pub items: Vec<CatalogPresetItemDto>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApplyCatalogPresetsInput {
+    pub keys: Vec<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
+    pub activate: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApplyCatalogPresetsResultDto {
+    pub created: i64,
+    pub reactivated: i64,
+    pub skipped: i64,
+    pub activate: bool,
+    pub products: Vec<ProductSummaryDto>,
+}
+
+#[derive(Debug, FromRow)]
+struct ExistingPresetProductRow {
+    id: i64,
+    reference: String,
+    is_active: i64,
+}
+
+fn parse_brewery_catalog() -> CoreResult<BreweryCatalogFile> {
+    serde_json::from_str(BREWERY_CATALOG_JSON)
+        .map_err(|e| CoreError::Internal(format!("Catalogue prédéfini invalide : {e}")))
+}
+
+pub async fn list_catalog_presets(db: &DepotDb) -> CoreResult<CatalogPresetListDto> {
+    require_current_actor_permission(Permission::CatalogRead)?;
+    let catalog = parse_brewery_catalog()?;
+    let ret_names: HashMap<String, String> = catalog
+        .returnables
+        .iter()
+        .map(|r| (r.code.clone(), r.name.clone()))
+        .collect();
+
+    let mut items = Vec::with_capacity(catalog.products.len());
+    for p in catalog.products {
+        let existing = sqlx::query_as::<_, ExistingPresetProductRow>(
+            "SELECT id, reference, is_active FROM products
+             WHERE barcode = ? OR lower(name) = lower(?)
+             LIMIT 1",
+        )
+        .bind(&p.barcode)
+        .bind(&p.name)
+        .fetch_optional(&db.pool)
+        .await?;
+
+        let packagings = p
+            .packagings
+            .into_iter()
+            .map(|pk| CatalogPresetPackagingDto {
+                name: pk.name,
+                coefficient: pk.coefficient,
+                purchase_price: pk.purchase_price,
+                wholesale_price: pk.wholesale_price,
+                semi_wholesale_price: pk.semi_wholesale_price,
+                retail_price: pk.retail_price,
+                barcode: pk.barcode,
+                allow_fraction: pk.allow_fraction,
+                deposit_mode: pk.deposit_mode,
+                components: pk
+                    .components
+                    .into_iter()
+                    .map(|c| {
+                        let rname = ret_names
+                            .get(&c.returnable_code)
+                            .cloned()
+                            .unwrap_or_else(|| c.returnable_code.clone());
+                        CatalogPresetComponentDto {
+                            returnable_code: c.returnable_code,
+                            returnable_name: rname,
+                            pieces_per_pack: c.pieces_per_pack,
+                        }
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        items.push(CatalogPresetItemDto {
+            key: p.key,
+            brewery: p.brewery,
+            name: p.name,
+            brand: p.brand,
+            barcode: p.barcode,
+            category: p.category,
+            base_unit: p.base_unit,
+            initial_stock: p.initial_stock,
+            min_stock: p.min_stock,
+            purchase_price: p.purchase_price,
+            wholesale_price: p.wholesale_price,
+            semi_wholesale_price: p.semi_wholesale_price,
+            retail_price: p.retail_price,
+            description: p.description,
+            packagings,
+            existing_product_id: existing.as_ref().map(|r| r.id),
+            existing_reference: existing.as_ref().map(|r| r.reference.clone()),
+            existing_is_active: existing.as_ref().map(|r| r.is_active),
+        });
+    }
+
+    Ok(CatalogPresetListDto { items })
+}
+
+pub async fn apply_catalog_presets(
+    db: &DepotDb,
+    input: ApplyCatalogPresetsInput,
+) -> CoreResult<ApplyCatalogPresetsResultDto> {
+    require_current_actor_permission(Permission::CatalogWrite)?;
+    let catalog = parse_brewery_catalog()?;
+    let preset_map: HashMap<&str, &PresetProductRaw> = catalog
+        .products
+        .iter()
+        .map(|p| (p.key.as_str(), p))
+        .collect();
+    let brewery_map: HashMap<&str, &PresetBreweryMeta> = catalog
+        .breweries
+        .iter()
+        .map(|b| (b.brewery.as_str(), b))
+        .collect();
+    let returnable_map: HashMap<&str, &PresetReturnableMeta> = catalog
+        .returnables
+        .iter()
+        .map(|r| (r.code.as_str(), r))
+        .collect();
+
+    let mut dedup_keys = Vec::new();
+    let mut seen_keys = HashSet::new();
+    for raw_key in &input.keys {
+        let trimmed = raw_key.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !preset_map.contains_key(trimmed) {
+            return Err(CoreError::Validation(format!(
+                "Produit prédéfini introuvable : {trimmed}"
+            )));
+        }
+        if seen_keys.insert(trimmed.to_string()) {
+            dedup_keys.push(trimmed.to_string());
+        }
+    }
+    if dedup_keys.is_empty() {
+        return Err(CoreError::Validation(
+            "Sélectionnez au moins un produit du catalogue prédéfini.".to_string(),
+        ));
+    }
+
+    let activate = input.activate.unwrap_or(true);
+    let (_guard, mut tx) = db.begin_write().await?;
+
+    let mut created = 0_i64;
+    let mut reactivated = 0_i64;
+    let mut skipped = 0_i64;
+    let mut affected_ids: Vec<i64> = Vec::new();
+
+    for key in &dedup_keys {
+        let preset = preset_map[key.as_str()];
+        let existing = sqlx::query_as::<_, ExistingPresetProductRow>(
+            "SELECT id, reference, is_active FROM products
+             WHERE barcode = ? OR lower(name) = lower(?)
+             LIMIT 1",
+        )
+        .bind(&preset.barcode)
+        .bind(&preset.name)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(cur) = existing {
+            if activate && cur.is_active == 0 {
+                sqlx::query("UPDATE products SET is_active = 1 WHERE id = ?")
+                    .bind(cur.id)
+                    .execute(&mut *tx)
+                    .await?;
+                reactivated += 1;
+                affected_ids.push(cur.id);
+            } else {
+                skipped += 1;
+            }
+            continue;
+        }
+
+        let sup_pattern = format!("%{}%", preset.brewery.to_uppercase());
+        let existing_sup: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM suppliers
+             WHERE upper(name) LIKE ? OR upper(COALESCE(company_name, '')) LIKE ?
+             ORDER BY id ASC LIMIT 1",
+        )
+        .bind(&sup_pattern)
+        .bind(&sup_pattern)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let supplier_id = match existing_sup {
+            Some(sid) => sid,
+            None => {
+                let meta = brewery_map.get(preset.brewery.as_str()).ok_or_else(|| {
+                    CoreError::Internal(format!(
+                        "Métadonnées brasserie introuvables : {}",
+                        preset.brewery
+                    ))
+                })?;
+                let sup_code = DepotDb::next_sequence(&mut tx, "FRN").await?;
+                sqlx::query(
+                    "INSERT INTO suppliers (code, name, company_name, phone, address, payment_terms_days)
+                     VALUES (?, ?, ?, ?, ?, ?)",
+                )
+                .bind(&sup_code)
+                .bind(&meta.name)
+                .bind(&meta.company_name)
+                .bind(&meta.phone)
+                .bind(&meta.address)
+                .bind(meta.payment_terms_days)
+                .execute(&mut *tx)
+                .await?
+                .last_insert_rowid()
+            }
+        };
+
+        let existing_cat: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM categories WHERE lower(name) = lower(?)")
+                .bind(&preset.category)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let category_id = match existing_cat {
+            Some(cid) => cid,
+            None => sqlx::query("INSERT INTO categories (name) VALUES (?)")
+                .bind(&preset.category)
+                .execute(&mut *tx)
+                .await?
+                .last_insert_rowid(),
+        };
+
+        let dup_pkg_bc: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM product_packagings WHERE barcode = ? LIMIT 1")
+                .bind(&preset.barcode)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if dup_pkg_bc.is_some() {
+            return Err(CoreError::DuplicateOperation(format!(
+                "Code-barres déjà utilisé sur un conditionnement : {}",
+                preset.barcode
+            )));
+        }
+
+        let initial_stock = Quantity::parse_str(&preset.initial_stock, "Stock initial")?;
+        let min_stock = Quantity::parse_str(&preset.min_stock, "Stock minimum")?;
+        let purchase_price = Money::from_non_negative(preset.purchase_price, "Prix d'achat")?;
+        let wholesale_price = Money::from_non_negative(preset.wholesale_price, "Prix gros")?;
+        let semi_price =
+            Money::from_non_negative(preset.semi_wholesale_price, "Prix demi-gros")?;
+        let retail_price = Money::from_non_negative(preset.retail_price, "Prix détail")?;
+        let is_active = if activate { 1_i64 } else { 0_i64 };
+
+        let reference = DepotDb::next_sequence(&mut tx, "PROD").await?;
+        let prod_id = sqlx::query(
+            "INSERT INTO products (reference, barcode, name, brand, category_id, supplier_id, description, base_unit,
+                                   stock_milli, min_stock_milli, max_stock_milli, average_cost_num, average_cost_den,
+                                   purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, '1', ?, ?, ?, ?, NULL, ?)",
+        )
+        .bind(&reference)
+        .bind(&preset.barcode)
+        .bind(&preset.name)
+        .bind(&preset.brand)
+        .bind(category_id)
+        .bind(supplier_id)
+        .bind(&preset.description)
+        .bind(&preset.base_unit)
+        .bind(initial_stock.milli_units)
+        .bind(min_stock.milli_units)
+        .bind(purchase_price.value().to_string())
+        .bind(purchase_price.value())
+        .bind(wholesale_price.value())
+        .bind(semi_price.value())
+        .bind(retail_price.value())
+        .bind(is_active)
+        .execute(&mut *tx)
+        .await?
+        .last_insert_rowid();
+
+        for pk in &preset.packagings {
+            if !ALLOWED_PACKAGING_NAMES.contains(&pk.name.as_str()) {
+                return Err(CoreError::Validation(format!(
+                    "Conditionnement non autorisé : {}",
+                    pk.name
+                )));
+            }
+            let coeff = Quantity::parse_str(&pk.coefficient, "Coefficient")?;
+            let pkg_bc = pk
+                .barcode
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            if let Some(bc) = pkg_bc {
+                let dup: Option<(i64,)> = sqlx::query_as(
+                    "SELECT id FROM products WHERE barcode = ? UNION SELECT id FROM product_packagings WHERE barcode = ?",
+                )
+                .bind(bc)
+                .bind(bc)
+                .fetch_optional(&mut *tx)
+                .await?;
+                if dup.is_some() {
+                    return Err(CoreError::DuplicateOperation(format!(
+                        "Code-barres déjà utilisé : {bc}"
+                    )));
+                }
+            }
+
+            let pkg_id = sqlx::query(
+                "INSERT INTO product_packagings (product_id, name, base_unit, coefficient_milli, purchase_price, wholesale_price, semi_wholesale_price, retail_price, barcode, allow_fraction)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(prod_id)
+            .bind(&pk.name)
+            .bind(&preset.base_unit)
+            .bind(coeff.milli_units)
+            .bind(pk.purchase_price)
+            .bind(pk.wholesale_price)
+            .bind(pk.semi_wholesale_price)
+            .bind(pk.retail_price)
+            .bind(pkg_bc)
+            .bind(if pk.allow_fraction { 1_i64 } else { 0_i64 })
+            .execute(&mut *tx)
+            .await?
+            .last_insert_rowid();
+
+            let mode = if pk.deposit_mode == "deposit" {
+                "deposit"
+            } else {
+                "none"
+            };
+            sqlx::query("INSERT INTO deposit_packaging_profiles (packaging_id, mode) VALUES (?, ?)")
+                .bind(pkg_id)
+                .bind(mode)
+                .execute(&mut *tx)
+                .await?;
+
+            if mode == "deposit" {
+                for comp in &pk.components {
+                    let existing_rt: Option<i64> = sqlx::query_scalar(
+                        "SELECT id FROM returnable_packaging_types WHERE code = ?",
+                    )
+                    .bind(&comp.returnable_code)
+                    .fetch_optional(&mut *tx)
+                    .await?;
+
+                    let rt_id = match existing_rt {
+                        Some(id) => id,
+                        None => {
+                            let rmeta = returnable_map
+                                .get(comp.returnable_code.as_str())
+                                .ok_or_else(|| {
+                                    CoreError::Internal(format!(
+                                        "Emballage consigné prédéfini introuvable : {}",
+                                        comp.returnable_code
+                                    ))
+                                })?;
+                            let new_rt_id = sqlx::query(
+                                "INSERT INTO returnable_packaging_types (code, name, producer, kind, description, deposit_value)
+                                 VALUES (?, ?, ?, ?, ?, ?)",
+                            )
+                            .bind(&rmeta.code)
+                            .bind(&rmeta.name)
+                            .bind(&rmeta.producer)
+                            .bind(&rmeta.kind)
+                            .bind(&rmeta.description)
+                            .bind(rmeta.deposit_value)
+                            .execute(&mut *tx)
+                            .await?
+                            .last_insert_rowid();
+
+                            sqlx::query(
+                                "INSERT INTO returnable_stock_balances (packaging_id, quantity) VALUES (?, 0)",
+                            )
+                            .bind(new_rt_id)
+                            .execute(&mut *tx)
+                            .await?;
+                            new_rt_id
+                        }
+                    };
+
+                    sqlx::query(
+                        "INSERT INTO deposit_packaging_components (packaging_id, returnable_id, pieces_per_pack)
+                         VALUES (?, ?, ?)",
+                    )
+                    .bind(pkg_id)
+                    .bind(rt_id)
+                    .bind(comp.pieces_per_pack)
+                    .execute(&mut *tx)
+                    .await?;
+                }
+            }
+        }
+
+        created += 1;
+        affected_ids.push(prod_id);
+    }
+
+    if created > 0 || reactivated > 0 {
+        audit_log_tx(
+            &mut tx,
+            "APPLY_CATALOG_PRESETS",
+            "products",
+            None,
+            &format!(
+                "Catalogue brasseries : {created} créé(s), {reactivated} réactivé(s), {skipped} ignoré(s) (actif={activate})"
+            ),
+        )
+        .await?;
+    }
+    tx.commit().await?;
+
+    let mut products = Vec::with_capacity(affected_ids.len());
+    for pid in affected_ids {
+        products.push(get_product_by_id(db, pid).await?);
+    }
+
+    Ok(ApplyCatalogPresetsResultDto {
+        created,
+        reactivated,
+        skipped,
+        activate,
+        products,
+    })
 }

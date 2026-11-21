@@ -1363,4 +1363,81 @@ describe('DEPOTPRO PREMIUM V3 — Scénarios métier de référence (A à L)', (
     });
     assert.equal(afterLock.status, 401);
   });
+
+  it('Scénario Y — Catalogue brasseries (10 SOLIBRA + 10 BRASSIVOIRE), produit inactif et suppression supplier_id', async () => {
+    // 1) Création d'un produit directement inactif avec fournisseur, puis dissociation fournisseur
+    const createdInactive = await api('POST', '/api/products', {
+      name: 'Boisson Pré-Enregistrée Y',
+      brand: 'TEST',
+      category_id: 1,
+      supplier_id: supplierId,
+      base_unit: 'bouteille',
+      initial_stock: 0,
+      min_stock: 12,
+      purchase_price: 400,
+      wholesale_price: 500,
+      semi_wholesale_price: 550,
+      retail_price: 600,
+      is_active: false,
+    });
+    assert.equal(createdInactive.status, 201);
+    assert.equal(createdInactive.data.is_active, 0);
+    assert.equal(createdInactive.data.supplier_id, supplierId);
+
+    const updated = await api('PUT', `/api/products/${createdInactive.data.id}`, {
+      supplier_id: null,
+      is_active: true,
+    });
+    assert.equal(updated.status, 200);
+    assert.equal(updated.data.supplier_id, null);
+    assert.equal(updated.data.is_active, 1);
+
+    // 2) Liste des presets SOLIBRA + BRASSIVOIRE
+    const presets0 = await api('GET', '/api/products/presets');
+    assert.equal(presets0.status, 200);
+    assert.equal(presets0.data.items.length, 20);
+    const solibra = presets0.data.items.filter((i) => i.brewery === 'SOLIBRA');
+    const brassivoire = presets0.data.items.filter((i) => i.brewery === 'BRASSIVOIRE');
+    assert.equal(solibra.length, 10);
+    assert.equal(brassivoire.length, 10);
+
+    // 3) Chargement en mode inactif pour SOLIBRA
+    const applySolInactive = await api('POST', '/api/products/presets/apply', {
+      keys: solibra.map((i) => i.key),
+      activate: false,
+    });
+    assert.equal(applySolInactive.status, 200);
+    assert.equal(applySolInactive.data.created, 10);
+    assert.equal(applySolInactive.data.reactivated, 0);
+    assert.equal(applySolInactive.data.skipped, 0);
+    assert.ok(applySolInactive.data.products.every((p) => p.is_active === 0));
+    assert.ok(applySolInactive.data.products.every((p) => p.stock_milli === 0));
+
+    // 4) Activation de 2 SOLIBRA + 10 BRASSIVOIRE puis vérification idempotence
+    const nextKeys = [solibra[0].key, solibra[1].key, ...brassivoire.map((i) => i.key)];
+    const applyActive = await api('POST', '/api/products/presets/apply', {
+      keys: nextKeys,
+      activate: true,
+    });
+    assert.equal(applyActive.status, 200);
+    assert.equal(applyActive.data.created, 10);
+    assert.equal(applyActive.data.reactivated, 2);
+    assert.equal(applyActive.data.skipped, 0);
+
+    const applyIdemp = await api('POST', '/api/products/presets/apply', {
+      keys: nextKeys,
+      activate: true,
+    });
+    assert.equal(applyIdemp.status, 200);
+    assert.equal(applyIdemp.data.created, 0);
+    assert.equal(applyIdemp.data.reactivated, 0);
+    assert.equal(applyIdemp.data.skipped, 12);
+
+    const presets1 = await api('GET', '/api/products/presets');
+    assert.equal(presets1.status, 200);
+    const sol0 = presets1.data.items.find((i) => i.key === solibra[0].key);
+    const sol2 = presets1.data.items.find((i) => i.key === solibra[2].key);
+    assert.equal(sol0.existing_is_active, 1);
+    assert.equal(sol2.existing_is_active, 0);
+  });
 });

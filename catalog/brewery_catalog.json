@@ -1,0 +1,1044 @@
+{
+  "breweries": [
+    {
+      "brewery": "SOLIBRA",
+      "name": "SOLIBRA SA",
+      "company_name": "Société de Limonaderies et Brasseries d'Afrique (SOLIBRA)",
+      "phone": "+225 27 21 21 00 00",
+      "address": "Treichville Zone 3, Rue des Brasseurs, Abidjan",
+      "payment_terms_days": 30
+    },
+    {
+      "brewery": "BRASSIVOIRE",
+      "name": "BRASSIVOIRE SA",
+      "company_name": "BRASSIVOIRE SA (Heineken / CFAO)",
+      "phone": "+225 27 23 50 00 00",
+      "address": "Zone Industrielle PK24, Yopougon, Abidjan",
+      "payment_terms_days": 30
+    }
+  ],
+  "returnables": [
+    {
+      "code": "EMB-SOL-CAS24-33",
+      "name": "Casier 24 alvéoles 33cl SOLIBRA",
+      "producer": "SOLIBRA",
+      "kind": "crate",
+      "description": "Casier plastique standard 24 bouteilles 33cl SOLIBRA (B24-33)",
+      "deposit_value": 2500
+    },
+    {
+      "code": "EMB-SOL-CAS24-30",
+      "name": "Casier 24 alvéoles 30cl SOLIBRA",
+      "producer": "SOLIBRA",
+      "kind": "crate",
+      "description": "Casier plastique standard 24 bouteilles sucreries 30cl SOLIBRA (B24-30)",
+      "deposit_value": 2500
+    },
+    {
+      "code": "EMB-SOL-CAS12-50",
+      "name": "Casier 12 alvéoles 50cl SOLIBRA",
+      "producer": "SOLIBRA",
+      "kind": "crate",
+      "description": "Casier plastique standard 12 bouteilles 50cl SOLIBRA (B12-50)",
+      "deposit_value": 2000
+    },
+    {
+      "code": "EMB-SOL-CAS12-65",
+      "name": "Casier 12 alvéoles 65cl SOLIBRA",
+      "producer": "SOLIBRA",
+      "kind": "crate",
+      "description": "Casier plastique standard 12 grandes bouteilles 65cl SOLIBRA (B12-65)",
+      "deposit_value": 2000
+    },
+    {
+      "code": "EMB-SOL-BTL30",
+      "name": "Bouteille verre 30cl SOLIBRA",
+      "producer": "SOLIBRA",
+      "kind": "bottle",
+      "description": "Bouteille verre consignée 30cl sucreries SOLIBRA",
+      "deposit_value": 100
+    },
+    {
+      "code": "EMB-SOL-BTL33",
+      "name": "Bouteille verre 33cl SOLIBRA",
+      "producer": "SOLIBRA",
+      "kind": "bottle",
+      "description": "Bouteille verre consignée 33cl bières SOLIBRA",
+      "deposit_value": 100
+    },
+    {
+      "code": "EMB-SOL-BTL50",
+      "name": "Bouteille verre 50cl SOLIBRA",
+      "producer": "SOLIBRA",
+      "kind": "bottle",
+      "description": "Bouteille verre consignée 50cl SOLIBRA",
+      "deposit_value": 125
+    },
+    {
+      "code": "EMB-SOL-BTL65",
+      "name": "Bouteille verre 65cl SOLIBRA",
+      "producer": "SOLIBRA",
+      "kind": "bottle",
+      "description": "Bouteille verre consignée 65cl SOLIBRA",
+      "deposit_value": 150
+    },
+    {
+      "code": "EMB-BRV-CAS24-33",
+      "name": "Casier 24 alvéoles 33cl BRASSIVOIRE",
+      "producer": "BRASSIVOIRE",
+      "kind": "crate",
+      "description": "Casier plastique 24 bouteilles 33cl BRASSIVOIRE (B24-33)",
+      "deposit_value": 2500
+    },
+    {
+      "code": "EMB-BRV-CAS12-60",
+      "name": "Casier 12 alvéoles 60/65cl BRASSIVOIRE",
+      "producer": "BRASSIVOIRE",
+      "kind": "crate",
+      "description": "Casier plastique 12 grandes bouteilles 60/65cl BRASSIVOIRE (B12-60/65)",
+      "deposit_value": 2000
+    },
+    {
+      "code": "EMB-BRV-BTL33",
+      "name": "Bouteille verre 33cl BRASSIVOIRE",
+      "producer": "BRASSIVOIRE",
+      "kind": "bottle",
+      "description": "Bouteille verre consignée 33cl BRASSIVOIRE",
+      "deposit_value": 100
+    },
+    {
+      "code": "EMB-BRV-BTL60",
+      "name": "Bouteille verre 60/65cl BRASSIVOIRE",
+      "producer": "BRASSIVOIRE",
+      "kind": "bottle",
+      "description": "Bouteille verre consignée 60/65cl BRASSIVOIRE",
+      "deposit_value": 150
+    }
+  ],
+  "products": [
+    {
+      "key": "solibra-bock-65cl",
+      "brewery": "SOLIBRA",
+      "name": "Bière Bock Solibra 65cl",
+      "brand": "Bock Solibra",
+      "barcode": "6181102000017",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "24",
+      "purchase_price": 400,
+      "wholesale_price": 450,
+      "semi_wholesale_price": 475,
+      "retail_price": 500,
+      "description": "Bière blonde 65cl verre consigné — Brasserie SOLIBRA (Casier B12-65)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 400,
+          "wholesale_price": 450,
+          "semi_wholesale_price": 475,
+          "retail_price": 500,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-BTL65", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "12",
+          "purchase_price": 4800,
+          "wholesale_price": 5400,
+          "semi_wholesale_price": 5700,
+          "retail_price": 6000,
+          "barcode": "6181102000017-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-CAS12-65", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-SOL-BTL65", "pieces_per_pack": 12 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "solibra-bock-33cl",
+      "brewery": "SOLIBRA",
+      "name": "Bière Bock Solibra 33cl",
+      "brand": "Bock Solibra",
+      "barcode": "6181102000024",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 230,
+      "wholesale_price": 275,
+      "semi_wholesale_price": 300,
+      "retail_price": 350,
+      "description": "Bière blonde 33cl verre consigné — Brasserie SOLIBRA (Casier B24-33)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 230,
+          "wholesale_price": 275,
+          "semi_wholesale_price": 300,
+          "retail_price": 350,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-BTL33", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "24",
+          "purchase_price": 5520,
+          "wholesale_price": 6500,
+          "semi_wholesale_price": 7000,
+          "retail_price": 8000,
+          "barcode": "6181102000024-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-CAS24-33", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-SOL-BTL33", "pieces_per_pack": 24 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "solibra-flag-65cl",
+      "brewery": "SOLIBRA",
+      "name": "Bière Flag Spéciale 65cl",
+      "brand": "Flag",
+      "barcode": "6181102000031",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "24",
+      "purchase_price": 450,
+      "wholesale_price": 500,
+      "semi_wholesale_price": 550,
+      "retail_price": 600,
+      "description": "Bière Flag Spéciale 65cl verre consigné — Brasserie SOLIBRA (Casier B12-65)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 450,
+          "wholesale_price": 500,
+          "semi_wholesale_price": 550,
+          "retail_price": 600,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-BTL65", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "12",
+          "purchase_price": 5400,
+          "wholesale_price": 6000,
+          "semi_wholesale_price": 6500,
+          "retail_price": 7000,
+          "barcode": "6181102000031-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-CAS12-65", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-SOL-BTL65", "pieces_per_pack": 12 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "solibra-beaufort-50cl",
+      "brewery": "SOLIBRA",
+      "name": "Bière Beaufort Lager 50cl",
+      "brand": "Beaufort",
+      "barcode": "6181102000048",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "24",
+      "purchase_price": 420,
+      "wholesale_price": 475,
+      "semi_wholesale_price": 500,
+      "retail_price": 550,
+      "description": "Bière Beaufort Lager 50cl verre consigné — Brasserie SOLIBRA (Casier B12-50)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 420,
+          "wholesale_price": 475,
+          "semi_wholesale_price": 500,
+          "retail_price": 550,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-BTL50", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "12",
+          "purchase_price": 5040,
+          "wholesale_price": 5700,
+          "semi_wholesale_price": 6000,
+          "retail_price": 6500,
+          "barcode": "6181102000048-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-CAS12-50", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-SOL-BTL50", "pieces_per_pack": 12 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "solibra-castel-33cl",
+      "brewery": "SOLIBRA",
+      "name": "Bière Castel Beer 33cl",
+      "brand": "Castel Beer",
+      "barcode": "6181102000055",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 300,
+      "wholesale_price": 350,
+      "semi_wholesale_price": 375,
+      "retail_price": 400,
+      "description": "Bière Castel Beer 33cl verre consigné — Brasserie SOLIBRA (Casier B24-33)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 300,
+          "wholesale_price": 350,
+          "semi_wholesale_price": 375,
+          "retail_price": 400,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-BTL33", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "24",
+          "purchase_price": 7200,
+          "wholesale_price": 8400,
+          "semi_wholesale_price": 9000,
+          "retail_price": 9500,
+          "barcode": "6181102000055-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-CAS24-33", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-SOL-BTL33", "pieces_per_pack": 24 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "solibra-malta-guinness-33cl",
+      "brewery": "SOLIBRA",
+      "name": "Malta Guinness 33cl",
+      "brand": "Guinness",
+      "barcode": "6181102000062",
+      "category": "Jus & Énergisants",
+      "base_unit": "canette",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 380,
+      "wholesale_price": 425,
+      "semi_wholesale_price": 450,
+      "retail_price": 500,
+      "description": "Boisson maltée sans alcool 33cl canette — Distribution SOLIBRA (Emballage jetable)",
+      "packagings": [
+        {
+          "name": "canette",
+          "coefficient": "1",
+          "purchase_price": 380,
+          "wholesale_price": 425,
+          "semi_wholesale_price": 450,
+          "retail_price": 500,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "pack",
+          "coefficient": "6",
+          "purchase_price": 2280,
+          "wholesale_price": 2500,
+          "semi_wholesale_price": 2650,
+          "retail_price": 2900,
+          "barcode": "6181102000062-P",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "carton",
+          "coefficient": "24",
+          "purchase_price": 9120,
+          "wholesale_price": 9800,
+          "semi_wholesale_price": 10400,
+          "retail_price": 11500,
+          "barcode": "6181102000062-K",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        }
+      ]
+    },
+    {
+      "key": "solibra-youki-orange-30cl",
+      "brewery": "SOLIBRA",
+      "name": "Youki Orange 30cl",
+      "brand": "Youki",
+      "barcode": "6181102000079",
+      "category": "Boissons gazeuses",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 200,
+      "wholesale_price": 230,
+      "semi_wholesale_price": 250,
+      "retail_price": 300,
+      "description": "Sucrerie Youki Orange 30cl verre consigné — Brasserie SOLIBRA (Casier B24-30)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 200,
+          "wholesale_price": 230,
+          "semi_wholesale_price": 250,
+          "retail_price": 300,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-BTL30", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "24",
+          "purchase_price": 4800,
+          "wholesale_price": 5500,
+          "semi_wholesale_price": 6000,
+          "retail_price": 7000,
+          "barcode": "6181102000079-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-CAS24-30", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-SOL-BTL30", "pieces_per_pack": 24 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "solibra-youki-cocktail-150cl",
+      "brewery": "SOLIBRA",
+      "name": "Youki Cocktail PET 1.5L",
+      "brand": "Youki",
+      "barcode": "6181102000086",
+      "category": "Boissons gazeuses",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "12",
+      "purchase_price": 650,
+      "wholesale_price": 750,
+      "semi_wholesale_price": 800,
+      "retail_price": 900,
+      "description": "Sucrerie Youki Cocktail PET 1.5L — Brasserie SOLIBRA (Pack de 6 jetable)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 650,
+          "wholesale_price": 750,
+          "semi_wholesale_price": 800,
+          "retail_price": 900,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "pack",
+          "coefficient": "6",
+          "purchase_price": 3900,
+          "wholesale_price": 4500,
+          "semi_wholesale_price": 4800,
+          "retail_price": 5200,
+          "barcode": "6181102000086-P",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        }
+      ]
+    },
+    {
+      "key": "solibra-orangina-50cl",
+      "brewery": "SOLIBRA",
+      "name": "Orangina 50cl",
+      "brand": "Orangina",
+      "barcode": "6181102000093",
+      "category": "Boissons gazeuses",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "24",
+      "purchase_price": 350,
+      "wholesale_price": 400,
+      "semi_wholesale_price": 425,
+      "retail_price": 500,
+      "description": "Orangina 50cl verre consigné — Brasserie SOLIBRA (Casier B12-50)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 350,
+          "wholesale_price": 400,
+          "semi_wholesale_price": 425,
+          "retail_price": 500,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-BTL50", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "12",
+          "purchase_price": 4200,
+          "wholesale_price": 4800,
+          "semi_wholesale_price": 5100,
+          "retail_price": 5800,
+          "barcode": "6181102000093-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-SOL-CAS12-50", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-SOL-BTL50", "pieces_per_pack": 12 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "solibra-youzou-canette-33cl",
+      "brewery": "SOLIBRA",
+      "name": "Youzou Canette 33cl",
+      "brand": "Youzou",
+      "barcode": "6181102000109",
+      "category": "Boissons gazeuses",
+      "base_unit": "canette",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 300,
+      "wholesale_price": 350,
+      "semi_wholesale_price": 375,
+      "retail_price": 400,
+      "description": "Boisson gazeuse Youzou citron 33cl canette — Brasserie SOLIBRA (Carton de 24 jetable)",
+      "packagings": [
+        {
+          "name": "canette",
+          "coefficient": "1",
+          "purchase_price": 300,
+          "wholesale_price": 350,
+          "semi_wholesale_price": 375,
+          "retail_price": 400,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "carton",
+          "coefficient": "24",
+          "purchase_price": 7200,
+          "wholesale_price": 8400,
+          "semi_wholesale_price": 9000,
+          "retail_price": 9500,
+          "barcode": "6181102000109-K",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-ivoire-speciale-60cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Bière Ivoire Spéciale 60cl",
+      "brand": "Ivoire",
+      "barcode": "6181102000116",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "24",
+      "purchase_price": 400,
+      "wholesale_price": 450,
+      "semi_wholesale_price": 475,
+      "retail_price": 500,
+      "description": "Bière blonde Ivoire Spéciale 60cl verre consigné — Brasserie BRASSIVOIRE (Casier B12-60/65)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 400,
+          "wholesale_price": 450,
+          "semi_wholesale_price": 475,
+          "retail_price": 500,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-BTL60", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "12",
+          "purchase_price": 4800,
+          "wholesale_price": 5400,
+          "semi_wholesale_price": 5700,
+          "retail_price": 6000,
+          "barcode": "6181102000116-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-CAS12-60", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-BRV-BTL60", "pieces_per_pack": 12 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-ivoire-speciale-33cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Bière Ivoire Spéciale 33cl",
+      "brand": "Ivoire",
+      "barcode": "6181102000123",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 240,
+      "wholesale_price": 280,
+      "semi_wholesale_price": 300,
+      "retail_price": 350,
+      "description": "Bière blonde Ivoire Spéciale 33cl verre consigné — Brasserie BRASSIVOIRE (Casier B24-33)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 240,
+          "wholesale_price": 280,
+          "semi_wholesale_price": 300,
+          "retail_price": 350,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-BTL33", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "24",
+          "purchase_price": 5760,
+          "wholesale_price": 6700,
+          "semi_wholesale_price": 7200,
+          "retail_price": 8200,
+          "barcode": "6181102000123-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-CAS24-33", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-BRV-BTL33", "pieces_per_pack": 24 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-ivoire-black-33cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Bière Ivoire Black 33cl",
+      "brand": "Ivoire Black",
+      "barcode": "6181102000130",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "24",
+      "purchase_price": 300,
+      "wholesale_price": 350,
+      "semi_wholesale_price": 375,
+      "retail_price": 400,
+      "description": "Bière brune Ivoire Black 33cl verre consigné — Brasserie BRASSIVOIRE (Casier B24-33)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 300,
+          "wholesale_price": 350,
+          "semi_wholesale_price": 375,
+          "retail_price": 400,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-BTL33", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "24",
+          "purchase_price": 7200,
+          "wholesale_price": 8400,
+          "semi_wholesale_price": 9000,
+          "retail_price": 9500,
+          "barcode": "6181102000130-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-CAS24-33", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-BRV-BTL33", "pieces_per_pack": 24 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-ivoire-canette-33cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Bière Ivoire Canette 33cl",
+      "brand": "Ivoire",
+      "barcode": "6181102000147",
+      "category": "Bières",
+      "base_unit": "canette",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 350,
+      "wholesale_price": 400,
+      "semi_wholesale_price": 425,
+      "retail_price": 500,
+      "description": "Bière blonde Ivoire 33cl canette — Brasserie BRASSIVOIRE (Carton de 24 jetable)",
+      "packagings": [
+        {
+          "name": "canette",
+          "coefficient": "1",
+          "purchase_price": 350,
+          "wholesale_price": 400,
+          "semi_wholesale_price": 425,
+          "retail_price": 500,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "carton",
+          "coefficient": "24",
+          "purchase_price": 8400,
+          "wholesale_price": 9600,
+          "semi_wholesale_price": 10200,
+          "retail_price": 11500,
+          "barcode": "6181102000147-K",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-heineken-33cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Bière Heineken Original 33cl",
+      "brand": "Heineken",
+      "barcode": "6181102000154",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 550,
+      "wholesale_price": 625,
+      "semi_wholesale_price": 650,
+      "retail_price": 700,
+      "description": "Bière Heineken Original 33cl verre consigné — Brasserie BRASSIVOIRE (Casier B24-33)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 550,
+          "wholesale_price": 625,
+          "semi_wholesale_price": 650,
+          "retail_price": 700,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-BTL33", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "24",
+          "purchase_price": 13200,
+          "wholesale_price": 15000,
+          "semi_wholesale_price": 15600,
+          "retail_price": 16800,
+          "barcode": "6181102000154-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-CAS24-33", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-BRV-BTL33", "pieces_per_pack": 24 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-heineken-canette-33cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Bière Heineken Canette 33cl",
+      "brand": "Heineken",
+      "barcode": "6181102000161",
+      "category": "Bières",
+      "base_unit": "canette",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 600,
+      "wholesale_price": 675,
+      "semi_wholesale_price": 700,
+      "retail_price": 800,
+      "description": "Bière Heineken 33cl canette — Brasserie BRASSIVOIRE (Carton de 24 jetable)",
+      "packagings": [
+        {
+          "name": "canette",
+          "coefficient": "1",
+          "purchase_price": 600,
+          "wholesale_price": 675,
+          "semi_wholesale_price": 700,
+          "retail_price": 800,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "carton",
+          "coefficient": "24",
+          "purchase_price": 14400,
+          "wholesale_price": 16200,
+          "semi_wholesale_price": 16800,
+          "retail_price": 18500,
+          "barcode": "6181102000161-K",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-desperados-33cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Bière Desperados Original 33cl",
+      "brand": "Desperados",
+      "barcode": "6181102000178",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "24",
+      "purchase_price": 750,
+      "wholesale_price": 850,
+      "semi_wholesale_price": 900,
+      "retail_price": 1000,
+      "description": "Bière aromatisée Desperados 33cl verre perdu — Distribution BRASSIVOIRE (Carton de 24 jetable)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 750,
+          "wholesale_price": 850,
+          "semi_wholesale_price": 900,
+          "retail_price": 1000,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "carton",
+          "coefficient": "24",
+          "purchase_price": 18000,
+          "wholesale_price": 20400,
+          "semi_wholesale_price": 21600,
+          "retail_price": 23500,
+          "barcode": "6181102000178-K",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-mutzig-65cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Bière Mützig Classique 65cl",
+      "brand": "Mützig",
+      "barcode": "6181102000185",
+      "category": "Bières",
+      "base_unit": "bouteille",
+      "initial_stock": "0",
+      "min_stock": "24",
+      "purchase_price": 450,
+      "wholesale_price": 500,
+      "semi_wholesale_price": 525,
+      "retail_price": 600,
+      "description": "Bière blonde Mützig Classique 65cl verre consigné — Brasserie BRASSIVOIRE (Casier B12-60/65)",
+      "packagings": [
+        {
+          "name": "bouteille",
+          "coefficient": "1",
+          "purchase_price": 450,
+          "wholesale_price": 500,
+          "semi_wholesale_price": 525,
+          "retail_price": 600,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-BTL60", "pieces_per_pack": 1 }
+          ]
+        },
+        {
+          "name": "casier",
+          "coefficient": "12",
+          "purchase_price": 5400,
+          "wholesale_price": 6000,
+          "semi_wholesale_price": 6300,
+          "retail_price": 7000,
+          "barcode": "6181102000185-C",
+          "allow_fraction": false,
+          "deposit_mode": "deposit",
+          "components": [
+            { "returnable_code": "EMB-BRV-CAS12-60", "pieces_per_pack": 1 },
+            { "returnable_code": "EMB-BRV-BTL60", "pieces_per_pack": 12 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-maltina-33cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Maltina Classique 33cl",
+      "brand": "Maltina",
+      "barcode": "6181102000192",
+      "category": "Jus & Énergisants",
+      "base_unit": "canette",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 350,
+      "wholesale_price": 400,
+      "semi_wholesale_price": 425,
+      "retail_price": 500,
+      "description": "Boisson maltée sans alcool Maltina 33cl canette — Brasserie BRASSIVOIRE (Emballage jetable)",
+      "packagings": [
+        {
+          "name": "canette",
+          "coefficient": "1",
+          "purchase_price": 350,
+          "wholesale_price": 400,
+          "semi_wholesale_price": 425,
+          "retail_price": 500,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "pack",
+          "coefficient": "6",
+          "purchase_price": 2100,
+          "wholesale_price": 2400,
+          "semi_wholesale_price": 2550,
+          "retail_price": 2900,
+          "barcode": "6181102000192-P",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "carton",
+          "coefficient": "24",
+          "purchase_price": 8400,
+          "wholesale_price": 9600,
+          "semi_wholesale_price": 10200,
+          "retail_price": 11500,
+          "barcode": "6181102000192-K",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        }
+      ]
+    },
+    {
+      "key": "brassivoire-fayrouz-ananas-33cl",
+      "brewery": "BRASSIVOIRE",
+      "name": "Fayrouz Ananas 33cl",
+      "brand": "Fayrouz",
+      "barcode": "6181102000208",
+      "category": "Boissons gazeuses",
+      "base_unit": "canette",
+      "initial_stock": "0",
+      "min_stock": "48",
+      "purchase_price": 350,
+      "wholesale_price": 400,
+      "semi_wholesale_price": 425,
+      "retail_price": 500,
+      "description": "Boisson gazeuse au malt et ananas Fayrouz 33cl canette — Brasserie BRASSIVOIRE (Carton de 24 jetable)",
+      "packagings": [
+        {
+          "name": "canette",
+          "coefficient": "1",
+          "purchase_price": 350,
+          "wholesale_price": 400,
+          "semi_wholesale_price": 425,
+          "retail_price": 500,
+          "barcode": null,
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        },
+        {
+          "name": "carton",
+          "coefficient": "24",
+          "purchase_price": 8400,
+          "wholesale_price": 9600,
+          "semi_wholesale_price": 10200,
+          "retail_price": 11500,
+          "barcode": "6181102000208-K",
+          "allow_fraction": false,
+          "deposit_mode": "none",
+          "components": []
+        }
+      ]
+    }
+  ]
+}

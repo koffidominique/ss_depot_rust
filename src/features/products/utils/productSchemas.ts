@@ -8,6 +8,7 @@ export const productSchema = z.object({
   brand: z.string().trim(),
   barcode: z.string().trim(),
   category_id: z.number().int().min(1, 'Catégorie obligatoire.'),
+  supplier_id: z.number().int().positive().nullable(),
   base_unit: z.string().min(1),
   initial_stock: z
     .string()
@@ -22,6 +23,7 @@ export const productSchema = z.object({
   semi_wholesale_price: z.number().int().min(0, 'Montant positif ou nul requis.'),
   retail_price: z.number().int().min(0, 'Montant positif ou nul requis.'),
   image_path: z.string().nullable(),
+  is_active: z.boolean(),
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;

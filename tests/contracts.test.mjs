@@ -98,6 +98,8 @@ describe('DEPOTPRO PREMIUM V3 — Contrats Frontend / Rust / Tauri & Précision'
       '/api/dashboard',
       '/api/categories',
       '/api/products',
+      '/api/products/presets',
+      '/api/products/presets/apply',
       '/api/products/export/csv',
       '/api/products/import/csv',
       '/api/clients',
@@ -233,6 +235,8 @@ describe('DEPOTPRO PREMIUM V3 — Contrats Frontend / Rust / Tauri & Précision'
     );
     assert.ok(rustProductsSrc.includes('sanitize_image_path'));
     assert.ok(rustProductsSrc.includes('pub image_path: Option<String>'));
+    assert.ok(rustProductsSrc.includes('pub async fn list_catalog_presets'));
+    assert.ok(rustProductsSrc.includes('pub async fn apply_catalog_presets'));
     assert.ok(rustCashSrc.includes('pub receipt_path: Option<String>'));
 
     const {

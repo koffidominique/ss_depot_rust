@@ -24,6 +24,8 @@ import {
   addOrUpdatePackaging,
   exportProductsCsv,
   importProductsCsv,
+  listCatalogPresets,
+  applyCatalogPresets,
 } from './services/catalog.ts';
 import {
   listClients,
@@ -464,6 +466,14 @@ export function createApiApp() {
     withPerm('catalog:write', async (req, res) =>
       res.json(await importProductsCsv(String(req.body?.csv ?? '')))
     )
+  );
+  app.get(
+    '/api/products/presets',
+    withPerm('catalog:read', (_req, res) => res.json(listCatalogPresets()))
+  );
+  app.post(
+    '/api/products/presets/apply',
+    withPerm('catalog:write', async (req, res) => res.json(await applyCatalogPresets(req.body)))
   );
   app.post(
     '/api/products',

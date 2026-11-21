@@ -127,6 +127,18 @@ export class TauriApiClient implements ApiClient {
   importProductsCsv(csv: string) {
     return tauriInvoke<{ created: number }>('import_products_csv', { token: getStoredToken(), csv });
   }
+  listCatalogPresets() {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['listCatalogPresets']>>>(
+      'list_catalog_presets',
+      { token: getStoredToken() }
+    );
+  }
+  applyCatalogPresets(input: { keys: string[]; activate?: boolean }) {
+    return tauriInvoke<Awaited<ReturnType<ApiClient['applyCatalogPresets']>>>(
+      'apply_catalog_presets',
+      { token: getStoredToken(), payload: input }
+    );
+  }
   listClients(search?: string) {
     return tauriInvoke<Awaited<ReturnType<ApiClient['listClients']>>>('list_clients', {
       token: getStoredToken(),

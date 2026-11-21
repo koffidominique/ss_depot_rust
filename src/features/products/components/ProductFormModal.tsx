@@ -4,7 +4,7 @@ import { Image as ImageIcon, Trash2 } from 'lucide-react';
 import { ModalDialog } from '../../../components/dialogs/ModalDialog.tsx';
 import { MoneyInput } from '../../../components/common/MoneyInput.tsx';
 import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
-import type { Category, Product } from '../../../types/erp.ts';
+import type { Category, Product, Supplier } from '../../../types/erp.ts';
 import type { ProductFormValues } from '../utils/productSchemas.ts';
 
 interface ProductFormModalProps {
@@ -13,6 +13,7 @@ interface ProductFormModalProps {
   editingProduct: Product | null;
   form: UseFormReturn<ProductFormValues>;
   categories?: Category[];
+  suppliers?: Supplier[];
   error: string | null;
   isPending: boolean;
   onSubmit: (values: ProductFormValues) => void;
@@ -25,6 +26,7 @@ export function ProductFormModal({
   editingProduct,
   form,
   categories,
+  suppliers,
   error,
   isPending,
   onSubmit,
@@ -111,6 +113,35 @@ export function ProductFormModal({
                   {categories?.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="product-supplier"
+              className="block text-xs font-medium text-[#182230] dark:text-slate-200"
+            >
+              Fournisseur / Brasserie
+            </label>
+            <Controller
+              control={form.control}
+              name="supplier_id"
+              render={({ field }) => (
+                <select
+                  id="product-supplier"
+                  value={field.value ?? ''}
+                  onChange={(e) =>
+                    field.onChange(e.target.value ? Number(e.target.value) : null)
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                >
+                  <option value="">Aucun fournisseur</option>
+                  {suppliers?.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
                     </option>
                   ))}
                 </select>
@@ -213,6 +244,32 @@ export function ProductFormModal({
               />
             )}
           />
+          <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2.5">
+            <div>
+              <label
+                htmlFor="product-is-active"
+                className="text-xs font-medium text-[#182230] dark:text-slate-200"
+              >
+                Produit actif (visible au point de vente / POS)
+              </label>
+              <p className="text-[11px] text-[#667085] dark:text-slate-400">
+                Décochez pour pré-enregistrer le produit en statut archivé et l&apos;activer plus tard.
+              </p>
+            </div>
+            <Controller
+              control={form.control}
+              name="is_active"
+              render={({ field }) => (
+                <input
+                  id="product-is-active"
+                  type="checkbox"
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]"
+                />
+              )}
+            />
+          </div>
           <div className="sm:col-span-2 rounded-lg border border-slate-200 dark:border-slate-800 p-3">
             <label className="block text-xs font-medium text-[#182230] dark:text-slate-200">
               Photo produit (optionnelle, redimensionnée automatiquement)

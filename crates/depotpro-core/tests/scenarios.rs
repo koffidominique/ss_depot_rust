@@ -66,6 +66,7 @@ async fn rust_core_scenarios_a_through_l() {
             semi_wholesale_price: Some(600),
             retail_price: Some(650),
             image_path: Some("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==".to_string()),
+            is_active: None,
             packagings: Some(vec![
                 products::PackagingInput {
                     id: None,
@@ -310,6 +311,7 @@ async fn rust_core_scenarios_a_through_l() {
             semi_wholesale_price: Some(10_000),
             retail_price: Some(10_000),
             image_path: None,
+            is_active: None,
             packagings: None,
         },
     )
@@ -818,6 +820,7 @@ async fn scenario_t_company_logo_and_wave_refund() {
             semi_wholesale_price: Some(550),
             retail_price: Some(600),
             image_path: None,
+            is_active: None,
             packagings: None,
         },
     )
@@ -907,6 +910,7 @@ async fn scenario_u_cancel_po_and_overdue_kpis() {
             semi_wholesale_price: Some(550),
             retail_price: Some(600),
             image_path: None,
+            is_active: None,
             packagings: None,
         },
     )
@@ -1144,6 +1148,145 @@ async fn scenario_u_cancel_po_and_overdue_kpis() {
     .await
     .unwrap();
     assert_eq!(empty_past.total, 0);
+
+    if let Some(parent) = db_path.parent() {
+        let _ = std::fs::remove_dir_all(parent);
+    }
+}
+
+#[tokio::test]
+async fn scenario_x_brewery_presets_and_supplier_active() {
+    let (db_path, _backup_dir) = temp_paths("scen_x");
+    let db = DepotDb::connect(&db_path).await.expect("connect temp db");
+
+    // 1) Création avec is_active = false + affectation / suppression fournisseur
+    let cat = products::create_category(&db, "Bières X", None)
+        .await
+        .unwrap();
+    let sup = purchases::create_supplier(
+        &db,
+        purchases::CreateSupplierInput {
+            name: "Fournisseur Test X".to_string(),
+            company_name: None,
+            phone: "+225 07 00 00 00 01".to_string(),
+            address: None,
+            email: None,
+            contact_person: None,
+            payment_terms_days: Some(30),
+        },
+    )
+    .await
+    .unwrap();
+
+    let inactive_prod = products::create_product(
+        &db,
+        products::CreateProductInput {
+            name: "Produit Archivé X".to_string(),
+            brand: Some("TEST".to_string()),
+            barcode: None,
+            category_id: cat.id,
+            supplier_id: Some(sup.id),
+            description: None,
+            base_unit: "bouteille".to_string(),
+            initial_stock: Some("0".to_string()),
+            min_stock: Some("12".to_string()),
+            max_stock: None,
+            purchase_price: Some(400),
+            wholesale_price: Some(500),
+            semi_wholesale_price: Some(550),
+            retail_price: Some(600),
+            image_path: None,
+            is_active: Some(false),
+            packagings: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(inactive_prod.is_active, 0);
+    assert_eq!(inactive_prod.supplier_id, Some(sup.id));
+
+    let cleared_sup = products::update_product(
+        &db,
+        inactive_prod.id,
+        products::UpdateProductInput {
+            supplier_id: Some(None),
+            is_active: Some(true),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(cleared_sup.supplier_id, None);
+    assert_eq!(cleared_sup.is_active, 1);
+
+    // 2) Catalogue prédéfini SOLIBRA / BRASSIVOIRE (20 produits)
+    let list_0 = products::list_catalog_presets(&db).await.unwrap();
+    assert_eq!(list_0.items.len(), 20);
+    let solibra_keys: Vec<String> = list_0
+        .items
+        .iter()
+        .filter(|i| i.brewery == "SOLIBRA")
+        .map(|i| i.key.clone())
+        .collect();
+    let brassivoire_keys: Vec<String> = list_0
+        .items
+        .iter()
+        .filter(|i| i.brewery == "BRASSIVOIRE")
+        .map(|i| i.key.clone())
+        .collect();
+    assert_eq!(solibra_keys.len(), 10);
+    assert_eq!(brassivoire_keys.len(), 10);
+
+    // 3) Chargement en mode inactif (is_active = 0) pour SOLIBRA
+    let res_inactive = products::apply_catalog_presets(
+        &db,
+        products::ApplyCatalogPresetsInput {
+            keys: solibra_keys.clone(),
+            activate: Some(false),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(res_inactive.created, 10);
+    assert_eq!(res_inactive.reactivated, 0);
+    assert_eq!(res_inactive.skipped, 0);
+    assert!(res_inactive.products.iter().all(|p| p.is_active == 0));
+    assert!(res_inactive.products.iter().all(|p| p.stock_milli == 0));
+
+    // 4) Activation ultérieure d'un sous-ensemble SOLIBRA + ajout BRASSIVOIRE en actif
+    let mut activate_keys = solibra_keys[..2].to_vec();
+    activate_keys.extend(brassivoire_keys.clone());
+    let res_active = products::apply_catalog_presets(
+        &db,
+        products::ApplyCatalogPresetsInput {
+            keys: activate_keys.clone(),
+            activate: Some(true),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(res_active.created, 10);
+    assert_eq!(res_active.reactivated, 2);
+    assert_eq!(res_active.skipped, 0);
+
+    // 5) Réapplication idempotente
+    let res_idemp = products::apply_catalog_presets(
+        &db,
+        products::ApplyCatalogPresetsInput {
+            keys: activate_keys,
+            activate: Some(true),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(res_idemp.created, 0);
+    assert_eq!(res_idemp.reactivated, 0);
+    assert_eq!(res_idemp.skipped, 12);
+
+    // Vérifier consignes initialisées avec solde 0
+    let ov = consignments::get_overview(&db).await.unwrap();
+    assert!(!ov.returnable_types.is_empty());
+    assert!(ov.returnable_types.iter().all(|r| r.stock_quantity == 0));
 
     if let Some(parent) = db_path.parent() {
         let _ = std::fs::remove_dir_all(parent);

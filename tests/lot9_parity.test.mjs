@@ -1891,4 +1891,109 @@ describe('LOT 9 — Parité métier Node.js / Rust (22 scénarios canoniques)', 
       }
     }
   });
+
+  it('Scénario 23 — Parité Node.js / Rust : catalogue brasseries (10 SOLIBRA + 10 BRASSIVOIRE), is_active et supplier_id', async () => {
+    const createInactive = await callBoth(
+      'POST',
+      '/api/products',
+      (_e, ctx) => ({
+        name: 'Produit Inactif Parité 23',
+        brand: 'TEST',
+        category_id: ctx.category,
+        supplier_id: ctx.supplier,
+        base_unit: 'bouteille',
+        initial_stock: 0,
+        min_stock: 12,
+        purchase_price: 400,
+        wholesale_price: 500,
+        semi_wholesale_price: 550,
+        retail_price: 600,
+        is_active: false,
+      }),
+      201
+    );
+    assert.equal(createInactive.node.data.is_active, 0);
+    assert.equal(createInactive.node.data.supplier_id, ids.node.supplier);
+    ids.node.inactive23 = createInactive.node.data.id;
+    if (createInactive.rust) {
+      assert.equal(createInactive.rust.data.is_active, 0);
+      assert.equal(createInactive.rust.data.supplier_id, ids.rust.supplier);
+      ids.rust.inactive23 = createInactive.rust.data.id;
+    }
+
+    const clearedSup = await callBoth(
+      'PUT',
+      (_e, ctx) => `/api/products/${ctx.inactive23}`,
+      { supplier_id: null, is_active: true },
+      200
+    );
+    assert.equal(clearedSup.node.data.supplier_id, null);
+    assert.equal(clearedSup.node.data.is_active, 1);
+    if (clearedSup.rust) {
+      assert.equal(clearedSup.rust.data.supplier_id, null);
+      assert.equal(clearedSup.rust.data.is_active, 1);
+    }
+
+    const presets0 = await callBoth('GET', '/api/products/presets', undefined, 200);
+    assert.equal(presets0.node.data.items.length, 20);
+    if (presets0.rust) {
+      assert.deepEqual(presets0.rust.data, presets0.node.data);
+    }
+
+    const solKeys = presets0.node.data.items
+      .filter((i) => i.brewery === 'SOLIBRA')
+      .map((i) => i.key);
+    const brvKeys = presets0.node.data.items
+      .filter((i) => i.brewery === 'BRASSIVOIRE')
+      .map((i) => i.key);
+    assert.equal(solKeys.length, 10);
+    assert.equal(brvKeys.length, 10);
+
+    const applySolInactive = await callBoth(
+      'POST',
+      '/api/products/presets/apply',
+      { keys: solKeys, activate: false },
+      200
+    );
+    assert.equal(applySolInactive.node.data.created, 10);
+    assert.equal(applySolInactive.node.data.reactivated, 0);
+    assert.equal(applySolInactive.node.data.skipped, 0);
+    assert.ok(applySolInactive.node.data.products.every((p) => p.is_active === 0));
+    if (applySolInactive.rust) {
+      assert.equal(applySolInactive.rust.data.created, 10);
+      assert.equal(applySolInactive.rust.data.reactivated, 0);
+      assert.equal(applySolInactive.rust.data.skipped, 0);
+      assert.ok(applySolInactive.rust.data.products.every((p) => p.is_active === 0));
+    }
+
+    const applyMixActive = await callBoth(
+      'POST',
+      '/api/products/presets/apply',
+      { keys: [solKeys[0], solKeys[1], ...brvKeys], activate: true },
+      200
+    );
+    assert.equal(applyMixActive.node.data.created, 10);
+    assert.equal(applyMixActive.node.data.reactivated, 2);
+    assert.equal(applyMixActive.node.data.skipped, 0);
+    if (applyMixActive.rust) {
+      assert.equal(applyMixActive.rust.data.created, 10);
+      assert.equal(applyMixActive.rust.data.reactivated, 2);
+      assert.equal(applyMixActive.rust.data.skipped, 0);
+    }
+
+    const applyIdemp = await callBoth(
+      'POST',
+      '/api/products/presets/apply',
+      { keys: [solKeys[0], solKeys[1], ...brvKeys], activate: true },
+      200
+    );
+    assert.equal(applyIdemp.node.data.created, 0);
+    assert.equal(applyIdemp.node.data.reactivated, 0);
+    assert.equal(applyIdemp.node.data.skipped, 12);
+    if (applyIdemp.rust) {
+      assert.equal(applyIdemp.rust.data.created, 0);
+      assert.equal(applyIdemp.rust.data.reactivated, 0);
+      assert.equal(applyIdemp.rust.data.skipped, 12);
+    }
+  });
 });

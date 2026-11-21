@@ -262,8 +262,19 @@ export const BUSINESS_TIPS_TOPICS: TipTopic[] = [
         role: 'Permet de sauvegarder ou d’importer rapidement un catalogue séparé par points-virgules (;).',
         whenToUse: 'Lors de la mise en place initiale ou d’une mise à jour en masse.',
       },
+      {
+        name: 'Catalogue brasseries (SOLIBRA & BRASSIVOIRE)',
+        role: 'Charge à la demande jusqu’à 20 références standards ivoiriennes avec conditionnements, consignes et prix FCFA indicatifs.',
+        whenToUse: 'Pour démarrer ou compléter le catalogue en activant produit par produit, par brasserie ou en mode archivé.',
+      },
     ],
     fields: [
+      {
+        formName: 'Nouveau produit',
+        field: 'Fournisseur / Brasserie & Produit actif',
+        meaning: 'Lie le produit à son fournisseur habituel (ex : SOLIBRA, BRASSIVOIRE) et contrôle sa visibilité au POS.',
+        rule: 'Décochez « Produit actif » pour pré-enregistrer des fiches en archivé avant leur mise en vente.',
+      },
       {
         formName: 'Nouveau produit',
         field: 'Unité de base & Stock initial',

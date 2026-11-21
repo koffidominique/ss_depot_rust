@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { getDb, withWriteTx, nextSequence, auditLog } from '../db.ts';
 import { requireCurrentActorPermission } from './auth.ts';
@@ -202,6 +203,7 @@ export interface CreateProductInput {
   semi_wholesale_price?: number | null;
   retail_price?: number | null;
   image_path?: string | null;
+  is_active?: boolean;
   packagings?: Array<{
     name: 'casier' | 'carton' | 'bouteille' | 'pack' | 'canette';
     coefficient: string | number;
@@ -284,11 +286,12 @@ export async function createProduct(input: CreateProductInput) {
     const reference = nextSequence(db, 'PROD');
     const avgNum = purchasePrice !== null ? String(purchasePrice) : null;
     const avgDen = purchasePrice !== null ? '1' : null;
+    const isActive = input.is_active === undefined ? 1 : input.is_active ? 1 : 0;
 
     const prodRes = db
       .prepare(
-        `INSERT INTO products (reference, barcode, name, brand, category_id, supplier_id, description, base_unit, stock_milli, min_stock_milli, max_stock_milli, average_cost_num, average_cost_den, purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO products (reference, barcode, name, brand, category_id, supplier_id, description, base_unit, stock_milli, min_stock_milli, max_stock_milli, average_cost_num, average_cost_den, purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         reference,
@@ -308,7 +311,8 @@ export async function createProduct(input: CreateProductInput) {
         wholesalePrice,
         semiPrice,
         retailPrice,
-        imagePath
+        imagePath,
+        isActive
       );
 
     const productId = Number(prodRes.lastInsertRowid);
@@ -810,4 +814,338 @@ export async function importProductsCsv(csvContent: string) {
     auditLog(db, 'IMPORT_CSV', 'products', null, `${created} produit(s) importé(s) via CSV`);
   });
   return { created };
+}
+
+interface PresetBreweryMeta {
+  brewery: 'SOLIBRA' | 'BRASSIVOIRE';
+  name: string;
+  company_name: string;
+  phone: string;
+  address: string;
+  payment_terms_days: number;
+}
+
+interface PresetReturnableMeta {
+  code: string;
+  name: string;
+  producer: string;
+  kind: 'crate' | 'bottle' | 'palette' | 'other';
+  description?: string | null;
+  deposit_value: number;
+}
+
+interface PresetPackagingRaw {
+  name: 'casier' | 'carton' | 'bouteille' | 'pack' | 'canette';
+  coefficient: string;
+  purchase_price: number;
+  wholesale_price: number;
+  semi_wholesale_price: number;
+  retail_price: number;
+  barcode?: string | null;
+  allow_fraction: boolean;
+  deposit_mode: 'none' | 'deposit';
+  components?: Array<{ returnable_code: string; pieces_per_pack: number }>;
+}
+
+interface PresetProductRaw {
+  key: string;
+  brewery: 'SOLIBRA' | 'BRASSIVOIRE';
+  name: string;
+  brand: string;
+  barcode: string;
+  category: string;
+  base_unit: string;
+  initial_stock: string;
+  min_stock: string;
+  purchase_price: number;
+  wholesale_price: number;
+  semi_wholesale_price: number;
+  retail_price: number;
+  description: string;
+  packagings: PresetPackagingRaw[];
+}
+
+interface BreweryCatalogFile {
+  breweries: PresetBreweryMeta[];
+  returnables: PresetReturnableMeta[];
+  products: PresetProductRaw[];
+}
+
+let cachedCatalog: BreweryCatalogFile | null = null;
+function loadBreweryCatalog(): BreweryCatalogFile {
+  if (!cachedCatalog) {
+    const raw = fs.readFileSync(new URL('../../catalog/brewery_catalog.json', import.meta.url), 'utf8');
+    cachedCatalog = JSON.parse(raw) as BreweryCatalogFile;
+  }
+  return cachedCatalog;
+}
+
+export function listCatalogPresets() {
+  requireCurrentActorPermission('catalog:read');
+  const db = getDb();
+  const catalog = loadBreweryCatalog();
+  const retNames = new Map(catalog.returnables.map((r) => [r.code, r.name]));
+  const matchStmt = db.prepare(
+    'SELECT id, reference, is_active FROM products WHERE barcode = ? OR lower(name) = lower(?) LIMIT 1'
+  );
+
+  const items = catalog.products.map((p) => {
+    const existing = matchStmt.get(p.barcode, p.name) as
+      | { id: number; reference: string; is_active: number }
+      | undefined;
+
+    return {
+      ...p,
+      packagings: p.packagings.map((pk) => ({
+        ...pk,
+        barcode: pk.barcode ?? null,
+        components: (pk.components ?? []).map((c) => ({
+          returnable_code: c.returnable_code,
+          returnable_name: retNames.get(c.returnable_code) ?? c.returnable_code,
+          pieces_per_pack: c.pieces_per_pack,
+        })),
+      })),
+      existing_product_id: existing ? Number(existing.id) : null,
+      existing_reference: existing ? String(existing.reference) : null,
+      existing_is_active: existing ? Number(existing.is_active) : null,
+    };
+  });
+
+  return { items };
+}
+
+export async function applyCatalogPresets(input: { keys: string[]; activate?: boolean }) {
+  requireCurrentActorPermission('catalog:write');
+  const catalog = loadBreweryCatalog();
+  const presetMap = new Map(catalog.products.map((p) => [p.key, p]));
+  const breweryMap = new Map(catalog.breweries.map((b) => [b.brewery, b]));
+  const returnableMap = new Map(catalog.returnables.map((r) => [r.code, r]));
+
+  const dedupKeys: string[] = [];
+  const seenKeys = new Set<string>();
+  for (const rawKey of Array.isArray(input?.keys) ? input.keys : []) {
+    const trimmed = String(rawKey || '').trim();
+    if (!trimmed) continue;
+    if (!presetMap.has(trimmed)) {
+      throw new BusinessError('VALIDATION_ERROR', `Produit prédéfini introuvable : ${trimmed}`);
+    }
+    if (!seenKeys.has(trimmed)) {
+      seenKeys.add(trimmed);
+      dedupKeys.push(trimmed);
+    }
+  }
+  if (dedupKeys.length === 0) {
+    throw new BusinessError('VALIDATION_ERROR', 'Sélectionnez au moins un produit du catalogue prédéfini.');
+  }
+
+  const activate = input.activate !== false && Number(input.activate as unknown) !== 0;
+
+  return withWriteTx((db) => {
+    let created = 0;
+    let reactivated = 0;
+    let skipped = 0;
+    const affectedIds: number[] = [];
+
+    for (const key of dedupKeys) {
+      const preset = presetMap.get(key)!;
+      const existing = db
+        .prepare('SELECT id, reference, is_active FROM products WHERE barcode = ? OR lower(name) = lower(?) LIMIT 1')
+        .get(preset.barcode, preset.name) as
+        | { id: number; reference: string; is_active: number }
+        | undefined;
+
+      if (existing) {
+        if (activate && Number(existing.is_active) === 0) {
+          db.prepare('UPDATE products SET is_active = 1 WHERE id = ?').run(existing.id);
+          reactivated++;
+          affectedIds.push(Number(existing.id));
+        } else {
+          skipped++;
+        }
+        continue;
+      }
+
+      const supPattern = `%${preset.brewery.toUpperCase()}%`;
+      const existingSup = db
+        .prepare(
+          "SELECT id FROM suppliers WHERE upper(name) LIKE ? OR upper(COALESCE(company_name, '')) LIKE ? ORDER BY id ASC LIMIT 1"
+        )
+        .get(supPattern, supPattern) as { id: number } | undefined;
+
+      let supplierId: number;
+      if (existingSup) {
+        supplierId = Number(existingSup.id);
+      } else {
+        const meta = breweryMap.get(preset.brewery);
+        if (!meta) {
+          throw new BusinessError('INTERNAL_ERROR', `Métadonnées brasserie introuvables : ${preset.brewery}`);
+        }
+        const supCode = nextSequence(db, 'FRN');
+        const supRes = db
+          .prepare(
+            'INSERT INTO suppliers (code, name, company_name, phone, address, payment_terms_days) VALUES (?, ?, ?, ?, ?, ?)'
+          )
+          .run(supCode, meta.name, meta.company_name, meta.phone, meta.address, meta.payment_terms_days);
+        supplierId = Number(supRes.lastInsertRowid);
+      }
+
+      const existingCat = db
+        .prepare('SELECT id FROM categories WHERE lower(name) = lower(?)')
+        .get(preset.category) as { id: number } | undefined;
+      const categoryId = existingCat
+        ? Number(existingCat.id)
+        : Number(db.prepare('INSERT INTO categories (name) VALUES (?)').run(preset.category).lastInsertRowid);
+
+      const dupPkgBc = db
+        .prepare('SELECT id FROM product_packagings WHERE barcode = ? LIMIT 1')
+        .get(preset.barcode);
+      if (dupPkgBc) {
+        throw new BusinessError(
+          'DUPLICATE_OPERATION',
+          `Code-barres déjà utilisé sur un conditionnement : ${preset.barcode}`
+        );
+      }
+
+      const initialStockMilli = nonNegativeMilli(preset.initial_stock, 'Stock initial');
+      const minStockMilli = nonNegativeMilli(preset.min_stock, 'Stock minimum');
+      const purchasePrice = nonNegativeFcfa(preset.purchase_price, "Prix d'achat");
+      const wholesalePrice = nonNegativeFcfa(preset.wholesale_price, 'Prix gros');
+      const semiPrice = nonNegativeFcfa(preset.semi_wholesale_price, 'Prix demi-gros');
+      const retailPrice = nonNegativeFcfa(preset.retail_price, 'Prix détail');
+      const isActive = activate ? 1 : 0;
+
+      const reference = nextSequence(db, 'PROD');
+      const prodRes = db
+        .prepare(
+          `INSERT INTO products (reference, barcode, name, brand, category_id, supplier_id, description, base_unit,
+                                 stock_milli, min_stock_milli, max_stock_milli, average_cost_num, average_cost_den,
+                                 purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, '1', ?, ?, ?, ?, NULL, ?)`
+        )
+        .run(
+          reference,
+          preset.barcode,
+          preset.name,
+          preset.brand,
+          categoryId,
+          supplierId,
+          preset.description,
+          preset.base_unit,
+          initialStockMilli,
+          minStockMilli,
+          String(purchasePrice),
+          purchasePrice,
+          wholesalePrice,
+          semiPrice,
+          retailPrice,
+          isActive
+        );
+      const productId = Number(prodRes.lastInsertRowid);
+
+      for (const pk of preset.packagings) {
+        if (!ALLOWED_PACKAGING_NAMES.has(pk.name)) {
+          throw new BusinessError('INVALID_PACKAGING', `Conditionnement non autorisé : ${pk.name}`);
+        }
+        const coeffMilli = positiveMilli(pk.coefficient, `Coefficient (${pk.name})`);
+        const pkgBc = pk.barcode?.trim() || null;
+        if (pkgBc) {
+          const dup = db
+            .prepare(
+              'SELECT id FROM products WHERE barcode = ? UNION SELECT id FROM product_packagings WHERE barcode = ?'
+            )
+            .get(pkgBc, pkgBc);
+          if (dup) {
+            throw new BusinessError('DUPLICATE_OPERATION', `Code-barres déjà utilisé : ${pkgBc}`);
+          }
+        }
+
+        const pkgRes = db
+          .prepare(
+            `INSERT INTO product_packagings (product_id, name, base_unit, coefficient_milli, purchase_price, wholesale_price, semi_wholesale_price, retail_price, barcode, allow_fraction)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            productId,
+            pk.name,
+            preset.base_unit,
+            coeffMilli,
+            pk.purchase_price,
+            pk.wholesale_price,
+            pk.semi_wholesale_price,
+            pk.retail_price,
+            pkgBc,
+            pk.allow_fraction ? 1 : 0
+          );
+        const pkgId = Number(pkgRes.lastInsertRowid);
+        const mode = pk.deposit_mode === 'deposit' ? 'deposit' : 'none';
+        db.prepare('INSERT INTO deposit_packaging_profiles (packaging_id, mode) VALUES (?, ?)').run(
+          pkgId,
+          mode
+        );
+
+        if (mode === 'deposit' && pk.components?.length) {
+          for (const comp of pk.components) {
+            const existingRt = db
+              .prepare('SELECT id FROM returnable_packaging_types WHERE code = ?')
+              .get(comp.returnable_code) as { id: number } | undefined;
+
+            let rtId: number;
+            if (existingRt) {
+              rtId = Number(existingRt.id);
+            } else {
+              const rmeta = returnableMap.get(comp.returnable_code);
+              if (!rmeta) {
+                throw new BusinessError(
+                  'INTERNAL_ERROR',
+                  `Emballage consigné prédéfini introuvable : ${comp.returnable_code}`
+                );
+              }
+              const newRtRes = db
+                .prepare(
+                  `INSERT INTO returnable_packaging_types (code, name, producer, kind, description, deposit_value)
+                   VALUES (?, ?, ?, ?, ?, ?)`
+                )
+                .run(
+                  rmeta.code,
+                  rmeta.name,
+                  rmeta.producer,
+                  rmeta.kind,
+                  rmeta.description ?? null,
+                  rmeta.deposit_value
+                );
+              rtId = Number(newRtRes.lastInsertRowid);
+              db.prepare(
+                'INSERT INTO returnable_stock_balances (packaging_id, quantity) VALUES (?, 0)'
+              ).run(rtId);
+            }
+
+            db.prepare(
+              'INSERT INTO deposit_packaging_components (packaging_id, returnable_id, pieces_per_pack) VALUES (?, ?, ?)'
+            ).run(pkgId, rtId, comp.pieces_per_pack);
+          }
+        }
+      }
+
+      created++;
+      affectedIds.push(productId);
+    }
+
+    if (created > 0 || reactivated > 0) {
+      auditLog(
+        db,
+        'APPLY_CATALOG_PRESETS',
+        'products',
+        null,
+        `Catalogue brasseries : ${created} créé(s), ${reactivated} réactivé(s), ${skipped} ignoré(s) (actif=${activate})`
+      );
+    }
+
+    return {
+      created,
+      reactivated,
+      skipped,
+      activate,
+      products: affectedIds.map((pid) => getProductById(db, pid)),
+    };
+  });
 }

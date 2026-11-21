@@ -163,6 +163,18 @@ export class HttpApiClient implements ApiClient {
       body: JSON.stringify({ csv }),
     });
   }
+  listCatalogPresets() {
+    return request<Awaited<ReturnType<ApiClient['listCatalogPresets']>>>('/api/products/presets');
+  }
+  applyCatalogPresets(input: { keys: string[]; activate?: boolean }) {
+    return request<Awaited<ReturnType<ApiClient['applyCatalogPresets']>>>(
+      '/api/products/presets/apply',
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }
+    );
+  }
 
   listClients(search?: string) {
     return request<Awaited<ReturnType<ApiClient['listClients']>>>(`/api/clients${qs({ search })}`);

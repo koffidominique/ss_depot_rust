@@ -1,10 +1,12 @@
 import type {
   AppSettings,
+  ApplyCatalogPresetsResult,
   AuthStatus,
   BackupFile,
   BackupRestoreResult,
   BackupVerifyResult,
   CashStatus,
+  CatalogPresetList,
   Category,
   Client,
   CreditPolicy,
@@ -91,6 +93,11 @@ export interface ApiClient {
   upsertPackaging(productId: number, pkg: Record<string, unknown>): Promise<unknown>;
   exportProductsCsv(): Promise<string>;
   importProductsCsv(csv: string): Promise<{ created: number }>;
+  listCatalogPresets(): Promise<CatalogPresetList>;
+  applyCatalogPresets(input: {
+    keys: string[];
+    activate?: boolean;
+  }): Promise<ApplyCatalogPresetsResult>;
 
   // Clients & Sales
   listClients(search?: string): Promise<Client[]>;

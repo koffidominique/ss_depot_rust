@@ -63,6 +63,7 @@ async fn setup_fixture(tag: &str) -> (PathBuf, DepotDb, i64, i64, i64, i64) {
             semi_wholesale_price: Some(350),
             retail_price: Some(400),
             image_path: None,
+            is_active: None,
             packagings: Some(vec![products::PackagingInput {
                 id: None,
                 name: "bouteille".to_string(),

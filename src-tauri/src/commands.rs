@@ -278,6 +278,33 @@ pub async fn import_products_csv(
 }
 
 #[tauri::command]
+pub async fn list_catalog_presets(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogRead).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(actor, products::list_catalog_presets(&db))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn apply_catalog_presets(
+    state: State<'_, DesktopState>,
+    token: String,
+    payload: products::ApplyCatalogPresetsInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(actor, products::apply_catalog_presets(&db, payload))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn list_clients(
     state: State<'_, DesktopState>,
     token: String,
