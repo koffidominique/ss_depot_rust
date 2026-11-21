@@ -49,7 +49,9 @@ pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetai
     .await?;
 
     let lines = sqlx::query_as::<_, SaleLineDto>(
-        "SELECT sl.id, sl.sale_id, sl.product_id, sl.packaging_id, sl.product_name, sl.packaging_name,
+        "SELECT sl.id, sl.sale_id, sl.product_id, sl.packaging_id,
+                sl.variant_id, sl.sales_unit_id, sl.sales_unit_label,
+                sl.product_name, sl.packaging_name,
                 sl.base_unit, sl.coefficient_milli, sl.quantity_milli, sl.base_quantity_milli,
                 sl.unit_price, sl.discount_amount, sl.line_total,
                 COALESCE((SELECT SUM(srl.base_quantity_milli) FROM sales_return_lines srl WHERE srl.sale_line_id = sl.id), 0) AS returned_base_milli

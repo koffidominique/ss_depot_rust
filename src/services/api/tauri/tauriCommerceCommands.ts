@@ -74,58 +74,7 @@ export const tauriAuthApi = {
     ),
 };
 
-export const tauriCatalogApi = {
-  listCategories: () =>
-    tauriInvoke<Awaited<ReturnType<ApiClient["listCategories"]>>>(
-      "list_categories",
-      { token: getStoredTauriToken() },
-    ),
-  createCategory: (name: string, description?: string) =>
-    tauriInvoke<Awaited<ReturnType<ApiClient["createCategory"]>>>(
-      "create_category",
-      { token: getStoredTauriToken(), name, description },
-    ),
-  listProducts: (
-    params: Parameters<ApiClient["listProducts"]>[0] = {},
-  ) =>
-    tauriInvoke<Awaited<ReturnType<ApiClient["listProducts"]>>>(
-      "list_products",
-      {
-        token: getStoredTauriToken(),
-        search: params.search,
-        categoryId: params.categoryId,
-        includeArchived: params.includeArchived,
-        lowStockOnly: params.lowStockOnly,
-        page: params.page,
-        pageSize: params.pageSize,
-      },
-    ),
-  createProduct: (input: Record<string, unknown>) =>
-    tauriInvoke<Awaited<ReturnType<ApiClient["createProduct"]>>>(
-      "create_product",
-      { token: getStoredTauriToken(), payload: input },
-    ),
-  updateProduct: (id: number, input: Record<string, unknown>) =>
-    tauriInvoke<Awaited<ReturnType<ApiClient["updateProduct"]>>>(
-      "update_product",
-      { token: getStoredTauriToken(), id, payload: input },
-    ),
-  upsertPackaging: (productId: number, pkg: Record<string, unknown>) =>
-    tauriInvoke("upsert_packaging", {
-      token: getStoredTauriToken(),
-      productId,
-      pkg,
-    }),
-  exportProductsCsv: () =>
-    tauriInvoke<string>("export_products_csv", {
-      token: getStoredTauriToken(),
-    }),
-  importProductsCsv: (csv: string) =>
-    tauriInvoke<{ created: number }>("import_products_csv", {
-      token: getStoredTauriToken(),
-      csv,
-    }),
-};
+export { tauriCatalogApi } from "./tauriCatalogApi.ts";
 
 export const tauriSalesApi = {
   listClients: (search?: string) =>

@@ -83,6 +83,16 @@ pub struct CreateSaleLineInput {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CreateSaleLineV4Input {
+    pub product_id: i64,
+    pub packaging_id: i64,
+    pub sales_unit_id: Option<i64>,
+    #[serde(deserialize_with = "deserialize_qty_str")]
+    pub quantity: String,
+    pub discount_amount: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct PaymentPartInput {
     pub method_code: String,
     pub amount: i64,
@@ -97,6 +107,19 @@ pub struct CreateSaleInput {
     pub discount_amount: Option<i64>,
     pub notes: Option<String>,
     pub lines: Vec<CreateSaleLineInput>,
+    pub payments: Vec<PaymentPartInput>,
+    pub due_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSaleV4Input {
+    pub request_key: String,
+    pub client_id: Option<i64>,
+    pub sale_type: String,
+    pub price_tier: String,
+    pub discount_amount: Option<i64>,
+    pub notes: Option<String>,
+    pub lines: Vec<CreateSaleLineV4Input>,
     pub payments: Vec<PaymentPartInput>,
     pub due_date: Option<String>,
 }
@@ -130,6 +153,9 @@ pub struct SaleLineDto {
     pub sale_id: i64,
     pub product_id: i64,
     pub packaging_id: i64,
+    pub variant_id: Option<i64>,
+    pub sales_unit_id: Option<i64>,
+    pub sales_unit_label: Option<String>,
     pub product_name: String,
     pub packaging_name: String,
     pub base_unit: String,

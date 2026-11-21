@@ -36,10 +36,26 @@ export class HttpApiClient implements ApiClient {
   /* --- Catégories & Produits --- */
   listCategories = httpCatalogApi.listCategories;
   createCategory = httpCatalogApi.createCategory;
+  updateCategory = httpCatalogApi.updateCategory;
   listProducts = httpCatalogApi.listProducts;
   createProduct = httpCatalogApi.createProduct;
   updateProduct = httpCatalogApi.updateProduct;
+  deleteProduct = httpCatalogApi.deleteProduct;
   upsertPackaging = httpCatalogApi.upsertPackaging;
+  listBreweries = httpCatalogApi.listBreweries;
+  createBrewery = httpCatalogApi.createBrewery;
+  listBrandsV4 = httpCatalogApi.listBrandsV4;
+  createBrandV4 = httpCatalogApi.createBrandV4;
+  listContainerTypesV4 = httpCatalogApi.listContainerTypesV4;
+  listPackagingTypesV4 = httpCatalogApi.listPackagingTypesV4;
+  listStockLocationsV4 = httpCatalogApi.listStockLocationsV4;
+  listSalesUnits = httpCatalogApi.listSalesUnits;
+  createSalesUnit = httpCatalogApi.createSalesUnit;
+  updateSalesUnit = httpCatalogApi.updateSalesUnit;
+  deleteSalesUnit = httpCatalogApi.deleteSalesUnit;
+  listProductSuppliers = httpCatalogApi.listProductSuppliers;
+  upsertProductSupplier = httpCatalogApi.upsertProductSupplier;
+  listDepositRules = httpCatalogApi.listDepositRules;
   exportProductsCsv = httpCatalogApi.exportProductsCsv;
   importProductsCsv = httpCatalogApi.importProductsCsv;
 

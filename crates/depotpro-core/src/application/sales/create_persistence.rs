@@ -29,12 +29,15 @@ pub(crate) async fn persist_sale_lines_and_deposits_tx(
 ) -> CoreResult<()> {
     for line in lines {
         let line_id = sqlx::query(
-            "INSERT INTO sale_lines (sale_id, product_id, packaging_id, product_name, packaging_name, base_unit, coefficient_milli, quantity_milli, base_quantity_milli, unit_price, discount_amount, line_total, cost_num, cost_den)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO sale_lines (sale_id, product_id, packaging_id, variant_id, sales_unit_id, sales_unit_label, product_name, packaging_name, base_unit, coefficient_milli, quantity_milli, base_quantity_milli, unit_price, discount_amount, line_total, cost_num, cost_den)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(ctx.sale_id)
         .bind(line.product_id)
         .bind(line.packaging_id)
+        .bind(line.variant_id)
+        .bind(line.sales_unit_id)
+        .bind(&line.sales_unit_label)
         .bind(&line.product_name)
         .bind(&line.packaging_name)
         .bind(&line.base_unit)
@@ -63,15 +66,25 @@ pub(crate) async fn persist_sale_lines_and_deposits_tx(
             .execute(&mut **tx)
             .await?;
 
+        crate::application::inventory::sync_stock_balance_tx(tx, line.product_id, next_stock)
+            .await?;
+
         sqlx::query(
-            "INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
-             VALUES (?, 'sale_out', ?, ?, ?, ?, ?)",
+            "INSERT INTO stock_movements (product_id, variant_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
+             VALUES (?, ?, 'sale_out', ?, ?, ?, ?, ?)",
         )
         .bind(line.product_id)
+        .bind(line.variant_id)
         .bind(-line.base_qty_milli)
         .bind(cur_stock)
         .bind(next_stock)
-        .bind(format!("Vente {} ({})", ctx.sale_ref, line.packaging_name))
+        .bind(format!(
+            "Vente {} ({})",
+            ctx.sale_ref,
+            line.sales_unit_label
+                .as_deref()
+                .unwrap_or(&line.packaging_name)
+        ))
         .bind(ctx.sale_ref)
         .execute(&mut **tx)
         .await?;

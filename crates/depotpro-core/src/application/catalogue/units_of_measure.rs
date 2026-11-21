@@ -26,20 +26,22 @@ pub async fn list_unit_of_measure(
     let has_search = !search.trim().is_empty();
 
     let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM units_of_measure WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?)",
+        "SELECT COUNT(*) FROM units_of_measure WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ? OR symbol LIKE ?)",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
     .bind(if has_search { 1_i64 } else { 0_i64 })
+    .bind(&pattern)
     .bind(&pattern)
     .bind(&pattern)
     .fetch_one(&db.pool)
     .await?;
 
     let rows = sqlx::query_as::<_, UnitOfMeasureDto>(
-        "SELECT * FROM units_of_measure WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?) ORDER BY code ASC LIMIT ? OFFSET ?",
+        "SELECT * FROM units_of_measure WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ? OR symbol LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
     .bind(if has_search { 1_i64 } else { 0_i64 })
+    .bind(&pattern)
     .bind(&pattern)
     .bind(&pattern)
     .bind(ps)
@@ -74,14 +76,15 @@ pub async fn create_unit_of_measure(
     let (_guard, mut tx) = db.begin_write().await?;
     check_duplicate(&mut tx, "units_of_measure", "code", &clean_code, None).await?;
     let id = sqlx::query(
-        "INSERT INTO units_of_measure (code, name, symbol, base_unit_id, conversion_factor, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO units_of_measure (code, name, symbol, base_unit_id, conversion_factor_num, conversion_factor_den, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&clean_code)
-    .bind(&clean_name)
-    .bind(&clean_symbol)
+    .bind(clean_name)
+    .bind(clean_symbol)
     .bind(input.base_unit_id)
-    .bind(input.conversion_factor)
+    .bind(input.conversion_factor_num.unwrap_or(1).max(1))
+    .bind(input.conversion_factor_den.unwrap_or(1).max(1))
     .bind(if input.is_active.unwrap_or(true) { 1_i64 } else { 0_i64 })
     .execute(&mut *tx)
     .await?
@@ -103,72 +106,63 @@ pub async fn update_unit_of_measure(
 ) -> CoreResult<UnitOfMeasureDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<UnitOfMeasureDto> =
+        sqlx::query_as("SELECT * FROM units_of_measure WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let existing = existing.ok_or_else(|| CoreError::NotFound("Unité introuvable.".into()))?;
 
-    let mut updates = Vec::new();
-    let mut binds: Vec<String> = Vec::new();
-
-    if let Some(code) = &input.code {
-        let clean = code.trim().to_uppercase();
-        if clean.is_empty() {
-            return Err(CoreError::Validation(
-                "Le code ne peut pas être vide.".to_string(),
-            ));
+    let code = match input.code {
+        Some(c) => {
+            let clean = c.trim().to_uppercase();
+            if clean.is_empty() {
+                return Err(CoreError::Validation("Le code est obligatoire.".into()));
+            }
+            check_duplicate(&mut tx, "units_of_measure", "code", &clean, Some(id)).await?;
+            clean
         }
-        check_duplicate(&mut tx, "units_of_measure", "code", &clean, Some(id)).await?;
-        updates.push("code = ?".to_string());
-        binds.push(clean);
-    }
-    if let Some(name) = &input.name {
-        let clean = name.trim();
-        if clean.is_empty() {
-            return Err(CoreError::Validation(
-                "Le nom ne peut pas être vide.".to_string(),
-            ));
-        }
-        updates.push("name = ?".to_string());
-        binds.push(clean.to_string());
-    }
-    if let Some(sym) = &input.symbol {
-        let clean = sym.trim();
-        if clean.is_empty() {
-            return Err(CoreError::Validation(
-                "Le symbole ne peut pas être vide.".to_string(),
-            ));
-        }
-        updates.push("symbol = ?".to_string());
-        binds.push(clean.to_string());
-    }
-    if let Some(ref b) = input.base_unit_id {
-        updates.push("base_unit_id = ?".to_string());
-        binds.push(b.map(|v| v.to_string()).unwrap_or_default());
-    }
-    if let Some(ref c) = input.conversion_factor {
-        updates.push("conversion_factor = ?".to_string());
-        binds.push(c.map(|v| v.to_string()).unwrap_or_default());
-    }
-    if let Some(active) = input.is_active {
-        updates.push("is_active = ?".to_string());
-        binds.push(if active { "1" } else { "0" }.to_string());
-    }
+        None => existing.code,
+    };
+    let name = input
+        .name
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(existing.name);
+    let symbol = input
+        .symbol
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(existing.symbol);
+    let base_unit_id = input.base_unit_id.unwrap_or(existing.base_unit_id);
+    let num = input
+        .conversion_factor_num
+        .unwrap_or(existing.conversion_factor_num)
+        .max(1);
+    let den = input
+        .conversion_factor_den
+        .unwrap_or(existing.conversion_factor_den)
+        .max(1);
+    let is_active = input
+        .is_active
+        .map(|b| if b { 1 } else { 0 })
+        .unwrap_or(existing.is_active);
 
-    updates.push("updated_at = datetime('now')".to_string());
-
-    if updates.is_empty() {
-        return Err(CoreError::Validation(
-            "Aucun champ à mettre à jour.".to_string(),
-        ));
-    }
-
-    let sql = format!(
-        "UPDATE units_of_measure SET {} WHERE id = ?",
-        updates.join(", ")
-    );
-    let mut q = sqlx::query(&sql);
-    for b in binds {
-        q = q.bind(b);
-    }
-    q = q.bind(id);
-    q.execute(&mut *tx).await?;
+    sqlx::query(
+        "UPDATE units_of_measure
+         SET code = ?, name = ?, symbol = ?, base_unit_id = ?, conversion_factor_num = ?, conversion_factor_den = ?, is_active = ?
+         WHERE id = ?",
+    )
+    .bind(&code)
+    .bind(&name)
+    .bind(&symbol)
+    .bind(base_unit_id)
+    .bind(num)
+    .bind(den)
+    .bind(is_active)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     let updated =
@@ -187,9 +181,7 @@ pub async fn delete_unit_of_measure(db: &DepotDb, id: i64) -> CoreResult<()> {
         .execute(&mut *tx)
         .await?;
     if result.rows_affected() == 0 {
-        return Err(CoreError::NotFound(
-            "Unité de mesure introuvable.".to_string(),
-        ));
+        return Err(CoreError::NotFound("Unité introuvable.".to_string()));
     }
     tx.commit().await?;
     Ok(())

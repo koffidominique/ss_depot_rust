@@ -194,12 +194,6 @@ export function computeLineDepositFcfa(params: {
     return { ok: true, amount: lineDepositBig };
   }
 
-  if (qtyMilli % 1000n !== 0n) {
-    return {
-      ok: false,
-      error: `Les emballages consignés exigent des quantités entières pour "${label}".`,
-    };
-  }
   const parsedDepPerPack = toNonNegativeIntFcfaBigInt(
     depositPerPack,
     `Consigne unitaire (${label})`
@@ -207,12 +201,15 @@ export function computeLineDepositFcfa(params: {
   if (!parsedDepPerPack.ok) {
     return { ok: false, error: parsedDepPerPack.error };
   }
-  const packs = qtyMilli / 1000n;
-  lineDepositBig = packs * parsedDepPerPack.fcfa;
-  if (lineDepositBig > MAX_SAFE_BIG) {
-    return { ok: false, error: `Montant de consigne hors limites pour "${label}".` };
+  const depComputed = computeExactLineGrossFcfa(
+    qtyMilli,
+    parsedDepPerPack.fcfa,
+    `Consigne (${label})`
+  );
+  if (!depComputed.ok) {
+    return { ok: false, error: depComputed.error };
   }
-  return { ok: true, amount: lineDepositBig };
+  return { ok: true, amount: depComputed.amount };
 }
 
 export function consolidateSharedDeposits(

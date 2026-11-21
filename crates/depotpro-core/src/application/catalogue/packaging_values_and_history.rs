@@ -1,5 +1,5 @@
 // ============================================================================
-// Valeurs des emballages consignés (packaging_values) & historique des prix
+// Valeurs d'emballages (packaging_values) & historique des prix (price_history)
 // ============================================================================
 
 use crate::application::auth::{require_current_actor_permission, Permission};
@@ -20,12 +20,11 @@ pub async fn list_packaging_values(
     let p = query.page.max(1);
     let ps = query.page_size.clamp(1, 200);
     let offset = (p - 1) * ps;
-    let _search = query.search.unwrap_or_default();
     let include_archived = query.include_archived.unwrap_or(false);
     let ret_filter = returnable_id.unwrap_or(0);
 
     let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM packaging_values 
+        "SELECT COUNT(*) FROM packaging_values
          WHERE (? = 1 OR is_active = 1)
            AND (? = 0 OR returnable_id = ?)",
     )
@@ -36,11 +35,10 @@ pub async fn list_packaging_values(
     .await?;
 
     let rows = sqlx::query_as::<_, PackagingValueDto>(
-        "SELECT * FROM packaging_values 
+        "SELECT * FROM packaging_values
          WHERE (? = 1 OR is_active = 1)
            AND (? = 0 OR returnable_id = ?)
-         ORDER BY effective_from DESC
-         LIMIT ? OFFSET ?",
+         ORDER BY valid_from DESC LIMIT ? OFFSET ?",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
     .bind(ret_filter)
@@ -65,32 +63,23 @@ pub async fn create_packaging_value(
     input: CreatePackagingValueInput,
 ) -> CoreResult<PackagingValueDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
-    if input.returnable_id <= 0 {
-        return Err(CoreError::Validation(
-            "L'ID du consigné est obligatoire.".to_string(),
-        ));
-    }
-    if input.value_fcfa < 0 {
+    if input.amount < 0 {
         return Err(CoreError::Validation(
             "La valeur ne peut pas être négative.".to_string(),
         ));
     }
-    let clean_type = input.packaging_type.trim();
-    if clean_type.is_empty() {
-        return Err(CoreError::Validation(
-            "Le type d'emballage est obligatoire.".to_string(),
-        ));
-    }
     let (_guard, mut tx) = db.begin_write().await?;
     let id = sqlx::query(
-        "INSERT INTO packaging_values (returnable_id, packaging_type, value_fcfa, effective_from, effective_to, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO packaging_values (returnable_id, value_type, amount, currency, valid_from, valid_to, description, is_active)
+         VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?, ?, ?)",
     )
     .bind(input.returnable_id)
-    .bind(&clean_type)
-    .bind(input.value_fcfa)
-    .bind(&input.effective_from)
-    .bind(input.effective_to.as_deref())
+    .bind(&input.value_type)
+    .bind(input.amount)
+    .bind(input.currency.as_deref().unwrap_or("FCFA"))
+    .bind(input.valid_from.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(input.valid_to.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(input.description.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(if input.is_active.unwrap_or(true) { 1_i64 } else { 0_i64 })
     .execute(&mut *tx)
     .await?
@@ -112,66 +101,43 @@ pub async fn update_packaging_value(
 ) -> CoreResult<PackagingValueDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<PackagingValueDto> =
+        sqlx::query_as("SELECT * FROM packaging_values WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let existing =
+        existing.ok_or_else(|| CoreError::NotFound("Valeur d'emballage introuvable.".into()))?;
 
-    let mut updates = Vec::new();
-    let mut binds: Vec<String> = Vec::new();
-
-    if let Some(r) = input.returnable_id {
-        updates.push("returnable_id = ?".to_string());
-        binds.push(r.to_string());
-    }
-    if let Some(ref t) = input.packaging_type {
-        let clean = t.trim();
-        if clean.is_empty() {
-            return Err(CoreError::Validation(
-                "Le type d'emballage ne peut pas être vide.".to_string(),
-            ));
-        }
-        updates.push("packaging_type = ?".to_string());
-        binds.push(clean.to_string());
-    }
-    if let Some(val) = input.value_fcfa {
-        if val < 0 {
-            return Err(CoreError::Validation(
-                "La valeur ne peut pas être négative.".to_string(),
-            ));
-        }
-        updates.push("value_fcfa = ?".to_string());
-        binds.push(val.to_string());
-    }
-    if let Some(v) = &input.effective_from {
-        updates.push("effective_from = ?".to_string());
-        binds.push(v.clone());
-    }
-    if let Some(v) = &input.effective_to {
-        if let Some(vv) = v {
-            updates.push("effective_to = ?".to_string());
-            binds.push(vv.clone());
-        }
-    }
-    if let Some(active) = input.is_active {
-        updates.push("is_active = ?".to_string());
-        binds.push(if active { "1" } else { "0" }.to_string());
-    }
-
-    updates.push("updated_at = datetime('now')".to_string());
-
-    if updates.is_empty() {
+    let value_type = input.value_type.unwrap_or(existing.value_type);
+    let amount = input.amount.unwrap_or(existing.amount);
+    if amount < 0 {
         return Err(CoreError::Validation(
-            "Aucun champ à mettre à jour.".to_string(),
+            "La valeur ne peut pas être négative.".to_string(),
         ));
     }
+    let valid_from = input.valid_from.unwrap_or(existing.valid_from);
+    let valid_to = input.valid_to.unwrap_or(existing.valid_to);
+    let description = input.description.unwrap_or(existing.description);
+    let is_active = input
+        .is_active
+        .map(|b| if b { 1 } else { 0 })
+        .unwrap_or(existing.is_active);
 
-    let sql = format!(
-        "UPDATE packaging_values SET {} WHERE id = ?",
-        updates.join(", ")
-    );
-    let mut q = sqlx::query(&sql);
-    for b in binds {
-        q = q.bind(b);
-    }
-    q = q.bind(id);
-    q.execute(&mut *tx).await?;
+    sqlx::query(
+        "UPDATE packaging_values
+         SET value_type = ?, amount = ?, valid_from = ?, valid_to = ?, description = ?, is_active = ?
+         WHERE id = ?",
+    )
+    .bind(&value_type)
+    .bind(amount)
+    .bind(&valid_from)
+    .bind(&valid_to)
+    .bind(description)
+    .bind(is_active)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     let updated =
@@ -208,45 +174,35 @@ pub async fn list_price_history(
     let p = query.page.max(1);
     let ps = query.page_size.clamp(1, 200);
     let offset = (p - 1) * ps;
-    let search = query.search.unwrap_or_default();
-    let pattern = format!("%{}%", search.trim());
-    let has_search = !search.trim().is_empty();
-    let type_filter = entity_type.unwrap_or_default();
-    let id_filter = entity_id.unwrap_or(0);
+    let et = entity_type.unwrap_or_default();
+    let has_et = !et.trim().is_empty();
+    let eid = entity_id.unwrap_or(0);
 
     let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM price_history 
-         WHERE (? = '' OR entity_type = ?)
-           AND (? = 0 OR entity_id = ?)
-           AND (? = 0 OR field_name LIKE ? OR CAST(old_value AS TEXT) LIKE ? OR CAST(new_value AS TEXT) LIKE ?)",
+        "SELECT COUNT(*) FROM price_history
+         WHERE (? = 0 OR entity_type = ?)
+           AND (? = 0 OR entity_id = ?)",
     )
-    .bind(type_filter.clone())
-    .bind(type_filter.clone())
-    .bind(id_filter)
-    .bind(id_filter)
-    .bind(if has_search { 1_i64 } else { 0_i64 })
-    .bind(&pattern)
-    .bind(&pattern)
-    .bind(&pattern)
+    .bind(if has_et { 1_i64 } else { 0_i64 })
+    .bind(&et)
+    .bind(eid)
+    .bind(eid)
     .fetch_one(&db.pool)
     .await?;
 
     let rows = sqlx::query_as::<_, PriceHistoryDto>(
-        "SELECT * FROM price_history 
-         WHERE (? = '' OR entity_type = ?)
+        "SELECT id, entity_type, entity_id, variant_id, sales_unit_id, supplier_id, price_type,
+                old_price, new_price, old_packaging_value, new_packaging_value, currency,
+                effective_from, effective_to, changed_by, reason, created_at
+         FROM price_history
+         WHERE (? = 0 OR entity_type = ?)
            AND (? = 0 OR entity_id = ?)
-           AND (? = 0 OR field_name LIKE ? OR CAST(old_value AS TEXT) LIKE ? OR CAST(new_value AS TEXT) LIKE ?)
-         ORDER BY created_at DESC
-         LIMIT ? OFFSET ?",
+         ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
     )
-    .bind(type_filter.clone())
-    .bind(type_filter.clone())
-    .bind(id_filter)
-    .bind(id_filter)
-    .bind(if has_search { 1_i64 } else { 0_i64 })
-    .bind(&pattern)
-    .bind(&pattern)
-    .bind(&pattern)
+    .bind(if has_et { 1_i64 } else { 0_i64 })
+    .bind(&et)
+    .bind(eid)
+    .bind(eid)
     .bind(ps)
     .bind(offset)
     .fetch_all(&db.pool)

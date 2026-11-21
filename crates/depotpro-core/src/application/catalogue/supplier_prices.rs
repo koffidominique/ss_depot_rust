@@ -21,13 +21,12 @@ pub async fn list_supplier_prices(
     let p = query.page.max(1);
     let ps = query.page_size.clamp(1, 200);
     let offset = (p - 1) * ps;
-    let _search = query.search.unwrap_or_default();
     let include_archived = query.include_archived.unwrap_or(false);
     let sup_filter = supplier_id.unwrap_or(0);
     let prod_filter = product_id.unwrap_or(0);
 
     let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM supplier_product_prices 
+        "SELECT COUNT(*) FROM supplier_product_prices
          WHERE (? = 1 OR is_active = 1)
            AND (? = 0 OR supplier_id = ?)
            AND (? = 0 OR product_id = ?)",
@@ -41,12 +40,11 @@ pub async fn list_supplier_prices(
     .await?;
 
     let rows = sqlx::query_as::<_, SupplierProductPriceDto>(
-        "SELECT * FROM supplier_product_prices 
+        "SELECT * FROM supplier_product_prices
          WHERE (? = 1 OR is_active = 1)
            AND (? = 0 OR supplier_id = ?)
            AND (? = 0 OR product_id = ?)
-         ORDER BY valid_from DESC
-         LIMIT ? OFFSET ?",
+         ORDER BY valid_from DESC LIMIT ? OFFSET ?",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
     .bind(sup_filter)
@@ -73,35 +71,40 @@ pub async fn create_supplier_price(
     input: CreateSupplierProductPriceInput,
 ) -> CoreResult<SupplierProductPriceDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
-    if input.supplier_id <= 0 {
-        return Err(CoreError::Validation(
-            "L'ID du fournisseur est obligatoire.".to_string(),
-        ));
-    }
-    if input.price_fcfa < 0 {
+    if input.purchase_price < 0 {
         return Err(CoreError::Validation(
             "Le prix ne peut pas être négatif.".to_string(),
         ));
     }
-    let currency = input.currency.unwrap_or_else(|| "XOF".to_string());
     let (_guard, mut tx) = db.begin_write().await?;
     let id = sqlx::query(
-        "INSERT INTO supplier_product_prices (supplier_id, product_id, variant_id, price_fcfa, currency, valid_from, valid_to, min_order_qty, lead_time_days, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO supplier_product_prices (supplier_id, product_id, packaging_id, purchase_price, packaging_value, fees, valid_from, valid_to, source, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, date('now')), ?, ?, ?)",
     )
     .bind(input.supplier_id)
     .bind(input.product_id)
-    .bind(input.variant_id)
-    .bind(input.price_fcfa)
-    .bind(&currency)
-    .bind(&input.valid_from)
-    .bind(input.valid_to.as_deref())
-    .bind(input.min_order_qty)
-    .bind(input.lead_time_days)
+    .bind(input.packaging_id)
+    .bind(input.purchase_price)
+    .bind(input.packaging_value.unwrap_or(0))
+    .bind(input.fees.unwrap_or(0))
+    .bind(input.valid_from.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(input.valid_to.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(input.source.as_deref().unwrap_or("manual"))
     .bind(if input.is_active.unwrap_or(true) { 1_i64 } else { 0_i64 })
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
+
+    sqlx::query(
+        "INSERT INTO price_history (entity_type, entity_id, supplier_id, price_type, new_price, new_packaging_value, currency, effective_from, reason)
+         VALUES ('supplier_price', ?, ?, 'PURCHASE', ?, ?, 'FCFA', datetime('now'), 'Nouveau tarif fournisseur')",
+    )
+    .bind(id)
+    .bind(input.supplier_id)
+    .bind(input.purchase_price)
+    .bind(input.packaging_value.unwrap_or(0))
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     let created = sqlx::query_as::<_, SupplierProductPriceDto>(
@@ -120,76 +123,60 @@ pub async fn update_supplier_price(
 ) -> CoreResult<SupplierProductPriceDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<SupplierProductPriceDto> =
+        sqlx::query_as("SELECT * FROM supplier_product_prices WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let existing =
+        existing.ok_or_else(|| CoreError::NotFound("Tarif fournisseur introuvable.".into()))?;
 
-    let mut updates = Vec::new();
-    let mut binds: Vec<String> = Vec::new();
-
-    if let Some(sid) = input.supplier_id {
-        updates.push("supplier_id = ?".to_string());
-        binds.push(sid.to_string());
-    }
-    if let Some(ref p) = input.product_id {
-        updates.push("product_id = ?".to_string());
-        binds.push(p.map(|v| v.to_string()).unwrap_or_default());
-    }
-    if let Some(ref v) = input.variant_id {
-        updates.push("variant_id = ?".to_string());
-        binds.push(v.map(|v| v.to_string()).unwrap_or_default());
-    }
-    if let Some(price) = input.price_fcfa {
-        if price < 0 {
-            return Err(CoreError::Validation(
-                "Le prix ne peut pas être négatif.".to_string(),
-            ));
-        }
-        updates.push("price_fcfa = ?".to_string());
-        binds.push(price.to_string());
-    }
-    if let Some(c) = &input.currency {
-        updates.push("currency = ?".to_string());
-        binds.push(c.clone());
-    }
-    if let Some(v) = &input.valid_from {
-        updates.push("valid_from = ?".to_string());
-        binds.push(v.clone());
-    }
-    if let Some(v) = &input.valid_to {
-        if let Some(vv) = v {
-            updates.push("valid_to = ?".to_string());
-            binds.push(vv.clone());
-        }
-    }
-    if let Some(ref q) = input.min_order_qty {
-        updates.push("min_order_qty = ?".to_string());
-        binds.push(q.map(|v| v.to_string()).unwrap_or_default());
-    }
-    if let Some(ref l) = input.lead_time_days {
-        updates.push("lead_time_days = ?".to_string());
-        binds.push(l.map(|v| v.to_string()).unwrap_or_default());
-    }
-    if let Some(active) = input.is_active {
-        updates.push("is_active = ?".to_string());
-        binds.push(if active { "1" } else { "0" }.to_string());
-    }
-
-    updates.push("updated_at = datetime('now')".to_string());
-
-    if updates.is_empty() {
+    let purchase_price = input.purchase_price.unwrap_or(existing.purchase_price);
+    if purchase_price < 0 {
         return Err(CoreError::Validation(
-            "Aucun champ à mettre à jour.".to_string(),
+            "Le prix ne peut pas être négatif.".to_string(),
         ));
     }
+    let packaging_value = input.packaging_value.unwrap_or(existing.packaging_value);
+    let fees = input.fees.unwrap_or(existing.fees);
+    let valid_from = input.valid_from.unwrap_or(existing.valid_from);
+    let valid_to = input.valid_to.unwrap_or(existing.valid_to);
+    let source = input.source.unwrap_or(existing.source);
+    let is_active = input
+        .is_active
+        .map(|b| if b { 1 } else { 0 })
+        .unwrap_or(existing.is_active);
 
-    let sql = format!(
-        "UPDATE supplier_product_prices SET {} WHERE id = ?",
-        updates.join(", ")
-    );
-    let mut q = sqlx::query(&sql);
-    for b in binds {
-        q = q.bind(b);
+    sqlx::query(
+        "UPDATE supplier_product_prices
+         SET purchase_price = ?, packaging_value = ?, fees = ?, valid_from = ?, valid_to = ?, source = ?, is_active = ?
+         WHERE id = ?",
+    )
+    .bind(purchase_price)
+    .bind(packaging_value)
+    .bind(fees)
+    .bind(&valid_from)
+    .bind(&valid_to)
+    .bind(&source)
+    .bind(is_active)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
+    if purchase_price != existing.purchase_price || packaging_value != existing.packaging_value {
+        sqlx::query(
+            "INSERT INTO price_history (entity_type, entity_id, supplier_id, price_type, old_price, new_price, old_packaging_value, new_packaging_value, currency, effective_from, reason)
+             VALUES ('supplier_price', ?, ?, 'PURCHASE', ?, ?, ?, ?, 'FCFA', datetime('now'), 'Mise à jour tarif fournisseur')",
+        )
+        .bind(id)
+        .bind(existing.supplier_id)
+        .bind(existing.purchase_price)
+        .bind(purchase_price)
+        .bind(existing.packaging_value)
+        .bind(packaging_value)
+        .execute(&mut *tx)
+        .await?;
     }
-    q = q.bind(id);
-    q.execute(&mut *tx).await?;
     tx.commit().await?;
 
     let updated = sqlx::query_as::<_, SupplierProductPriceDto>(
@@ -210,7 +197,7 @@ pub async fn delete_supplier_price(db: &DepotDb, id: i64) -> CoreResult<()> {
         .await?;
     if result.rows_affected() == 0 {
         return Err(CoreError::NotFound(
-            "Prix fournisseur introuvable.".to_string(),
+            "Tarif fournisseur introuvable.".to_string(),
         ));
     }
     tx.commit().await?;

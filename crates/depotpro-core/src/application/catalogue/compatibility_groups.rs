@@ -1,5 +1,5 @@
 // ============================================================================
-// CRUD des groupes de compatibilité de casiers
+// CRUD des groupes de compatibilité (crate_compatibility_groups)
 // ============================================================================
 
 use crate::application::auth::{require_current_actor_permission, Permission};
@@ -36,7 +36,7 @@ pub async fn list_compatibility_group(
     .await?;
 
     let rows = sqlx::query_as::<_, CompatibilityGroupDto>(
-        "SELECT * FROM crate_compatibility_groups WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?) ORDER BY code ASC LIMIT ? OFFSET ?",
+        "SELECT * FROM crate_compatibility_groups WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
     .bind(if has_search { 1_i64 } else { 0_i64 })
@@ -80,12 +80,14 @@ pub async fn create_compatibility_group(
     )
     .await?;
     let id = sqlx::query(
-        "INSERT INTO crate_compatibility_groups (code, name, description, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO crate_compatibility_groups (code, name, description, allows_mixed_brands, allows_mixed_volumes, is_active)
+         VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(&clean_code)
-    .bind(&clean_name)
+    .bind(clean_name)
     .bind(input.description.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(if input.allows_mixed_brands.unwrap_or(true) { 1_i64 } else { 0_i64 })
+    .bind(if input.allows_mixed_volumes.unwrap_or(true) { 1_i64 } else { 0_i64 })
     .bind(if input.is_active.unwrap_or(true) { 1_i64 } else { 0_i64 })
     .execute(&mut *tx)
     .await?
@@ -108,65 +110,65 @@ pub async fn update_compatibility_group(
 ) -> CoreResult<CompatibilityGroupDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<CompatibilityGroupDto> =
+        sqlx::query_as("SELECT * FROM crate_compatibility_groups WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let existing = existing
+        .ok_or_else(|| CoreError::NotFound("Groupe de compatibilité introuvable.".into()))?;
 
-    let mut updates = Vec::new();
-    let mut binds: Vec<String> = Vec::new();
-
-    if let Some(code) = &input.code {
-        let clean = code.trim().to_uppercase();
-        if clean.is_empty() {
-            return Err(CoreError::Validation(
-                "Le code ne peut pas être vide.".to_string(),
-            ));
+    let code = match input.code {
+        Some(c) => {
+            let clean = c.trim().to_uppercase();
+            if clean.is_empty() {
+                return Err(CoreError::Validation("Le code est obligatoire.".into()));
+            }
+            check_duplicate(
+                &mut tx,
+                "crate_compatibility_groups",
+                "code",
+                &clean,
+                Some(id),
+            )
+            .await?;
+            clean
         }
-        check_duplicate(
-            &mut tx,
-            "crate_compatibility_groups",
-            "code",
-            &clean,
-            Some(id),
-        )
-        .await?;
-        updates.push("code = ?".to_string());
-        binds.push(clean);
-    }
-    if let Some(name) = &input.name {
-        let clean = name.trim();
-        if clean.is_empty() {
-            return Err(CoreError::Validation(
-                "Le nom ne peut pas être vide.".to_string(),
-            ));
-        }
-        updates.push("name = ?".to_string());
-        binds.push(clean.to_string());
-    }
-    if let Some(Some(d)) = &input.description {
-        updates.push("description = ?".to_string());
-        binds.push(d.trim().to_string());
-    }
-    if let Some(active) = input.is_active {
-        updates.push("is_active = ?".to_string());
-        binds.push(if active { "1" } else { "0" }.to_string());
-    }
+        None => existing.code,
+    };
+    let name = input
+        .name
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(existing.name);
+    let description = input.description.unwrap_or(existing.description);
+    let allows_mixed_brands = input
+        .allows_mixed_brands
+        .map(|b| if b { 1 } else { 0 })
+        .unwrap_or(existing.allows_mixed_brands);
+    let allows_mixed_volumes = input
+        .allows_mixed_volumes
+        .map(|b| if b { 1 } else { 0 })
+        .unwrap_or(existing.allows_mixed_volumes);
+    let is_active = input
+        .is_active
+        .map(|b| if b { 1 } else { 0 })
+        .unwrap_or(existing.is_active);
 
-    updates.push("updated_at = datetime('now')".to_string());
-
-    if updates.is_empty() {
-        return Err(CoreError::Validation(
-            "Aucun champ à mettre à jour.".to_string(),
-        ));
-    }
-
-    let sql = format!(
-        "UPDATE crate_compatibility_groups SET {} WHERE id = ?",
-        updates.join(", ")
-    );
-    let mut q = sqlx::query(&sql);
-    for b in binds {
-        q = q.bind(b);
-    }
-    q = q.bind(id);
-    q.execute(&mut *tx).await?;
+    sqlx::query(
+        "UPDATE crate_compatibility_groups
+         SET code = ?, name = ?, description = ?, allows_mixed_brands = ?, allows_mixed_volumes = ?, is_active = ?
+         WHERE id = ?",
+    )
+    .bind(&code)
+    .bind(&name)
+    .bind(description)
+    .bind(allows_mixed_brands)
+    .bind(allows_mixed_volumes)
+    .bind(is_active)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     let updated = sqlx::query_as::<_, CompatibilityGroupDto>(

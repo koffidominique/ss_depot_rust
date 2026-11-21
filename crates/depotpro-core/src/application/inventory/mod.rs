@@ -7,9 +7,11 @@ use sqlx::FromRow;
 
 use crate::application::products::deserialize_qty_str;
 
+mod balance_sync;
 mod inventories;
 mod stock_ops;
 
+pub(crate) use balance_sync::sync_stock_balance_tx;
 pub use inventories::{create_inventory, list_inventories, validate_inventory};
 pub use stock_ops::{adjust_stock, get_stock_overview};
 

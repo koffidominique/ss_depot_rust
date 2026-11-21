@@ -8,6 +8,7 @@ use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 
+use super::balance_sync::sync_stock_balance_tx;
 use super::{
     AdjustStockInput, StockMovementDto, StockOverviewDto, StockProductDto, StockProductEnrichedDto,
 };
@@ -198,6 +199,7 @@ pub async fn adjust_stock(db: &DepotDb, input: AdjustStockInput) -> CoreResult<S
         .bind(pid)
         .execute(&mut *tx)
         .await?;
+    sync_stock_balance_tx(&mut tx, pid, stock_after).await?;
 
     let movement_id = sqlx::query(
         "INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, unit_cost, reason, reference_document)

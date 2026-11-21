@@ -36,7 +36,7 @@ pub async fn list_packaging_material(
     .await?;
 
     let rows = sqlx::query_as::<_, PackagingMaterialDto>(
-        "SELECT * FROM packaging_materials WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?) ORDER BY code ASC LIMIT ? OFFSET ?",
+        "SELECT * FROM packaging_materials WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
     .bind(if has_search { 1_i64 } else { 0_i64 })
@@ -73,11 +73,12 @@ pub async fn create_packaging_material(
     let (_guard, mut tx) = db.begin_write().await?;
     check_duplicate(&mut tx, "packaging_materials", "code", &clean_code, None).await?;
     let id = sqlx::query(
-        "INSERT INTO packaging_materials (code, name, description, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO packaging_materials (code, name, category, is_recyclable, description, is_active) VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(&clean_code)
-    .bind(&clean_name)
+    .bind(clean_name)
+    .bind(input.category.as_deref().unwrap_or("other"))
+    .bind(if input.is_recyclable.unwrap_or(true) { 1_i64 } else { 0_i64 })
     .bind(input.description.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(if input.is_active.unwrap_or(true) { 1_i64 } else { 0_i64 })
     .execute(&mut *tx)
@@ -100,58 +101,52 @@ pub async fn update_packaging_material(
 ) -> CoreResult<PackagingMaterialDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
+    let existing: Option<PackagingMaterialDto> =
+        sqlx::query_as("SELECT * FROM packaging_materials WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let existing = existing.ok_or_else(|| CoreError::NotFound("Matériau introuvable.".into()))?;
 
-    let mut updates = Vec::new();
-    let mut binds: Vec<String> = Vec::new();
-
-    if let Some(code) = &input.code {
-        let clean = code.trim().to_uppercase();
-        if clean.is_empty() {
-            return Err(CoreError::Validation(
-                "Le code ne peut pas être vide.".to_string(),
-            ));
+    let code = match input.code {
+        Some(c) => {
+            let clean = c.trim().to_uppercase();
+            if clean.is_empty() {
+                return Err(CoreError::Validation("Le code est obligatoire.".into()));
+            }
+            check_duplicate(&mut tx, "packaging_materials", "code", &clean, Some(id)).await?;
+            clean
         }
-        check_duplicate(&mut tx, "packaging_materials", "code", &clean, Some(id)).await?;
-        updates.push("code = ?".to_string());
-        binds.push(clean);
-    }
-    if let Some(name) = &input.name {
-        let clean = name.trim();
-        if clean.is_empty() {
-            return Err(CoreError::Validation(
-                "Le nom ne peut pas être vide.".to_string(),
-            ));
-        }
-        updates.push("name = ?".to_string());
-        binds.push(clean.to_string());
-    }
-    if let Some(Some(d)) = &input.description {
-        updates.push("description = ?".to_string());
-        binds.push(d.trim().to_string());
-    }
-    if let Some(active) = input.is_active {
-        updates.push("is_active = ?".to_string());
-        binds.push(if active { "1" } else { "0" }.to_string());
-    }
+        None => existing.code,
+    };
+    let name = input
+        .name
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(existing.name);
+    let category = input.category.unwrap_or(existing.category);
+    let is_recyclable = input
+        .is_recyclable
+        .map(|b| if b { 1 } else { 0 })
+        .unwrap_or(existing.is_recyclable);
+    let description = input.description.unwrap_or(existing.description);
+    let is_active = input
+        .is_active
+        .map(|b| if b { 1 } else { 0 })
+        .unwrap_or(existing.is_active);
 
-    updates.push("updated_at = datetime('now')".to_string());
-
-    if updates.is_empty() {
-        return Err(CoreError::Validation(
-            "Aucun champ à mettre à jour.".to_string(),
-        ));
-    }
-
-    let sql = format!(
-        "UPDATE packaging_materials SET {} WHERE id = ?",
-        updates.join(", ")
-    );
-    let mut q = sqlx::query(&sql);
-    for b in binds {
-        q = q.bind(b);
-    }
-    q = q.bind(id);
-    q.execute(&mut *tx).await?;
+    sqlx::query(
+        "UPDATE packaging_materials SET code = ?, name = ?, category = ?, is_recyclable = ?, description = ?, is_active = ? WHERE id = ?",
+    )
+    .bind(&code)
+    .bind(&name)
+    .bind(&category)
+    .bind(is_recyclable)
+    .bind(description)
+    .bind(is_active)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     let updated =

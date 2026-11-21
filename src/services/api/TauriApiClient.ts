@@ -36,10 +36,26 @@ export class TauriApiClient implements ApiClient {
   /* --- Catégories & Produits --- */
   listCategories = tauriCatalogApi.listCategories;
   createCategory = tauriCatalogApi.createCategory;
+  updateCategory = tauriCatalogApi.updateCategory;
   listProducts = tauriCatalogApi.listProducts;
   createProduct = tauriCatalogApi.createProduct;
   updateProduct = tauriCatalogApi.updateProduct;
+  deleteProduct = tauriCatalogApi.deleteProduct;
   upsertPackaging = tauriCatalogApi.upsertPackaging;
+  listBreweries = tauriCatalogApi.listBreweries;
+  createBrewery = tauriCatalogApi.createBrewery;
+  listBrandsV4 = tauriCatalogApi.listBrandsV4;
+  createBrandV4 = tauriCatalogApi.createBrandV4;
+  listContainerTypesV4 = tauriCatalogApi.listContainerTypesV4;
+  listPackagingTypesV4 = tauriCatalogApi.listPackagingTypesV4;
+  listStockLocationsV4 = tauriCatalogApi.listStockLocationsV4;
+  listSalesUnits = tauriCatalogApi.listSalesUnits;
+  createSalesUnit = tauriCatalogApi.createSalesUnit;
+  updateSalesUnit = tauriCatalogApi.updateSalesUnit;
+  deleteSalesUnit = tauriCatalogApi.deleteSalesUnit;
+  listProductSuppliers = tauriCatalogApi.listProductSuppliers;
+  upsertProductSupplier = tauriCatalogApi.upsertProductSupplier;
+  listDepositRules = tauriCatalogApi.listDepositRules;
   exportProductsCsv = tauriCatalogApi.exportProductsCsv;
   importProductsCsv = tauriCatalogApi.importProductsCsv;
 

@@ -12,10 +12,36 @@ use super::create_persistence::{
     persist_sale_lines_and_deposits_tx, persist_sale_payments_and_receivable_tx, SalePersistCtx,
 };
 use super::{
-    audit_log_tx, get_sale_detail, require_open_session_tx, CreateSaleInput, SaleDetailDto,
+    audit_log_tx, get_sale_detail, require_open_session_tx, CreateSaleInput, CreateSaleLineV4Input,
+    CreateSaleV4Input, SaleDetailDto,
 };
 
 pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<SaleDetailDto> {
+    let v4 = CreateSaleV4Input {
+        request_key: input.request_key,
+        client_id: input.client_id,
+        sale_type: input.sale_type,
+        price_tier: input.price_tier,
+        discount_amount: input.discount_amount,
+        notes: input.notes,
+        lines: input
+            .lines
+            .into_iter()
+            .map(|l| CreateSaleLineV4Input {
+                product_id: l.product_id,
+                packaging_id: l.packaging_id,
+                sales_unit_id: None,
+                quantity: l.quantity,
+                discount_amount: l.discount_amount,
+            })
+            .collect(),
+        payments: input.payments,
+        due_date: input.due_date,
+    };
+    create_sale_v4(db, v4).await
+}
+
+pub async fn create_sale_v4(db: &DepotDb, input: CreateSaleV4Input) -> CoreResult<SaleDetailDto> {
     require_current_actor_permission(Permission::SalesWrite)?;
     let request_key = input.request_key.trim().to_string();
     if request_key.is_empty() {
@@ -105,8 +131,14 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         }
     }
 
-    let effective_price_tier = "retail";
-    let prepared = prepare_sale_lines_tx(&mut tx, &input.lines, effective_price_tier).await?;
+    let effective_price_tier = input.price_tier.as_str();
+    let prepared = prepare_sale_lines_tx(
+        &mut tx,
+        &input.lines,
+        effective_price_tier,
+        &input.sale_type,
+    )
+    .await?;
 
     if global_discount > prepared.subtotal_merchandise {
         return Err(CoreError::Validation(

@@ -9,6 +9,10 @@ use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 
+use super::packaging_deposit::{
+    record_packaging_price_changes_tx, upsert_packaging_deposit_profile_tx,
+};
+use super::v4_types::PackagingV4Extras;
 use super::{get_product_by_id, PackagingInput, ProductPackagingDto, ALLOWED_PACKAGING_NAMES};
 
 pub(crate) fn validate_packaging_prices(pkg: &PackagingInput) -> CoreResult<()> {
@@ -27,22 +31,42 @@ pub(crate) fn validate_packaging_prices(pkg: &PackagingInput) -> CoreResult<()> 
     Ok(())
 }
 
+pub(crate) fn validate_packaging_extras(ex: &PackagingV4Extras) -> CoreResult<()> {
+    if let Some(v) = ex.min_selling_price {
+        Money::from_non_negative(v, "Prix minimum (conditionnement)")?;
+    }
+    if let Some(v) = ex.package_deposit_amount {
+        Money::from_non_negative(v, "Consigne emballage")?;
+    }
+    if let Some(v) = ex.bottle_deposit_amount {
+        Money::from_non_negative(v, "Consigne bouteille")?;
+    }
+    if let Some(v) = ex.package_cost {
+        Money::from_non_negative(v, "Coût emballage")?;
+    }
+    Ok(())
+}
+
 pub async fn upsert_packaging(
     db: &DepotDb,
     product_id: i64,
     pkg: PackagingInput,
 ) -> CoreResult<ProductPackagingDto> {
+    upsert_packaging_v4(db, product_id, pkg, PackagingV4Extras::default()).await
+}
+
+pub async fn upsert_packaging_v4(
+    db: &DepotDb,
+    product_id: i64,
+    pkg: PackagingInput,
+    ex: PackagingV4Extras,
+) -> CoreResult<ProductPackagingDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     if !ALLOWED_PACKAGING_NAMES.contains(&pkg.name.as_str()) {
-        return Err(CoreError::Validation(
-            "Type de conditionnement invalide : seul \"casier\" est autorisé.".to_string(),
-        ));
-    }
-    if pkg.deposit_mode.as_deref() == Some("deposit") && pkg.name != "casier" {
-        return Err(CoreError::Validation(
-            "Seul le conditionnement \"casier\" est soumis au système de retour d'emballage."
-                .to_string(),
-        ));
+        return Err(CoreError::Validation(format!(
+            "Type de conditionnement invalide : {} (autorisés : casier, carton, bouteille, pack, canette).",
+            pkg.name
+        )));
     }
     let coeff = Quantity::parse_str(&pkg.coefficient, "Coefficient")?;
     if coeff.milli_units <= 0 {
@@ -51,6 +75,7 @@ pub async fn upsert_packaging(
         ));
     }
     validate_packaging_prices(&pkg)?;
+    validate_packaging_extras(&ex)?;
 
     let (_guard, mut tx) = db.begin_write().await?;
     let base_unit: Option<(String,)> =
@@ -70,11 +95,8 @@ pub async fn upsert_packaging(
         let dup: Option<(i64,)> = sqlx::query_as(
             "SELECT id FROM products WHERE barcode = ? UNION SELECT id FROM product_packagings WHERE barcode = ? AND id != ?",
         )
-        .bind(bc)
-        .bind(bc)
-        .bind(pkg.id.unwrap_or(-1))
-        .fetch_optional(&mut *tx)
-        .await?;
+        .bind(bc).bind(bc).bind(pkg.id.unwrap_or(-1))
+        .fetch_optional(&mut *tx).await?;
         if dup.is_some() {
             return Err(CoreError::DuplicateOperation(
                 "Code-barres déjà utilisé.".to_string(),
@@ -97,106 +119,157 @@ pub async fn upsert_packaging(
         )));
     }
 
+    let clean_label = ex
+        .display_label
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let clean_sku = ex
+        .package_sku
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+
     let pkg_id = if let Some(id) = pkg.id {
-        let exists: Option<(i64,)> =
-            sqlx::query_as("SELECT id FROM product_packagings WHERE id = ? AND product_id = ?")
-                .bind(id)
-                .bind(product_id)
-                .fetch_optional(&mut *tx)
-                .await?;
-        if exists.is_none() {
-            return Err(CoreError::Validation(
-                "Conditionnement introuvable pour ce produit.".to_string(),
-            ));
-        }
+        type PrevPkgPrices = (Option<i64>, Option<i64>, Option<i64>, Option<i64>);
+        let prev_prices: Option<PrevPkgPrices> = sqlx::query_as(
+            "SELECT purchase_price, wholesale_price, semi_wholesale_price, retail_price
+                 FROM product_packagings WHERE id = ? AND product_id = ?",
+        )
+        .bind(id)
+        .bind(product_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let prev = prev_prices.ok_or_else(|| {
+            CoreError::Validation("Conditionnement introuvable pour ce produit.".to_string())
+        })?;
+
         sqlx::query(
             "UPDATE product_packagings
-             SET name = ?, coefficient_milli = ?, purchase_price = ?, wholesale_price = ?,
-                 semi_wholesale_price = ?, retail_price = ?, barcode = ?, allow_fraction = ?, is_active = ?
+             SET name = ?, variant_id = COALESCE(?, variant_id), packaging_type_id = COALESCE(?, packaging_type_id),
+                 display_label = COALESCE(?, display_label), package_sku = COALESCE(?, package_sku),
+                 coefficient_milli = ?, purchase_price = ?, wholesale_price = ?, semi_wholesale_price = ?,
+                 retail_price = ?, min_selling_price = ?, barcode = ?, allow_fraction = ?,
+                 is_reusable = ?, is_returnable = ?, package_deposit_amount = ?,
+                 bottle_deposit_amount = ?, package_cost = ?, is_default_sale = ?,
+                 is_default_purchase = ?, is_active = ?
              WHERE id = ? AND product_id = ?",
         )
         .bind(&pkg.name)
+        .bind(ex.variant_id)
+        .bind(ex.packaging_type_id)
+        .bind(clean_label)
+        .bind(clean_sku)
         .bind(coeff.milli_units)
         .bind(pkg.purchase_price)
         .bind(pkg.wholesale_price)
         .bind(pkg.semi_wholesale_price)
         .bind(pkg.retail_price)
+        .bind(ex.min_selling_price)
         .bind(pkg_bc)
-        .bind(if pkg.allow_fraction.unwrap_or(false) { 1_i64 } else { 0_i64 })
-        .bind(if pkg.is_active.unwrap_or(true) { 1_i64 } else { 0_i64 })
+        .bind(if pkg.allow_fraction.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(if ex.is_reusable.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(if ex.is_returnable.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(ex.package_deposit_amount.unwrap_or(0))
+        .bind(ex.bottle_deposit_amount.unwrap_or(0))
+        .bind(ex.package_cost.unwrap_or(0))
+        .bind(if ex.is_default_sale.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(if ex.is_default_purchase.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(if pkg.is_active.unwrap_or(true) {
+            1_i64
+        } else {
+            0_i64
+        })
         .bind(id)
         .bind(product_id)
         .execute(&mut *tx)
         .await?;
+
+        record_packaging_price_changes_tx(&mut tx, id, ex.variant_id, prev, &pkg).await?;
         id
     } else {
         sqlx::query(
-            "INSERT INTO product_packagings (product_id, name, base_unit, coefficient_milli, purchase_price, wholesale_price, semi_wholesale_price, retail_price, barcode, allow_fraction)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO product_packagings (
+                product_id, variant_id, packaging_type_id, name, display_label, package_sku,
+                base_unit, coefficient_milli, purchase_price, wholesale_price, semi_wholesale_price,
+                retail_price, min_selling_price, barcode, allow_fraction, is_reusable, is_returnable,
+                package_deposit_amount, bottle_deposit_amount, package_cost, is_default_sale, is_default_purchase
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(product_id)
+        .bind(ex.variant_id)
+        .bind(ex.packaging_type_id)
         .bind(&pkg.name)
+        .bind(clean_label)
+        .bind(clean_sku)
         .bind(&base_unit)
         .bind(coeff.milli_units)
         .bind(pkg.purchase_price)
         .bind(pkg.wholesale_price)
         .bind(pkg.semi_wholesale_price)
         .bind(pkg.retail_price)
+        .bind(ex.min_selling_price)
         .bind(pkg_bc)
-        .bind(if pkg.allow_fraction.unwrap_or(false) { 1_i64 } else { 0_i64 })
+        .bind(if pkg.allow_fraction.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(if ex.is_reusable.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(if ex.is_returnable.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(ex.package_deposit_amount.unwrap_or(0))
+        .bind(ex.bottle_deposit_amount.unwrap_or(0))
+        .bind(ex.package_cost.unwrap_or(0))
+        .bind(if ex.is_default_sale.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(if ex.is_default_purchase.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
         .execute(&mut *tx)
         .await?
         .last_insert_rowid()
     };
 
-    let mode = if pkg.deposit_mode.as_deref() == Some("deposit") {
-        "deposit"
-    } else {
-        "none"
-    };
-    sqlx::query(
-        "INSERT INTO deposit_packaging_profiles (packaging_id, mode) VALUES (?, ?)
-         ON CONFLICT(packaging_id) DO UPDATE SET mode = excluded.mode",
+    upsert_packaging_deposit_profile_tx(
+        &mut tx,
+        pkg_id,
+        pkg.deposit_mode.as_deref(),
+        pkg.components,
     )
-    .bind(pkg_id)
-    .bind(mode)
-    .execute(&mut *tx)
     .await?;
-
-    sqlx::query("DELETE FROM deposit_packaging_components WHERE packaging_id = ?")
-        .bind(pkg_id)
-        .execute(&mut *tx)
-        .await?;
-
-    if mode == "deposit" {
-        if let Some(comps) = pkg.components {
-            for c in comps {
-                if c.pieces_per_pack <= 0 {
-                    return Err(CoreError::Validation(
-                        "Pièces par conditionnement invalides.".to_string(),
-                    ));
-                }
-                let rt_exists: Option<i64> =
-                    sqlx::query_scalar("SELECT id FROM returnable_packaging_types WHERE id = ?")
-                        .bind(c.returnable_id)
-                        .fetch_optional(&mut *tx)
-                        .await?;
-                if rt_exists.is_none() {
-                    return Err(CoreError::Validation(
-                        "Type d'emballage consigné introuvable.".to_string(),
-                    ));
-                }
-                sqlx::query(
-                    "INSERT INTO deposit_packaging_components (packaging_id, returnable_id, pieces_per_pack) VALUES (?, ?, ?)",
-                )
-                .bind(pkg_id)
-                .bind(c.returnable_id)
-                .bind(c.pieces_per_pack)
-                .execute(&mut *tx)
-                .await?;
-            }
-        }
-    }
 
     audit_log_tx(
         &mut tx,

@@ -54,10 +54,15 @@ export const httpAuthApi = {
 
 export const httpCatalogApi = {
   listCategories: () => httpRequest<Awaited<ReturnType<ApiClient['listCategories']>>>('/api/categories'),
-  createCategory: (name: string, description?: string) =>
+  createCategory: (name: string, description?: string, parentId?: number | null) =>
     httpRequest<Awaited<ReturnType<ApiClient['createCategory']>>>('/api/categories', {
       method: 'POST',
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ name, description, parent_id: parentId ?? null }),
+    }),
+  updateCategory: (id: number, input: Parameters<ApiClient['updateCategory']>[1]) =>
+    httpRequest<Awaited<ReturnType<ApiClient['updateCategory']>>>(`/api/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
     }),
   listProducts: (params = {}) =>
     httpRequest<Awaited<ReturnType<ApiClient['listProducts']>>>(`/api/products${buildQueryString(params)}`),
@@ -71,11 +76,61 @@ export const httpCatalogApi = {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
+  deleteProduct: (id: number) =>
+    httpRequest<Awaited<ReturnType<ApiClient['deleteProduct']>>>(`/api/products/${id}`, {
+      method: 'DELETE',
+    }),
   upsertPackaging: (productId: number, pkg: Record<string, unknown>) =>
     httpRequest(`/api/products/${productId}/packagings`, {
       method: 'POST',
       body: JSON.stringify(pkg),
     }),
+  listBreweries: (search?: string) =>
+    httpRequest<Awaited<ReturnType<ApiClient['listBreweries']>>>(`/api/breweries${buildQueryString({ search, pageSize: 200 })}`),
+  createBrewery: (input: Parameters<ApiClient['createBrewery']>[0]) =>
+    httpRequest<Awaited<ReturnType<ApiClient['createBrewery']>>>('/api/breweries', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listBrandsV4: (search?: string) =>
+    httpRequest<Awaited<ReturnType<ApiClient['listBrandsV4']>>>(`/api/brands${buildQueryString({ search, pageSize: 200 })}`),
+  createBrandV4: (input: Parameters<ApiClient['createBrandV4']>[0]) =>
+    httpRequest<Awaited<ReturnType<ApiClient['createBrandV4']>>>('/api/brands', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listContainerTypesV4: () =>
+    httpRequest<Awaited<ReturnType<ApiClient['listContainerTypesV4']>>>('/api/container-types?pageSize=200'),
+  listPackagingTypesV4: () =>
+    httpRequest<Awaited<ReturnType<ApiClient['listPackagingTypesV4']>>>('/api/packaging-types'),
+  listStockLocationsV4: () =>
+    httpRequest<Awaited<ReturnType<ApiClient['listStockLocationsV4']>>>('/api/stock-locations'),
+  listSalesUnits: (productId: number) =>
+    httpRequest<Awaited<ReturnType<ApiClient['listSalesUnits']>>>(`/api/sales-units?product_id=${productId}`),
+  createSalesUnit: (input: Record<string, unknown>) =>
+    httpRequest<Awaited<ReturnType<ApiClient['createSalesUnit']>>>('/api/sales-units', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateSalesUnit: (id: number, input: Record<string, unknown>) =>
+    httpRequest<Awaited<ReturnType<ApiClient['updateSalesUnit']>>>(`/api/sales-units/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  deleteSalesUnit: async (id: number) => {
+    await httpRequest(`/api/sales-units/${id}`, { method: 'DELETE' });
+  },
+  listProductSuppliers: (productId: number) =>
+    httpRequest<Awaited<ReturnType<ApiClient['listProductSuppliers']>>>(`/api/products/${productId}/suppliers`),
+  upsertProductSupplier: (productId: number, input: Record<string, unknown>) =>
+    httpRequest<Awaited<ReturnType<ApiClient['upsertProductSupplier']>>>(`/api/products/${productId}/suppliers`, {
+      method: 'POST',
+      body: JSON.stringify({ ...input, product_id: productId }),
+    }),
+  listDepositRules: (productId?: number) =>
+    httpRequest<Awaited<ReturnType<ApiClient['listDepositRules']>>>(
+      `/api/deposit-rules${productId ? `?product_id=${productId}` : ''}`,
+    ),
   exportProductsCsv: () => httpRequest<string>('/api/products/export/csv'),
   importProductsCsv: (csv: string) =>
     httpRequest<{ created: number }>('/api/products/import/csv', {

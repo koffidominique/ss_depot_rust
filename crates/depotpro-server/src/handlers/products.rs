@@ -9,7 +9,10 @@ use axum::response::{IntoResponse, Json};
 use depotpro_core::application::auth::{self, Permission};
 use depotpro_core::application::products;
 
-use crate::dto::{CategoryPayload, CsvImportPayload, SearchQuery};
+use crate::dto::{
+    CategoryPayload, CreateProductV4Payload, CsvImportPayload, PackagingV4Payload, SearchQuery,
+    UpdateProductV4Payload,
+};
 use crate::state::{map_err, require_perm, AppState};
 
 pub(crate) async fn list_categories(
@@ -39,7 +42,12 @@ pub(crate) async fn create_category(
     let db = state.db().await;
     match auth::with_actor(
         actor,
-        products::create_category(&db, &payload.name, payload.description.as_deref()),
+        products::create_category_with_parent(
+            &db,
+            &payload.name,
+            payload.description.as_deref(),
+            payload.parent_id,
+        ),
     )
     .await
     {
@@ -48,6 +56,35 @@ pub(crate) async fn create_category(
             Json(serde_json::to_value(cat).unwrap()),
         )
             .into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+pub(crate) async fn update_category(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<CategoryPayload>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(
+        actor,
+        products::update_category(
+            &db,
+            id,
+            Some(&payload.name),
+            payload.description.as_deref(),
+            payload.parent_id.map(Some),
+            payload.is_active,
+        ),
+    )
+    .await
+    {
+        Ok(cat) => (StatusCode::OK, Json(serde_json::to_value(cat).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -86,14 +123,19 @@ pub(crate) async fn list_products(
 pub(crate) async fn create_product(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(payload): Json<products::CreateProductInput>,
+    Json(payload): Json<CreateProductV4Payload>,
 ) -> impl IntoResponse {
     let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
         Ok(a) => a,
         Err(e) => return e.into_response(),
     };
     let db = state.db().await;
-    match auth::with_actor(actor, products::create_product(&db, payload)).await {
+    match auth::with_actor(
+        actor,
+        products::create_product_v4(&db, payload.base, payload.extras),
+    )
+    .await
+    {
         Ok(p) => (StatusCode::CREATED, Json(serde_json::to_value(p).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -103,15 +145,36 @@ pub(crate) async fn update_product(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<i64>,
-    Json(payload): Json<products::UpdateProductInput>,
+    Json(payload): Json<UpdateProductV4Payload>,
 ) -> impl IntoResponse {
     let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
         Ok(a) => a,
         Err(e) => return e.into_response(),
     };
     let db = state.db().await;
-    match auth::with_actor(actor, products::update_product(&db, id, payload)).await {
+    match auth::with_actor(
+        actor,
+        products::update_product_v4(&db, id, payload.base, payload.extras),
+    )
+    .await
+    {
         Ok(p) => (StatusCode::OK, Json(serde_json::to_value(p).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
+pub(crate) async fn delete_product(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, products::delete_or_archive_product(&db, id)).await {
+        Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -120,14 +183,19 @@ pub(crate) async fn upsert_packaging(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<i64>,
-    Json(payload): Json<products::PackagingInput>,
+    Json(payload): Json<PackagingV4Payload>,
 ) -> impl IntoResponse {
     let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
         Ok(a) => a,
         Err(e) => return e.into_response(),
     };
     let db = state.db().await;
-    match auth::with_actor(actor, products::upsert_packaging(&db, id, payload)).await {
+    match auth::with_actor(
+        actor,
+        products::upsert_packaging_v4(&db, id, payload.base, payload.extras),
+    )
+    .await
+    {
         Ok(pk) => (StatusCode::OK, Json(serde_json::to_value(pk).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }

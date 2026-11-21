@@ -36,7 +36,7 @@ pub(crate) async fn list_customer_price_list_items(
     };
     match auth::with_actor(
         actor,
-        catalogue::list_customer_price_list_items(&db, cq, price_list_id),
+        catalogue::list_customer_price_list_items(&db, cq, price_list_id, None),
     )
     .await
     {

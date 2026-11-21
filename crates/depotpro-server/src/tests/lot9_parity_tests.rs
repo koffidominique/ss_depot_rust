@@ -157,6 +157,24 @@ async fn axum_lot9_http_json_and_error_code_parity() {
         "DUPLICATE_OPERATION"
     );
 
+    let invalid_payload = serde_json::json!({
+        "name": "palette",
+        "coefficient": 48,
+        "retail_price": 24000,
+        "allow_fraction": 0,
+        "is_active": 1
+    })
+    .to_string();
+    let (st, _) = send_http(
+        addr,
+        "POST",
+        &format!("/api/products/{prod_id}/packagings"),
+        &[("Authorization", &auth_hdr)],
+        Some(&invalid_payload),
+    )
+    .await;
+    assert_eq!(st, 400);
+
     let pack_payload = serde_json::json!({
         "name": "pack",
         "coefficient": 6,
@@ -173,7 +191,7 @@ async fn axum_lot9_http_json_and_error_code_parity() {
         Some(&pack_payload),
     )
     .await;
-    assert_eq!(st, 400);
+    assert_eq!(st, 200);
 
     let casier_payload = serde_json::json!({
         "id": pkg_id,

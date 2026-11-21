@@ -7,7 +7,7 @@ use axum::Router;
 
 use crate::handlers::{
     catalogue_disposables, catalogue_price_items_and_history, catalogue_refs, catalogue_units,
-    catalogue_v3, catalogue_variants_and_prices, packaging_components,
+    catalogue_v3, catalogue_v4, catalogue_variants_and_prices, packaging_components,
 };
 use crate::state::AppState;
 
@@ -180,5 +180,38 @@ pub(crate) fn catalogue_router() -> Router<AppState> {
         .route(
             "/api/catalogue-v3/initialize",
             axum::routing::post(catalogue_v3::initialize_catalogue),
+        )
+        // Référentiels & unités V4 (BDBoisson)
+        .route(
+            "/api/breweries",
+            get(catalogue_v4::list_breweries).post(catalogue_v4::create_brewery),
+        )
+        .route(
+            "/api/breweries/:id",
+            put(catalogue_v4::update_brewery).delete(catalogue_v4::delete_brewery),
+        )
+        .route(
+            "/api/packaging-types",
+            get(catalogue_v4::list_packaging_types).post(catalogue_v4::create_packaging_type),
+        )
+        .route(
+            "/api/stock-locations",
+            get(catalogue_v4::list_stock_locations).post(catalogue_v4::create_stock_location),
+        )
+        .route(
+            "/api/sales-units",
+            get(catalogue_v4::list_sales_units).post(catalogue_v4::create_sales_unit),
+        )
+        .route(
+            "/api/sales-units/:id",
+            put(catalogue_v4::update_sales_unit).delete(catalogue_v4::delete_sales_unit),
+        )
+        .route(
+            "/api/products/:id/suppliers",
+            get(catalogue_v4::list_product_suppliers).post(catalogue_v4::upsert_product_supplier),
+        )
+        .route(
+            "/api/deposit-rules",
+            get(catalogue_v4::list_deposit_rules).post(catalogue_v4::create_deposit_rule),
         )
 }
