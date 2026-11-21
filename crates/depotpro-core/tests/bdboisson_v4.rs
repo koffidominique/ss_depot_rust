@@ -57,10 +57,9 @@ async fn bdboisson_v4_end_to_end_catalog_and_pos() {
     .unwrap();
 
     // 2. Catégorie hiérarchique
-    let parent_cat =
-        products::create_category(&db, "Bières V4", Some("Bières blondes et brunes"))
-            .await
-            .unwrap();
+    let parent_cat = products::create_category(&db, "Bières V4", Some("Bières blondes et brunes"))
+        .await
+        .unwrap();
     let sub_cat = products::create_category_with_parent(
         &db,
         "Blondes 65cl",

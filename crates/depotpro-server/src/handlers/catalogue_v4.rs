@@ -39,7 +39,11 @@ pub(crate) async fn create_brewery(
     };
     let db = state.db().await;
     match auth::with_actor(actor, catalogue::create_brewery(&db, payload)).await {
-        Ok(res) => (StatusCode::CREATED, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Ok(res) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(res).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -103,7 +107,11 @@ pub(crate) async fn create_packaging_type(
     };
     let db = state.db().await;
     match auth::with_actor(actor, catalogue::create_packaging_type(&db, payload)).await {
-        Ok(res) => (StatusCode::CREATED, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Ok(res) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(res).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -134,7 +142,11 @@ pub(crate) async fn create_stock_location(
     };
     let db = state.db().await;
     match auth::with_actor(actor, catalogue::create_stock_location(&db, payload)).await {
-        Ok(res) => (StatusCode::CREATED, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Ok(res) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(res).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -171,7 +183,11 @@ pub(crate) async fn create_sales_unit(
     };
     let db = state.db().await;
     match auth::with_actor(actor, catalogue::create_sales_unit(&db, payload)).await {
-        Ok(res) => (StatusCode::CREATED, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Ok(res) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(res).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }
@@ -270,7 +286,11 @@ pub(crate) async fn create_deposit_rule(
     };
     let db = state.db().await;
     match auth::with_actor(actor, catalogue::create_deposit_rule(&db, payload)).await {
-        Ok(res) => (StatusCode::CREATED, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Ok(res) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(res).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }

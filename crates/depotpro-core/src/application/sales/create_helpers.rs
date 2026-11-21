@@ -209,14 +209,14 @@ pub(crate) async fn prepare_sale_lines_tx(
                         total_deposit = total_deposit.checked_add(amt, "Total consignes")?;
                         deposit_items.push((rid, pieces, dep_val, amt.value()));
                     } else if let Some(acc) = shared_deposit_totals.get_mut(&rid) {
-                        acc.milli_pieces =
-                            acc.milli_pieces
-                                .checked_add(line_milli_pieces)
-                                .ok_or_else(|| {
-                                    CoreError::Validation(
-                                        "Débordement du nombre de pièces consignées.".to_string(),
-                                    )
-                                })?;
+                        acc.milli_pieces = acc
+                            .milli_pieces
+                            .checked_add(line_milli_pieces)
+                            .ok_or_else(|| {
+                                CoreError::Validation(
+                                    "Débordement du nombre de pièces consignées.".to_string(),
+                                )
+                            })?;
                     } else {
                         shared_deposit_order.push(rid);
                         shared_deposit_totals.insert(
@@ -279,9 +279,12 @@ pub(crate) async fn prepare_sale_lines_tx(
         let amt = Money::from_non_negative(acc.unit_value, "Tarif consigne")?
             .checked_mul(pieces, "Montant consigne")?;
         total_deposit = total_deposit.checked_add(amt, "Total consignes")?;
-        prepared_lines[acc.first_line_idx]
-            .deposit_items
-            .push((rid, pieces, acc.unit_value, amt.value()));
+        prepared_lines[acc.first_line_idx].deposit_items.push((
+            rid,
+            pieces,
+            acc.unit_value,
+            amt.value(),
+        ));
     }
 
     Ok(PreparedSaleLines {
