@@ -17,14 +17,16 @@ CREATE TABLE IF NOT EXISTS breweries (
 
 ALTER TABLE brands ADD COLUMN brewery_id INTEGER NULL
     REFERENCES breweries(id) ON DELETE RESTRICT;
-ALTER TABLE brands ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'));
+ALTER TABLE brands ADD COLUMN updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z';
+UPDATE brands SET updated_at = datetime('now') WHERE updated_at = '1970-01-01T00:00:00Z';
 
 -- Colonnes attendues par les services de variantes existants (elles étaient
 -- consommées côté Rust mais absentes des migrations historiques).
 ALTER TABLE product_variants ADD COLUMN reference TEXT NULL;
 ALTER TABLE product_variants ADD COLUMN alcohol_degree REAL NULL
     CHECK (alcohol_degree IS NULL OR (alcohol_degree >= 0 AND alcohol_degree <= 100));
-ALTER TABLE product_variants ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'));
+ALTER TABLE product_variants ADD COLUMN updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z';
+UPDATE product_variants SET updated_at = datetime('now') WHERE updated_at = '1970-01-01T00:00:00Z';
 
 CREATE INDEX IF NOT EXISTS idx_breweries_name_active ON breweries(name, is_active);
 CREATE INDEX IF NOT EXISTS idx_brands_brewery ON brands(brewery_id, is_active);
