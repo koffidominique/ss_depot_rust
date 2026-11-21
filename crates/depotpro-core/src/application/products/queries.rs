@@ -103,13 +103,20 @@ pub async fn list_products(
     .await?;
 
     let rows = sqlx::query_as::<_, ProductRow>(
-        "SELECT p.id, p.reference, p.barcode, p.name, p.brand, p.category_id, c.name AS category_name,
+        "SELECT p.id, p.reference, p.barcode, p.name, p.brand, p.brand_id,
+                b.brewery_id, br.name AS brewery_name, p.variant_id,
+                pv.name AS variant_name, pv.volume_ml, pv.container_type, pv.alcohol_degree,
+                pv.bottle_profile_id, pv.crate_type_id, pv.compatibility_group_id,
+                p.category_id, c.name AS category_name,
                 p.supplier_id, s.name AS supplier_name, p.description, p.base_unit,
                 p.stock_milli, p.min_stock_milli, p.max_stock_milli, p.average_cost_num, p.average_cost_den,
                 p.purchase_price, p.wholesale_price, p.semi_wholesale_price, p.retail_price, p.image_path, p.is_active
          FROM products p
          JOIN categories c ON c.id = p.category_id
          LEFT JOIN suppliers s ON s.id = p.supplier_id
+         LEFT JOIN brands b ON b.id = p.brand_id
+         LEFT JOIN breweries br ON br.id = b.brewery_id
+         LEFT JOIN product_variants pv ON pv.id = p.variant_id
          WHERE (? = 1 OR p.is_active = 1)
            AND (? = 0 OR p.category_id = ?)
            AND (? = 0 OR p.stock_milli <= p.min_stock_milli)
@@ -219,6 +226,17 @@ async fn hydrate_products(
             barcode: prod.barcode,
             name: prod.name,
             brand: prod.brand,
+            brand_id: prod.brand_id,
+            brewery_id: prod.brewery_id,
+            brewery_name: prod.brewery_name,
+            variant_id: prod.variant_id,
+            variant_name: prod.variant_name,
+            volume_ml: prod.volume_ml,
+            container_type: prod.container_type,
+            alcohol_degree: prod.alcohol_degree,
+            bottle_profile_id: prod.bottle_profile_id,
+            crate_type_id: prod.crate_type_id,
+            compatibility_group_id: prod.compatibility_group_id,
             category_id: prod.category_id,
             category_name: prod.category_name,
             supplier_id: prod.supplier_id,
@@ -254,13 +272,20 @@ pub async fn list_active_products(
 
 pub(crate) async fn get_product_by_id(db: &DepotDb, id: i64) -> CoreResult<ProductSummaryDto> {
     let row = sqlx::query_as::<_, ProductRow>(
-        "SELECT p.id, p.reference, p.barcode, p.name, p.brand, p.category_id, c.name AS category_name,
+        "SELECT p.id, p.reference, p.barcode, p.name, p.brand, p.brand_id,
+                b.brewery_id, br.name AS brewery_name, p.variant_id,
+                pv.name AS variant_name, pv.volume_ml, pv.container_type, pv.alcohol_degree,
+                pv.bottle_profile_id, pv.crate_type_id, pv.compatibility_group_id,
+                p.category_id, c.name AS category_name,
                 p.supplier_id, s.name AS supplier_name, p.description, p.base_unit,
                 p.stock_milli, p.min_stock_milli, p.max_stock_milli, p.average_cost_num, p.average_cost_den,
                 p.purchase_price, p.wholesale_price, p.semi_wholesale_price, p.retail_price, p.image_path, p.is_active
          FROM products p
          JOIN categories c ON c.id = p.category_id
          LEFT JOIN suppliers s ON s.id = p.supplier_id
+         LEFT JOIN brands b ON b.id = p.brand_id
+         LEFT JOIN breweries br ON br.id = b.brewery_id
+         LEFT JOIN product_variants pv ON pv.id = p.variant_id
          WHERE p.id = ?",
     )
     .bind(id)
