@@ -14,6 +14,7 @@ mod serde_helpers;
 mod update;
 
 pub use create::create_product;
+pub use metadata::get_product_form_metadata;
 
 pub use csv_io::{export_products_csv, import_products_csv};
 pub use packaging::upsert_packaging;
