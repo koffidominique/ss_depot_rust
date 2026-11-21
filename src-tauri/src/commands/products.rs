@@ -10,6 +10,19 @@ use super::verify_desktop_perm;
 use crate::state::DesktopState;
 
 #[tauri::command]
+pub async fn get_product_form_metadata(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogRead).await?;
+    let db = state.db().await;
+    let metadata = auth::with_actor(actor, products::get_product_form_metadata(&db))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(metadata).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn list_categories(
     state: State<'_, DesktopState>,
     token: String,
