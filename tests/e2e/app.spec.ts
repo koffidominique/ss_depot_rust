@@ -359,24 +359,26 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     ).toBeVisible();
 
     await presetsDialog.getByRole('button', { name: 'Vins & Spiritueux', exact: true }).click();
-    await expect(presetsDialog.getByText('Valpierre Rouge 75cl', { exact: true })).toBeVisible();
+    await expect(
+      presetsDialog.getByText('Vin Valpierre Rouge 75cl', { exact: true })
+    ).toBeVisible();
     await presetsDialog
-      .getByLabel('Sélectionner Valpierre Rouge 75cl', { exact: true })
+      .getByLabel('Sélectionner Vin Valpierre Rouge 75cl', { exact: true })
       .check();
     await presetsDialog
       .getByRole('button', { name: 'Activer la sélection (1)', exact: true })
       .click();
 
     await expect(
-      page.locator('tbody').getByText('Valpierre Rouge 75cl', { exact: true })
+      page.locator('tbody').getByText('Vin Valpierre Rouge 75cl', { exact: true })
     ).toBeVisible();
 
     // 2. Détection d'un doublon en direct dans la modale Nouveau produit + vérification API 409
     await page.getByRole('button', { name: 'Nouveau produit', exact: true }).click();
     const formDialog = page.getByRole('dialog');
-    await formDialog.locator('#product-name').fill('  valpierre   rouge 75cl ');
+    await formDialog.locator('#product-name').fill('  vin valpierre   rouge 75cl ');
     await expect(
-      formDialog.getByText(/Doublon détecté : « Valpierre Rouge 75cl »/i)
+      formDialog.getByText(/Doublon détecté : « Vin Valpierre Rouge 75cl »/i)
     ).toBeVisible();
     await formDialog.getByRole('button', { name: 'Annuler', exact: true }).click();
 
@@ -390,27 +392,27 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     const dupRes = await page.request.post('/api/products', {
       headers: authHeaders,
       data: {
-        name: 'VALPIERRE ROUGE 75CL',
+        name: 'VIN VALPIERRE ROUGE 75CL',
         category_id: cats[0].id,
         base_unit: 'bouteille',
-        retail_price: 3500,
+        retail_price: 2500,
       },
     });
     expect(dupRes.status()).toBe(409);
 
     // 3. Suppression définitive réservée au Propriétaire (produit vierge sans ventes/achats)
     await page
-      .getByRole('button', { name: 'Supprimer Valpierre Rouge 75cl', exact: true })
+      .getByRole('button', { name: 'Supprimer Vin Valpierre Rouge 75cl', exact: true })
       .click();
     const deleteDialog = page.getByRole('dialog');
     await expect(
-      deleteDialog.getByText(/Supprimer définitivement Valpierre Rouge 75cl/i)
+      deleteDialog.getByText(/Supprimer définitivement Vin Valpierre Rouge 75cl/i)
     ).toBeVisible();
     await deleteDialog
       .getByRole('button', { name: 'Supprimer définitivement', exact: true })
       .click();
     await expect(
-      page.locator('tbody').getByText('Valpierre Rouge 75cl', { exact: true })
+      page.locator('tbody').getByText('Vin Valpierre Rouge 75cl', { exact: true })
     ).toBeHidden();
 
     expect(errors).toEqual([]);
