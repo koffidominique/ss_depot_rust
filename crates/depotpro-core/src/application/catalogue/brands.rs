@@ -129,6 +129,25 @@ pub async fn update_brand(db: &DepotDb, id: i64, input: UpdateBrandInput) -> Cor
         updates.push("description = ?".to_string());
         binds.push(d.trim().to_string());
     }
+
+    if let Some(brewery_id) = input.brewery_id {
+        match brewery_id {
+            Some(id) => {
+                let exists: Option<i64> = sqlx::query_scalar(
+                    "SELECT id FROM breweries WHERE id = ? AND is_active = 1",
+                )
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await?;
+                if exists.is_none() {
+                    return Err(CoreError::Validation("Brasserie introuvable ou inactive.".to_string()));
+                }
+                updates.push("brewery_id = ?".to_string());
+                binds.push(id.to_string());
+            }
+            None => updates.push("brewery_id = NULL".to_string()),
+        }
+    }
     if let Some(active) = input.is_active {
         updates.push("is_active = ?".to_string());
         binds.push(if active { "1" } else { "0" }.to_string());
