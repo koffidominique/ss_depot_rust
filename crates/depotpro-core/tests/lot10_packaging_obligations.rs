@@ -20,7 +20,9 @@ async fn seed_fixture(db: &DepotDb) -> (i64, i64) {
     sqlx::query("INSERT INTO clients (code, name, client_type) VALUES ('CLI-TEST', 'Client Test', 'particulier')")
         .execute(&mut **tx).await.unwrap();
     let client_id: i64 = sqlx::query_scalar("SELECT id FROM clients WHERE code = 'CLI-TEST'")
-        .fetch_one(&mut **tx).await.unwrap();
+        .fetch_one(&mut **tx)
+        .await
+        .unwrap();
     sqlx::query(
         "INSERT INTO returnable_packaging_types (code, name, producer, kind, description, deposit_value)
          VALUES ('EMB-TEST', 'Casier test', 'SOLIBRA', 'crate', 'Casier de test', 3600)",
@@ -28,46 +30,64 @@ async fn seed_fixture(db: &DepotDb) -> (i64, i64) {
     .execute(&mut **tx).await.unwrap();
     let rid: i64 =
         sqlx::query_scalar("SELECT id FROM returnable_packaging_types WHERE code = 'EMB-TEST'")
-            .fetch_one(&mut **tx).await.unwrap();
+            .fetch_one(&mut **tx)
+            .await
+            .unwrap();
     sqlx::query(
         "INSERT INTO sales (reference, request_key, sale_type, subtotal_merchandise, discount_amount, total_merchandise, total_deposit, total_amount, paid_amount, status, client_id)
          VALUES ('VTE-TEST-1', 'rk-vte-test-1', 'credit', 12000, 0, 12000, 18000, 30000, 8000, 'validated', ?)",
     )
     .bind(client_id).execute(&mut **tx).await.unwrap();
-    let sale_id: i64 =
-        sqlx::query_scalar("SELECT id FROM sales WHERE reference = 'VTE-TEST-1'")
-            .fetch_one(&mut **tx).await.unwrap();
+    let sale_id: i64 = sqlx::query_scalar("SELECT id FROM sales WHERE reference = 'VTE-TEST-1'")
+        .fetch_one(&mut **tx)
+        .await
+        .unwrap();
     sqlx::query("INSERT INTO categories (name) VALUES ('Bières test')")
         .execute(&mut **tx)
         .await
         .unwrap();
     let cat_id: i64 = sqlx::query_scalar("SELECT id FROM categories WHERE name = 'Bières test'")
-        .fetch_one(&mut **tx).await.unwrap();
+        .fetch_one(&mut **tx)
+        .await
+        .unwrap();
     sqlx::query(
         "INSERT INTO products (reference, name, category_id, base_unit, stock_milli)
          VALUES ('PROD-TEST-1', 'Bière test', ?, 'bouteille', 100000)",
     )
-    .bind(cat_id).execute(&mut **tx).await.unwrap();
+    .bind(cat_id)
+    .execute(&mut **tx)
+    .await
+    .unwrap();
     let product_id: i64 =
         sqlx::query_scalar("SELECT id FROM products WHERE reference = 'PROD-TEST-1'")
-            .fetch_one(&mut **tx).await.unwrap();
+            .fetch_one(&mut **tx)
+            .await
+            .unwrap();
     sqlx::query(
         "INSERT INTO product_packagings (product_id, name, base_unit, coefficient_milli)
          VALUES (?, 'casier', 'bouteille', 24000)",
     )
-    .bind(product_id).execute(&mut **tx).await.unwrap();
+    .bind(product_id)
+    .execute(&mut **tx)
+    .await
+    .unwrap();
     let packaging_id: i64 = sqlx::query_scalar(
         "SELECT id FROM product_packagings WHERE product_id = ? AND name = 'casier'",
     )
-    .bind(product_id).fetch_one(&mut **tx).await.unwrap();
+    .bind(product_id)
+    .fetch_one(&mut **tx)
+    .await
+    .unwrap();
     sqlx::query(
         "INSERT INTO sale_lines (sale_id, product_id, packaging_id, product_name, packaging_name, base_unit, coefficient_milli, quantity_milli, base_quantity_milli, unit_price, discount_amount, line_total)
          VALUES (?, ?, ?, 'Bière test', 'casier', 'bouteille', 24000, 24000, 24000, 12000, 0, 12000)",
     )
     .bind(sale_id).bind(product_id).bind(packaging_id).execute(&mut **tx).await.unwrap();
-    let line_id: i64 =
-        sqlx::query_scalar("SELECT id FROM sale_lines WHERE sale_id = ?").bind(sale_id)
-            .fetch_one(&mut **tx).await.unwrap();
+    let line_id: i64 = sqlx::query_scalar("SELECT id FROM sale_lines WHERE sale_id = ?")
+        .bind(sale_id)
+        .fetch_one(&mut **tx)
+        .await
+        .unwrap();
     // Obligation échue : 5 casiers dus à 3600, échéance hier.
     let yesterday = (chrono::Utc::now() - chrono::Duration::days(1))
         .format("%Y-%m-%d")
