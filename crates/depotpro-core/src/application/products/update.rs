@@ -42,8 +42,13 @@ pub async fn update_product(
         variant_id: Option<i64>,
     }
     type ExistingVariantRow = (
-        String, Option<i64>, Option<String>, Option<f64>,
-        Option<i64>, Option<i64>, Option<i64>,
+        String,
+        Option<i64>,
+        Option<String>,
+        Option<f64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
     );
 
     let (_guard, mut tx) = db.begin_write().await?;
@@ -67,14 +72,24 @@ pub async fn update_product(
 
     if let Some(cid) = input.category_id {
         if sqlx::query_scalar::<_, i64>("SELECT id FROM categories WHERE id = ?")
-            .bind(cid).fetch_optional(&mut *tx).await?.is_none() {
+            .bind(cid)
+            .fetch_optional(&mut *tx)
+            .await?
+            .is_none()
+        {
             return Err(CoreError::Validation("Catégorie introuvable.".to_string()));
         }
     }
     if let Some(sid) = input.supplier_id {
         if sqlx::query_scalar::<_, i64>("SELECT id FROM suppliers WHERE id = ?")
-            .bind(sid).fetch_optional(&mut *tx).await?.is_none() {
-            return Err(CoreError::Validation("Fournisseur introuvable.".to_string()));
+            .bind(sid)
+            .fetch_optional(&mut *tx)
+            .await?
+            .is_none()
+        {
+            return Err(CoreError::Validation(
+                "Fournisseur introuvable.".to_string(),
+            ));
         }
     }
 
@@ -96,10 +111,19 @@ pub async fn update_product(
         (Some(selected_brand_id), Some(brand.0))
     } else if let Some(legacy_brand) = input.brand.as_deref() {
         if input.brewery_id.is_some() {
-            return Err(CoreError::Validation("Sélectionnez une marque pour cette brasserie.".to_string()));
+            return Err(CoreError::Validation(
+                "Sélectionnez une marque pour cette brasserie.".to_string(),
+            ));
         }
         let clean = legacy_brand.trim();
-        (None, if clean.is_empty() { None } else { Some(clean.to_string()) })
+        (
+            None,
+            if clean.is_empty() {
+                None
+            } else {
+                Some(clean.to_string())
+            },
+        )
     } else {
         (cur.brand_id, cur.brand.clone())
     };
@@ -107,7 +131,11 @@ pub async fn update_product(
     let barcode = match input.barcode.as_deref() {
         Some(value) => {
             let trimmed = value.trim();
-            if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
         }
         None => cur.barcode.clone(),
     };
@@ -116,10 +144,15 @@ pub async fn update_product(
             "SELECT id FROM products WHERE barcode = ? AND id != ?
              UNION SELECT id FROM product_packagings WHERE barcode = ?",
         )
-        .bind(bc).bind(id).bind(bc)
-        .fetch_optional(&mut *tx).await?;
+        .bind(bc)
+        .bind(id)
+        .bind(bc)
+        .fetch_optional(&mut *tx)
+        .await?;
         if dup.is_some() {
-            return Err(CoreError::DuplicateOperation("Code-barres déjà utilisé.".to_string()));
+            return Err(CoreError::DuplicateOperation(
+                "Code-barres déjà utilisé.".to_string(),
+            ));
         }
     }
 
@@ -131,7 +164,8 @@ pub async fn update_product(
         Some(value) => Quantity::parse_str(value, "Stock maximum")?.milli_units,
         None => cur.max_stock_milli,
     };
-    let purchase_price = input.purchase_price
+    let purchase_price = input
+        .purchase_price
         .map(|v| Money::from_non_negative(v, "Prix d'achat").map(|m| m.value()))
         .transpose()?.or(cur.purchase_price);
     let wholesale_price = input.wholesale_price
@@ -184,24 +218,41 @@ pub async fn update_product(
                         bottle_profile_id, crate_type_id, compatibility_group_id
                  FROM product_variants WHERE id = ? AND product_id = ?",
             )
-            .bind(variant_id).bind(id)
-            .fetch_optional(&mut *tx).await?
+            .bind(variant_id)
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?
         } else {
             None
         };
 
-        let variant_name = input.variant_name.as_deref()
-            .map(str::trim).filter(|v| !v.is_empty())
+        let variant_name = input
+            .variant_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
             .map(str::to_string)
             .or_else(|| current_variant.as_ref().map(|v| v.0.clone()))
             .unwrap_or_else(|| name.clone());
-        let volume_ml = input.volume_ml.or_else(|| current_variant.as_ref().and_then(|v| v.1));
-        let container_type = input.container_type.clone()
+        let volume_ml = input
+            .volume_ml
+            .or_else(|| current_variant.as_ref().and_then(|v| v.1));
+        let container_type = input
+            .container_type
+            .clone()
             .or_else(|| current_variant.as_ref().and_then(|v| v.2.clone()));
-        let alcohol_degree = input.alcohol_degree.or_else(|| current_variant.as_ref().and_then(|v| v.3));
-        let bottle_profile_id = input.bottle_profile_id.or_else(|| current_variant.as_ref().and_then(|v| v.4));
-        let crate_type_id = input.crate_type_id.or_else(|| current_variant.as_ref().and_then(|v| v.5));
-        let compatibility_group_id = input.compatibility_group_id.or_else(|| current_variant.as_ref().and_then(|v| v.6));
+        let alcohol_degree = input
+            .alcohol_degree
+            .or_else(|| current_variant.as_ref().and_then(|v| v.3));
+        let bottle_profile_id = input
+            .bottle_profile_id
+            .or_else(|| current_variant.as_ref().and_then(|v| v.4));
+        let crate_type_id = input
+            .crate_type_id
+            .or_else(|| current_variant.as_ref().and_then(|v| v.5));
+        let compatibility_group_id = input
+            .compatibility_group_id
+            .or_else(|| current_variant.as_ref().and_then(|v| v.6));
 
         if volume_ml.is_some() != container_type.is_some() {
             return Err(CoreError::Validation(
@@ -210,41 +261,69 @@ pub async fn update_product(
         }
         if let Some(volume) = volume_ml {
             if volume <= 0 {
-                return Err(CoreError::Validation("Le volume du contenant doit être positif.".to_string()));
+                return Err(CoreError::Validation(
+                    "Le volume du contenant doit être positif.".to_string(),
+                ));
             }
         }
         if let Some(ref kind) = container_type {
             if !ALLOWED_CONTAINER_TYPES.contains(&kind.as_str()) {
-                return Err(CoreError::Validation("Type de contenant invalide.".to_string()));
+                return Err(CoreError::Validation(
+                    "Type de contenant invalide.".to_string(),
+                ));
             }
         }
         if let Some(degree) = alcohol_degree {
             if !degree.is_finite() || !(0.0..=100.0).contains(&degree) {
-                return Err(CoreError::Validation("Le degré d'alcool doit être compris entre 0 et 100 %.".to_string()));
+                return Err(CoreError::Validation(
+                    "Le degré d'alcool doit être compris entre 0 et 100 %.".to_string(),
+                ));
             }
         }
         if let Some(profile_id) = bottle_profile_id {
             if sqlx::query_scalar::<_, i64>("SELECT id FROM bottle_profiles WHERE id = ?")
-                .bind(profile_id).fetch_optional(&mut *tx).await?.is_none() {
-                return Err(CoreError::Validation("Profil de bouteille introuvable.".to_string()));
+                .bind(profile_id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .is_none()
+            {
+                return Err(CoreError::Validation(
+                    "Profil de bouteille introuvable.".to_string(),
+                ));
             }
         }
         if let Some(crate_id) = crate_type_id {
             if sqlx::query_scalar::<_, i64>("SELECT id FROM crate_types WHERE id = ?")
-                .bind(crate_id).fetch_optional(&mut *tx).await?.is_none() {
-                return Err(CoreError::Validation("Type de casier introuvable.".to_string()));
+                .bind(crate_id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .is_none()
+            {
+                return Err(CoreError::Validation(
+                    "Type de casier introuvable.".to_string(),
+                ));
             }
         }
         if let Some(group_id) = compatibility_group_id {
-            if sqlx::query_scalar::<_, i64>("SELECT id FROM crate_compatibility_groups WHERE id = ?")
-                .bind(group_id).fetch_optional(&mut *tx).await?.is_none() {
-                return Err(CoreError::Validation("Groupe de compatibilité introuvable.".to_string()));
+            if sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM crate_compatibility_groups WHERE id = ?",
+            )
+            .bind(group_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .is_none()
+            {
+                return Err(CoreError::Validation(
+                    "Groupe de compatibilité introuvable.".to_string(),
+                ));
             }
         }
 
         if let Some(variant_id) = cur.variant_id {
             if current_variant.is_none() {
-                return Err(CoreError::Validation("Variante physique liée introuvable.".to_string()));
+                return Err(CoreError::Validation(
+                    "Variante physique liée introuvable.".to_string(),
+                ));
             }
             sqlx::query(
                 "UPDATE product_variants
@@ -253,14 +332,22 @@ pub async fn update_product(
                      updated_at = datetime('now')
                  WHERE id = ? AND product_id = ?",
             )
-            .bind(&variant_name).bind(volume_ml).bind(container_type.as_deref())
-            .bind(alcohol_degree).bind(bottle_profile_id).bind(crate_type_id)
-            .bind(compatibility_group_id).bind(variant_id).bind(id)
-            .execute(&mut *tx).await?;
+            .bind(&variant_name)
+            .bind(volume_ml)
+            .bind(container_type.as_deref())
+            .bind(alcohol_degree)
+            .bind(bottle_profile_id)
+            .bind(crate_type_id)
+            .bind(compatibility_group_id)
+            .bind(variant_id)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
         } else {
             if volume_ml.is_none() || container_type.is_none() {
                 return Err(CoreError::Validation(
-                    "Pour créer une variante, renseignez son volume et son type de contenant.".to_string(),
+                    "Pour créer une variante, renseignez son volume et son type de contenant."
+                        .to_string(),
                 ));
             }
             let variant_id = sqlx::query(
@@ -269,14 +356,23 @@ pub async fn update_product(
                      bottle_profile_id, crate_type_id, compatibility_group_id, updated_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
             )
-            .bind(id).bind(&variant_name).bind(volume_ml).bind(container_type.as_deref())
-            .bind(alcohol_degree).bind(bottle_profile_id).bind(crate_type_id)
+            .bind(id)
+            .bind(&variant_name)
+            .bind(volume_ml)
+            .bind(container_type.as_deref())
+            .bind(alcohol_degree)
+            .bind(bottle_profile_id)
+            .bind(crate_type_id)
             .bind(compatibility_group_id)
-            .execute(&mut *tx).await?
+            .execute(&mut *tx)
+            .await?
             .last_insert_rowid();
 
             sqlx::query("UPDATE products SET variant_id = ? WHERE id = ?")
-                .bind(variant_id).bind(id).execute(&mut *tx).await?;
+                .bind(variant_id)
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
         }
     }
 
