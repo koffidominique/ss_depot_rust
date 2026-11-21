@@ -1,5 +1,9 @@
 import { Banknote, Landmark, Smartphone } from 'lucide-react';
 import { MetricCard } from '../../../components/common/MetricCard.tsx';
+import {
+  MotionStaggerGrid,
+  MotionStaggerItem,
+} from '../../../components/motion/MotionPrimitives.tsx';
 import type { CashStatus } from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
 
@@ -16,7 +20,7 @@ export function CashSummaryCards({
 }: CashSummaryCardsProps) {
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <MotionStaggerGrid className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <MetricCard
           label="Espèces théoriques en tiroir"
           value={formatFcfa(theoreticalCash)}
@@ -36,14 +40,15 @@ export function CashSummaryCards({
           hint="Ventilation stricte espèces vs mobile money"
           icon={<Landmark className="h-4 w-4" />}
         />
-      </div>
+      </MotionStaggerGrid>
 
       {summary.byMethod.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MotionStaggerGrid className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {summary.byMethod.map((m) => (
-            <div
+            <MotionStaggerItem
               key={m.method_code}
-              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-4"
+              interactive
+              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-4"
             >
               <div className="flex items-center justify-between text-xs text-[#667085] dark:text-slate-400">
                 <span className="font-medium text-[#182230] dark:text-slate-200">{m.label}</span>
@@ -56,9 +61,9 @@ export function CashSummaryCards({
                 <span>Entrées : {formatFcfa(m.total_in)}</span>
                 <span>Sorties : {formatFcfa(m.total_out)}</span>
               </div>
-            </div>
+            </MotionStaggerItem>
           ))}
-        </div>
+        </MotionStaggerGrid>
       )}
     </>
   );

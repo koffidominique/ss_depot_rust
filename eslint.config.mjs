@@ -8,8 +8,10 @@ export default tseslint.config(
     ignores: [
       'dist/**',
       'node_modules/**',
+      'target/**',
       'crates/**',
       'src-tauri/target/**',
+      'src-tauri/gen/**',
       'data/**',
       'playwright-report/**',
       'test-results/**',
@@ -17,7 +19,7 @@ export default tseslint.config(
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['src/**/*.{ts,tsx}', 'server/**/*.{ts,tsx}', 'server.ts', 'scripts/*.ts', 'tests/e2e/*.ts'],
+    files: ['src/**/*.{ts,tsx}', 'scripts/*.ts', 'tests/e2e/*.ts'],
     languageOptions: {
       ecmaVersion: 2022,
       globals: {

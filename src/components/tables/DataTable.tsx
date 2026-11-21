@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'motion/react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -8,6 +9,12 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  DP_BUTTON_HOVER,
+  DP_BUTTON_TAP,
+  DP_EASE,
+  DP_SPRING_SNAPPY,
+} from '../motion/MotionPrimitives.tsx';
 import { cn } from '../../utils/format.ts';
 
 interface DataTableProps<T> {
@@ -43,7 +50,12 @@ export function DataTable<T>({
   });
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E]">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: DP_EASE }}
+      className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface"
+    >
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
@@ -88,12 +100,19 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr
+              table.getRowModel().rows.map((row, rowIdx) => (
+                <motion.tr
                   key={row.id}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.18,
+                    delay: Math.min(rowIdx * 0.015, 0.18),
+                    ease: DP_EASE,
+                  }}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                   className={cn(
-                    'transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40',
+                    'transition-colors hover:bg-blue-50/50 dark:hover:bg-slate-800/60',
                     onRowClick ? 'cursor-pointer' : ''
                   )}
                 >
@@ -102,7 +121,7 @@ export function DataTable<T>({
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
-                </tr>
+                </motion.tr>
               ))
             )}
           </tbody>
@@ -116,27 +135,33 @@ export function DataTable<T>({
             {total !== undefined ? ` · ${total} élément(s)` : ''}
           </span>
           <div className="flex items-center gap-2">
-            <button
+            <motion.button
               type="button"
+              whileHover={page <= 1 ? undefined : DP_BUTTON_HOVER}
+              whileTap={page <= 1 ? undefined : DP_BUTTON_TAP}
+              transition={DP_SPRING_SNAPPY}
               disabled={page <= 1}
               onClick={() => onPageChange(page - 1)}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1 hover:border-[#2563EB]/40 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
               Précédent
-            </button>
-            <button
+            </motion.button>
+            <motion.button
               type="button"
+              whileHover={page >= totalPages ? undefined : DP_BUTTON_HOVER}
+              whileTap={page >= totalPages ? undefined : DP_BUTTON_TAP}
+              transition={DP_SPRING_SNAPPY}
               disabled={page >= totalPages}
               onClick={() => onPageChange(page + 1)}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1 hover:border-[#2563EB]/40 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
             >
               Suivant
               <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+            </motion.button>
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

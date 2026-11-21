@@ -88,10 +88,12 @@ Suite `tokio::test` exécutée sur base SQLite temporaire isolée couvrant les s
 
 ## Benchmark de charge (`npm run benchmark`)
 
-Exécuté sur une base SQLite temporaire peuplée avec **10 000 produits**, **10 000 clients**, **100 000 lignes de vente** et **100 000 mouvements de stock** (`scripts/benchmark_perf.ts`, 50 itérations par opération) :
-- Recherche produit paginée (10 000 produits) : p50 = `15.59 ms`, p95 = `18.34 ms` (cible `< 300 ms`)
-- Détail vente complet (100 000 lignes) : p50 = `0.19 ms`, p95 = `0.41 ms` (cible `< 150 ms`)
-- Validation vente atomique (transaction + stock) : p50 = `0.96 ms`, p95 = `1.50 ms` (cible `< 500 ms`)
+Exécuté sur une base SQLite temporaire peuplée avec **10 000 produits**, **10 000 clients**, **100 000 lignes de vente** et **100 000 mouvements de stock** (50 itérations par opération) :
+- Recherche produit paginée (10 000 produits) : p50 = `37.13 ms`, p95 = `38.80 ms` (cible `< 300 ms`)
+- Détail vente complet (100 000 lignes) : p50 = `0.57 ms`, p95 = `1.03 ms` (cible `< 150 ms`)
+- Validation vente atomique (transaction + stock) : p50 = `1.24 ms`, p95 = `2.60 ms` (cible `< 500 ms`)
+
+Rejoué le 2026-11-19 sur macOS arm64 via l'exemple Rust `benchmark_perf` (workspace Rust-only).
 
 ## Limites d'environnement connues
 

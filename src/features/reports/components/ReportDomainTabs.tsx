@@ -11,7 +11,7 @@ export function StockReportTab({
   knownValuationFcfa: number;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-sm font-semibold">
           État du stock &amp; valorisation CUMP ({products.length} produits actifs)
@@ -57,7 +57,7 @@ export function StockReportTab({
 
 export function CashReportTab({ cashData }: { cashData?: CashStatus }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-3">
       <h3 className="font-display text-sm font-semibold">Sessions de caisse récentes</h3>
       {cashData?.activeSession && (
         <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-xs flex justify-between">
@@ -104,7 +104,7 @@ export function CashReportTab({ cashData }: { cashData?: CashStatus }) {
 
 export function ReceivablesReportTab({ receivables }: { receivables: Receivable[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-3">
       <h3 className="font-display text-sm font-semibold">État des créances clients</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
@@ -142,7 +142,7 @@ export function ReceivablesReportTab({ receivables }: { receivables: Receivable[
 
 export function SuppliersReportTab({ supplierDebts }: { supplierDebts: SupplierDebt[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-3">
       <h3 className="font-display text-sm font-semibold">Engagements &amp; dettes fournisseurs</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
@@ -200,7 +200,7 @@ export function ConsignmentsReportTab({
 }) {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-5 space-y-3">
         <h3 className="font-display text-sm font-semibold">Parc emballages dépôt</h3>
         <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
           {types.map((t) => (
@@ -219,7 +219,7 @@ export function ConsignmentsReportTab({
           ))}
         </div>
       </div>
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-5 space-y-3">
         <h3 className="font-display text-sm font-semibold">Emballages détenus par les clients</h3>
         <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
           {balances.length === 0 ? (

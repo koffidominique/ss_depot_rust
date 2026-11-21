@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { Plus } from 'lucide-react';
+import { DP_EASE } from '../../../components/motion/MotionPrimitives.tsx';
 import {
   Bar,
   BarChart,
@@ -53,7 +55,12 @@ export function MonthlySalesChart({
   const [chartMode, setChartMode] = useState<'revenue' | 'comparison'>('revenue');
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 lg:col-span-2">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: DP_EASE }}
+      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-5 lg:col-span-2"
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h3 className="font-display text-sm font-semibold text-[#182230] dark:text-slate-100">
@@ -199,6 +206,6 @@ export function MonthlySalesChart({
           </ResponsiveContainer>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

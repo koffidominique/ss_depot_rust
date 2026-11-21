@@ -5,14 +5,35 @@ import type { CartItem } from '../../../stores/uiStore.ts';
 import type {
   PriceTier,
   ProductPackaging,
+  ProductSalesUnit,
   SaleDetail,
 } from '../../../types/erp.ts';
 import type { SaleCalculationResult } from '../utils/saleCalculations.ts';
 
-export function getTierPrice(pkg: ProductPackaging, tier: PriceTier): number {
-  if (tier === 'wholesale') return pkg.wholesale_price ?? pkg.retail_price ?? 0;
-  if (tier === 'semi_wholesale') return pkg.semi_wholesale_price ?? pkg.retail_price ?? 0;
+export function getTierPrice(
+  pkg: ProductPackaging,
+  tier: PriceTier = 'retail'
+): number {
+  if (tier === 'wholesale') {
+    return pkg.wholesale_price ?? pkg.retail_price ?? 0;
+  }
+  if (tier === 'semi_wholesale') {
+    return pkg.semi_wholesale_price ?? pkg.retail_price ?? 0;
+  }
   return pkg.retail_price ?? 0;
+}
+
+export function getSalesUnitTierPrice(
+  unit: ProductSalesUnit,
+  tier: PriceTier = 'retail'
+): number {
+  if (tier === 'wholesale') {
+    return unit.wholesale_price ?? unit.retail_price ?? 0;
+  }
+  if (tier === 'semi_wholesale') {
+    return unit.semi_wholesale_price ?? unit.retail_price ?? 0;
+  }
+  return unit.retail_price ?? 0;
 }
 
 export function usePosQueries(search: string) {
@@ -53,8 +74,8 @@ export function usePosQueries(search: string) {
 interface UsePosMutationsOptions {
   requestKey: string;
   posClientId: number | null;
-  posSaleType: 'cash' | 'credit';
   posPriceTier: PriceTier;
+  posSaleType: 'cash' | 'credit';
   globalDiscount: number;
   dueDate: string;
   posCart: CartItem[];
@@ -69,8 +90,8 @@ interface UsePosMutationsOptions {
 export function usePosMutations({
   requestKey,
   posClientId,
-  posSaleType,
   posPriceTier,
+  posSaleType,
   globalDiscount,
   dueDate,
   posCart,
@@ -99,7 +120,9 @@ export function usePosMutations({
         lines: posCart.map((c) => ({
           product_id: c.productId,
           packaging_id: c.packagingId,
+          sales_unit_id: c.salesUnitId ?? undefined,
           quantity: c.quantity,
+          support_quantity: c.supportQuantity,
           discount_amount: c.discountAmount,
         })),
         payments: filteredPayments,

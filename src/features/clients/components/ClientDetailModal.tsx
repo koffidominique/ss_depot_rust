@@ -135,10 +135,10 @@ export function ClientDetailModal({
 
           <div>
             <h4 className="font-display font-semibold mb-2">
-              Consignes détenues ({clientBalances.length})
+              Retour emballages détenus ({clientBalances.length})
             </h4>
             {clientBalances.length === 0 ? (
-              <p className="text-[#667085]">Aucun emballage consigné en attente de retour.</p>
+              <p className="text-[#667085]">Aucun emballage en attente de retour.</p>
             ) : (
               <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-lg border border-slate-200 dark:border-slate-800">
                 {clientBalances.map((b) => (

@@ -20,6 +20,7 @@ import { useConsignmentColumns } from '../features/consignments/components/useCo
 import { ConsignmentTypeModal } from '../features/consignments/components/ConsignmentTypeModal.tsx';
 import { ConsignmentAdjustModal } from '../features/consignments/components/ConsignmentAdjustModal.tsx';
 import { ConsignmentReturnModal } from '../features/consignments/components/ConsignmentReturnModal.tsx';
+import { PackagingFinancialPanel } from '../features/consignments/components/PackagingFinancialPanel.tsx';
 import type {
   ClientBalance,
   DepositReturnRow,
@@ -71,7 +72,7 @@ export function ConsignmentsPage() {
   if (error || !data) {
     return (
       <ErrorState
-        message={error instanceof Error ? error.message : 'Erreur chargement consignations.'}
+        message={error instanceof Error ? error.message : 'Erreur chargement des emballages.'}
         onRetry={() => refetch()}
       />
     );
@@ -98,22 +99,22 @@ export function ConsignmentsPage() {
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs.List className="inline-flex flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-1">
+          <Tabs.List className="inline-flex flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-1">
             <Tabs.Trigger
               value="issues"
-              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] transition-all hover:text-[#182230] dark:hover:text-slate-100 data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
-              Consignes clients ouvertes ({openIssues.length})
+              Retour emballages clients ouverts ({openIssues.length})
             </Tabs.Trigger>
             <Tabs.Trigger
               value="balances"
-              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] transition-all hover:text-[#182230] dark:hover:text-slate-100 data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
               Soldes par client ({clientBalances.length})
             </Tabs.Trigger>
             <Tabs.Trigger
               value="catalog"
-              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] transition-all hover:text-[#182230] dark:hover:text-slate-100 data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
               Catalogue &amp; stock vides ({types.length})
             </Tabs.Trigger>
@@ -122,6 +123,12 @@ export function ConsignmentsPage() {
               className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
             >
               Journal mouvements ({recentMovements.length})
+            </Tabs.Trigger>
+            <Tabs.Trigger
+              value="financial"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
+            >
+              Créances d'emballages
             </Tabs.Trigger>
             <Tabs.Trigger
               value="returns"
@@ -149,7 +156,7 @@ export function ConsignmentsPage() {
               type="button"
               onClick={() =>
                 setPrintDoc({
-                  docType: 'ÉTAT DES CONSIGNATIONS',
+                  docType: 'ÉTAT DES CRÉANCES CLIENTS',
                   reference: `RAP-CON-${new Date().toISOString().slice(0, 10)}`,
                   date: new Date().toISOString(),
                   statusLabel: `${clientBalances.length} compte(s) client(s)`,
@@ -168,7 +175,7 @@ export function ConsignmentsPage() {
                       tone: 'warning',
                     },
                     {
-                      label: 'Dépôts de garantie retenus',
+                      label: "Valeurs d'emballages en attente",
                       value: formatFcfa(totalHeldAmount),
                       bold: true,
                     },
@@ -189,7 +196,7 @@ export function ConsignmentsPage() {
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 whitespace-nowrap shrink-0"
             >
               <Plus className="h-4 w-4" />
-              Nouvel emballage consigné
+              Nouvel emballage réutilisable
             </button>
           </div>
         </div>
@@ -198,7 +205,7 @@ export function ConsignmentsPage() {
           <DataTable
             data={openIssues}
             columns={issueCols as ColumnDef<OpenIssue, unknown>[]}
-            emptyMessage="Aucune consigne ouverte en attente de retour."
+            emptyMessage="Aucun retour emballage ouvert en attente."
           />
         </Tabs.Content>
 
@@ -206,7 +213,7 @@ export function ConsignmentsPage() {
           <DataTable
             data={clientBalances}
             columns={balanceCols as ColumnDef<ClientBalance, unknown>[]}
-            emptyMessage="Aucun client ne détient d'emballages consignés."
+            emptyMessage="Aucun client ne détient d'emballages suivis."
           />
         </Tabs.Content>
 
@@ -214,7 +221,7 @@ export function ConsignmentsPage() {
           <DataTable
             data={types}
             columns={typeCols as ColumnDef<ReturnableType, unknown>[]}
-            emptyMessage="Aucun emballage consigné configuré."
+            emptyMessage="Aucun emballage réutilisable configuré."
           />
         </Tabs.Content>
 
@@ -224,6 +231,10 @@ export function ConsignmentsPage() {
             columns={movementCols as ColumnDef<ReturnableMovementRow, unknown>[]}
             emptyMessage="Aucun mouvement de stock d'emballages enregistré."
           />
+        </Tabs.Content>
+
+        <Tabs.Content value="financial">
+          <PackagingFinancialPanel />
         </Tabs.Content>
 
         <Tabs.Content value="returns">

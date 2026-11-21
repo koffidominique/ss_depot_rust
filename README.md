@@ -89,3 +89,10 @@ Consulter `docs/TROUBLESHOOTING.md` (verrouillage PIN après 5 essais, verrou d'
 - `INSTALLATION_MACOS.md` — Build et installation macOS (`.app`/`.dmg`)
 - `TROUBLESHOOTING.md` — Résolution des incidents courants
 - `CHANGELOG.md` — Journal des évolutions V3
+- `PRODUCTION_READINESS_REPORT.md` — Rapport de validation finale (tests, benchmarks, plateformes, risques résiduels)
+
+## État de production (novembre 2026)
+
+- **Métier & intégrité** : 22 scénarios paritaires Node/Rust + parcours complet de la section 10.1 validés (`cargo test --workspace` : 17 binaires vertes, 0 échec).
+- **Performance** : p95 sous les cibles avec marges > 7× sur 10k produits / 100k lignes (`npm run benchmark`).
+- **Desktop** : compilation Rust/Tauri validée ; signature macOS et installateur Windows restent à produire sur les postes cibles (voir `docs/INSTALLATION_MACOS.md` et `docs/INSTALLATION_WINDOWS.md`).

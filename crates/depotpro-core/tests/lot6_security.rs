@@ -236,7 +236,6 @@ async fn lot6_rbac_six_roles_permissions_and_audit_identity() {
                 semi_wholesale_price: Some(450),
                 retail_price: Some(500),
                 image_path: None,
-                is_active: Some(true),
                 packagings: None,
             },
         ),

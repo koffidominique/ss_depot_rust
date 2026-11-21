@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PriceTier, SessionUser } from '../types/erp.ts';
+import type { DepositComponent, PriceTier, SessionUser } from '../types/erp.ts';
 import { parseQtyInputToMilliBigInt } from '../features/sales/utils/saleCalculations.ts';
 
 function formatDotMilli(milli: bigint): string {
@@ -18,13 +18,17 @@ export interface CartItem {
   stockMilli: number;
   packagingId: number;
   packagingName: string;
+  salesUnitId?: number | null;
+  salesUnitLabel?: string | null;
   coefficientMilli: number;
   allowFraction: boolean;
   quantity: string;
+  supportQuantity: string;  // Number of supports (plastic crates) - tracked separately from bottles
   unitPrice: number;
   discountAmount: number;
   depositPerPack: number;
   depositMode: 'none' | 'deposit' | null;
+  depositComponents?: DepositComponent[];
 }
 
 export interface HeldCart {
@@ -236,7 +240,7 @@ export const useUiStore = create<UiState>((set, get) => ({
       heldCarts: remaining,
       posCart: target.items,
       posClientId: target.clientId,
-      posPriceTier: target.priceTier,
+      posPriceTier: 'retail',
       posSaleType: target.saleType,
     });
     return target;
@@ -250,6 +254,6 @@ export const useUiStore = create<UiState>((set, get) => ({
     }),
 
   setPosClientId: (posClientId) => set({ posClientId }),
-  setPosPriceTier: (posPriceTier) => set({ posPriceTier }),
+  setPosPriceTier: () => set({ posPriceTier: 'retail' }),
   setPosSaleType: (posSaleType) => set({ posSaleType }),
 }));

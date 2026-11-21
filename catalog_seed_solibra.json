@@ -1,0 +1,1099 @@
+{
+  "meta": {
+    "name": "ss-depot-rust-catalog-seed",
+    "version": "1.0.0",
+    "description": "Catalogue central de référence — SOLIBRA, marché ivoirien. Prix à 0 : les tarifs sont configurés par l'OWNER (jamais de prix public importé comme prix d'achat).",
+    "currency": "FCFA",
+    "rules": {
+      "no_invented_packaging": "Un conditionnement non confirmé n'est jamais créé : la variante est marquée to_verify.",
+      "verification_statuses": [
+        "verified",
+        "to_verify",
+        "historical",
+        "custom",
+        "inactive"
+      ],
+      "source_types": [
+        "manufacturer_official",
+        "manufacturer_announcement",
+        "official_shop",
+        "supplier_catalog",
+        "retailer",
+        "secondary_source",
+        "manual_entry"
+      ]
+    }
+  },
+  "manufacturers": [
+    {
+      "code": "MFR-SOLIBRA",
+      "name": "SOLIBRA",
+      "country": "Côte d'Ivoire",
+      "website": "",
+      "shop_url": "",
+      "description": "",
+      "source": "manufacturer_official",
+      "brewery": true,
+      "brands": [
+        {
+          "code": "BOCK",
+          "name": "Bock",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Bock",
+              "variants": [
+                {
+                  "sku": "bock_33_glass_crate24",
+                  "name": "Bock 33 Glass Crate24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "bock_50_glass_crate12",
+                  "name": "Bock 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "bock_65_glass_crate12",
+                  "name": "Bock 65 Glass Crate12",
+                  "volume_ml": 650,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "bock_100_glass_crate12",
+                  "name": "Bock 100 Glass Crate12",
+                  "volume_ml": 1000,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "bock_33_can_carton24",
+                  "name": "Bock 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "bock_50_can_carton24",
+                  "name": "Bock 50 Can Carton24",
+                  "volume_ml": 500,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BEAUFORT",
+          "name": "Beaufort",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Beaufort Lager",
+              "variants": [
+                {
+                  "sku": "beaufort_25_glass_carton24",
+                  "name": "Beaufort 25 Glass Carton24",
+                  "volume_ml": 250,
+                  "container": "glass",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "beaufort_33_glass_crate24",
+                  "name": "Beaufort 33 Glass Crate24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "beaufort_50_glass_crate12",
+                  "name": "Beaufort 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "beaufort_33_can_carton24",
+                  "name": "Beaufort 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "CASTEL B",
+          "name": "Castel Beer",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Castel Beer",
+              "variants": [
+                {
+                  "sku": "castel_33_glass_crate24",
+                  "name": "Castel 33 Glass Crate24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "castel_50_glass_crate12",
+                  "name": "Castel 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "DOPPEL M",
+          "name": "Doppel Munich",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Doppel Munich",
+              "variants": [
+                {
+                  "sku": "doppel_33_glass_crate24",
+                  "name": "Doppel 33 Glass Crate24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "doppel_50_glass_crate12",
+                  "name": "Doppel 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "GUINNESS",
+          "name": "Guinness",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Guinness",
+              "variants": [
+                {
+                  "sku": "guinness_33_glass_crate24",
+                  "name": "Guinness 33 Glass Crate24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "guinness_65_glass_crate12",
+                  "name": "Guinness 65 Glass Crate12",
+                  "volume_ml": 650,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "guinness_33_can_carton24",
+                  "name": "Guinness 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BUDWEISE",
+          "name": "Budweiser",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Budweiser",
+              "variants": [
+                {
+                  "sku": "budweiser_33_glass_carton24",
+                  "name": "Budweiser 33 Glass Carton24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "CORONA E",
+          "name": "Corona Extra",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Corona Extra",
+              "variants": [
+                {
+                  "sku": "corona_33_glass_carton24",
+                  "name": "Corona 33 Glass Carton24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "SOMBRERO",
+          "name": "Sombreros",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Sombreros",
+              "variants": [
+                {
+                  "sku": "sombreros_33_glass_crate24",
+                  "name": "Sombreros 33 Glass Crate24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "sombreros_50_glass_crate12",
+                  "name": "Sombreros 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "sombreros_33_can_carton24",
+                  "name": "Sombreros 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "CHILL",
+          "name": "Chill",
+          "category": "Bières aromatisées",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Chill Citron",
+              "variants": [
+                {
+                  "sku": "chill_25_glass_carton24",
+                  "name": "Chill 25 Glass Carton24",
+                  "volume_ml": 250,
+                  "container": "glass",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "chill_50_glass_crate12",
+                  "name": "Chill 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "chill_33_can_carton24",
+                  "name": "Chill 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "YOUKI",
+          "name": "Youki",
+          "category": "Boissons gazeuses",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Youki",
+              "variants": [
+                {
+                  "sku": "youki_30_glass_crate24",
+                  "name": "Youki 30 Glass Crate24",
+                  "volume_ml": 300,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "youki_50_glass_crate12",
+                  "name": "Youki 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "youki_30_pet_pack12",
+                  "name": "Youki 30 Pet Pack12",
+                  "volume_ml": 300,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 12,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "youki_orange_100_pet_pack6",
+                  "name": "Youki Orange 100 Pet Pack6",
+                  "volume_ml": 1000,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 6,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "youki_moka_150_pet_pack6",
+                  "name": "Youki Moka 150 Pet Pack6",
+                  "volume_ml": 1500,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 6,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "youki_33_can_carton24",
+                  "name": "Youki 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "WORLD CO",
+          "name": "World Cola",
+          "category": "Boissons gazeuses",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "World Cola",
+              "variants": [
+                {
+                  "sku": "worldcola_30_glass_crate24",
+                  "name": "Worldcola 30 Glass Crate24",
+                  "volume_ml": 300,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "worldcola_50_glass_crate12",
+                  "name": "Worldcola 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "worldcola_30_pet_pack12",
+                  "name": "Worldcola 30 Pet Pack12",
+                  "volume_ml": 300,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 12,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "worldcola_100_pet_pack6",
+                  "name": "Worldcola 100 Pet Pack6",
+                  "volume_ml": 1000,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 6,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "worldcola_150_pet_pack6",
+                  "name": "Worldcola 150 Pet Pack6",
+                  "volume_ml": 1500,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 6,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "worldcola_33_can_carton24",
+                  "name": "Worldcola 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "YOUZOU",
+          "name": "Youzou",
+          "category": "Boissons gazeuses",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Youzou",
+              "variants": [
+                {
+                  "sku": "youzou_30_glass_crate24",
+                  "name": "Youzou 30 Glass Crate24",
+                  "volume_ml": 300,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "youzou_50_glass_crate12",
+                  "name": "Youzou 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "youzou_30_pet_pack12",
+                  "name": "Youzou 30 Pet Pack12",
+                  "volume_ml": 300,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 12,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "youzou_100_pet_pack6",
+                  "name": "Youzou 100 Pet Pack6",
+                  "volume_ml": 1000,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 6,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "youzou_150_pet_pack6",
+                  "name": "Youzou 150 Pet Pack6",
+                  "volume_ml": 1500,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 6,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "youzou_33_can_carton24",
+                  "name": "Youzou 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "ORANGINA",
+          "name": "Orangina",
+          "category": "Boissons gazeuses",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Orangina",
+              "variants": [
+                {
+                  "sku": "orangina_30_glass_crate24",
+                  "name": "Orangina 30 Glass Crate24",
+                  "volume_ml": 300,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "orangina_50_glass_crate12",
+                  "name": "Orangina 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "orangina_50_pet_pack6",
+                  "name": "Orangina 50 Pet Pack6",
+                  "volume_ml": 500,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 6,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "orangina_125_pet_pack6",
+                  "name": "Orangina 125 Pet Pack6",
+                  "volume_ml": 1250,
+                  "container": "pet",
+                  "packaging": "pack",
+                  "units_per_package": 6,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "orangina_33_can_carton24",
+                  "name": "Orangina 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "MALTA GU",
+          "name": "Malta Guinness",
+          "category": "Boissons maltées",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Malta Guinness",
+              "variants": [
+                {
+                  "sku": "malta_30_glass_crate24",
+                  "name": "Malta 30 Glass Crate24",
+                  "volume_ml": 300,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "DOPPEL E",
+          "name": "Doppel Energy Malt",
+          "category": "Boissons maltées",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Doppel Energy Malt",
+              "variants": [
+                {
+                  "sku": "doppel_energy_33_glass_crate24",
+                  "name": "Doppel Energy 33 Glass Crate24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "doppel_energy_33_can_carton24",
+                  "name": "Doppel Energy 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "FEROX EN",
+          "name": "Ferox Energy",
+          "category": "Boissons énergisantes",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Ferox Energy",
+              "variants": [
+                {
+                  "sku": "ferox_33_can_carton24",
+                  "name": "Ferox 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "XXL",
+          "name": "XXL",
+          "category": "Boissons énergisantes",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "XXL Energy",
+              "variants": [
+                {
+                  "sku": "xxl_can_carton24",
+                  "name": "Xxl Can Carton24",
+                  "volume_ml": null,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "RACINES",
+          "name": "Racines",
+          "category": "Cocktail alcoolisé",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Racines",
+              "variants": [
+                {
+                  "sku": "racines_33_glass_crate24",
+                  "name": "Racines 33 Glass Crate24",
+                  "volume_ml": 330,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 24,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "racines_50_glass_crate20",
+                  "name": "Racines 50 Glass Crate20",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 20,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                },
+                {
+                  "sku": "racines_33_can_carton24",
+                  "name": "Racines 33 Can Carton24",
+                  "volume_ml": 330,
+                  "container": "can",
+                  "packaging": "carton",
+                  "units_per_package": 24,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "RACINES ",
+          "name": "Racines Fort",
+          "category": "Cocktail alcoolisé",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Racines Fort",
+              "variants": [
+                {
+                  "sku": "racines_fort_50_glass_crate12",
+                  "name": "Racines Fort 50 Glass Crate12",
+                  "volume_ml": 500,
+                  "container": "glass",
+                  "packaging": "casier",
+                  "units_per_package": 12,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "BOOSTER ",
+          "name": "Booster Mojito",
+          "category": "Cocktail alcoolisé",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Booster Mojito",
+              "variants": [
+                {
+                  "sku": "booster_mojito_variant_unknown",
+                  "name": "Booster Mojito Variant Unknown",
+                  "volume_ml": null,
+                  "container": "unknown",
+                  "packaging": "package",
+                  "units_per_package": null,
+                  "verification_status": "needs_verification",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "VALPIERR",
+          "name": "Valpierre",
+          "category": "Vin",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Valpierre",
+              "variants": [
+                {
+                  "sku": "valpierre_50_bottle_case12",
+                  "name": "Valpierre 50 Bottle Case12",
+                  "volume_ml": 500,
+                  "container": "wine bottle",
+                  "packaging": "carton",
+                  "units_per_package": 12,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                },
+                {
+                  "sku": "valpierre_100_bottle_case12",
+                  "name": "Valpierre 100 Bottle Case12",
+                  "volume_ml": 1000,
+                  "container": "wine bottle",
+                  "packaging": "carton",
+                  "units_per_package": 12,
+                  "verification_status": "not_applicable",
+                  "source": "manufacturer_official",
+                  "returnable_packaging": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "FLAG",
+          "name": "Flag",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Flag",
+              "variants": []
+            }
+          ]
+        },
+        {
+          "code": "TUBORG",
+          "name": "Tuborg",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Tuborg",
+              "variants": []
+            }
+          ]
+        },
+        {
+          "code": "NUMBER O",
+          "name": "Number One",
+          "category": "Bières",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Number One",
+              "variants": []
+            }
+          ]
+        },
+        {
+          "code": "VIMTO",
+          "name": "Vimto",
+          "category": "Boissons gazeuses",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Vimto",
+              "variants": []
+            }
+          ]
+        },
+        {
+          "code": "COMPAL",
+          "name": "Compal",
+          "category": "Eaux minérales",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Compal",
+              "variants": []
+            }
+          ]
+        },
+        {
+          "code": "AWA",
+          "name": "AWA",
+          "category": "Eau",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "AWA",
+              "variants": []
+            }
+          ]
+        },
+        {
+          "code": "CRISTALI",
+          "name": "Cristaline",
+          "category": "Eau",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "Cristaline",
+              "variants": []
+            }
+          ]
+        },
+        {
+          "code": "N'ZED EN",
+          "name": "N'Zed Energy Malt",
+          "category": "Boissons énergisantes",
+          "verification_status": "verified",
+          "source": "manufacturer_official",
+          "products": [
+            {
+              "name": "N'Zed Energy Malt",
+              "variants": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

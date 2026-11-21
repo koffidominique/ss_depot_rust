@@ -60,7 +60,6 @@ async fn seed_all_14_entities(db: &DepotDb) {
             semi_wholesale_price: None,
             retail_price: Some(700),
             image_path: None,
-            is_active: None,
             packagings: None,
         },
     )
@@ -459,7 +458,6 @@ async fn lot5_atomic_restore_failure_recovery_and_restart_persistence() {
             semi_wholesale_price: None,
             retail_price: Some(600),
             image_path: None,
-            is_active: None,
             packagings: None,
         },
     )

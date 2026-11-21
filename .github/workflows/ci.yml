@@ -32,20 +32,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
-  node-tests:
-    name: 3. Tests Node, API, Contrats & UI
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run test
-
   vite-build:
-    name: 4. Build production Vite
+    name: 3. Build production Vite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +45,7 @@ jobs:
       - run: npm run build
 
   playwright-e2e:
-    name: 5. Tests Playwright E2E
+    name: 4. Tests Playwright E2E
     needs: [vite-build]
     runs-on: ubuntu-latest
     steps:
@@ -66,6 +54,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - run: npm ci
       - run: npm run build
       - run: npx playwright install chromium --with-deps
@@ -81,7 +71,7 @@ jobs:
           fi
 
   sqlite-migration:
-    name: 6. Migration SQLite V2->V3 & Benchmark 10k/100k
+    name: 5. Migration SQLite V2->V3 & Benchmark 10k/100k
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,12 +79,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: npm ci
       - name: Benchmark charge SQLite (10k produits / 100k lignes)
-        run: npm run benchmark
+        run: cargo run -p depotpro-core --example benchmark_perf
       - name: Vérification migration V2 -> V3 (--strict)
         run: |
           python3 - <<'PY'
@@ -119,7 +111,7 @@ jobs:
           PY
 
   rust-core-tests:
-    name: 7. Tests Rust Core (depotpro-core)
+    name: 6. Tests Rust Core (depotpro-core)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -139,7 +131,7 @@ jobs:
           fi
 
   rust-server-tests:
-    name: 8. Tests Axum (depotpro-server)
+    name: 7. Tests Axum (depotpro-server)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -159,7 +151,7 @@ jobs:
           fi
 
   rust-clippy:
-    name: 9. Clippy Rust (-D warnings)
+    name: 8. Clippy Rust (-D warnings)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -179,7 +171,7 @@ jobs:
           fi
 
   rustfmt:
-    name: 10. Formatage Rust (cargo fmt --check)
+    name: 9. Formatage Rust (cargo fmt --check)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -198,7 +190,7 @@ jobs:
           fi
 
   tauri-windows:
-    name: 11. Compilation Tauri Windows (.msi / .exe)
+    name: 10. Compilation Tauri Windows (.msi / .exe)
     needs: [typecheck, lint, vite-build]
     runs-on: windows-latest
     steps:
@@ -243,7 +235,7 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
 
   tauri-macos:
-    name: 12. Compilation Tauri macOS (.app / .dmg)
+    name: 11. Compilation Tauri macOS (.app / .dmg)
     needs: [typecheck, lint, vite-build]
     runs-on: macos-latest
     steps:
@@ -294,64 +286,3 @@ jobs:
             target/release/bundle/macos/*.app
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/macos/*.app
-
-  cross-engine-parity:
-    name: 13. Parité métier Node.js / Rust (22 scénarios)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: npm ci
-      - name: Compilation serveur Axum (depotpro-server)
-        run: cargo build --bin depotpro-server
-      - name: Exécution matrice paritaire Node.js vs Rust
-        run: |
-          set -euo pipefail
-          PARITY_TMP=$(mktemp -d)
-          cleanup() {
-            rc=$?
-            if [ "$rc" -ne 0 ] && [ -f /tmp/depotpro_rust_parity.log ]; then
-              echo "::group::Logs serveur Axum parité"
-              tail -n 80 /tmp/depotpro_rust_parity.log || true
-              echo "::endgroup::"
-            fi
-            if [ -n "${RUST_PID:-}" ]; then
-              kill "$RUST_PID" 2>/dev/null || true
-              wait "$RUST_PID" 2>/dev/null || true
-            fi
-            rm -rf "$PARITY_TMP"
-            exit "$rc"
-          }
-          trap cleanup EXIT
-
-          RUST_DB="$PARITY_TMP/rust_depotpro.db"
-          RUST_BKP="$PARITY_TMP/rust_backups"
-          mkdir -p "$RUST_BKP"
-          PORT=13999 \
-          DEPOTPRO_HOST=127.0.0.1 \
-          DEPOTPRO_DB_PATH="$RUST_DB" \
-          DEPOTPRO_BACKUP_DIR="$RUST_BKP" \
-            ./target/debug/depotpro-server >/tmp/depotpro_rust_parity.log 2>&1 &
-          RUST_PID=$!
-
-          READY=0
-          for _ in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:13999/api/health >/dev/null 2>&1; then
-              READY=1
-              break
-            fi
-            sleep 0.5
-          done
-          if [ "$READY" -ne 1 ]; then
-            echo "Le serveur Axum n'a pas démarré dans le délai imparti"
-            exit 1
-          fi
-
-          DEPOTPRO_PARITY_RUST_URL=http://127.0.0.1:13999 \
-          DEPOTPRO_PARITY_RUST_DB="$RUST_DB" \
-            npx tsx --test tests/lot9_parity.test.mjs

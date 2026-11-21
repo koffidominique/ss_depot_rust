@@ -5,8 +5,8 @@ use depotpro_core::infrastructure::db::{
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::path::PathBuf;
 
-const EXPECTED_SCHEMA_V5_JSON: &str =
-    include_str!("../../../migrations/sqlite/expected_schema_v5.json");
+const EXPECTED_SCHEMA_V19_JSON: &str =
+    include_str!("../../../migrations/sqlite/expected_schema_v19.json");
 
 fn temp_db_path(tag: &str) -> PathBuf {
     std::env::temp_dir().join(format!("depotpro_lot4_{tag}_{}.db", uuid::Uuid::new_v4()))
@@ -24,9 +24,15 @@ fn legacy_v3_sql_without_optional_cols() -> String {
 }
 
 fn normalize_snapshot(mut snap: SchemaSnapshot) -> SchemaSnapshot {
+    // Sort tables by name
+    snap.tables.sort_by(|a, b| a.name.cmp(&b.name));
     for table in &mut snap.tables {
         table.columns.sort_by(|a, b| a.name.cmp(&b.name));
     }
+    // Sort indexes by name
+    snap.indexes.sort_by(|a, b| a.name.cmp(&b.name));
+    // Sort schema versions by version
+    snap.schema_versions.sort_by_key(|sv| sv.version);
     snap
 }
 
@@ -40,9 +46,10 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
         .await
         .expect("extract schema");
     let expected: SchemaSnapshot =
-        serde_json::from_str(EXPECTED_SCHEMA_V5_JSON).expect("parse expected_schema_v5.json");
+        serde_json::from_str(EXPECTED_SCHEMA_V19_JSON).expect("parse expected_schema_v19.json");
     assert_eq!(
-        snapshot, expected,
+        normalize_snapshot(snapshot),
+        normalize_snapshot(expected),
         "Le schéma Rust doit correspondre exactement au schéma Node attendu"
     );
 
@@ -90,9 +97,9 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
         .fetch_one(&db.pool)
         .await
         .unwrap();
-    assert_eq!(pm_count, 5);
+    assert_eq!(pm_count, 6);
     assert_eq!(exp_cat_count, 6);
-    assert_eq!(cat_count, 4);
+    assert_eq!(cat_count, 14);
 
     // 4. L'assistant de configuration met à jour setup_completed = 1
     let updated = reports::update_settings(
@@ -111,7 +118,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
     // 5. Rejeu idempotent
     let replay = DepotDb::apply_migrations(&db.pool).await.unwrap();
     assert!(replay.applied_versions.is_empty());
-    assert_eq!(replay.latest_version, 5);
+    assert_eq!(replay.latest_version, 19);
 
     let _ = std::fs::remove_file(&db_path);
     let _ = std::fs::remove_file(format!("{}-wal", db_path.display()));
@@ -207,7 +214,7 @@ async fn lot4_existing_columns_and_missing_columns_upgrade_cleanly() {
     assert_eq!(settings_b.setup_completed, 0);
 
     let snap_b = DepotDb::extract_schema_snapshot(&db_b.pool).await.unwrap();
-    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V5_JSON).unwrap();
+    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V19_JSON).unwrap();
     assert_eq!(normalize_snapshot(snap_b), normalize_snapshot(expected));
 
     let _ = std::fs::remove_file(&existing_cols_path);
@@ -280,7 +287,10 @@ async fn lot4_interrupted_migration_rolls_back_and_partial_migration_recovers() 
         .await
         .unwrap();
     let report = DepotDb::apply_migrations(&pool_p).await.unwrap();
-    assert_eq!(report.applied_versions, vec![2, 3, 4, 5]);
+    assert_eq!(
+        report.applied_versions,
+        vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    );
     assert_eq!(report.skipped_legacy_columns_for, vec![2]);
     pool_p.close().await;
 
@@ -289,4 +299,18 @@ async fn lot4_interrupted_migration_rolls_back_and_partial_migration_recovers() 
 
     let _ = std::fs::remove_file(&db_path);
     let _ = std::fs::remove_file(&partial_path);
+}
+
+#[tokio::test]
+#[ignore]
+async fn extract_schema_for_expected_file() {
+    let db_path = temp_db_path("schema_extract");
+    let db = DepotDb::connect(&db_path).await.unwrap();
+    let snapshot = DepotDb::extract_schema_snapshot(&db.pool).await.unwrap();
+    let json = serde_json::to_string_pretty(&snapshot).unwrap();
+    println!("{}", json);
+
+    std::fs::remove_file(&db_path).ok();
+    std::fs::remove_file(format!("{}-wal", db_path.display())).ok();
+    std::fs::remove_file(format!("{}-shm", db_path.display())).ok();
 }

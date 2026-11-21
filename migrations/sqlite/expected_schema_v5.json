@@ -185,6 +185,154 @@
       ]
     },
     {
+      "name": "bottle_profiles",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "producer",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "material",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "capacity_ml",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "diameter_mm",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "height_mm",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "weight_g",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "base_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "neck_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "brands",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "logo_path",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
       "name": "cash_movements",
       "columns": [
         {
@@ -468,6 +616,201 @@
       ]
     },
     {
+      "name": "container_types",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_returnable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "crate_compatibility_groups",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "allows_mixed_brands",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "allows_mixed_volumes",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "crate_types",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "producer",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "capacity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "bottle_capacity_ml",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "bottle_profile_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "dimensions",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "weight_g",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "material",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
       "name": "customer_packaging_accounts",
       "columns": [
         {
@@ -491,6 +834,142 @@
         {
           "name": "deposit_held_amount",
           "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_price_list_items",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "price_list_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "price_tier",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_price_lists",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_default",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
           "notnull": 1,
           "pk": 0
         }
@@ -756,6 +1235,77 @@
       ]
     },
     {
+      "name": "disposable_packaging_types",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "units_per_pack",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_volume_ml",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "material",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_returnable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
       "name": "document_sequences",
       "columns": [
         {
@@ -990,6 +1540,124 @@
       ]
     },
     {
+      "name": "packaging_materials",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "category",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_recyclable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_values",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "value_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
       "name": "payment_allocations",
       "columns": [
         {
@@ -1142,6 +1810,71 @@
       ]
     },
     {
+      "name": "price_history",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "entity_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "entity_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "old_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "new_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "old_packaging_value",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "new_packaging_value",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "changed_by",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
       "name": "product_packagings",
       "columns": [
         {
@@ -1213,6 +1946,107 @@
         {
           "name": "is_active",
           "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "bottle_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "disposable_packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "product_variants",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "volume_ml",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "container_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "bottle_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "disposable_packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "barcode",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
           "notnull": 1,
           "pk": 0
         }
@@ -1345,6 +2179,18 @@
           "name": "created_at",
           "colType": "TEXT",
           "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "brand_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
           "pk": 0
         }
       ]
@@ -2235,6 +3081,83 @@
       ]
     },
     {
+      "name": "supplier_product_prices",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "purchase_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "fees",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "source",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
       "name": "suppliers",
       "columns": [
         {
@@ -2287,6 +3210,65 @@
         },
         {
           "name": "payment_terms_days",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "units_of_measure",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "symbol",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_unit_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "conversion_factor_num",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "conversion_factor_den",
           "colType": "INTEGER",
           "notnull": 1,
           "pk": 0
@@ -2377,12 +3359,76 @@
       "tableName": "audit_logs"
     },
     {
+      "name": "idx_bottle_profiles_active",
+      "tableName": "bottle_profiles"
+    },
+    {
+      "name": "idx_bottle_profiles_code",
+      "tableName": "bottle_profiles"
+    },
+    {
+      "name": "idx_brands_active",
+      "tableName": "brands"
+    },
+    {
+      "name": "idx_brands_name",
+      "tableName": "brands"
+    },
+    {
       "name": "idx_cash_movements_session",
       "tableName": "cash_movements"
     },
     {
       "name": "idx_clients_name",
       "tableName": "clients"
+    },
+    {
+      "name": "idx_compat_groups_active",
+      "tableName": "crate_compatibility_groups"
+    },
+    {
+      "name": "idx_compat_groups_code",
+      "tableName": "crate_compatibility_groups"
+    },
+    {
+      "name": "idx_crate_types_active",
+      "tableName": "crate_types"
+    },
+    {
+      "name": "idx_crate_types_code",
+      "tableName": "crate_types"
+    },
+    {
+      "name": "idx_disposable_active",
+      "tableName": "disposable_packaging_types"
+    },
+    {
+      "name": "idx_disposable_code",
+      "tableName": "disposable_packaging_types"
+    },
+    {
+      "name": "idx_packaging_values_returnable",
+      "tableName": "packaging_values"
+    },
+    {
+      "name": "idx_packaging_values_type",
+      "tableName": "packaging_values"
+    },
+    {
+      "name": "idx_packagings_bottle_profile",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_packagings_compat_group",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_packagings_crate_type",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_packagings_disposable",
+      "tableName": "product_packagings"
     },
     {
       "name": "idx_packagings_product",
@@ -2393,7 +3439,39 @@
       "tableName": "payment_parts"
     },
     {
+      "name": "idx_price_history_created",
+      "tableName": "price_history"
+    },
+    {
+      "name": "idx_price_history_entity",
+      "tableName": "price_history"
+    },
+    {
+      "name": "idx_price_items_list",
+      "tableName": "customer_price_list_items"
+    },
+    {
+      "name": "idx_price_items_product",
+      "tableName": "customer_price_list_items"
+    },
+    {
+      "name": "idx_price_items_valid",
+      "tableName": "customer_price_list_items"
+    },
+    {
+      "name": "idx_price_lists_active",
+      "tableName": "customer_price_lists"
+    },
+    {
+      "name": "idx_price_lists_code",
+      "tableName": "customer_price_lists"
+    },
+    {
       "name": "idx_products_active",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_brand",
       "tableName": "products"
     },
     {
@@ -2406,6 +3484,10 @@
     },
     {
       "name": "idx_products_supplier",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_variant",
       "tableName": "products"
     },
     {
@@ -2437,8 +3519,28 @@
       "tableName": "stock_movements"
     },
     {
+      "name": "idx_supplier_prices_product",
+      "tableName": "supplier_product_prices"
+    },
+    {
+      "name": "idx_supplier_prices_supplier",
+      "tableName": "supplier_product_prices"
+    },
+    {
+      "name": "idx_supplier_prices_valid",
+      "tableName": "supplier_product_prices"
+    },
+    {
       "name": "idx_users_role_active",
       "tableName": "users"
+    },
+    {
+      "name": "idx_variants_active",
+      "tableName": "product_variants"
+    },
+    {
+      "name": "idx_variants_product",
+      "tableName": "product_variants"
     },
     {
       "name": "uq_cash_session_single_open",
@@ -2465,6 +3567,10 @@
     {
       "version": 5,
       "name": "0005_security_roles_users"
+    },
+    {
+      "version": 6,
+      "name": "0006_catalogue_v3"
     }
   ]
 }

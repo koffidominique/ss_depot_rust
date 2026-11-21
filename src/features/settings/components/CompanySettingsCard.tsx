@@ -41,7 +41,7 @@ export function CompanySettingsCard({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-5">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-display text-sm font-semibold">Général &amp; société</h3>
         <FormTipsButton topicId="settings" label="Aide paramètres" />
@@ -258,6 +258,26 @@ export function CompanySettingsCard({
           >
             <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white transition-transform data-[state=checked]:translate-x-[18px]" />
           </Switch.Root>
+        </div>
+
+        <div className="col-span-2">
+          <label className="block font-medium">Délai d'inactivité avant verrouillage (minutes)</label>
+          <input
+            type="number"
+            min="1"
+            max="120"
+            value={form.inactivity_timeout_minutes ?? 10}
+            onChange={(e) => {
+              const val = parseInt(e.target.value, 10);
+              if (!isNaN(val) && val >= 1 && val <= 120) {
+                onUpdateForm((p) => ({ ...p, inactivity_timeout_minutes: val }));
+              }
+            }}
+            className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
+          />
+          <div className="mt-1 text-[11px] text-[#667085] dark:text-slate-400">
+            Durée d'inactivité avant que l'application se verrouille automatiquement (1 à 120 minutes).
+          </div>
         </div>
       </div>
 

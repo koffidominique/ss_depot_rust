@@ -1,15 +1,13 @@
 import { useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { Archive, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Download, PackagePlus, Plus, Upload } from 'lucide-react';
-import { apiClient } from '../services/api/createApiClient.ts';
-import { useUiStore } from '../stores/uiStore.ts';
-import { ModalDialog } from '../components/dialogs/ModalDialog.tsx';
-import { SearchInput } from '../components/forms/SearchInput.tsx';
 import { InlineAlert } from '../components/common/InlineAlert.tsx';
+import { ModalDialog } from '../components/dialogs/ModalDialog.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
+import { useUiStore } from '../stores/uiStore.ts';
 import type { Product, ProductPackaging } from '../types/erp.ts';
-import { compressLocalImage } from '../utils/image.ts';
 import {
   buildNewPackagingState,
   buildPackagingStateFromExisting,
@@ -20,9 +18,17 @@ import {
   type ProductFormValues,
 } from '../features/products/utils/productSchemas.ts';
 import {
+  INITIAL_PACKAGING_STATE,
+  compressProductImageFile,
+  createProductDefaultValues,
+  downloadProductsCsvFile,
+  editProductDefaultValues,
+} from '../features/products/utils/productPageHelpers.ts';
+import {
   useProductMutations,
   useProductsQueries,
 } from '../features/products/hooks/useProductsData.ts';
+import { ProductsToolbar } from '../features/products/components/ProductsToolbar.tsx';
 import { ProductsTable } from '../features/products/components/ProductsTable.tsx';
 import { ProductFormModal } from '../features/products/components/ProductFormModal.tsx';
 import { PackagingModal } from '../features/products/components/PackagingModal.tsx';
@@ -30,28 +36,15 @@ import { ImportCsvModal } from '../features/products/components/ImportCsvModal.t
 import { CategoryModal } from '../features/products/components/CategoryModal.tsx';
 import { CatalogPresetsModal } from '../features/products/components/CatalogPresetsModal.tsx';
 
-const INITIAL_PACKAGING_STATE: PackagingFormState = {
-  id: undefined,
-  name: 'casier',
-  coefficient: '24',
-  purchase_price: 0,
-  wholesale_price: 0,
-  semi_wholesale_price: 0,
-  retail_price: 0,
-  barcode: '',
-  allow_fraction: false,
-  is_active: true,
-  deposit_mode: 'none',
-  returnable_id: 0,
-  returnable_pieces: 1,
-};
+/* ============================================================================
+ * Page Catalogue Produits & Conditionnements
+ * ============================================================================ */
 
 export function ProductsPage() {
   const currentUser = useUiStore((s) => s.currentUser);
-  const canDeleteProduct =
-    currentUser?.role === 'owner' ||
-    Boolean(currentUser?.permissions?.includes('catalog:delete'));
+  const isOwner = currentUser?.role === 'owner';
 
+  /* --- 1. États locaux (filtres, pagination, modales) --- */
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -61,34 +54,21 @@ export function ProductsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pkgProduct, setPkgProduct] = useState<Product | null>(null);
   const [pkgState, setPkgState] = useState<PackagingFormState>(INITIAL_PACKAGING_STATE);
   const [csvOpen, setCsvOpen] = useState(false);
-  const [presetsOpen, setPresetsOpen] = useState(false);
   const [csvText, setCsvText] = useState('');
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const [presetsSubmitError, setPresetsSubmitError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  /* --- 2. Formulaires React Hook Form --- */
   const productForm = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
-    defaultValues: {
-      name: '',
-      brand: '',
-      barcode: '',
-      category_id: 1,
-      supplier_id: null,
-      base_unit: 'bouteille',
-      initial_stock: '0',
-      min_stock: '24',
-      purchase_price: 0,
-      wholesale_price: 0,
-      semi_wholesale_price: 0,
-      retail_price: 0,
-      image_path: null,
-      is_active: true,
-    },
+    defaultValues: createProductDefaultValues(),
   });
 
   const categoryForm = useForm<CategoryFormValues>({
@@ -96,28 +76,36 @@ export function ProductsPage() {
     defaultValues: { name: '', description: '' },
   });
 
+  /* --- 3. Requêtes & Mutations TanStack Query --- */
   const {
     categoriesQuery,
-    suppliersQuery,
     consignmentsQuery,
+    breweriesQuery,
+    brandsQuery,
+    containerTypesQuery,
+    packagingTypesQuery,
+    stockLocationsQuery,
+    suppliersQuery,
     catalogPresetsQuery,
     productsQuery,
-  } = useProductsQueries({
-    search,
-    categoryId,
-    includeArchived,
-    lowStockOnly,
-    page,
+  } = useProductsQueries(
+    {
+      search,
+      categoryId,
+      includeArchived,
+      lowStockOnly,
+      page,
+    },
     presetsOpen,
-  });
+  );
 
   const {
     saveProductMutation,
     archiveMutation,
-    deleteProductMutation,
     upsertPkgMutation,
     createCategoryMutation,
     importCsvMutation,
+    deleteProductMutation,
     applyPresetsMutation,
   } = useProductMutations({
     onSavedProduct: () => {
@@ -132,17 +120,25 @@ export function ProductsPage() {
       setFormError(null);
       setFeedback(isUpdate ? 'Conditionnement mis à jour.' : 'Conditionnement enregistré.');
     },
-    onArchivedProduct: () => {
-      setDeletingProduct(null);
-      setDeleteError(null);
-      setFeedback('Statut du produit mis à jour.');
-    },
+    onArchivedProduct: () => setFeedback('Statut du produit mis à jour.'),
     onDeletedProduct: (res) => {
-      setDeletingProduct(null);
+      setDeleteTarget(null);
       setDeleteError(null);
       setFeedback(`Produit « ${res.name} » (${res.reference}) supprimé définitivement.`);
     },
     onDeleteError: (msg) => setDeleteError(msg),
+    onAppliedPresets: (res) => {
+      setPresetsOpen(false);
+      setPresetsSubmitError(null);
+      if (res.created > 0 || res.reactivated > 0) {
+        setFeedback(
+          `Catalogue brasseries appliqué : ${res.created} créé(s), ${res.reactivated} réactivé(s) (${res.skipped} inchangé(s)).`,
+        );
+      } else {
+        setFeedback(`Tous les produits sélectionnés étaient déjà à jour (${res.skipped}).`);
+      }
+    },
+    onPresetsError: (msg) => setPresetsSubmitError(msg),
     onCreatedCategory: (created) => {
       setCatOpen(false);
       categoryForm.reset({ name: '', description: '' });
@@ -156,31 +152,14 @@ export function ProductsPage() {
       setFormError(null);
       setFeedback(`${created} produit(s) importé(s) depuis le CSV.`);
     },
-    onAppliedPresets: (res) => {
-      setPresetsOpen(false);
-      setFormError(null);
-      if (!res.activate) {
-        setIncludeArchived(true);
-      }
-      const parts: string[] = [];
-      if (res.created > 0) parts.push(`${res.created} créé(s)`);
-      if (res.reactivated > 0) parts.push(`${res.reactivated} réactivé(s)`);
-      if (res.skipped > 0) parts.push(`${res.skipped} déjà présent(s)`);
-      const modeHint = res.activate
-        ? 'actifs et prêts à la vente'
-        : 'chargés en inactif (filtre archivés activé)';
-      setFeedback(
-        `Catalogue brasseries appliqué : ${parts.join(', ') || 'aucune modification'} (${modeHint}).`
-      );
-    },
     onError: (msg) => setFormError(msg),
   });
 
   const categories = categoriesQuery.data;
-  const suppliers = suppliersQuery.data;
   const consignments = consignmentsQuery.data;
   const { data, isLoading, error, refetch } = productsQuery;
 
+  /* --- 4. Gestionnaires d'ouverture & d'actions --- */
   const openPackagingModal = (prod: Product, targetPkg?: ProductPackaging) => {
     setPkgProduct(prod);
     setFormError(null);
@@ -195,44 +174,14 @@ export function ProductsPage() {
 
   const openCreateModal = () => {
     setEditingProduct(null);
-    productForm.reset({
-      name: '',
-      brand: '',
-      barcode: '',
-      category_id: categories?.[0]?.id ?? 1,
-      supplier_id: null,
-      base_unit: 'bouteille',
-      initial_stock: '0',
-      min_stock: '24',
-      purchase_price: 0,
-      wholesale_price: 0,
-      semi_wholesale_price: 0,
-      retail_price: 0,
-      image_path: null,
-      is_active: true,
-    });
+    productForm.reset(createProductDefaultValues(categories));
     setFormError(null);
     setCreateOpen(true);
   };
 
   const openEditModal = (prod: Product) => {
     setEditingProduct(prod);
-    productForm.reset({
-      name: prod.name,
-      brand: prod.brand || '',
-      barcode: prod.barcode || '',
-      category_id: prod.category_id,
-      supplier_id: prod.supplier_id ?? null,
-      base_unit: prod.base_unit,
-      initial_stock: '0',
-      min_stock: String(prod.min_stock_milli / 1000),
-      purchase_price: prod.purchase_price ?? 0,
-      wholesale_price: prod.wholesale_price ?? 0,
-      semi_wholesale_price: prod.semi_wholesale_price ?? 0,
-      retail_price: prod.retail_price ?? 0,
-      image_path: prod.image_path ?? null,
-      is_active: prod.is_active === 1,
-    });
+    productForm.reset(editProductDefaultValues(prod));
     setFormError(null);
     setCreateOpen(true);
   };
@@ -240,11 +189,7 @@ export function ProductsPage() {
   const handleImageFileChange = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const dataUrl = await compressLocalImage(file, {
-        maxSide: 256,
-        quality: 0.82,
-        maxLength: 350_000,
-      });
+      const dataUrl = await compressProductImageFile(file);
       setFormError(null);
       productForm.setValue('image_path', dataUrl);
     } catch (err) {
@@ -252,131 +197,45 @@ export function ProductsPage() {
     }
   };
 
-  const handleExportCsv = async () => {
-    const csv = await apiClient.exportProductsCsv();
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'depotpro_produits.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
+  /* --- 5. Rendu --- */
   return (
     <div className="space-y-5">
       {feedback && (
         <InlineAlert variant="success" message={feedback} onDismiss={() => setFeedback(null)} />
       )}
 
-      {/* Barre d'outils */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <SearchInput
-            value={search}
-            onChange={(next) => {
-              setSearch(next);
-              setPage(1);
-            }}
-            placeholder="Rechercher nom, réf, code-barres..."
-            className="w-72"
-            clearable
-          />
-
-          <select
-            value={categoryId ?? ''}
-            onChange={(e) => {
-              setCategoryId(e.target.value ? Number(e.target.value) : undefined);
-              setPage(1);
-            }}
-            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-2 text-xs font-medium text-[#182230] dark:text-slate-200"
-          >
-            <option value="">Toutes les catégories</option>
-            {categories?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            onClick={() => setLowStockOnly((v) => !v)}
-            className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
-              lowStockOnly
-                ? 'border-[#D9901A] bg-amber-50 dark:bg-amber-950/30 text-[#D9901A]'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] text-[#667085] dark:text-slate-300'
-            }`}
-          >
-            Stock faible
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIncludeArchived((v) => !v)}
-            className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
-              includeArchived
-                ? 'border-[#2563EB] bg-blue-50 dark:bg-blue-950/30 text-[#2563EB]'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] text-[#667085] dark:text-slate-300'
-            }`}
-          >
-            Inclure archivés
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              categoryForm.reset({ name: '', description: '' });
-              setFormError(null);
-              setCatOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3.5 py-2 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Catégorie
-          </button>
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3.5 py-2 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFormError(null);
-              setCsvOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3.5 py-2 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Import CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFormError(null);
-              setPresetsOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-950/30 px-3.5 py-2 text-xs font-medium text-[#2563EB] dark:text-blue-300 hover:bg-blue-100/70 dark:hover:bg-blue-900/40 whitespace-nowrap shrink-0"
-          >
-            <PackagePlus className="h-3.5 w-3.5" />
-            Catalogue brasseries
-          </button>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 whitespace-nowrap shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            Nouveau produit
-          </button>
-        </div>
-      </div>
+      <ProductsToolbar
+        search={search}
+        onSearchChange={(next) => {
+          setSearch(next);
+          setPage(1);
+        }}
+        categoryId={categoryId}
+        onCategoryChange={(next) => {
+          setCategoryId(next);
+          setPage(1);
+        }}
+        categories={categories}
+        lowStockOnly={lowStockOnly}
+        onToggleLowStock={() => setLowStockOnly((v) => !v)}
+        includeArchived={includeArchived}
+        onToggleArchived={() => setIncludeArchived((v) => !v)}
+        onOpenNewCategory={() => {
+          categoryForm.reset({ name: '', description: '' });
+          setFormError(null);
+          setCatOpen(true);
+        }}
+        onExportCsv={() => void downloadProductsCsvFile()}
+        onOpenImportCsv={() => {
+          setFormError(null);
+          setCsvOpen(true);
+        }}
+        onOpenPresets={() => {
+          setPresetsSubmitError(null);
+          setPresetsOpen(true);
+        }}
+        onOpenNewProduct={openCreateModal}
+      />
 
       {isLoading ? (
         <LoadingState />
@@ -395,10 +254,10 @@ export function ProductsPage() {
           onEdit={openEditModal}
           onManagePackagings={openPackagingModal}
           onToggleArchive={(prod) => archiveMutation.mutate(prod)}
-          canDelete={canDeleteProduct}
+          canDelete={isOwner}
           onDelete={(prod) => {
             setDeleteError(null);
-            setDeletingProduct(prod);
+            setDeleteTarget(prod);
           }}
         />
       )}
@@ -407,89 +266,19 @@ export function ProductsPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         editingProduct={editingProduct}
+        existingProducts={data?.items}
         form={productForm}
         categories={categories}
-        suppliers={suppliers}
-        existingProducts={data?.items}
+        breweries={breweriesQuery.data?.items}
+        brands={brandsQuery.data?.items}
+        containerTypes={containerTypesQuery.data?.items}
+        packagingTypes={packagingTypesQuery.data}
+        stockLocations={stockLocationsQuery.data}
+        suppliers={suppliersQuery.data}
         error={formError}
         isPending={saveProductMutation.isPending}
         onSubmit={(values) => saveProductMutation.mutate({ editingProduct, values })}
         onImageFileChange={handleImageFileChange}
-      />
-
-      <ModalDialog
-        open={Boolean(deletingProduct)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeletingProduct(null);
-            setDeleteError(null);
-          }
-        }}
-        title="Supprimer définitivement le produit ?"
-        description={
-          deletingProduct
-            ? `${deletingProduct.reference} — ${deletingProduct.name}`
-            : undefined
-        }
-        maxWidthClass="max-w-md"
-      >
-        <div className="mt-3 space-y-4">
-          {deleteError && <InlineAlert variant="error" message={deleteError} />}
-          <p className="text-xs leading-relaxed text-[#667085] dark:text-slate-300">
-            Cette action supprime définitivement le produit et ses conditionnements (réservé au
-            rôle Propriétaire). S&apos;il possède déjà des ventes, achats ou mouvements de stock,
-            il devra être archivé à la place.
-          </p>
-          <div className="flex flex-wrap justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={() => {
-                setDeletingProduct(null);
-                setDeleteError(null);
-              }}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 px-3.5 py-2 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              Annuler
-            </button>
-            {deleteError && deletingProduct && deletingProduct.is_active === 1 && (
-              <button
-                type="button"
-                disabled={archiveMutation.isPending}
-                onClick={() => archiveMutation.mutate(deletingProduct)}
-                className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-3.5 py-2 text-xs font-semibold text-[#D9901A] hover:bg-amber-100 disabled:opacity-50"
-              >
-                Archiver à la place
-              </button>
-            )}
-            <button
-              type="button"
-              disabled={!deletingProduct || deleteProductMutation.isPending}
-              onClick={() => {
-                if (!deletingProduct) return;
-                setDeleteError(null);
-                deleteProductMutation.mutate(deletingProduct.id);
-              }}
-              className="rounded-lg bg-[#DC4545] px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-            >
-              {deleteProductMutation.isPending ? 'Suppression...' : 'Supprimer définitivement'}
-            </button>
-          </div>
-        </div>
-      </ModalDialog>
-
-      <CatalogPresetsModal
-        open={presetsOpen}
-        onOpenChange={setPresetsOpen}
-        items={catalogPresetsQuery.data?.items}
-        isLoading={catalogPresetsQuery.isLoading}
-        loadError={
-          catalogPresetsQuery.error instanceof Error
-            ? catalogPresetsQuery.error.message
-            : null
-        }
-        submitError={formError}
-        isPending={applyPresetsMutation.isPending}
-        onApply={(keys, activate) => applyPresetsMutation.mutate({ keys, activate })}
       />
 
       <PackagingModal
@@ -533,10 +322,99 @@ export function ProductsPage() {
         open={catOpen}
         onOpenChange={setCatOpen}
         form={categoryForm}
+        categories={categories}
         error={formError}
         isPending={createCategoryMutation.isPending}
         onSubmit={(values) => createCategoryMutation.mutate(values)}
       />
+
+      <CatalogPresetsModal
+        open={presetsOpen}
+        onOpenChange={(nextOpen) => {
+          setPresetsOpen(nextOpen);
+          if (!nextOpen) setPresetsSubmitError(null);
+        }}
+        items={catalogPresetsQuery.data?.items}
+        isLoading={catalogPresetsQuery.isLoading}
+        loadError={
+          catalogPresetsQuery.error instanceof Error ? catalogPresetsQuery.error.message : null
+        }
+        submitError={presetsSubmitError}
+        isPending={applyPresetsMutation.isPending}
+        onApply={(keys, activate) => applyPresetsMutation.mutate({ keys, activate })}
+      />
+
+      <ModalDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+        title={
+          deleteTarget
+            ? `Supprimer définitivement ${deleteTarget.name} ?`
+            : 'Supprimer le produit'
+        }
+        subtitle="Action réservée au Propriétaire : la suppression définitive n'est possible que si le produit n'a aucun historique (ventes, achats, commandes ou mouvements de stock)."
+        maxWidthClass="max-w-lg"
+        error={deleteError}
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2.5">
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium"
+              >
+                Annuler
+              </button>
+            </Dialog.Close>
+            {deleteTarget && deleteTarget.is_active === 1 && (
+              <button
+                type="button"
+                disabled={archiveMutation.isPending || deleteProductMutation.isPending}
+                onClick={() => {
+                  const target = deleteTarget;
+                  archiveMutation.mutate(target, {
+                    onSuccess: () => {
+                      setDeleteTarget(null);
+                      setDeleteError(null);
+                    },
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3.5 py-2 text-xs font-medium text-[#D9901A]"
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Archiver à la place
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={!deleteTarget || deleteProductMutation.isPending}
+              onClick={() => {
+                if (!deleteTarget) return;
+                deleteProductMutation.mutate(deleteTarget.id);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#DC4545] px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {deleteProductMutation.isPending ? 'Suppression...' : 'Supprimer définitivement'}
+            </button>
+          </div>
+        }
+      >
+        {deleteTarget && (
+          <div className="mt-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-3 text-xs text-[#667085] dark:text-slate-300 space-y-1">
+            <div>
+              Référence : <span className="font-mono-num font-semibold">{deleteTarget.reference}</span>
+            </div>
+            <div>
+              Catégorie : {deleteTarget.category_name} · Unité : {deleteTarget.base_unit}
+            </div>
+          </div>
+        )}
+      </ModalDialog>
     </div>
   );
 }

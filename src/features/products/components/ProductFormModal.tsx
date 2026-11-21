@@ -1,349 +1,189 @@
-import { Controller, type UseFormReturn } from 'react-hook-form';
+import { useState } from 'react';
+import type { UseFormReturn } from 'react-hook-form';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Image as ImageIcon, Trash2 } from 'lucide-react';
 import { ModalDialog } from '../../../components/dialogs/ModalDialog.tsx';
-import { MoneyInput } from '../../../components/common/MoneyInput.tsx';
-import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
-import type { Category, Product, Supplier } from '../../../types/erp.ts';
-import { normalizeProductName, type ProductFormValues } from '../utils/productSchemas.ts';
+import type {
+  BrandRef,
+  Brewery,
+  Category,
+  ContainerTypeRef,
+  PackagingTypeRef,
+  Product,
+  StockLocationRef,
+  Supplier,
+} from '../../../types/erp.ts';
+import type { ProductFormValues } from '../utils/productSchemas.ts';
+import { ProductStepIdentity } from './ProductStepIdentity.tsx';
+import { ProductStepSpecs } from './ProductStepSpecsAndUnits.tsx';
+import { ProductStepPackaging } from './ProductStepPackaging.tsx';
+import { ProductStepSalesUnits } from './ProductStepSalesUnits.tsx';
+import { ProductStepUnitsAndPricing } from './ProductStepUnitsAndPricing.tsx';
+import { ProductStepStockAndSupplier } from './ProductStepStockAndSupplier.tsx';
+import { ProductPreviewCard } from './ProductPreviewCard.tsx';
 
 interface ProductFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editingProduct: Product | null;
+  existingProducts?: Product[];
   form: UseFormReturn<ProductFormValues>;
   categories?: Category[];
+  breweries?: Brewery[];
+  brands?: BrandRef[];
+  containerTypes?: ContainerTypeRef[];
+  packagingTypes?: PackagingTypeRef[];
+  stockLocations?: StockLocationRef[];
   suppliers?: Supplier[];
-  existingProducts?: Product[];
   error: string | null;
   isPending: boolean;
   onSubmit: (values: ProductFormValues) => void;
   onImageFileChange: (file: File | undefined) => Promise<void>;
 }
 
+const STEPS = [
+  { id: 1, label: '1. Identité' },
+  { id: 2, label: '2. Contenant' },
+  { id: 3, label: '3. Emballage' },
+  { id: 4, label: '4. Unités vente' },
+  { id: 5, label: '5. Tarifs & consigne' },
+  { id: 6, label: '6. Stock & fournisseur' },
+] as const;
+
 export function ProductFormModal({
   open,
   onOpenChange,
   editingProduct,
+  existingProducts,
   form,
   categories,
+  breweries,
+  brands,
+  containerTypes,
+  packagingTypes,
+  stockLocations,
   suppliers,
-  existingProducts,
   error,
   isPending,
   onSubmit,
   onImageFileChange,
 }: ProductFormModalProps) {
-  const watchedName = form.watch('name');
-  const normTypedName = watchedName ? normalizeProductName(watchedName) : '';
-  const potentialDuplicate =
-    normTypedName && existingProducts
-      ? existingProducts.find(
-          (p) =>
-            p.id !== editingProduct?.id && normalizeProductName(p.name) === normTypedName
-        )
-      : undefined;
+  const [step, setStep] = useState<number>(1);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setStep(1);
+    onOpenChange(nextOpen);
+  };
+
   return (
     <ModalDialog
       open={open}
-      onOpenChange={onOpenChange}
-      title={editingProduct ? `Modifier ${editingProduct.name}` : 'Nouveau produit'}
+      onOpenChange={handleOpenChange}
+      title={editingProduct ? `Modifier ${editingProduct.name}` : 'Nouveau produit boisson'}
       tipsTopicId="products"
       tipsLabel="Aide champs"
-      maxWidthClass="max-w-xl"
+      maxWidthClass="max-w-4xl"
       scrollable
       error={error}
     >
+      <div className="mt-2 flex flex-wrap gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5">
+        {STEPS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setStep(s.id)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              step === s.id
+                ? 'bg-[#2563EB] text-white'
+                : 'bg-slate-100 dark:bg-slate-800 text-[#667085] dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label
-              htmlFor="product-name"
-              className="block text-xs font-medium text-[#182230] dark:text-slate-200"
-            >
-              Nom du produit *
-            </label>
-            <input
-              id="product-name"
-              type="text"
-              aria-invalid={Boolean(form.formState.errors.name)}
-              {...form.register('name')}
-              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-            />
-            {form.formState.errors.name && (
-              <p className="mt-1 text-[11px] text-[#DC4545]" role="alert">
-                {form.formState.errors.name.message}
-              </p>
-            )}
-            {!form.formState.errors.name && potentialDuplicate && (
-              <p className="mt-1 text-[11px] text-[#D9901A]" role="status">
-                Doublon détecté : « {potentialDuplicate.name} » ({potentialDuplicate.reference})
-                existe déjà dans le catalogue.
-              </p>
-            )}
-          </div>
-          <div>
-            <label
-              htmlFor="product-brand"
-              className="block text-xs font-medium text-[#182230] dark:text-slate-200"
-            >
-              Marque
-            </label>
-            <input
-              id="product-brand"
-              type="text"
-              {...form.register('brand')}
-              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="product-barcode"
-              className="block text-xs font-medium text-[#182230] dark:text-slate-200"
-            >
-              Code-barres
-            </label>
-            <input
-              id="product-barcode"
-              type="text"
-              {...form.register('barcode')}
-              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 font-mono-num text-sm"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="product-category"
-              className="block text-xs font-medium text-[#182230] dark:text-slate-200"
-            >
-              Catégorie
-            </label>
-            <Controller
-              control={form.control}
-              name="category_id"
-              render={({ field }) => (
-                <select
-                  id="product-category"
-                  value={field.value}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                >
-                  {categories?.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="product-supplier"
-              className="block text-xs font-medium text-[#182230] dark:text-slate-200"
-            >
-              Fournisseur / Brasserie
-            </label>
-            <Controller
-              control={form.control}
-              name="supplier_id"
-              render={({ field }) => (
-                <select
-                  id="product-supplier"
-                  value={field.value ?? ''}
-                  onChange={(e) =>
-                    field.onChange(e.target.value ? Number(e.target.value) : null)
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-                >
-                  <option value="">Aucun fournisseur</option>
-                  {suppliers?.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-          </div>
-          {!editingProduct && (
-            <div>
-              <label
-                htmlFor="product-base-unit"
-                className="block text-xs font-medium text-[#182230] dark:text-slate-200"
-              >
-                Unité de base
-              </label>
-              <select
-                id="product-base-unit"
-                {...form.register('base_unit')}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-              >
-                <option value="bouteille">bouteille</option>
-                <option value="canette">canette</option>
-                <option value="pack">pack</option>
-                <option value="carton">carton</option>
-              </select>
-            </div>
-          )}
-          {!editingProduct && (
-            <Controller
-              control={form.control}
-              name="initial_stock"
-              render={({ field, fieldState }) => (
-                <QuantityInput
-                  label="Stock initial"
-                  value={field.value}
-                  onChange={field.onChange}
-                  unit={form.watch('base_unit')}
-                  error={fieldState.error?.message}
-                />
-              )}
-            />
-          )}
-          <Controller
-            control={form.control}
-            name="min_stock"
-            render={({ field, fieldState }) => (
-              <QuantityInput
-                label="Seuil d'alerte minimum"
-                value={field.value}
-                onChange={field.onChange}
-                unit={form.watch('base_unit')}
-                error={fieldState.error?.message}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            {step === 1 && (
+              <ProductStepIdentity
+                form={form}
+                isEditing={Boolean(editingProduct)}
+                editingProductId={editingProduct?.id ?? null}
+                existingProducts={existingProducts}
+                categories={categories}
+                breweries={breweries}
+                brands={brands}
+                onImageFileChange={onImageFileChange}
               />
             )}
-          />
-          <Controller
-            control={form.control}
-            name="purchase_price"
-            render={({ field, fieldState }) => (
-              <MoneyInput
-                label="Prix d'achat (unité base)"
-                value={field.value}
-                onChange={field.onChange}
-                error={fieldState.error?.message}
+            {step === 2 && <ProductStepSpecs form={form} containerTypes={containerTypes} />}
+            {step === 3 && (
+              <ProductStepPackaging
+                form={form}
+                isEditing={Boolean(editingProduct)}
+                packagingTypes={packagingTypes}
               />
             )}
-          />
-          <Controller
-            control={form.control}
-            name="wholesale_price"
-            render={({ field, fieldState }) => (
-              <MoneyInput
-                label="Prix gros"
-                value={field.value}
-                onChange={field.onChange}
-                error={fieldState.error?.message}
+            {step === 4 && (
+              <ProductStepSalesUnits form={form} isEditing={Boolean(editingProduct)} />
+            )}
+            {step === 5 && (
+              <ProductStepUnitsAndPricing form={form} isEditing={Boolean(editingProduct)} />
+            )}
+            {step === 6 && (
+              <ProductStepStockAndSupplier
+                form={form}
+                isEditing={Boolean(editingProduct)}
+                locations={stockLocations}
+                suppliers={suppliers}
               />
             )}
-          />
-          <Controller
-            control={form.control}
-            name="semi_wholesale_price"
-            render={({ field, fieldState }) => (
-              <MoneyInput
-                label="Prix demi-gros"
-                value={field.value}
-                onChange={field.onChange}
-                error={fieldState.error?.message}
-              />
-            )}
-          />
-          <Controller
-            control={form.control}
-            name="retail_price"
-            render={({ field, fieldState }) => (
-              <MoneyInput
-                label="Prix détail"
-                value={field.value}
-                onChange={field.onChange}
-                error={fieldState.error?.message}
-              />
-            )}
-          />
-          <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2.5">
-            <div>
-              <label
-                htmlFor="product-is-active"
-                className="text-xs font-medium text-[#182230] dark:text-slate-200"
-              >
-                Produit actif (visible au point de vente / POS)
-              </label>
-              <p className="text-[11px] text-[#667085] dark:text-slate-400">
-                Décochez pour pré-enregistrer le produit en statut archivé et l&apos;activer plus tard.
-              </p>
-            </div>
-            <Controller
-              control={form.control}
-              name="is_active"
-              render={({ field }) => (
-                <input
-                  id="product-is-active"
-                  type="checkbox"
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]"
-                />
-              )}
-            />
           </div>
-          <div className="sm:col-span-2 rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-            <label className="block text-xs font-medium text-[#182230] dark:text-slate-200">
-              Photo produit (optionnelle, redimensionnée automatiquement)
-            </label>
-            <div className="mt-2 flex items-center gap-3">
-              {form.watch('image_path') ? (
-                <img
-                  src={form.watch('image_path') || undefined}
-                  alt={form.watch('name') || 'Aperçu produit'}
-                  className="h-14 w-14 rounded-lg border border-slate-200 dark:border-slate-700 object-cover shrink-0"
-                />
-              ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-slate-400 shrink-0">
-                  <ImageIcon className="h-5 w-5" />
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="cursor-pointer rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800">
-                  Choisir une photo
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    className="sr-only"
-                    onChange={(e) => void onImageFileChange(e.target.files?.[0])}
-                  />
-                </label>
-                {form.watch('image_path') && (
-                  <button
-                    type="button"
-                    onClick={() => form.setValue('image_path', null)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-rose-200 dark:border-rose-900/50 px-2.5 py-1.5 text-xs font-medium text-[#DC4545] hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Retirer
-                  </button>
-                )}
-              </div>
-            </div>
+
+          <div className="lg:col-span-1 pt-4">
+            <ProductPreviewCard form={form} breweries={breweries} categories={categories} />
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
-          <Dialog.Close asChild>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
+          <div className="flex items-center gap-2">
+            {step > 1 && (
+              <button
+                type="button"
+                onClick={() => setStep((s) => Math.max(1, s - 1))}
+                className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium"
+              >
+                Précédent
+              </button>
+            )}
+            {step < 6 && (
+              <button
+                type="button"
+                onClick={() => setStep((s) => Math.min(6, s + 1))}
+                className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-xs font-medium text-[#2563EB]"
+              >
+                Suivant
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium"
+              >
+                Annuler
+              </button>
+            </Dialog.Close>
             <button
-              type="button"
-              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium"
+              type="submit"
+              disabled={isPending}
+              className="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40"
             >
-              Annuler
+              Enregistrer
             </button>
-          </Dialog.Close>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isPending ? 'Enregistrement...' : 'Enregistrer'}
-          </button>
+          </div>
         </div>
       </form>
     </ModalDialog>

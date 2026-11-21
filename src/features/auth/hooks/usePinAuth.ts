@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { apiClient } from '../../../services/api/createApiClient.ts';
-import { ApiError } from '../../../services/api/ApiClient.ts';
-import { useUiStore } from '../../../stores/uiStore.ts';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiClient } from "../../../services/api/createApiClient.ts";
+import { ApiError } from "../../../services/api/ApiClient.ts";
+import { useUiStore } from "../../../stores/uiStore.ts";
+
+const PIN_LENGTH = 6;
 
 export function usePinAuth() {
   const navigate = useNavigate();
@@ -13,10 +15,10 @@ export function usePinAuth() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusReloadTick, setStatusReloadTick] = useState(0);
   const [remainingLockSeconds, setRemainingLockSeconds] = useState(0);
-  const [username, setUsername] = useState('');
-  const [pin, setPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [setupStep, setSetupStep] = useState<'enter' | 'confirm'>('enter');
+  const [username, setUsername] = useState("");
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [setupStep, setSetupStep] = useState<"enter" | "confirm">("enter");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,9 +30,9 @@ export function usePinAuth() {
         if (cancelled) return;
         if (s.authenticated === true) {
           const currentToken = useUiStore.getState().token;
-          setToken(currentToken || 'cookie-session');
+          setToken(currentToken || "cookie-session");
           if (s.user) setCurrentUser(s.user);
-          navigate('/', { replace: true });
+          navigate("/", { replace: true });
           return;
         }
         if (s.authenticated === false && useUiStore.getState().token) {
@@ -39,7 +41,9 @@ export function usePinAuth() {
         setStatusError(null);
         setNeedsSetup(s.needsSetup);
         if (s.lockedUntil) {
-          const secs = Math.ceil((new Date(s.lockedUntil).getTime() - Date.now()) / 1000);
+          const secs = Math.ceil(
+            (new Date(s.lockedUntil).getTime() - Date.now()) / 1000,
+          );
           setRemainingLockSeconds(secs > 0 ? secs : 0);
         } else {
           setRemainingLockSeconds(0);
@@ -47,7 +51,7 @@ export function usePinAuth() {
       })
       .catch(() => {
         if (!cancelled) {
-          setStatusError('Impossible de contacter le serveur local DEPOTPRO.');
+          setStatusError("Impossible de contacter le serveur local DEPOTPRO.");
         }
       });
     return () => {
@@ -63,25 +67,25 @@ export function usePinAuth() {
     return () => window.clearInterval(timer);
   }, [remainingLockSeconds]);
 
-  const currentInput = setupStep === 'confirm' ? confirmPin : pin;
+  const currentInput = setupStep === "confirm" ? confirmPin : pin;
 
   const handleDigit = useCallback(
     (d: string) => {
       if (loading || needsSetup === null) return;
       setError(null);
-      if (setupStep === 'confirm') {
-        setConfirmPin((prev) => (prev.length < 6 ? prev + d : prev));
+      if (setupStep === "confirm") {
+        setConfirmPin((prev) => (prev.length < PIN_LENGTH ? prev + d : prev));
       } else {
-        setPin((prev) => (prev.length < 6 ? prev + d : prev));
+        setPin((prev) => (prev.length < PIN_LENGTH ? prev + d : prev));
       }
     },
-    [loading, needsSetup, setupStep]
+    [loading, needsSetup, setupStep],
   );
 
   const handleBackspace = useCallback(() => {
     if (loading || needsSetup === null) return;
     setError(null);
-    if (setupStep === 'confirm') {
+    if (setupStep === "confirm") {
       setConfirmPin((prev) => prev.slice(0, -1));
     } else {
       setPin((prev) => prev.slice(0, -1));
@@ -89,15 +93,15 @@ export function usePinAuth() {
   }, [loading, needsSetup, setupStep]);
 
   const handleClear = useCallback(() => {
-    setPin('');
-    setConfirmPin('');
-    setSetupStep('enter');
+    setPin("");
+    setConfirmPin("");
+    setSetupStep("enter");
     setError(null);
   }, []);
 
   const handleBackToEnter = useCallback(() => {
-    setSetupStep('enter');
-    setConfirmPin('');
+    setSetupStep("enter");
+    setConfirmPin("");
     setError(null);
   }, []);
 
@@ -111,17 +115,17 @@ export function usePinAuth() {
     setError(null);
 
     if (needsSetup) {
-      if (setupStep === 'enter') {
-        if (pin.length !== 6) {
-          setError('Veuillez saisir 6 chiffres.');
+      if (setupStep === "enter") {
+        if (pin.length !== PIN_LENGTH) {
+          setError(`Veuillez saisir ${PIN_LENGTH} chiffres.`);
           return;
         }
-        setSetupStep('confirm');
+        setSetupStep("confirm");
         return;
       }
       if (confirmPin !== pin) {
-        setError('Les deux codes PIN ne correspondent pas.');
-        setConfirmPin('');
+        setError("Les deux codes PIN ne correspondent pas.");
+        setConfirmPin("");
         return;
       }
       setLoading(true);
@@ -129,40 +133,48 @@ export function usePinAuth() {
         const res = await apiClient.setupPin(pin);
         setToken(res.token);
         if (res.user) setCurrentUser(res.user);
-        navigate('/', { replace: true });
+        navigate("/", { replace: true });
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Erreur lors de la configuration.');
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : "Erreur lors de la configuration.",
+        );
       } finally {
         setLoading(false);
       }
       return;
     }
 
-    if (pin.length !== 6) {
-      setError('Saisissez votre code PIN à 6 chiffres.');
+    if (pin.length !== PIN_LENGTH) {
+      setError(`Saisissez votre code PIN à ${PIN_LENGTH} chiffres.`);
       return;
     }
 
     setLoading(true);
     try {
       const cleanUser = username.trim();
-      const res = cleanUser ? await apiClient.login(pin, cleanUser) : await apiClient.login(pin);
+      const res = cleanUser
+        ? await apiClient.login(pin, cleanUser)
+        : await apiClient.login(pin);
       setToken(res.token);
       if (res.user) setCurrentUser(res.user);
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'PIN_NOT_CONFIGURED') {
+      if (err instanceof ApiError && err.code === "PIN_NOT_CONFIGURED") {
         setNeedsSetup(true);
-        setSetupStep('enter');
-        setPin('');
-        setConfirmPin('');
-        setError('Aucun PIN configuré. Veuillez créer votre PIN propriétaire.');
+        setSetupStep("enter");
+        setPin("");
+        setConfirmPin("");
+        setError("Aucun PIN configuré. Veuillez créer votre PIN propriétaire.");
       } else {
-        if (err instanceof ApiError && err.code === 'PIN_LOCKED') {
+        if (err instanceof ApiError && err.code === "PIN_LOCKED") {
           setStatusReloadTick((t) => t + 1);
         }
-        setError(err instanceof ApiError ? err.message : 'Authentification refusée.');
-        setPin('');
+        setError(
+          err instanceof ApiError ? err.message : "Authentification refusée.",
+        );
+        setPin("");
       }
     } finally {
       setLoading(false);
@@ -196,23 +208,23 @@ export function usePinAuth() {
       }
       if (
         e.target instanceof HTMLButtonElement &&
-        e.target.getAttribute('aria-label') === 'Changer de thème'
+        e.target.getAttribute("aria-label") === "Changer de thème"
       ) {
         return;
       }
       if (/^\d$/.test(e.key)) {
         e.preventDefault();
         handlersRef.current.handleDigit(e.key);
-      } else if (e.key === 'Backspace') {
+      } else if (e.key === "Backspace") {
         e.preventDefault();
         handlersRef.current.handleBackspace();
-      } else if (e.key === 'Enter') {
+      } else if (e.key === "Enter") {
         e.preventDefault();
         void handlersRef.current.handleSubmit();
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   return {
@@ -231,5 +243,6 @@ export function usePinAuth() {
     handleBackToEnter,
     handleSubmit,
     retryStatus,
+    pinLength: PIN_LENGTH,
   };
 }
