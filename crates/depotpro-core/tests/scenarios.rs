@@ -1250,7 +1250,7 @@ async fn scenario_u_cancel_po_and_overdue_kpis() {
         &db,
         sales::CreateSaleInput {
             request_key: "rust-sale-panachage-bad".to_string(),
-            client_id: Some(client.id),
+            client_id: Some(cli.id),
             sale_type: "cash".to_string(),
             price_tier: "retail".to_string(),
             discount_amount: Some(0),
@@ -1276,7 +1276,7 @@ async fn scenario_u_cancel_po_and_overdue_kpis() {
         &db,
         sales::CreateSaleInput {
             request_key: "rust-sale-panachage-ok".to_string(),
-            client_id: Some(client.id),
+            client_id: Some(cli.id),
             sale_type: "cash".to_string(),
             price_tier: "retail".to_string(),
             discount_amount: Some(0),
