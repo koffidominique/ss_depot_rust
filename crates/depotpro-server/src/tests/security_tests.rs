@@ -233,7 +233,9 @@ async fn axum_enforces_session_expiry_revocation_origin_and_rbac() {
         "POST",
         "/api/auth/users",
         &[("Authorization", &format!("Bearer {owner_token}"))],
-        Some(r#"{"username":"admin_sec","displayName":"Karim Admin","role":"admin","pin":"778899"}"#),
+        Some(
+            r#"{"username":"admin_sec","displayName":"Karim Admin","role":"admin","pin":"778899"}"#,
+        ),
     )
     .await;
     assert_eq!(st, 201);

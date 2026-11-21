@@ -76,7 +76,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     const prodModal = page.getByRole('dialog');
     await prodModal.locator('input[type="text"]').first().fill('Youki Cocktail 50cl');
     await prodModal.getByRole('button', { name: 'Enregistrer' }).click();
-    await expect(page.getByRole('cell', { name: /Youki Cocktail 50cl/i })).toBeVisible();
+    await expect(page.locator('tbody').getByText('Youki Cocktail 50cl', { exact: true })).toBeVisible();
 
     await page.goto('/sales/new');
     await expect(
@@ -357,7 +357,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await presetsDialog.getByLabel('Sélectionner Valpierre Rouge 75cl').check();
     await presetsDialog.getByRole('button', { name: 'Activer la sélection (1)' }).click();
 
-    await expect(page.getByRole('cell', { name: /Valpierre Rouge 75cl/i })).toBeVisible();
+    await expect(page.locator('tbody').getByText('Valpierre Rouge 75cl', { exact: true })).toBeVisible();
 
     // 2. Détection d'un doublon en direct dans la modale Nouveau produit + vérification API 409
     await page.getByRole('button', { name: 'Nouveau produit' }).click();
@@ -393,7 +393,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
       deleteDialog.getByText(/Supprimer définitivement Valpierre Rouge 75cl/i)
     ).toBeVisible();
     await deleteDialog.getByRole('button', { name: 'Supprimer définitivement' }).click();
-    await expect(page.getByRole('cell', { name: /Valpierre Rouge 75cl/i })).toBeHidden();
+    await expect(page.locator('tbody').getByText('Valpierre Rouge 75cl', { exact: true })).toBeHidden();
 
     expect(errors).toEqual([]);
   });

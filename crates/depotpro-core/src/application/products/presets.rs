@@ -224,7 +224,8 @@ pub async fn apply_catalog_presets(
             )));
         }
 
-        let supplier_id = resolve_preset_supplier_tx(&mut tx, &preset.brewery, &brewery_map).await?;
+        let supplier_id =
+            resolve_preset_supplier_tx(&mut tx, &preset.brewery, &brewery_map).await?;
         let category_id = resolve_preset_category_tx(&mut tx, &preset.category).await?;
         let brewery_id = resolve_preset_brewery_id_tx(&mut tx, &preset.brewery).await?;
 

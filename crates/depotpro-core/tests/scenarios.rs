@@ -1362,7 +1362,9 @@ async fn scenario_x_brewery_presets_and_supplier_active() {
     let db = DepotDb::connect(&db_path).await.expect("connect temp db");
 
     // 1) Création avec is_active = false + affectation / suppression fournisseur
-    let cat = products::create_category(&db, "Bières X", None).await.unwrap();
+    let cat = products::create_category(&db, "Bières X", None)
+        .await
+        .unwrap();
     let sup = purchases::create_supplier(
         &db,
         purchases::CreateSupplierInput {
@@ -1479,7 +1481,10 @@ async fn scenario_x_brewery_presets_and_supplier_active() {
         .iter()
         .any(|i| i.name.contains("Valpierre") && i.category == "Vins & Spiritueux");
     assert!(has_valpierre);
-    assert!(list_0.items.iter().any(|i| i.category == "Boissons gazeuses"));
+    assert!(list_0
+        .items
+        .iter()
+        .any(|i| i.category == "Boissons gazeuses"));
 
     // 3) Chargement en mode inactif (is_active = 0) pour SOLIBRA (30)
     let res_inactive = products::apply_catalog_presets(
@@ -1528,7 +1533,9 @@ async fn scenario_x_brewery_presets_and_supplier_active() {
     assert_eq!(res_idemp.skipped, 32);
 
     // 6) Suppression définitive d'un produit vierge (sans mouvements/ventes)
-    let del_res = products::delete_product(&db, inactive_prod.id).await.unwrap();
+    let del_res = products::delete_product(&db, inactive_prod.id)
+        .await
+        .unwrap();
     assert!(del_res.deleted);
     assert_eq!(del_res.id, inactive_prod.id);
 

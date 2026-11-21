@@ -157,7 +157,11 @@ pub(crate) async fn insert_preset_packaging_tx(
     })
     .bind(if mode == "deposit" { 1_i64 } else { 0_i64 })
     .bind(if is_default { 1_i64 } else { 0_i64 })
-    .bind(if is_casier || is_default { 1_i64 } else { 0_i64 })
+    .bind(if is_casier || is_default {
+        1_i64
+    } else {
+        0_i64
+    })
     .execute(&mut **tx)
     .await?
     .last_insert_rowid();
