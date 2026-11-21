@@ -11,7 +11,8 @@ use crate::infrastructure::db::DepotDb;
 
 use super::{CreateProductVariantInput, PaginatedQuery, PaginatedResponse, ProductVariantDto};
 
-pub(super) const VARIANT_SELECT: &str = "SELECT id, product_id, name, sku, barcode, volume_ml, container_type,
+pub(super) const VARIANT_SELECT: &str =
+    "SELECT id, product_id, name, sku, barcode, volume_ml, container_type,
     container_type_id, container_material, container_returnable, container_recyclable,
     container_deposit_amount, net_weight_g, bottle_profile_id, crate_type_id,
     compatibility_group_id, disposable_packaging_id, is_active, created_at, updated_at

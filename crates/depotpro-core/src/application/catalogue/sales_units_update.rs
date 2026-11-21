@@ -149,7 +149,7 @@ pub async fn update_sales_unit(
                 .bind(ptype)
                 .bind(old_v)
                 .bind(nv)
-                .execute(&mut **tx)
+                .execute(&mut *tx)
                 .await?;
             }
         }

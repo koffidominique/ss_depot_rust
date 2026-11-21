@@ -70,8 +70,8 @@ pub use dtos_v4::{
     StockLocationDto,
 };
 pub use inputs_catalog::{
-    CreateBottleProfileInput, CreateBrandInput, CreateCompatibilityGroupInput, CreateCrateTypeInput,
-    CreateProductVariantInput, UpdateBottleProfileInput, UpdateBrandInput,
+    CreateBottleProfileInput, CreateBrandInput, CreateCompatibilityGroupInput,
+    CreateCrateTypeInput, CreateProductVariantInput, UpdateBottleProfileInput, UpdateBrandInput,
     UpdateCompatibilityGroupInput, UpdateCrateTypeInput, UpdateProductVariantInput,
 };
 pub use inputs_catalog_packaging::{

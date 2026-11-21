@@ -6,7 +6,7 @@ use sqlx::{Sqlite, Transaction};
 
 use crate::error::{CoreError, CoreResult};
 
-use super::{PackagingComponentInput, PackagingInput};
+use super::{DepositComponentInput, PackagingInput};
 
 pub(crate) async fn record_packaging_price_changes_tx(
     tx: &mut Transaction<'_, Sqlite>,
@@ -44,7 +44,7 @@ pub(crate) async fn upsert_packaging_deposit_profile_tx(
     tx: &mut Transaction<'_, Sqlite>,
     pkg_id: i64,
     deposit_mode: Option<&str>,
-    components: Option<Vec<PackagingComponentInput>>,
+    components: Option<Vec<DepositComponentInput>>,
 ) -> CoreResult<()> {
     let mode = if deposit_mode == Some("deposit") {
         "deposit"

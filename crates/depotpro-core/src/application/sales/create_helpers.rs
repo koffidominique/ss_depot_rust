@@ -10,8 +10,8 @@ use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
 
-use super::create_deposit_helpers::{finalize_shared_deposits, SharedDepositAccum};
 pub(crate) use super::create_deposit_helpers::normalize_sale_payments_tx;
+use super::create_deposit_helpers::{finalize_shared_deposits, SharedDepositAccum};
 use super::create_line_resolver::resolve_line_unit_tx;
 use super::CreateSaleLineV4Input;
 
