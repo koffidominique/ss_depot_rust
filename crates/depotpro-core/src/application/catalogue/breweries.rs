@@ -90,9 +90,27 @@ pub async fn create_brewery(db: &DepotDb, input: CreateBreweryInput) -> CoreResu
     .bind(&code)
     .bind(name)
     .bind(&country_code)
-    .bind(input.address.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(input.website.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(input.notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        input
+            .address
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        input
+            .website
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        input
+            .notes
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .fetch_one(&mut *tx)
     .await?;
 
@@ -133,24 +151,42 @@ pub async fn update_brewery(
     .bind(id)
     .fetch_optional(&mut *tx)
     .await?;
-    let current = current.ok_or_else(|| CoreError::NotFound("Brasserie introuvable.".to_string()))?;
+    let current =
+        current.ok_or_else(|| CoreError::NotFound("Brasserie introuvable.".to_string()))?;
 
-    let name = input.name.as_deref().map(str::trim).filter(|s| !s.is_empty())
+    let name = input
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
         .unwrap_or(&current.name);
     if name.is_empty() {
-        return Err(CoreError::Validation("Le nom de la brasserie est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le nom de la brasserie est obligatoire.".to_string(),
+        ));
     }
-    let country_code = input.country_code.as_deref().map(str::trim).unwrap_or(&current.country_code).to_uppercase();
+    let country_code = input
+        .country_code
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or(&current.country_code)
+        .to_uppercase();
     if country_code.len() != 2 || !country_code.chars().all(|c| c.is_ascii_alphabetic()) {
-        return Err(CoreError::Validation("Le pays doit être un code ISO alpha-2 (ex. CI).".to_string()));
+        return Err(CoreError::Validation(
+            "Le pays doit être un code ISO alpha-2 (ex. CI).".to_string(),
+        ));
     }
 
-    let duplicate: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM breweries WHERE lower(name) = lower(?) AND id != ?",
-    )
-    .bind(name).bind(id).fetch_optional(&mut *tx).await?;
+    let duplicate: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM breweries WHERE lower(name) = lower(?) AND id != ?")
+            .bind(name)
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
     if duplicate.is_some() {
-        return Err(CoreError::DuplicateOperation("Une autre brasserie utilise déjà ce nom.".to_string()));
+        return Err(CoreError::DuplicateOperation(
+            "Une autre brasserie utilise déjà ce nom.".to_string(),
+        ));
     }
 
     sqlx::query(
@@ -164,7 +200,12 @@ pub async fn update_brewery(
     .bind(input.address.unwrap_or(current.address))
     .bind(input.website.unwrap_or(current.website))
     .bind(input.notes.unwrap_or(current.notes))
-    .bind(input.is_active.map(|v| if v { 1_i64 } else { 0_i64 }).unwrap_or(current.is_active))
+    .bind(
+        input
+            .is_active
+            .map(|v| if v { 1_i64 } else { 0_i64 })
+            .unwrap_or(current.is_active),
+    )
     .bind(id)
     .execute(&mut *tx)
     .await?;
