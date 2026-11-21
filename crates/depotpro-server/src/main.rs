@@ -1715,7 +1715,10 @@ fn build_router(state: AppState) -> Router {
         .route("/api/products", get(list_products).post(create_product))
         .route("/api/products/presets", get(list_catalog_presets))
         .route("/api/products/presets/apply", post(apply_catalog_presets))
-        .route("/api/products/:id", put(update_product).delete(delete_product))
+        .route(
+            "/api/products/:id",
+            put(update_product).delete(delete_product),
+        )
         .route("/api/products/:id/packagings", post(upsert_packaging))
         .route("/api/products/export/csv", get(export_products_csv))
         .route("/api/products/import/csv", post(import_products_csv))

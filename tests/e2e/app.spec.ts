@@ -76,7 +76,9 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     const prodModal = page.getByRole('dialog');
     await prodModal.locator('input[type="text"]').first().fill('Youki Cocktail 50cl');
     await prodModal.getByRole('button', { name: 'Enregistrer' }).click();
-    await expect(page.getByRole('cell', { name: /Youki Cocktail 50cl/i })).toBeVisible();
+    await expect(
+      page.locator('tbody').getByText('Youki Cocktail 50cl', { exact: true })
+    ).toBeVisible();
 
     await page.goto('/sales/new');
     await expect(
@@ -243,6 +245,9 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await expect(
       page.getByRole('heading', { name: 'Catalogue produits & conditionnements', level: 1 })
     ).toBeVisible();
+    await expect(
+      page.locator('tbody').getByText('Youki Cocktail 50cl', { exact: true })
+    ).toBeVisible();
 
     // 1. Avertissement doublon a priori dans Nouveau produit
     await page.getByRole('button', { name: 'Nouveau produit' }).click();
@@ -250,6 +255,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await newModal.getByLabel(/Nom du produit/i).fill('  youki   cocktail 50cl ');
     await expect(newModal.getByText(/Doublon détecté/i)).toBeVisible();
     await newModal.getByRole('button', { name: 'Annuler' }).click();
+    await expect(newModal).toBeHidden();
 
     // 2. Catalogue brasseries : 60 références (30 SOLIBRA + 30 BRASSIVOIRE), filtre Vins & Spiritueux -> Valpierre
     await page.getByRole('button', { name: 'Catalogue brasseries' }).click();
@@ -258,22 +264,30 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await expect(presetsDialog.getByRole('button', { name: 'SOLIBRA (30)' })).toBeVisible();
     await expect(presetsDialog.getByRole('button', { name: 'BRASSIVOIRE (30)' })).toBeVisible();
 
-    await presetsDialog.getByRole('button', { name: 'Vins & Spiritueux' }).click();
-    await expect(presetsDialog.getByText('Valpierre Rouge 75cl')).toBeVisible();
+    await presetsDialog.getByRole('button', { name: 'Vins & Spiritueux', exact: true }).click();
+    await expect(presetsDialog.getByText('Vin Valpierre Rouge 75cl', { exact: true })).toBeVisible();
 
-    // Charger Valpierre Rouge 75cl en inactif (archivé) à activer au besoin
-    await presetsDialog.getByLabel('Sélectionner Valpierre Rouge 75cl').check();
+    // Charger Vin Valpierre Rouge 75cl en inactif (archivé) à activer au besoin
+    await presetsDialog.getByLabel('Sélectionner Vin Valpierre Rouge 75cl').check();
     await presetsDialog.getByLabel(/Charger en inactif \(archivé\)/i).check();
     await presetsDialog.getByRole('button', { name: /Charger en inactif \(1\)/i }).click();
+    await expect(presetsDialog).toBeHidden();
 
-    await expect(page.getByRole('cell', { name: /Valpierre Rouge 75cl/i })).toBeVisible();
+    await expect(
+      page.locator('tbody').getByText('Vin Valpierre Rouge 75cl', { exact: true })
+    ).toBeVisible();
 
-    // 3. Suppression Owner du produit vierge Valpierre Rouge 75cl
-    await page.getByRole('button', { name: 'Supprimer Valpierre Rouge 75cl' }).click();
+    // 3. Suppression Owner du produit vierge Vin Valpierre Rouge 75cl
+    const deleteBtn = page.getByRole('button', { name: 'Supprimer Vin Valpierre Rouge 75cl' });
+    await expect(deleteBtn).toBeVisible();
+    await deleteBtn.click();
     const delDialog = page.getByRole('dialog');
     await expect(delDialog.getByText(/Supprimer définitivement le produit/i)).toBeVisible();
     await delDialog.getByRole('button', { name: 'Supprimer définitivement' }).click();
-    await expect(page.getByRole('cell', { name: /Valpierre Rouge 75cl/i })).toHaveCount(0);
+    await expect(delDialog).toBeHidden();
+    await expect(
+      page.locator('tbody').getByText('Vin Valpierre Rouge 75cl', { exact: true })
+    ).toHaveCount(0);
 
     expect(errors).toEqual([]);
   });
