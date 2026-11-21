@@ -165,6 +165,7 @@ pub async fn validate_inventory(
                 .bind(l.product_id)
                 .execute(&mut *tx)
                 .await?;
+            super::sync_stock_balance_tx(&mut tx, l.product_id, counted.milli_units).await?;
 
             sqlx::query(
                 "INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)

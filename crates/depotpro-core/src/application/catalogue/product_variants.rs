@@ -179,8 +179,16 @@ pub async fn create_product_variant(
     .bind(norm_type)
     .bind(input.container_type_id)
     .bind(norm_mat)
-    .bind(if input.container_returnable.unwrap_or(false) { 1_i64 } else { 0_i64 })
-    .bind(if input.container_recyclable.unwrap_or(false) { 1_i64 } else { 0_i64 })
+    .bind(if input.container_returnable.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if input.container_recyclable.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
     .bind(input.container_deposit_amount.unwrap_or(0))
     .bind(input.net_weight_g)
     .bind(input.bottle_profile_id)

@@ -361,10 +361,12 @@ pub async fn delete_sales_unit(db: &DepotDb, id: i64) -> CoreResult<()> {
         .fetch_one(&mut *tx)
         .await?;
     if used > 0 {
-        sqlx::query("UPDATE sales_units SET is_active = 0, updated_at = datetime('now') WHERE id = ?")
-            .bind(id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "UPDATE sales_units SET is_active = 0, updated_at = datetime('now') WHERE id = ?",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
         tx.commit().await?;
         return Ok(());
     }

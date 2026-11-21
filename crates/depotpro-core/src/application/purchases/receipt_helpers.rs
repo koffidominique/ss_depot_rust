@@ -132,6 +132,7 @@ pub(crate) async fn apply_receipt_stock_and_cost_tx(
     .bind(pid)
     .execute(&mut **tx)
     .await?;
+    crate::application::inventory::sync_stock_balance_tx(tx, pid, next_stock).await?;
 
     let unit_base_cost = if base_qty_milli > 0 {
         Some(

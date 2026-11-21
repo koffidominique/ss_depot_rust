@@ -222,7 +222,11 @@ pub(crate) async fn create_initial_sales_units_tx(
                 )));
             }
         }
-        let clean_bc = u.barcode.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let clean_bc = u
+            .barcode
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
         let su_id = sqlx::query(
             "INSERT INTO sales_units (
                 product_id, variant_id, packaging_id, label, unit_type, conversion_factor,
@@ -237,8 +241,16 @@ pub(crate) async fn create_initial_sales_units_tx(
         .bind(label)
         .bind(&u.unit_type)
         .bind(u.conversion_factor)
-        .bind(if u.is_virtual.unwrap_or(false) { 1_i64 } else { 0_i64 })
-        .bind(if u.allow_fraction.unwrap_or(false) { 1_i64 } else { 0_i64 })
+        .bind(if u.is_virtual.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(if u.allow_fraction.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
         .bind(u.purchase_price)
         .bind(u.wholesale_price)
         .bind(u.semi_wholesale_price)
@@ -247,8 +259,16 @@ pub(crate) async fn create_initial_sales_units_tx(
         .bind(u.bottle_deposit_amount.unwrap_or(0))
         .bind(u.crate_deposit_amount.unwrap_or(0))
         .bind(clean_bc)
-        .bind(if u.is_default_sale.unwrap_or(false) { 1_i64 } else { 0_i64 })
-        .bind(if u.is_default_purchase.unwrap_or(false) { 1_i64 } else { 0_i64 })
+        .bind(if u.is_default_sale.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
+        .bind(if u.is_default_purchase.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
         .execute(&mut **tx)
         .await?
         .last_insert_rowid();

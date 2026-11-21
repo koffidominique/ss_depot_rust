@@ -13,8 +13,8 @@ use crate::infrastructure::db::DepotDb;
 
 use super::create_packagings::insert_initial_packagings_tx;
 use super::create_v4_helpers::{
-    create_initial_product_suppliers_tx, create_initial_sales_units_tx,
-    create_initial_variant_tx, validate_brewery_and_brand_tx,
+    create_initial_product_suppliers_tx, create_initial_sales_units_tx, create_initial_variant_tx,
+    validate_brewery_and_brand_tx,
 };
 use super::packaging::{validate_packaging_extras, validate_packaging_prices};
 use super::v4_types::ProductV4CreateExtras;
@@ -216,11 +216,13 @@ pub async fn create_product_v4(
     let is_active_val: i64 = if status == "inactive" { 0 } else { 1 };
     let default_loc_id = match extras.default_location_id {
         Some(lid) => Some(lid),
-        None => sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM stock_locations WHERE is_default = 1 LIMIT 1",
-        )
-        .fetch_optional(&mut *tx)
-        .await?,
+        None => {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM stock_locations WHERE is_default = 1 LIMIT 1",
+            )
+            .fetch_optional(&mut *tx)
+            .await?
+        }
     };
 
     let avg_num = purchase_price.map(|v| v.to_string());

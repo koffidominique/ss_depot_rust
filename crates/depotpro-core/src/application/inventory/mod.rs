@@ -11,6 +11,7 @@ mod inventories;
 mod stock_ops;
 
 pub use inventories::{create_inventory, list_inventories, validate_inventory};
+pub(crate) use stock_ops::sync_stock_balance_tx;
 pub use stock_ops::{adjust_stock, get_stock_overview};
 
 #[derive(Debug, Serialize, FromRow)]

@@ -100,11 +100,12 @@ pub(crate) async fn insert_initial_packagings_tx(
                             "Nombre de pièces par conditionnement invalide.".to_string(),
                         ));
                     }
-                    let rt_exists: Option<i64> =
-                        sqlx::query_scalar("SELECT id FROM returnable_packaging_types WHERE id = ?")
-                            .bind(comp.returnable_id)
-                            .fetch_optional(&mut **tx)
-                            .await?;
+                    let rt_exists: Option<i64> = sqlx::query_scalar(
+                        "SELECT id FROM returnable_packaging_types WHERE id = ?",
+                    )
+                    .bind(comp.returnable_id)
+                    .fetch_optional(&mut **tx)
+                    .await?;
                     if rt_exists.is_none() {
                         return Err(CoreError::Validation(
                             "Type d'emballage consigné introuvable.".to_string(),

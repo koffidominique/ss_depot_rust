@@ -184,6 +184,7 @@ pub async fn create_sale_return(
                 .bind(pid)
                 .execute(&mut *tx)
                 .await?;
+            crate::application::inventory::sync_stock_balance_tx(&mut tx, pid, next_stock).await?;
             sqlx::query(
                 "INSERT INTO stock_movements (product_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
                  VALUES (?, 'return_in', ?, ?, ?, ?, ?)",

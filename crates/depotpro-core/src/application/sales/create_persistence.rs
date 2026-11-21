@@ -66,15 +66,7 @@ pub(crate) async fn persist_sale_lines_and_deposits_tx(
             .execute(&mut **tx)
             .await?;
 
-        sqlx::query(
-            "UPDATE stock_balances SET quantity_milli = quantity_milli - ?, updated_at = datetime('now')
-             WHERE product_id = ? AND location_id = COALESCE((SELECT default_location_id FROM products WHERE id = ?), location_id)",
-        )
-        .bind(line.base_qty_milli)
-        .bind(line.product_id)
-        .bind(line.product_id)
-        .execute(&mut **tx)
-        .await?;
+        crate::application::inventory::sync_stock_balance_tx(tx, line.product_id, next_stock).await?;
 
         sqlx::query(
             "INSERT INTO stock_movements (product_id, variant_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, reason, reference_document)
