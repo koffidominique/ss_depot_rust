@@ -29,8 +29,9 @@ VALUES
     ('BRASSIVOIRE-CI', 'BRASSIVOIRE', 'CI', 'https://brassivoire.ci',
      'Brasserie installée au PK24 / Anyama, Côte d’Ivoire.');
 
--- Marques du portefeuille SOLIBRA. Les marques déjà présentes sont liées,
--- sans supprimer ni renommer les enregistrements historiques.
+-- Marques du portefeuille SOLIBRA (noms du site institutionnel).
+-- L'insertion vérifie aussi le nom sans tenir compte de la casse, car les
+-- premières migrations contiennent des marques historiques en minuscules.
 INSERT OR IGNORE INTO brands (code, name, description, brewery_id, is_active)
 SELECT seed.code, seed.name, seed.description, br.id, 1
 FROM (
@@ -55,15 +56,22 @@ FROM (
     SELECT 'BR-XXL', 'XXL', 'Marque du portefeuille SOLIBRA' UNION ALL
     SELECT 'BR-MALTA-GUINNESS', 'Malta Guinness', 'Marque du portefeuille SOLIBRA'
 ) AS seed
-JOIN breweries br ON br.code = 'SOLIBRA-CI';
+JOIN breweries br ON br.code = 'SOLIBRA-CI'
+WHERE NOT EXISTS (
+    SELECT 1 FROM brands existing
+    WHERE lower(trim(existing.name)) = lower(trim(seed.name))
+);
 
--- Réutiliser les marques historiques déjà présentes (codes BR-* créés dans
--- les migrations précédentes), au lieu de créer des doublons.
+-- Rattacher les marques historiques présentes dans les premières migrations.
 UPDATE brands
 SET brewery_id = (SELECT id FROM breweries WHERE code = 'SOLIBRA-CI'),
     updated_at = datetime('now')
-WHERE code IN ('BR-RACINES', 'BR-RACINES-FORT', 'BR-CHILL', 'BR-SOMBREROS',
-               'BR-CORONA', 'BR-YOUKI', 'BR-YOUZOU', 'BR-BUDWEISER', 'BR-WORLD-COLA');
+WHERE lower(trim(name)) IN (
+    'bock', 'beaufort lager', 'beaufort', 'castel beer', 'sombreros', 'chill',
+    'doppel munich', 'guinness', 'budweiser', 'corona', 'corona extra',
+    'youki', 'world cola', 'youzou', 'orangina', 'valpierre', 'racines',
+    'racines fort', 'ferox energy', 'doppel energy malt', 'xxl', 'malta guinness'
+);
 
 -- Portefeuille BRASSIVOIRE tel que présenté sur son site institutionnel.
 INSERT OR IGNORE INTO brands (code, name, description, brewery_id, is_active)
@@ -76,7 +84,19 @@ FROM (
     SELECT 'BR-DESPERADOS', 'Desperados', 'Marque du portefeuille BRASSIVOIRE' UNION ALL
     SELECT 'BR-RHINO-ENERGY-MALT', 'Rhino Energy Malt', 'Boisson maltée sans alcool du portefeuille BRASSIVOIRE'
 ) AS seed
-JOIN breweries br ON br.code = 'BRASSIVOIRE-CI';
+JOIN breweries br ON br.code = 'BRASSIVOIRE-CI'
+WHERE NOT EXISTS (
+    SELECT 1 FROM brands existing
+    WHERE lower(trim(existing.name)) = lower(trim(seed.name))
+);
+
+UPDATE brands
+SET brewery_id = (SELECT id FROM breweries WHERE code = 'BRASSIVOIRE-CI'),
+    updated_at = datetime('now')
+WHERE lower(trim(name)) IN (
+    'ivoire', 'ivoire classic', 'ivoire black', 'black', 'heineken',
+    'desperados', 'rhino energy malt'
+);
 
 -- Rattacher les produits opérationnels dont la marque texte correspond
 -- exactement à une marque connue. Aucune attribution sur simple ressemblance.
