@@ -21,8 +21,8 @@ pub use create::create_sale;
 pub use dtos::{
     CancelSaleInput, ClientCreditSettingsDto, ClientSummaryDto, CreateClientInput, CreateSaleInput,
     CreateSaleLineInput, CreateSaleReturnInput, PaginatedSalesDto, PaymentPartInput,
-    SaleCancellationDto, SaleDepositDto, SaleDetailDto, SaleLineDto, SalePaymentDto,
-    SaleReturnDto, SaleReturnLineInput, SaleSummaryDto, UpdateClientInput, UpdateCreditPolicyInput,
+    SaleCancellationDto, SaleDepositDto, SaleDetailDto, SaleLineDto, SalePaymentDto, SaleReturnDto,
+    SaleReturnLineInput, SaleSummaryDto, UpdateClientInput, UpdateCreditPolicyInput,
 };
 pub(crate) use helpers::{audit_log_tx, get_theoretical_cash_tx, require_open_session_tx};
 pub use queries::{get_sale_detail, list_sales};

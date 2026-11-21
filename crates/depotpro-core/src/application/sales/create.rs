@@ -11,7 +11,9 @@ use super::create_helpers::{normalize_sale_payments_tx, prepare_sale_lines_tx};
 use super::create_persistence::{
     persist_sale_lines_and_deposits_tx, persist_sale_payments_and_receivable_tx, SalePersistCtx,
 };
-use super::{audit_log_tx, get_sale_detail, require_open_session_tx, CreateSaleInput, SaleDetailDto};
+use super::{
+    audit_log_tx, get_sale_detail, require_open_session_tx, CreateSaleInput, SaleDetailDto,
+};
 
 pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<SaleDetailDto> {
     require_current_actor_permission(Permission::SalesWrite)?;

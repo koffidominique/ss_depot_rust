@@ -2,7 +2,8 @@
 // Catalogue SQL des migrations embarquées (0001..0017)
 // ============================================================================
 
-pub const V3_SCHEMA_SQL: &str = include_str!("../../../../../migrations/sqlite/0001_initial_v3.sql");
+pub const V3_SCHEMA_SQL: &str =
+    include_str!("../../../../../migrations/sqlite/0001_initial_v3.sql");
 pub const V3_MIGRATION_0002_SQL: &str =
     include_str!("../../../../../migrations/sqlite/0002_app_settings_logo_path.sql");
 pub const V3_MIGRATION_0003_SQL: &str =

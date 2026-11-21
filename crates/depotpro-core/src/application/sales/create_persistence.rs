@@ -193,10 +193,9 @@ pub(crate) async fn persist_sale_payments_and_receivable_tx(
                 .or_else(|| {
                     if ctx.payment_terms_days > 0 {
                         Some(
-                            (chrono::Utc::now()
-                                + chrono::Duration::days(ctx.payment_terms_days))
-                            .format("%Y-%m-%d")
-                            .to_string(),
+                            (chrono::Utc::now() + chrono::Duration::days(ctx.payment_terms_days))
+                                .format("%Y-%m-%d")
+                                .to_string(),
                         )
                     } else {
                         None

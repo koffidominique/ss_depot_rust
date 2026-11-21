@@ -207,15 +207,8 @@ pub async fn receive_purchase_order(
             &po_ref,
         )
         .await?;
-        apply_receipt_stock_and_cost_tx(
-            &mut tx,
-            *pid,
-            *base_qty_milli,
-            *amount,
-            &rec_ref,
-            &po_ref,
-        )
-        .await?;
+        apply_receipt_stock_and_cost_tx(&mut tx, *pid, *base_qty_milli, *amount, &rec_ref, &po_ref)
+            .await?;
     }
 
     let due_date = if payment_terms_days > 0 {
