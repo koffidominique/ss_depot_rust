@@ -17,3 +17,4 @@ data/
 # Rust / Tauri build artifacts
 target/
 src-tauri/gen/
+__pycache__/

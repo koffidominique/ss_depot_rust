@@ -1,13 +1,9 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Download, Plus, Upload } from 'lucide-react';
-import { apiClient } from '../services/api/createApiClient.ts';
-import { SearchInput } from '../components/forms/SearchInput.tsx';
 import { InlineAlert } from '../components/common/InlineAlert.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
 import type { Product, ProductPackaging } from '../types/erp.ts';
-import { compressLocalImage } from '../utils/image.ts';
 import {
   buildNewPackagingState,
   buildPackagingStateFromExisting,
@@ -18,32 +14,29 @@ import {
   type ProductFormValues,
 } from '../features/products/utils/productSchemas.ts';
 import {
+  INITIAL_PACKAGING_STATE,
+  compressProductImageFile,
+  createProductDefaultValues,
+  downloadProductsCsvFile,
+  editProductDefaultValues,
+} from '../features/products/utils/productPageHelpers.ts';
+import {
   useProductMutations,
   useProductsQueries,
 } from '../features/products/hooks/useProductsData.ts';
+import { ProductsToolbar } from '../features/products/components/ProductsToolbar.tsx';
 import { ProductsTable } from '../features/products/components/ProductsTable.tsx';
 import { ProductFormModal } from '../features/products/components/ProductFormModal.tsx';
 import { PackagingModal } from '../features/products/components/PackagingModal.tsx';
 import { ImportCsvModal } from '../features/products/components/ImportCsvModal.tsx';
 import { CategoryModal } from '../features/products/components/CategoryModal.tsx';
 
-const INITIAL_PACKAGING_STATE: PackagingFormState = {
-  id: undefined,
-  name: 'casier',
-  coefficient: '24',
-  purchase_price: 0,
-  retail_price: 0,
-  barcode: '',
-  allow_fraction: false,
-  is_active: true,
-  deposit_mode: 'none',
-  returnable_id: 0,
-  returnable_pieces: 1,
-  brand_name: '',
-  brand_id: 0,
-};
+/* ============================================================================
+ * Page Catalogue Produits & Conditionnements
+ * ============================================================================ */
 
 export function ProductsPage() {
+  /* --- 1. États locaux (filtres, pagination, modales) --- */
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -60,20 +53,10 @@ export function ProductsPage() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  /* --- 2. Formulaires React Hook Form --- */
   const productForm = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
-    defaultValues: {
-      name: '',
-      brand: '',
-      barcode: '',
-      category_id: 1,
-      base_unit: 'bouteille',
-      initial_stock: '0',
-      min_stock: '24',
-      purchase_price: 0,
-      retail_price: 0,
-      image_path: null,
-    },
+    defaultValues: createProductDefaultValues(),
   });
 
   const categoryForm = useForm<CategoryFormValues>({
@@ -81,6 +64,7 @@ export function ProductsPage() {
     defaultValues: { name: '', description: '' },
   });
 
+  /* --- 3. Requêtes & Mutations TanStack Query --- */
   const { categoriesQuery, consignmentsQuery, productsQuery } = useProductsQueries({
     search,
     categoryId,
@@ -108,9 +92,7 @@ export function ProductsPage() {
       setFormError(null);
       setFeedback(isUpdate ? 'Conditionnement mis à jour.' : 'Conditionnement enregistré.');
     },
-    onArchivedProduct: () => {
-      setFeedback('Statut du produit mis à jour.');
-    },
+    onArchivedProduct: () => setFeedback('Statut du produit mis à jour.'),
     onCreatedCategory: (created) => {
       setCatOpen(false);
       categoryForm.reset({ name: '', description: '' });
@@ -131,6 +113,7 @@ export function ProductsPage() {
   const consignments = consignmentsQuery.data;
   const { data, isLoading, error, refetch } = productsQuery;
 
+  /* --- 4. Gestionnaires d'ouverture & d'actions --- */
   const openPackagingModal = (prod: Product, targetPkg?: ProductPackaging) => {
     setPkgProduct(prod);
     setFormError(null);
@@ -145,36 +128,14 @@ export function ProductsPage() {
 
   const openCreateModal = () => {
     setEditingProduct(null);
-    productForm.reset({
-      name: '',
-      brand: '',
-      barcode: '',
-      category_id: categories?.[0]?.id ?? 1,
-      base_unit: 'bouteille',
-      initial_stock: '0',
-      min_stock: '24',
-      purchase_price: 0,
-      retail_price: 0,
-      image_path: null,
-    });
+    productForm.reset(createProductDefaultValues(categories));
     setFormError(null);
     setCreateOpen(true);
   };
 
   const openEditModal = (prod: Product) => {
     setEditingProduct(prod);
-    productForm.reset({
-      name: prod.name,
-      brand: prod.brand || '',
-      barcode: prod.barcode || '',
-      category_id: prod.category_id,
-      base_unit: prod.base_unit,
-      initial_stock: '0',
-      min_stock: String(prod.min_stock_milli / 1000),
-      purchase_price: prod.purchase_price ?? 0,
-      retail_price: prod.retail_price ?? 0,
-      image_path: prod.image_path ?? null,
-    });
+    productForm.reset(editProductDefaultValues(prod));
     setFormError(null);
     setCreateOpen(true);
   };
@@ -182,11 +143,7 @@ export function ProductsPage() {
   const handleImageFileChange = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const dataUrl = await compressLocalImage(file, {
-        maxSide: 256,
-        quality: 0.82,
-        maxLength: 350_000,
-      });
+      const dataUrl = await compressProductImageFile(file);
       setFormError(null);
       productForm.setValue('image_path', dataUrl);
     } catch (err) {
@@ -194,120 +151,41 @@ export function ProductsPage() {
     }
   };
 
-  const handleExportCsv = async () => {
-    const csv = await apiClient.exportProductsCsv();
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'depotpro_produits.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
+  /* --- 5. Rendu --- */
   return (
     <div className="space-y-5">
       {feedback && (
         <InlineAlert variant="success" message={feedback} onDismiss={() => setFeedback(null)} />
       )}
 
-      {/* Barre d'outils */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <SearchInput
-            value={search}
-            onChange={(next) => {
-              setSearch(next);
-              setPage(1);
-            }}
-            placeholder="Rechercher nom, réf, code-barres..."
-            className="w-72"
-            clearable
-          />
-
-          <select
-            value={categoryId ?? ''}
-            onChange={(e) => {
-              setCategoryId(e.target.value ? Number(e.target.value) : undefined);
-              setPage(1);
-            }}
-            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-2 text-xs font-medium text-[#182230] dark:text-slate-200"
-          >
-            <option value="">Toutes les catégories</option>
-            {categories?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            onClick={() => setLowStockOnly((v) => !v)}
-            className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
-              lowStockOnly
-                ? 'border-[#D9901A] bg-amber-50 dark:bg-amber-950/30 text-[#D9901A]'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] text-[#667085] dark:text-slate-300'
-            }`}
-          >
-            Stock faible
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIncludeArchived((v) => !v)}
-            className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
-              includeArchived
-                ? 'border-[#2563EB] bg-blue-50 dark:bg-blue-950/30 text-[#2563EB]'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] text-[#667085] dark:text-slate-300'
-            }`}
-          >
-            Inclure archivés
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              categoryForm.reset({ name: '', description: '' });
-              setFormError(null);
-              setCatOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3.5 py-2 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Catégorie
-          </button>
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3.5 py-2 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFormError(null);
-              setCsvOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3.5 py-2 text-xs font-medium text-[#182230] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Import CSV
-          </button>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 whitespace-nowrap shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            Nouveau produit
-          </button>
-        </div>
-      </div>
+      <ProductsToolbar
+        search={search}
+        onSearchChange={(next) => {
+          setSearch(next);
+          setPage(1);
+        }}
+        categoryId={categoryId}
+        onCategoryChange={(next) => {
+          setCategoryId(next);
+          setPage(1);
+        }}
+        categories={categories}
+        lowStockOnly={lowStockOnly}
+        onToggleLowStock={() => setLowStockOnly((v) => !v)}
+        includeArchived={includeArchived}
+        onToggleArchived={() => setIncludeArchived((v) => !v)}
+        onOpenNewCategory={() => {
+          categoryForm.reset({ name: '', description: '' });
+          setFormError(null);
+          setCatOpen(true);
+        }}
+        onExportCsv={() => void downloadProductsCsvFile()}
+        onOpenImportCsv={() => {
+          setFormError(null);
+          setCsvOpen(true);
+        }}
+        onOpenNewProduct={openCreateModal}
+      />
 
       {isLoading ? (
         <LoadingState />
