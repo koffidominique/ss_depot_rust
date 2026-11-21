@@ -5,8 +5,8 @@ use depotpro_core::infrastructure::db::{
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::path::PathBuf;
 
-const EXPECTED_SCHEMA_V18_JSON: &str =
-    include_str!("../../../migrations/sqlite/expected_schema_v18.json");
+const EXPECTED_SCHEMA_V19_JSON: &str =
+    include_str!("../../../migrations/sqlite/expected_schema_v19.json");
 
 fn temp_db_path(tag: &str) -> PathBuf {
     std::env::temp_dir().join(format!("depotpro_lot4_{tag}_{}.db", uuid::Uuid::new_v4()))
@@ -46,7 +46,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
         .await
         .expect("extract schema");
     let expected: SchemaSnapshot =
-        serde_json::from_str(EXPECTED_SCHEMA_V18_JSON).expect("parse expected_schema_v18.json");
+        serde_json::from_str(EXPECTED_SCHEMA_V19_JSON).expect("parse expected_schema_v19.json");
     assert_eq!(
         normalize_snapshot(snapshot),
         normalize_snapshot(expected),

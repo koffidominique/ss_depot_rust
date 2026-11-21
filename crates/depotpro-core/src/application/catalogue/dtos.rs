@@ -32,6 +32,8 @@ pub struct ProductVariantDto {
     pub container_returnable: i64,
     pub container_recyclable: i64,
     pub container_deposit_amount: i64,
+    pub native_crate_capacity: Option<i64>,
+    pub compatibility_class: Option<String>,
     pub net_weight_g: Option<i64>,
     pub bottle_profile_id: Option<i64>,
     pub crate_type_id: Option<i64>,

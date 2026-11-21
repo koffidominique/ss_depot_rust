@@ -26,8 +26,9 @@ pub use categories::{
 pub use create::{create_product, create_product_v4};
 pub use csv_io::{export_products_csv, import_products_csv};
 pub use packaging::{upsert_packaging, upsert_packaging_v4};
-pub(crate) use queries::get_product_by_id;
-pub use queries::{delete_or_archive_product, list_active_products, list_products};
+pub use queries::{
+    delete_or_archive_product, get_product_by_id, list_active_products, list_products,
+};
 pub(crate) use serde_helpers::{
     deserialize_nullable_opt, deserialize_opt_bool_or_int, deserialize_opt_qty_str,
     deserialize_qty_str, sanitize_image_path,

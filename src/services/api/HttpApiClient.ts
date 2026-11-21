@@ -9,6 +9,7 @@ import {
   httpPurchasesApi,
   httpSalesApi,
 } from './http/httpCommerceRoutes.ts';
+import { httpOrdersApi } from './http/httpOrdersRoutes.ts';
 import {
   httpConsignmentsApi,
   httpFinanceApi,
@@ -112,6 +113,21 @@ export class HttpApiClient implements ApiClient {
   listExpenses = httpFinanceApi.listExpenses;
   createExpense = httpFinanceApi.createExpense;
   getReports = httpFinanceApi.getReports;
+
+  /* --- Commandes mixtes & consignes --- */
+  composeOrderPreview = httpOrdersApi.composeOrderPreview;
+  listCustomerOrders = httpOrdersApi.listCustomerOrders;
+  getCustomerOrder = httpOrdersApi.getCustomerOrder;
+  createCustomerOrder = httpOrdersApi.createCustomerOrder;
+  confirmCustomerOrder = httpOrdersApi.confirmCustomerOrder;
+  deliverCustomerOrder = httpOrdersApi.deliverCustomerOrder;
+  invoiceCustomerOrder = httpOrdersApi.invoiceCustomerOrder;
+  payCustomerOrder = httpOrdersApi.payCustomerOrder;
+  cancelCustomerOrder = httpOrdersApi.cancelCustomerOrder;
+  returnOrderPackaging = httpOrdersApi.returnOrderPackaging;
+  listPackagingAssets = httpOrdersApi.listPackagingAssets;
+  getCustomerDeposits = httpOrdersApi.getCustomerDeposits;
+  returnCustomerDeposits = httpOrdersApi.returnCustomerDeposits;
 
   /* --- Paramètres, Sauvegardes & PDF --- */
   getSettings = httpSystemApi.getSettings;

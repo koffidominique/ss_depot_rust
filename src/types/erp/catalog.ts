@@ -122,6 +122,8 @@ export interface ProductVariantSummary {
   volume_ml: number | null;
   container_type: string | null;
   container_type_id: number | null;
+  compatibility_class?: string | null;
+  native_crate_capacity?: number | null;
   container_material: string | null;
   container_returnable: number;
   container_recyclable: number;

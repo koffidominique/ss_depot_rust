@@ -1,0 +1,279 @@
+openapi: 3.0.3
+info:
+  title: DEPOTPRO PREMIUM V3 — API Catalogue Boissons & Commandes Mixtes
+  version: 3.19.0
+  description: >
+    API REST Rust (Axum) pour la gestion d'un sous-dépôt de boissons en Côte d'Ivoire :
+    catalogue normalisé (produits, variantes, emballages, tarifs entiers FCFA),
+    commandes clientèle mixtes à casiers partagés, et suivi des consignes clients.
+servers:
+  - url: http://localhost:3000
+    description: Serveur local Axum
+
+paths:
+  /api/products:
+    get:
+      summary: Lister les produits actifs et conditionnements
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+      responses:
+        "200":
+          description: Liste paginée des produits
+    post:
+      summary: Créer un produit avec variante, emballages, unités de vente et stock initial (transaction unique)
+      responses:
+        "201":
+          description: Produit créé
+
+  /api/products/{id}:
+    get:
+      summary: Détail d'un produit avec variantes, conditionnements et unités de vente
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Détail produit }
+    patch:
+      summary: Mettre à jour un produit
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Produit mis à jour }
+
+  /api/products/{id}/variants:
+    get:
+      summary: Lister les variantes d'un produit
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Variantes du produit }
+
+  /api/variants/{id}:
+    patch:
+      summary: Mettre à jour une variante (recalcule compatibility_class et native_crate_capacity)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Variante mise à jour }
+
+  /api/variants/{id}/packagings:
+    post:
+      summary: Ajouter une configuration d'emballage commercial sur une variante
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "201": { description: Emballage ajouté }
+
+  /api/variants/{id}/prices:
+    post:
+      summary: Enregistrer une nouvelle entrée dans price_history pour une variante
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "201": { description: Tarif enregistré }
+
+  /api/orders/compose-preview:
+    post:
+      summary: Prévisualiser l'allocation automatique des casiers physiques (commandes mixtes) et les totaux
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lines]
+              properties:
+                lines:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/OrderLineInput"
+                discount_xof: { type: integer }
+                tax_xof: { type: integer }
+      responses:
+        "200":
+          description: Allocations calculées, avertissements et totaux (CA hors consigne + consigne séparée)
+
+  /api/orders:
+    get:
+      summary: Lister les commandes clientèle
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: customer_id
+          schema: { type: integer }
+      responses:
+        "200": { description: Liste des commandes }
+    post:
+      summary: Créer une commande en brouillon (draft) avec lignes et allocations physiques
+      responses:
+        "201": { description: Commande créée }
+
+  /api/orders/{id}:
+    get:
+      summary: Détail commande avec lignes, allocations, liens et solde consigné client
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Détail commande }
+    patch:
+      summary: Mettre à jour une commande au statut draft
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Commande mise à jour }
+
+  /api/orders/{id}/confirm:
+    post:
+      summary: Confirmer une commande (vérifie stock et crédit, décrémente stock en base_units)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Commande confirmée }
+
+  /api/orders/{id}/deliver:
+    post:
+      summary: Livrer une commande (enregistre LIVRAISON_CLIENT et incrémente customer_deposit_balances)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Commande livrée }
+
+  /api/orders/{id}/invoice:
+    post:
+      summary: Passer la commande au statut invoiced
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Commande facturée }
+
+  /api/orders/{id}/pay:
+    post:
+      summary: Enregistrer un paiement sur la commande
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Paiement enregistré }
+
+  /api/orders/{id}/cancel:
+    post:
+      summary: Annuler une commande (réintègre le stock si elle était confirmée)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Commande annulée }
+
+  /api/orders/{id}/returns:
+    post:
+      summary: Enregistrer un retour d'emballage vide sur commande (RETOUR_CLIENT)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Retour enregistré }
+
+  /api/packaging/assets:
+    get:
+      summary: Lister les actifs d'emballage physique par classe de compatibilité
+      responses:
+        "200": { description: Liste des actifs d'emballage }
+
+  /api/packaging/stock:
+    get:
+      summary: Consulter le stock d'emballages vides et pleins
+      responses:
+        "200": { description: État du stock emballages }
+
+  /api/customers/{id}/deposits:
+    get:
+      summary: Solde consigné actuel d'un client par type d'emballage physique
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Soldes consignés client }
+
+  /api/customers/{id}/deposits/history:
+    get:
+      summary: Historique des mouvements d'emballage d'un client
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Historique des mouvements }
+
+  /api/customers/{id}/deposits/returns:
+    post:
+      summary: Retour explicite d'emballages vides pour un client
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Solde consigné mis à jour }
+
+components:
+  schemas:
+    OrderLineInput:
+      type: object
+      required: [variant_id, requested_unit, requested_quantity]
+      properties:
+        variant_id: { type: integer }
+        requested_unit:
+          type: string
+          enum: [unit, bottle, can, half_crate, crate, pack, carton, pallet, custom]
+        requested_quantity: { type: integer, minimum: 1 }
+        unit_price_xof: { type: integer, nullable: true }
+        discount_xof: { type: integer, nullable: true }
+        notes: { type: string, nullable: true }

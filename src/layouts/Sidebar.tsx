@@ -40,6 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Commerce & Ventes',
     items: [
       { to: '/sales/new', label: 'Nouvelle vente', icon: ShoppingCart },
+      { to: '/orders', label: 'Commandes mixtes', icon: ClipboardCheck },
       { to: '/sales', label: 'Historique ventes', icon: ReceiptText },
       { to: '/clients', label: 'Clients', icon: Users },
       { to: '/debts', label: 'Créances', icon: WalletCards },

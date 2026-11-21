@@ -9,6 +9,7 @@ import {
   tauriPurchasesApi,
   tauriSalesApi,
 } from "./tauri/tauriCommerceCommands.ts";
+import { tauriOrdersApi } from "./tauri/tauriOrdersCommands.ts";
 import {
   tauriConsignmentsApi,
   tauriFinanceApi,
@@ -113,6 +114,21 @@ export class TauriApiClient implements ApiClient {
   listExpenses = tauriFinanceApi.listExpenses;
   createExpense = tauriFinanceApi.createExpense;
   getReports = tauriFinanceApi.getReports;
+
+  /* --- Commandes mixtes & consignes --- */
+  composeOrderPreview = tauriOrdersApi.composeOrderPreview;
+  listCustomerOrders = tauriOrdersApi.listCustomerOrders;
+  getCustomerOrder = tauriOrdersApi.getCustomerOrder;
+  createCustomerOrder = tauriOrdersApi.createCustomerOrder;
+  confirmCustomerOrder = tauriOrdersApi.confirmCustomerOrder;
+  deliverCustomerOrder = tauriOrdersApi.deliverCustomerOrder;
+  invoiceCustomerOrder = tauriOrdersApi.invoiceCustomerOrder;
+  payCustomerOrder = tauriOrdersApi.payCustomerOrder;
+  cancelCustomerOrder = tauriOrdersApi.cancelCustomerOrder;
+  returnOrderPackaging = tauriOrdersApi.returnOrderPackaging;
+  listPackagingAssets = tauriOrdersApi.listPackagingAssets;
+  getCustomerDeposits = tauriOrdersApi.getCustomerDeposits;
+  returnCustomerDeposits = tauriOrdersApi.returnCustomerDeposits;
 
   /* --- Paramètres, Sauvegardes & PDF --- */
   getSettings = tauriSystemApi.getSettings;

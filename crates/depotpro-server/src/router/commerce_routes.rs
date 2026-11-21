@@ -39,7 +39,10 @@ pub(crate) fn core_and_commerce_router() -> Router<AppState> {
         )
         .route(
             "/api/products/:id",
-            put(products::update_product).delete(products::delete_product),
+            get(products::get_product)
+                .put(products::update_product)
+                .patch(products::update_product)
+                .delete(products::delete_product),
         )
         .route(
             "/api/products/:id/packagings",

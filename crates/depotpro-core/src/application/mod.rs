@@ -3,6 +3,7 @@ pub mod cash;
 pub mod catalogue;
 pub mod consignments;
 pub mod inventory;
+pub mod orders;
 pub mod packaging_components;
 pub mod packaging_obligations;
 pub mod partial_returns;

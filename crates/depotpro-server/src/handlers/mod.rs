@@ -15,6 +15,8 @@ pub(crate) mod catalogue_v3;
 pub(crate) mod catalogue_v4;
 pub(crate) mod catalogue_variants_and_prices;
 pub(crate) mod consignments;
+pub(crate) mod orders;
+pub(crate) mod orders_packaging;
 pub(crate) mod packaging_components;
 pub(crate) mod partial_returns_and_validation;
 pub(crate) mod products;

@@ -10,6 +10,7 @@ import { useUiStore } from './stores/uiStore.ts';
 const LoginPage = lazy(() => import('./pages/LoginPage.tsx').then((m) => ({ default: m.LoginPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage.tsx').then((m) => ({ default: m.DashboardPage })));
 const SalesPage = lazy(() => import('./pages/SalesPage.tsx').then((m) => ({ default: m.SalesPage })));
+const OrdersPage = lazy(() => import('./pages/OrdersPage.tsx').then((m) => ({ default: m.OrdersPage })));
 const SalesHistoryPage = lazy(() =>
   import('./pages/SalesHistoryPage.tsx').then((m) => ({ default: m.SalesHistoryPage }))
 );
@@ -116,6 +117,7 @@ export default function App() {
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="/sales/new" element={<SalesPage />} />
+                  <Route path="/orders" element={<OrdersPage />} />
                   <Route path="/sales" element={<SalesHistoryPage />} />
                   <Route path="/clients" element={<ClientsPage />} />
                   <Route path="/debts" element={<DebtsPage />} />
