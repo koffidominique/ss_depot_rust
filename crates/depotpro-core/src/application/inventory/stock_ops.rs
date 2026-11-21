@@ -31,9 +31,11 @@ pub(crate) async fn sync_stock_balance_tx(
     let loc_id = match default_loc_id {
         Some(lid) => Some(lid),
         None => {
-            sqlx::query_scalar::<_, i64>("SELECT id FROM stock_locations WHERE is_default = 1 LIMIT 1")
-                .fetch_optional(&mut **tx)
-                .await?
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM stock_locations WHERE is_default = 1 LIMIT 1",
+            )
+            .fetch_optional(&mut **tx)
+            .await?
         }
     };
     let Some(lid) = loc_id else {

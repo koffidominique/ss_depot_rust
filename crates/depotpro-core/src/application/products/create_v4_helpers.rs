@@ -320,8 +320,17 @@ pub(crate) async fn create_initial_product_suppliers_tx(
         )
         .bind(product_id)
         .bind(ps.supplier_id)
-        .bind(ps.supplier_product_code.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-        .bind(if ps.preferred_supplier.unwrap_or(false) { 1_i64 } else { 0_i64 })
+        .bind(
+            ps.supplier_product_code
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty()),
+        )
+        .bind(if ps.preferred_supplier.unwrap_or(false) {
+            1_i64
+        } else {
+            0_i64
+        })
         .bind(ps.purchase_unit.as_deref().unwrap_or("casier"))
         .bind(ps.units_per_purchase_package.unwrap_or(1).max(1))
         .bind(ps.last_purchase_price)
