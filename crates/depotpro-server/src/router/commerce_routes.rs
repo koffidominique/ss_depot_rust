@@ -28,7 +28,10 @@ pub(crate) fn core_and_commerce_router() -> Router<AppState> {
         .route("/api/auth/users/:id/status", put(auth::auth_toggle_user))
         .route("/api/dashboard", get(auth::dashboard))
         // Produits & catégories
-        .route("/api/product-form-metadata", get(products::product_form_metadata))
+        .route(
+            "/api/product-form-metadata",
+            get(products::product_form_metadata),
+        )
         .route(
             "/api/categories",
             get(products::list_categories).post(products::create_category),
