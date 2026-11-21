@@ -47,6 +47,23 @@ pub(crate) async fn create_brewery(
     }
 }
 
+pub(crate) async fn update_brewery(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<catalogue::UpdateBreweryInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, catalogue::update_brewery(&db, id, payload)).await {
+        Ok(item) => (StatusCode::OK, Json(serde_json::to_value(item).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
 // ----------------------------------------------------------------------------
 // 1. Marques
 // ----------------------------------------------------------------------------
