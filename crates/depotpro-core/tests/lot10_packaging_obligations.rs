@@ -263,7 +263,11 @@ async fn test6_retour_tardif_apres_conversion_regularise() {
     .fetch_one(&db.pool)
     .await
     .unwrap();
-    assert_eq!(conv, (5, 18000), "La conversion d'origine n'est pas modifiée");
+    assert_eq!(
+        conv,
+        (5, 18000),
+        "La conversion d'origine n'est pas modifiée"
+    );
     let ledger_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM customer_packaging_financial_ledger WHERE client_id = ?",
     )
@@ -303,7 +307,10 @@ async fn test_reglement_creance_emballages_et_dashboard_separe() {
     let dash0 = get_client_packaging_dashboard(&db, client_id)
         .await
         .unwrap();
-    assert_eq!(dash0.commercial_debt, 0, "Pas de receivable dans ce fixture");
+    assert_eq!(
+        dash0.commercial_debt, 0,
+        "Pas de receivable dans ce fixture"
+    );
     assert_eq!(dash0.packaging_financial_debt, 0);
     assert_eq!(dash0.pending_pieces, 5);
     assert_eq!(dash0.pending_reference_value, 18_000);
@@ -405,8 +412,7 @@ async fn test_reglement_creance_emballages_et_dashboard_separe() {
 async fn test_echeance_traitee_apres_redemarrage_application() {
     // MAJ.md PHASE 8 : les échéances doivent être traitées correctement après
     // fermeture puis réouverture de l'application (nouvelle connexion à la DB).
-    let db_path = std::env::temp_dir()
-        .join(format!("pkg_obl_restart_{}.db", uuid::Uuid::new_v4()));
+    let db_path = std::env::temp_dir().join(format!("pkg_obl_restart_{}.db", uuid::Uuid::new_v4()));
 
     // 1re "session" : création de l'obligation échue, aucune conversion.
     {
