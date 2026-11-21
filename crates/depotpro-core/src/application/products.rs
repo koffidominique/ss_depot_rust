@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::FromRow;
 use std::collections::HashSet;
 
-const ALLOWED_PACKAGING_NAMES: &[&str] = &["casier", "carton", "bouteille", "pack", "canette"];
+const ALLOWED_PACKAGING_NAMES: &[&str] = &["casier"];
 
 pub(crate) fn deserialize_nullable_opt<'de, D>(
     deserializer: D,
@@ -687,11 +687,7 @@ pub async fn create_product(
         .transpose()?;
     let image_path = sanitize_image_path(input.image_path.as_deref())?;
 
-    let default_pkg_name = if ALLOWED_PACKAGING_NAMES.contains(&base_unit.as_str()) {
-        base_unit.clone()
-    } else {
-        "bouteille".to_string()
-    };
+    let default_pkg_name = "casier".to_string();
 
     let packagings = match input.packagings {
         Some(list) if !list.is_empty() => list,
@@ -715,9 +711,15 @@ pub async fn create_product(
     for pkg in &packagings {
         if !ALLOWED_PACKAGING_NAMES.contains(&pkg.name.as_str()) {
             return Err(CoreError::Validation(format!(
-                "Conditionnement non autorisé : {}",
+                "Conditionnement non autorisé : {} (seul \"casier\" est autorisé)",
                 pkg.name
             )));
+        }
+        if pkg.deposit_mode.as_deref() == Some("deposit") && pkg.name != "casier" {
+            return Err(CoreError::Validation(
+                "Seul le conditionnement \"casier\" est soumis au système de retour d'emballage."
+                    .to_string(),
+            ));
         }
         if !seen_pkg_names.insert(pkg.name.clone()) {
             return Err(CoreError::DuplicateOperation(format!(
@@ -1093,7 +1095,13 @@ pub async fn upsert_packaging(
     require_current_actor_permission(Permission::CatalogWrite)?;
     if !ALLOWED_PACKAGING_NAMES.contains(&pkg.name.as_str()) {
         return Err(CoreError::Validation(
-            "Type de conditionnement invalide.".to_string(),
+            "Type de conditionnement invalide : seul \"casier\" est autorisé.".to_string(),
+        ));
+    }
+    if pkg.deposit_mode.as_deref() == Some("deposit") && pkg.name != "casier" {
+        return Err(CoreError::Validation(
+            "Seul le conditionnement \"casier\" est soumis au système de retour d'emballage."
+                .to_string(),
         ));
     }
     let coeff = Quantity::parse_str(&pkg.coefficient, "Coefficient")?;
@@ -1446,8 +1454,8 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
         };
 
         let p_buy = parse_opt_fcfa("purchase_price")?;
-        let p_whole = parse_opt_fcfa("wholesale_price")?;
-        let p_semi = parse_opt_fcfa("semi_wholesale_price")?;
+        let p_whole: Option<i64> = None;
+        let p_semi: Option<i64> = None;
         let p_ret = parse_opt_fcfa("retail_price")?;
         let brand = idx("brand")
             .and_then(|i| cols.get(i))
@@ -1478,11 +1486,7 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
         .await?
         .last_insert_rowid();
 
-        let pkg_name = if ALLOWED_PACKAGING_NAMES.contains(&base_unit) {
-            base_unit
-        } else {
-            "bouteille"
-        };
+        let pkg_name = "casier";
         let pkg_id = sqlx::query(
             "INSERT INTO product_packagings (product_id, name, base_unit, coefficient_milli, purchase_price, wholesale_price, semi_wholesale_price, retail_price)
              VALUES (?, ?, ?, 1000, ?, ?, ?, ?)",

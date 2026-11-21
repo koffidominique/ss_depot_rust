@@ -20,7 +20,7 @@ import { PosCartPanel } from '../features/sales/components/PosCartPanel.tsx';
 import { ValidatedSaleBanner } from '../features/sales/components/ValidatedSaleBanner.tsx';
 import { HeldSalesModal } from '../features/sales/components/HeldSalesModal.tsx';
 import { QuickClientModal } from '../features/sales/components/QuickClientModal.tsx';
-import type { PriceTier, Product, ProductPackaging, SaleDetail } from '../types/erp.ts';
+import type { Product, ProductPackaging, SaleDetail } from '../types/erp.ts';
 
 export function SalesPage() {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -41,7 +41,6 @@ export function SalesPage() {
   const {
     posCart,
     posClientId,
-    posPriceTier,
     posSaleType,
     heldCarts,
     addToCart,
@@ -52,7 +51,6 @@ export function SalesPage() {
     resumeHeldCart,
     deleteHeldCart,
     setPosClientId,
-    setPosPriceTier,
     setPosSaleType,
   } = useUiStore();
 
@@ -67,7 +65,6 @@ export function SalesPage() {
     requestKey,
     posClientId,
     posSaleType,
-    posPriceTier,
     globalDiscount,
     dueDate,
     posCart,
@@ -106,9 +103,13 @@ export function SalesPage() {
   });
 
   const handleAddPackaging = (prod: Product, pkg: ProductPackaging) => {
+    if (pkg.name !== 'casier') {
+      setErrorMsg('Seul le conditionnement "casier" est autorisé à la vente.');
+      return;
+    }
     setErrorMsg(null);
     const depositPerPack =
-      pkg.deposit_mode === 'deposit'
+      pkg.deposit_mode === 'deposit' && pkg.name === 'casier'
         ? pkg.components.reduce((acc, c) => acc + c.pieces_per_pack * c.deposit_value, 0)
         : 0;
     addToCart({
@@ -123,11 +124,12 @@ export function SalesPage() {
       coefficientMilli: pkg.coefficient_milli,
       allowFraction: pkg.allow_fraction === 1,
       quantity: '1',
-      supportQuantity: '1',  // Default: 1 support per crate
-      unitPrice: getTierPrice(pkg, posPriceTier),
+      supportQuantity: '1', // Default: 1 support per crate
+      unitPrice: getTierPrice(pkg),
       discountAmount: 0,
       depositPerPack,
       depositMode: pkg.deposit_mode,
+      depositComponents: pkg.components,
     });
   };
 
@@ -142,18 +144,6 @@ export function SalesPage() {
     setErrorMsg(null);
   };
 
-  const handlePriceTierChange = (nextTier: PriceTier) => {
-    setPosPriceTier(nextTier);
-    const products = productsRes?.items || [];
-    for (const item of posCart) {
-      const prod = products.find((p) => p.id === item.productId);
-      const pkg = prod?.packagings.find((pk) => pk.id === item.packagingId);
-      if (pkg) {
-        updateCartItem(item.key, { unitPrice: getTierPrice(pkg, nextTier) });
-      }
-    }
-  };
-
   const handleScanEnter = async (rawCode: string) => {
     const code = rawCode.trim();
     if (!code) return;
@@ -161,7 +151,10 @@ export function SalesPage() {
       for (const prod of products) {
         const matchedPkg = prod.packagings.find(
           (pk) =>
-            pk.is_active && pk.barcode && pk.barcode.trim().toLowerCase() === code.toLowerCase()
+            pk.is_active &&
+            pk.name === 'casier' &&
+            pk.barcode &&
+            pk.barcode.trim().toLowerCase() === code.toLowerCase()
         );
         if (matchedPkg) {
           handleAddPackaging(prod, matchedPkg);
@@ -174,7 +167,7 @@ export function SalesPage() {
           (prod.barcode && prod.barcode.trim().toLowerCase() === code.toLowerCase()) ||
           prod.reference.toLowerCase() === code.toLowerCase()
       );
-      const defaultPkg = matchedProd?.packagings.find((pk) => pk.is_active);
+      const defaultPkg = matchedProd?.packagings.find((pk) => pk.is_active && pk.name === 'casier');
       if (matchedProd && defaultPkg) {
         handleAddPackaging(matchedProd, defaultPkg);
         setSearch('');
@@ -217,8 +210,6 @@ export function SalesPage() {
           search={search}
           onSearchChange={setSearch}
           onScanEnter={handleScanEnter}
-          posPriceTier={posPriceTier}
-          onPriceTierChange={handlePriceTierChange}
           products={productsRes?.items || []}
           onAddPackaging={handleAddPackaging}
         />

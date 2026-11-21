@@ -208,15 +208,15 @@ async fn lot9_22_scenarios_business_parity() {
         assert_eq!(prod.min_stock_milli, 24_000);
         assert_eq!(prod.max_stock_milli, 500_000);
         assert_eq!(prod.average_cost_fcfa, Some(450));
-        let pkg_bouteille_id = prod.packagings[0].id;
+        let default_casier_id = prod.packagings[0].id;
 
-        // Scénario 4 — Création conditionnements (pack=6, casier=24 consigné, doublon)
+        // Scénario 4 — Conditionnement casier=24 consigné, rejet pack/carton/bouteille/canette, doublon
         let dup_pkg = products::upsert_packaging(
             &db,
             prod.id,
             products::PackagingInput {
                 id: None,
-                name: "bouteille".to_string(),
+                name: "casier".to_string(),
                 coefficient: "1".to_string(),
                 purchase_price: None,
                 wholesale_price: None,
@@ -247,7 +247,7 @@ async fn lot9_22_scenarios_business_parity() {
         .await
         .unwrap();
 
-        let _pkg_pack = products::upsert_packaging(
+        let bad_pkg_pack = products::upsert_packaging(
             &db,
             prod.id,
             products::PackagingInput {
@@ -265,14 +265,14 @@ async fn lot9_22_scenarios_business_parity() {
                 components: None,
             },
         )
-        .await
-        .unwrap();
+        .await;
+        assert!(matches!(bad_pkg_pack, Err(CoreError::Validation(_))));
 
         let pkg_casier = products::upsert_packaging(
             &db,
             prod.id,
             products::PackagingInput {
-                id: None,
+                id: Some(default_casier_id),
                 name: "casier".to_string(),
                 coefficient: "24".to_string(),
                 purchase_price: Some(10_800),
@@ -295,7 +295,7 @@ async fn lot9_22_scenarios_business_parity() {
         assert_eq!(pkg_casier.deposit_mode.as_deref(), Some("deposit"));
         assert_eq!(pkg_casier.components.len(), 1);
 
-        // Scénario 5 — Ajustement stock (+100 bouteilles)
+        // Scénario 5 — Ajustement stock (+230 bouteilles -> 240 bouteilles = 10 casiers)
         let adj_over = inventory::adjust_stock(
             &db,
             inventory::AdjustStockInput {
@@ -314,21 +314,21 @@ async fn lot9_22_scenarios_business_parity() {
             inventory::AdjustStockInput {
                 product_id: prod.id,
                 direction: "in".to_string(),
-                quantity: "100".to_string(),
+                quantity: "230".to_string(),
                 reason: "Inventaire initial complet".to_string(),
                 request_key: "lot9-rs-adj-1".to_string(),
             },
         )
         .await
         .unwrap();
-        assert_eq!(adj.stock_after_milli, 110_000);
+        assert_eq!(adj.stock_after_milli, 240_000);
 
         let adj_replay = inventory::adjust_stock(
             &db,
             inventory::AdjustStockInput {
                 product_id: prod.id,
                 direction: "in".to_string(),
-                quantity: "100".to_string(),
+                quantity: "230".to_string(),
                 reason: "Inventaire initial complet".to_string(),
                 request_key: "lot9-rs-adj-1".to_string(),
             },
@@ -349,13 +349,13 @@ async fn lot9_22_scenarios_business_parity() {
                 notes: None,
                 lines: vec![sales::CreateSaleLineInput {
                     product_id: prod.id,
-                    packaging_id: pkg_bouteille_id,
+                    packaging_id: pkg_casier.id,
                     quantity: "1".to_string(),
                     discount_amount: None,
                 }],
                 payments: vec![sales::PaymentPartInput {
                     method_code: "cash".to_string(),
-                    amount: 650,
+                    amount: 18_100,
                 }],
                 due_date: None,
             },
@@ -394,7 +394,7 @@ async fn lot9_22_scenarios_business_parity() {
         assert!(matches!(sess_dup, Err(CoreError::SessionAlreadyOpen(_))));
         let mut expected_cash: i64 = 25_000;
 
-        // Scénario 7 — Vente comptant (1 casier consigné + 3 bouteilles = 20 050 FCFA)
+        // Scénario 7 — Vente comptant (1 casier consigné = 18 100 FCFA)
         let cash_sale = sales::create_sale(
             &db,
             sales::CreateSaleInput {
@@ -404,42 +404,34 @@ async fn lot9_22_scenarios_business_parity() {
                 price_tier: "retail".to_string(),
                 discount_amount: None,
                 notes: Some("Vente comptant Lot 9".to_string()),
-                lines: vec![
-                    sales::CreateSaleLineInput {
-                        product_id: prod.id,
-                        packaging_id: pkg_casier.id,
-                        quantity: "1".to_string(),
-                        discount_amount: None,
-                    },
-                    sales::CreateSaleLineInput {
-                        product_id: prod.id,
-                        packaging_id: pkg_bouteille_id,
-                        quantity: "3".to_string(),
-                        discount_amount: None,
-                    },
-                ],
+                lines: vec![sales::CreateSaleLineInput {
+                    product_id: prod.id,
+                    packaging_id: pkg_casier.id,
+                    quantity: "1".to_string(),
+                    discount_amount: None,
+                }],
                 payments: vec![sales::PaymentPartInput {
                     method_code: "cash".to_string(),
-                    amount: 20_050,
+                    amount: 18_100,
                 }],
                 due_date: None,
             },
         )
         .await
         .unwrap();
-        expected_cash += 20_050;
-        assert_eq!(cash_sale.sale.total_merchandise, 17_550);
+        expected_cash += 18_100;
+        assert_eq!(cash_sale.sale.total_merchandise, 15_600);
         assert_eq!(cash_sale.sale.total_deposit, 2_500);
-        assert_eq!(cash_sale.sale.total_amount, 20_050);
-        assert_eq!(cash_sale.sale.paid_amount, 20_050);
+        assert_eq!(cash_sale.sale.total_amount, 18_100);
+        assert_eq!(cash_sale.sale.paid_amount, 18_100);
         assert_eq!(cash_sale.sale.remaining_amount, 0);
 
         let st = inventory::get_stock_overview(&db).await.unwrap();
-        assert_eq!(st.products[0].stock_milli, 83_000);
+        assert_eq!(st.products[0].stock_milli, 216_000);
         let cons = consignments::get_overview(&db).await.unwrap();
         assert_eq!(cons.types[0].stock_quantity, 20);
 
-        // Scénario 8 — Vente à crédit (politique & plafond)
+        // Scénario 8 — Vente à crédit (politique & plafond, tarif détail forcé)
         let forbidden_credit = sales::create_sale(
             &db,
             sales::CreateSaleInput {
@@ -451,8 +443,8 @@ async fn lot9_22_scenarios_business_parity() {
                 notes: None,
                 lines: vec![sales::CreateSaleLineInput {
                     product_id: prod.id,
-                    packaging_id: pkg_bouteille_id,
-                    quantity: "2".to_string(),
+                    packaging_id: pkg_casier.id,
+                    quantity: "1".to_string(),
                     discount_amount: None,
                 }],
                 payments: vec![],
@@ -471,7 +463,7 @@ async fn lot9_22_scenarios_business_parity() {
                 request_key: "lot9-rs-sale-credit-1".to_string(),
                 client_id: Some(cli_pro.id),
                 sale_type: "credit".to_string(),
-                price_tier: "wholesale".to_string(),
+                price_tier: "retail".to_string(),
                 discount_amount: None,
                 notes: Some("Livraison Maquis Lot 9".to_string()),
                 lines: vec![sales::CreateSaleLineInput {
@@ -482,23 +474,23 @@ async fn lot9_22_scenarios_business_parity() {
                 }],
                 payments: vec![sales::PaymentPartInput {
                     method_code: "cash".to_string(),
-                    amount: 1_400,
+                    amount: 1_200,
                 }],
                 due_date: None,
             },
         )
         .await
         .unwrap();
-        expected_cash += 1_400;
-        assert_eq!(credit_sale.sale.total_merchandise, 26_400);
+        expected_cash += 1_200;
+        assert_eq!(credit_sale.sale.total_merchandise, 31_200);
         assert_eq!(credit_sale.sale.total_deposit, 5_000);
-        assert_eq!(credit_sale.sale.total_amount, 31_400);
-        assert_eq!(credit_sale.sale.paid_amount, 1_400);
-        assert_eq!(credit_sale.sale.remaining_amount, 30_000);
+        assert_eq!(credit_sale.sale.total_amount, 36_200);
+        assert_eq!(credit_sale.sale.paid_amount, 1_200);
+        assert_eq!(credit_sale.sale.remaining_amount, 35_000);
         assert!(credit_sale.due_date.is_some());
         let receivable_id = credit_sale.receivable_id.unwrap();
 
-        // Scénario 9 — Paiement mixte (13 000 = 3 000 cash + 4 000 wave + 6 000 om)
+        // Scénario 9 — Paiement mixte (18 100 = 4 100 cash + 6 000 wave + 8 000 om)
         let mixed_sale = sales::create_sale(
             &db,
             sales::CreateSaleInput {
@@ -510,22 +502,22 @@ async fn lot9_22_scenarios_business_parity() {
                 notes: None,
                 lines: vec![sales::CreateSaleLineInput {
                     product_id: prod.id,
-                    packaging_id: pkg_bouteille_id,
-                    quantity: "20".to_string(),
+                    packaging_id: pkg_casier.id,
+                    quantity: "1".to_string(),
                     discount_amount: None,
                 }],
                 payments: vec![
                     sales::PaymentPartInput {
                         method_code: "cash".to_string(),
-                        amount: 3_000,
+                        amount: 4_100,
                     },
                     sales::PaymentPartInput {
                         method_code: "wave".to_string(),
-                        amount: 4_000,
+                        amount: 6_000,
                     },
                     sales::PaymentPartInput {
                         method_code: "orange_money".to_string(),
-                        amount: 6_000,
+                        amount: 8_000,
                     },
                 ],
                 due_date: None,
@@ -533,7 +525,7 @@ async fn lot9_22_scenarios_business_parity() {
         )
         .await
         .unwrap();
-        expected_cash += 3_000;
+        expected_cash += 4_100;
         assert_eq!(mixed_sale.payments.len(), 3);
         let mixed_line_id = mixed_sale.lines[0].id;
 
@@ -603,13 +595,13 @@ async fn lot9_22_scenarios_business_parity() {
                 notes: None,
                 lines: vec![sales::CreateSaleLineInput {
                     product_id: prod.id,
-                    packaging_id: pkg_bouteille_id,
-                    quantity: "2".to_string(),
+                    packaging_id: pkg_casier.id,
+                    quantity: "1".to_string(),
                     discount_amount: None,
                 }],
                 payments: vec![sales::PaymentPartInput {
                     method_code: "wave".to_string(),
-                    amount: 1_300,
+                    amount: 18_100,
                 }],
                 due_date: None,
             },
@@ -630,11 +622,11 @@ async fn lot9_22_scenarios_business_parity() {
         .unwrap();
         assert_eq!(cancelled.sale.status, "cancelled");
         let canc = cancelled.cancellation.unwrap();
-        assert_eq!(canc.refunded_amount, 1_300);
+        assert_eq!(canc.refunded_amount, 18_100);
         assert_eq!(canc.refund_method_code.as_deref(), Some("wave"));
 
         let st_after_s11 = inventory::get_stock_overview(&db).await.unwrap();
-        assert_eq!(st_after_s11.products[0].stock_milli, 19_000);
+        assert_eq!(st_after_s11.products[0].stock_milli, 148_000);
 
         // Scénario 12 — Paiement de créance
         let rec_over = cash::pay_receivable(
@@ -645,7 +637,7 @@ async fn lot9_22_scenarios_business_parity() {
                 note: None,
                 parts: vec![sales::PaymentPartInput {
                     method_code: "cash".to_string(),
-                    amount: 35_000,
+                    amount: 40_000,
                 }],
             },
         )
@@ -674,7 +666,7 @@ async fn lot9_22_scenarios_business_parity() {
         .unwrap();
         expected_cash += 10_000;
         assert_eq!(rec_paid.status, "partial");
-        assert_eq!(rec_paid.remaining_amount, 15_000);
+        assert_eq!(rec_paid.remaining_amount, 20_000);
 
         // Scénario 13 — Création commande d'achat (10 casiers @ 10 800)
         let po = purchases::create_purchase_order(
@@ -757,7 +749,7 @@ async fn lot9_22_scenarios_business_parity() {
         assert_eq!(rec2.total_amount, 64_800);
 
         let st_after_s15 = inventory::get_stock_overview(&db).await.unwrap();
-        assert_eq!(st_after_s15.products[0].stock_milli, 259_000);
+        assert_eq!(st_after_s15.products[0].stock_milli, 388_000);
         assert_eq!(st_after_s15.products[0].average_cost_fcfa, Some(450));
 
         // Scénario 16 — Règlement fournisseur (23 200 FCFA espèces -> reste 20 000)
@@ -839,7 +831,7 @@ async fn lot9_22_scenarios_business_parity() {
             inv.id,
             vec![inventory::ValidateInventoryLineInput {
                 product_id: prod.id,
-                counted_quantity: "257".to_string(),
+                counted_quantity: "386".to_string(),
                 reason: None,
             }],
         )
@@ -852,12 +844,12 @@ async fn lot9_22_scenarios_business_parity() {
             vec![
                 inventory::ValidateInventoryLineInput {
                     product_id: prod.id,
-                    counted_quantity: "259".to_string(),
+                    counted_quantity: "388".to_string(),
                     reason: None,
                 },
                 inventory::ValidateInventoryLineInput {
                     product_id: prod.id,
-                    counted_quantity: "259".to_string(),
+                    counted_quantity: "388".to_string(),
                     reason: None,
                 },
             ],
@@ -870,7 +862,7 @@ async fn lot9_22_scenarios_business_parity() {
             inv.id,
             vec![inventory::ValidateInventoryLineInput {
                 product_id: prod.id,
-                counted_quantity: "257".to_string(),
+                counted_quantity: "386".to_string(),
                 reason: Some("Casse constatée".to_string()),
             }],
         )
@@ -883,7 +875,7 @@ async fn lot9_22_scenarios_business_parity() {
             inv.id,
             vec![inventory::ValidateInventoryLineInput {
                 product_id: prod.id,
-                counted_quantity: "257".to_string(),
+                counted_quantity: "386".to_string(),
                 reason: Some("Doublon".to_string()),
             }],
         )
@@ -992,13 +984,13 @@ async fn lot9_22_scenarios_business_parity() {
             .await
             .unwrap();
         assert_eq!(rep.commercial.count, 3);
-        assert_eq!(rep.commercial.merchandise_revenue, 56_950);
-        assert_eq!(rep.commercial.deposit_billed, 7_500);
-        assert_eq!(rep.stock.known_valuation_fcfa, 115_650);
+        assert_eq!(rep.commercial.merchandise_revenue, 62_400);
+        assert_eq!(rep.commercial.deposit_billed, 10_000);
+        assert_eq!(rep.stock.known_valuation_fcfa, 173_700);
         assert_eq!(rep.profitability.expenses_total, 5_000);
-        assert_eq!(rep.profitability.known_cost_total, 42_750);
-        assert_eq!(rep.profitability.known_gross_margin, 14_200);
-        assert_eq!(rep.profitability.net_known_result, 9_200);
+        assert_eq!(rep.profitability.known_cost_total, 43_200);
+        assert_eq!(rep.profitability.known_gross_margin, 19_200);
+        assert_eq!(rep.profitability.net_known_result, 14_200);
 
         let bkp = backup::create_backup_summary(&db, &backup_dir)
             .await
@@ -1049,7 +1041,7 @@ async fn lot9_22_scenarios_business_parity() {
             .await
             .unwrap();
         assert_eq!(prods_after.total, 1);
-        assert_eq!(prods_after.items[0].stock_milli, 257_000);
+        assert_eq!(prods_after.items[0].stock_milli, 386_000);
         drop(db_after);
         db_lock.read().await.pool.close().await;
     })

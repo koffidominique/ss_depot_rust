@@ -29,7 +29,7 @@ async fn rust_core_scenarios_a_through_l() {
         .unwrap();
     assert!(auth::verify_owner_pin(&db, "654321").await.is_ok());
 
-    // Scénario A — Catégorie + Produit + Conditionnements exacts (bouteille=1, pack=6, casier=24)
+    // Scénario A — Catégorie + Produit + Conditionnement casier uniquement (casier=24)
     let cat = products::create_category(&db, "Bières Test", None)
         .await
         .unwrap();
@@ -66,65 +66,53 @@ async fn rust_core_scenarios_a_through_l() {
             semi_wholesale_price: Some(600),
             retail_price: Some(650),
             image_path: Some("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==".to_string()),
-            packagings: Some(vec![
-                products::PackagingInput {
-                    id: None,
-                    name: "bouteille".to_string(),
-                    coefficient: "1".to_string(),
-                    purchase_price: Some(450),
-                    wholesale_price: Some(550),
-                    semi_wholesale_price: Some(600),
-                    retail_price: Some(650),
-                    barcode: None,
-                    allow_fraction: Some(false),
-                    is_active: Some(true),
-                    deposit_mode: Some("none".to_string()),
-                    components: None,
-                },
-                products::PackagingInput {
-                    id: None,
-                    name: "pack".to_string(),
-                    coefficient: "6".to_string(),
-                    purchase_price: Some(2700),
-                    wholesale_price: Some(3300),
-                    semi_wholesale_price: Some(3600),
-                    retail_price: Some(3900),
-                    barcode: None,
-                    allow_fraction: Some(false),
-                    is_active: Some(true),
-                    deposit_mode: Some("none".to_string()),
-                    components: None,
-                },
-                products::PackagingInput {
-                    id: None,
-                    name: "casier".to_string(),
-                    coefficient: "24".to_string(),
-                    purchase_price: Some(10800),
-                    wholesale_price: Some(13200),
-                    semi_wholesale_price: Some(14400),
-                    retail_price: Some(15600),
-                    barcode: None,
-                    allow_fraction: Some(false),
-                    is_active: Some(true),
-                    deposit_mode: Some("deposit".to_string()),
-                    components: Some(vec![products::DepositComponentInput {
-                        returnable_id: crate_type.id,
-                        pieces_per_pack: 1,
-                    }]),
-                },
-            ]),
+            packagings: Some(vec![products::PackagingInput {
+                id: None,
+                name: "casier".to_string(),
+                coefficient: "24".to_string(),
+                purchase_price: Some(10800),
+                wholesale_price: Some(13200),
+                semi_wholesale_price: Some(14400),
+                retail_price: Some(15600),
+                barcode: None,
+                allow_fraction: Some(false),
+                is_active: Some(true),
+                deposit_mode: Some("deposit".to_string()),
+                components: Some(vec![products::DepositComponentInput {
+                    returnable_id: crate_type.id,
+                    pieces_per_pack: 1,
+                }]),
+            }]),
         },
     )
     .await
     .unwrap();
 
-    let pkg_btl = prod
-        .packagings
-        .iter()
-        .find(|p| p.name == "bouteille")
-        .unwrap();
+    // Seul le conditionnement "casier" est autorisé (bouteille, pack, carton rejetés)
+    for forbidden_pkg in ["bouteille", "canette", "pack", "carton"] {
+        assert!(products::upsert_packaging(
+            &db,
+            prod.id,
+            products::PackagingInput {
+                id: None,
+                name: forbidden_pkg.to_string(),
+                coefficient: "1".to_string(),
+                purchase_price: None,
+                wholesale_price: None,
+                semi_wholesale_price: None,
+                retail_price: Some(500),
+                barcode: None,
+                allow_fraction: Some(false),
+                is_active: Some(true),
+                deposit_mode: Some("none".to_string()),
+                components: None,
+            },
+        )
+        .await
+        .is_err());
+    }
+
     let pkg_casier = prod.packagings.iter().find(|p| p.name == "casier").unwrap();
-    assert_eq!(pkg_btl.coefficient_milli, 1_000);
     assert_eq!(pkg_casier.coefficient_milli, 24_000);
     assert_eq!(
         Quantity::parse_str("10", "cmd")
@@ -199,7 +187,7 @@ async fn rust_core_scenarios_a_through_l() {
         .unwrap();
     assert_eq!(stock_after_rec, 240_000);
 
-    // Scénario C — Ouverture session caisse puis vente 1 casier + 3 bouteilles (-27 bouteilles)
+    // Scénario C — Ouverture session caisse puis vente 1 casier (-24 bouteilles)
     let session = cash::open_cash_session(
         &db,
         cash::OpenCashInput {
@@ -237,23 +225,15 @@ async fn rust_core_scenarios_a_through_l() {
             price_tier: "retail".to_string(),
             discount_amount: Some(0),
             notes: None,
-            lines: vec![
-                sales::CreateSaleLineInput {
-                    product_id: prod.id,
-                    packaging_id: pkg_casier.id,
-                    quantity: "1".to_string(),
-                    discount_amount: Some(0),
-                },
-                sales::CreateSaleLineInput {
-                    product_id: prod.id,
-                    packaging_id: pkg_btl.id,
-                    quantity: "3".to_string(),
-                    discount_amount: Some(0),
-                },
-            ],
+            lines: vec![sales::CreateSaleLineInput {
+                product_id: prod.id,
+                packaging_id: pkg_casier.id,
+                quantity: "1".to_string(),
+                discount_amount: Some(0),
+            }],
             payments: vec![sales::PaymentPartInput {
                 method_code: "cash".to_string(),
-                amount: 15_600 + 2_500 + 3 * 650,
+                amount: 15_600 + 2_500,
             }],
             due_date: None,
         },
@@ -266,7 +246,7 @@ async fn rust_core_scenarios_a_through_l() {
         .fetch_one(&db.pool)
         .await
         .unwrap();
-    assert_eq!(stock_after_c, 213_000); // 240 - 27
+    assert_eq!(stock_after_c, 216_000); // 240 - 24
 
     // Scénario K — Retour emballage consigné (bon état + endommagé -> solde client soldé)
     let ov = consignments::get_overview(&db).await.unwrap();
@@ -1144,6 +1124,211 @@ async fn scenario_u_cancel_po_and_overdue_kpis() {
     .await
     .unwrap();
     assert_eq!(empty_past.total, 0);
+
+    // Scénario X : Panachage deux demi-casiers 33cl -> 1 casier consigné + correspondance bouteilles
+    let crate_33 = consignments::create_returnable_type(
+        &db,
+        consignments::CreateReturnableTypeInput {
+            code: "EMB-PAN-CAS24".to_string(),
+            name: "Casier 24x33cl".to_string(),
+            producer: "SOLIBRA".to_string(),
+            kind: "crate".to_string(),
+            deposit_value: 2_000,
+            initial_stock: Some(30),
+            description: None,
+        },
+    )
+    .await
+    .unwrap();
+    let btl_33 = consignments::create_returnable_type(
+        &db,
+        consignments::CreateReturnableTypeInput {
+            code: "EMB-PAN-BTL33".to_string(),
+            name: "Bouteille 33cl".to_string(),
+            producer: "SOLIBRA".to_string(),
+            kind: "bottle".to_string(),
+            deposit_value: 100,
+            initial_stock: Some(200),
+            description: None,
+        },
+    )
+    .await
+    .unwrap();
+    let prod_bock = products::create_product(
+        &db,
+        products::CreateProductInput {
+            name: "Bock 33cl".to_string(),
+            brand: Some("SOLIBRA".to_string()),
+            barcode: None,
+            category_id: cat.id,
+            supplier_id: None,
+            description: None,
+            base_unit: "bouteille".to_string(),
+            initial_stock: Some("48".to_string()),
+            min_stock: Some("0".to_string()),
+            max_stock: Some("200".to_string()),
+            purchase_price: Some(9_000),
+            wholesale_price: None,
+            semi_wholesale_price: None,
+            retail_price: Some(12_000),
+            image_path: None,
+            packagings: Some(vec![products::PackagingInput {
+                id: None,
+                name: "casier".to_string(),
+                coefficient: "24".to_string(),
+                purchase_price: Some(9_000),
+                wholesale_price: None,
+                semi_wholesale_price: None,
+                retail_price: Some(12_000),
+                barcode: None,
+                allow_fraction: Some(true),
+                is_active: Some(true),
+                deposit_mode: Some("deposit".to_string()),
+                components: Some(vec![
+                    products::DepositComponentInput {
+                        returnable_id: crate_33.id,
+                        pieces_per_pack: 1,
+                    },
+                    products::DepositComponentInput {
+                        returnable_id: btl_33.id,
+                        pieces_per_pack: 24,
+                    },
+                ]),
+            }]),
+        },
+    )
+    .await
+    .unwrap();
+    let prod_doppel = products::create_product(
+        &db,
+        products::CreateProductInput {
+            name: "Doppel 33cl".to_string(),
+            brand: Some("SOLIBRA".to_string()),
+            barcode: None,
+            category_id: cat.id,
+            supplier_id: None,
+            description: None,
+            base_unit: "bouteille".to_string(),
+            initial_stock: Some("48".to_string()),
+            min_stock: Some("0".to_string()),
+            max_stock: Some("200".to_string()),
+            purchase_price: Some(10_500),
+            wholesale_price: None,
+            semi_wholesale_price: None,
+            retail_price: Some(14_000),
+            image_path: None,
+            packagings: Some(vec![products::PackagingInput {
+                id: None,
+                name: "casier".to_string(),
+                coefficient: "24".to_string(),
+                purchase_price: Some(10_500),
+                wholesale_price: None,
+                semi_wholesale_price: None,
+                retail_price: Some(14_000),
+                barcode: None,
+                allow_fraction: Some(true),
+                is_active: Some(true),
+                deposit_mode: Some("deposit".to_string()),
+                components: Some(vec![
+                    products::DepositComponentInput {
+                        returnable_id: crate_33.id,
+                        pieces_per_pack: 1,
+                    },
+                    products::DepositComponentInput {
+                        returnable_id: btl_33.id,
+                        pieces_per_pack: 24,
+                    },
+                ]),
+            }]),
+        },
+    )
+    .await
+    .unwrap();
+
+    // Demi-casier isolé refusé (panachage incomplet)
+    assert!(sales::create_sale(
+        &db,
+        sales::CreateSaleInput {
+            request_key: "rust-sale-panachage-bad".to_string(),
+            client_id: Some(cli.id),
+            sale_type: "cash".to_string(),
+            price_tier: "retail".to_string(),
+            discount_amount: Some(0),
+            notes: None,
+            lines: vec![sales::CreateSaleLineInput {
+                product_id: prod_bock.id,
+                packaging_id: prod_bock.packagings[0].id,
+                quantity: "0.5".to_string(),
+                discount_amount: Some(0),
+            }],
+            payments: vec![sales::PaymentPartInput {
+                method_code: "cash".to_string(),
+                amount: 9_200,
+            }],
+            due_date: None,
+        },
+    )
+    .await
+    .is_err());
+
+    // Deux demi-casiers de produits différents = 1 casier consigné + bouteilles par produit
+    let panachage_sale = sales::create_sale(
+        &db,
+        sales::CreateSaleInput {
+            request_key: "rust-sale-panachage-ok".to_string(),
+            client_id: Some(cli.id),
+            sale_type: "cash".to_string(),
+            price_tier: "retail".to_string(),
+            discount_amount: Some(0),
+            notes: None,
+            lines: vec![
+                sales::CreateSaleLineInput {
+                    product_id: prod_bock.id,
+                    packaging_id: prod_bock.packagings[0].id,
+                    quantity: "0.5".to_string(),
+                    discount_amount: Some(0),
+                },
+                sales::CreateSaleLineInput {
+                    product_id: prod_doppel.id,
+                    packaging_id: prod_doppel.packagings[0].id,
+                    quantity: "0.5".to_string(),
+                    discount_amount: Some(0),
+                },
+            ],
+            payments: vec![sales::PaymentPartInput {
+                method_code: "cash".to_string(),
+                amount: 17_400,
+            }],
+            due_date: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(panachage_sale.sale.total_merchandise, 13_000);
+    assert_eq!(panachage_sale.sale.total_deposit, 4_400);
+    assert_eq!(panachage_sale.sale.total_amount, 17_400);
+    assert_eq!(panachage_sale.deposits.len(), 3);
+    let crate_dep = panachage_sale
+        .deposits
+        .iter()
+        .find(|d| d.returnable_id == crate_33.id)
+        .unwrap();
+    assert_eq!(crate_dep.pieces, 1);
+    assert_eq!(crate_dep.amount, 2_000);
+    assert_eq!(
+        crate_dep.expected_products.as_deref(),
+        Some("Bock 33cl (12 bouteille) + Doppel 33cl (12 bouteille)")
+    );
+    let ov_pan = consignments::get_overview(&db).await.unwrap();
+    let open_crate = ov_pan
+        .open_issues
+        .iter()
+        .find(|i| i.id == crate_dep.id)
+        .unwrap();
+    assert_eq!(
+        open_crate.expected_products.as_deref(),
+        Some("Bock 33cl (12 bouteille) + Doppel 33cl (12 bouteille)")
+    );
 
     if let Some(parent) = db_path.parent() {
         let _ = std::fs::remove_dir_all(parent);

@@ -2791,7 +2791,12 @@ async fn packaging_obligations_list(
         Err(e) => return e.into_response(),
     };
     let db = state.db().await;
-    match auth::with_actor(actor, packaging_obligations::list_obligations(&db, q.client_id)).await {
+    match auth::with_actor(
+        actor,
+        packaging_obligations::list_obligations(&db, q.client_id),
+    )
+    .await
+    {
         Ok(list) => Json(serde_json::to_value(list).unwrap()).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -3482,10 +3487,7 @@ fn build_router(state: AppState) -> Router {
             "/api/packaging-obligations/dashboard/:client_id",
             get(packaging_dashboard),
         )
-        .route(
-            "/api/packaging-obligations/pay",
-            post(packaging_pay_debt),
-        )
+        .route("/api/packaging-obligations/pay", post(packaging_pay_debt))
         // PHASE 4 catalogue_seed.md : administration OWNER du catalogue standard
         .route(
             "/api/catalogue-products/:id/active",
@@ -4026,7 +4028,7 @@ mod tests {
             "POST",
             &format!("/api/products/{prod_id}/packagings"),
             &[("Authorization", &auth_hdr)],
-            Some(r#"{"name":"bouteille","coefficient":1,"retail_price":700}"#),
+            Some(r#"{"name":"casier","coefficient":1,"retail_price":700}"#),
         )
         .await;
         assert_eq!(st, 409);
@@ -4043,12 +4045,31 @@ mod tests {
             "is_active": 1
         })
         .to_string();
-        let (st, pack_body) = send_http(
+        let (st, _) = send_http(
             addr,
             "POST",
             &format!("/api/products/{prod_id}/packagings"),
             &[("Authorization", &auth_hdr)],
             Some(&pack_payload),
+        )
+        .await;
+        assert_eq!(st, 400);
+
+        let casier_payload = serde_json::json!({
+            "id": pkg_id,
+            "name": "casier",
+            "coefficient": 1,
+            "retail_price": 650,
+            "allow_fraction": 0,
+            "is_active": 1
+        })
+        .to_string();
+        let (st, pack_body) = send_http(
+            addr,
+            "POST",
+            &format!("/api/products/{prod_id}/packagings"),
+            &[("Authorization", &auth_hdr)],
+            Some(&casier_payload),
         )
         .await;
         assert_eq!(st, 200);

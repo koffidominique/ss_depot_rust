@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Sidebar } from './Sidebar.tsx';
 import { Header } from './Header.tsx';
 import { BusinessTipsModal } from '../components/common/BusinessTipsModal.tsx';
+import { DP_EASE } from '../components/motion/MotionPrimitives.tsx';
 import { useUiStore } from '../stores/uiStore.ts';
 import { useSettingsQueries } from '../features/settings/hooks/useSettingsData.ts';
 
 export function AppLayout() {
+  const location = useLocation();
   const token = useUiStore((s) => s.token);
   const setToken = useUiStore((s) => s.setToken);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -60,9 +62,10 @@ export function AppLayout() {
         <Header onOpenMobileMenu={() => setMobileMenuOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <motion.div
-            initial={{ opacity: 0, y: 4 }}
+            key={location.pathname}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.22, ease: DP_EASE }}
             className="mx-auto max-w-[1400px]"
           >
             <Outlet />

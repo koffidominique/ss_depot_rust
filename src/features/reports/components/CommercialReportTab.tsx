@@ -1,5 +1,6 @@
 import { AlertCircle, BarChart3 } from 'lucide-react';
 import { MetricCard } from '../../../components/common/MetricCard.tsx';
+import { MotionStaggerGrid } from '../../../components/motion/MotionPrimitives.tsx';
 import type { ReportsOverview } from '../../../types/erp.ts';
 import { formatDate, formatFcfa, formatNumber } from '../../../utils/format.ts';
 
@@ -11,7 +12,7 @@ interface CommercialReportTabProps {
 export function CommercialReportTab({ data, periodLabel }: CommercialReportTabProps) {
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <MotionStaggerGrid className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="CA Marchandises (hors retour emballages)"
           value={formatFcfa(data.commercial.merchandise_revenue)}
@@ -34,7 +35,7 @@ export function CommercialReportTab({ data, periodLabel }: CommercialReportTabPr
           value={formatFcfa(data.stock.knownValuationFcfa)}
           hint={`${data.stock.product_count} produits actifs`}
         />
-      </div>
+      </MotionStaggerGrid>
 
       {(data.profitability.unknownCostLines > 0 || data.stock.unknown_cost_products > 0) && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-950/20 p-4 text-xs text-[#D9901A]">
@@ -51,7 +52,7 @@ export function CommercialReportTab({ data, periodLabel }: CommercialReportTabPr
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-5 space-y-3">
           <h3 className="font-display text-sm font-semibold">
             Compte d&apos;exploitation synthétique (coûts connus)
           </h3>
@@ -97,7 +98,7 @@ export function CommercialReportTab({ data, periodLabel }: CommercialReportTabPr
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-5 space-y-3">
           <h3 className="font-display text-sm font-semibold">
             Ventilation des flux par moyen de paiement
           </h3>
@@ -138,7 +139,7 @@ export function CommercialReportTab({ data, periodLabel }: CommercialReportTabPr
       </div>
 
       {data.dailySales.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-3">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-3">
           <h3 className="font-display text-sm font-semibold">
             Détail journalier des ventes ({periodLabel})
           </h3>

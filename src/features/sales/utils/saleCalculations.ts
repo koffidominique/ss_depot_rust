@@ -1,3 +1,5 @@
+import type { DepositComponent } from '../../../types/erp.ts';
+
 export interface SaleCalculationItem {
   key: string;
   productName: string;
@@ -9,6 +11,7 @@ export interface SaleCalculationItem {
   discountAmount: number;
   depositPerPack: number;
   depositMode: 'none' | 'deposit' | null;
+  depositComponents?: DepositComponent[];
 }
 
 export interface SalePaymentInput {
@@ -172,6 +175,10 @@ export function calculateSaleCart(
   let subtotalMerchBig = 0n;
   let totalDepositBig = 0n;
   let allLinesValid = true;
+  const sharedDeposits = new Map<
+    number,
+    { name: string; depositValue: number; milliPieces: bigint }
+  >();
 
   for (const item of items) {
     const label = `${item.productName} (${item.packagingName})`;
@@ -235,23 +242,64 @@ export function calculateSaleCart(
       continue;
     }
     if (item.depositMode === 'deposit') {
-      if (qtyMilli % 1000n !== 0n) {
-        failLine(`Les emballages consignés exigent des quantités entières pour "${label}".`);
+      if (baseCheck.baseMilli % 1000n !== 0n) {
+        failLine(
+          `Les ventes consignées doivent correspondre à un nombre entier d'unités de base pour "${label}".`
+        );
         continue;
       }
-      const parsedDepPerPack = toNonNegativeIntFcfaBigInt(
-        item.depositPerPack,
-        `Consigne unitaire (${label})`
-      );
-      if (!parsedDepPerPack.ok) {
-        failLine(parsedDepPerPack.error);
-        continue;
-      }
-      const packs = qtyMilli / 1000n;
-      lineDepositBig = packs * parsedDepPerPack.fcfa;
-      if (lineDepositBig > MAX_SAFE_BIG) {
-        failLine(`Montant de consigne hors limites pour "${label}".`);
-        continue;
+
+      if (item.depositComponents && item.depositComponents.length > 0) {
+        let componentError: string | null = null;
+        for (const comp of item.depositComponents) {
+          const parsedDepVal = toNonNegativeIntFcfaBigInt(
+            comp.deposit_value,
+            `Consigne (${comp.name})`
+          );
+          if (!parsedDepVal.ok) {
+            componentError = parsedDepVal.error;
+            break;
+          }
+          const lineMilliPieces = qtyMilli * BigInt(comp.pieces_per_pack);
+          if (comp.kind === 'bottle' && lineMilliPieces % 1000n === 0n) {
+            const pieces = lineMilliPieces / 1000n;
+            lineDepositBig += pieces * parsedDepVal.fcfa;
+            if (lineDepositBig > MAX_SAFE_BIG) {
+              componentError = `Montant de consigne hors limites pour "${label}".`;
+              break;
+            }
+          } else {
+            const prev = sharedDeposits.get(comp.returnable_id);
+            sharedDeposits.set(comp.returnable_id, {
+              name: comp.name,
+              depositValue: Number(parsedDepVal.fcfa),
+              milliPieces: (prev?.milliPieces ?? 0n) + lineMilliPieces,
+            });
+          }
+        }
+        if (componentError) {
+          failLine(componentError);
+          continue;
+        }
+      } else {
+        if (qtyMilli % 1000n !== 0n) {
+          failLine(`Les emballages consignés exigent des quantités entières pour "${label}".`);
+          continue;
+        }
+        const parsedDepPerPack = toNonNegativeIntFcfaBigInt(
+          item.depositPerPack,
+          `Consigne unitaire (${label})`
+        );
+        if (!parsedDepPerPack.ok) {
+          failLine(parsedDepPerPack.error);
+          continue;
+        }
+        const packs = qtyMilli / 1000n;
+        lineDepositBig = packs * parsedDepPerPack.fcfa;
+        if (lineDepositBig > MAX_SAFE_BIG) {
+          failLine(`Montant de consigne hors limites pour "${label}".`);
+          continue;
+        }
       }
     }
 
@@ -277,6 +325,28 @@ export function calculateSaleCart(
       lineDeposit: depNum.num,
       error: null,
     };
+  }
+
+  for (const acc of sharedDeposits.values()) {
+    if (acc.milliPieces % 1000n !== 0n) {
+      allLinesValid = false;
+      const intPart = acc.milliPieces / 1000n;
+      const fracPart = acc.milliPieces % 1000n;
+      const formatted =
+        fracPart === 0n
+          ? intPart.toString()
+          : `${intPart.toString()}.${fracPart.toString().padStart(3, '0').replace(/0+$/, '')}`;
+      errors.push(
+        `Panachage incomplet pour « ${acc.name} » : la somme des demi-casiers doit former un nombre entier de casiers (total actuel : ${formatted}).`
+      );
+      continue;
+    }
+    const pieces = acc.milliPieces / 1000n;
+    totalDepositBig += pieces * BigInt(acc.depositValue);
+    if (totalDepositBig > MAX_SAFE_BIG) {
+      allLinesValid = false;
+      errors.push(`Montant de consigne hors limites pour « ${acc.name} ».`);
+    }
   }
 
   // Validation paiements (indépendant du panier)

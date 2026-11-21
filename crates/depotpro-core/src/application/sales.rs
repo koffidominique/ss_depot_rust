@@ -185,6 +185,7 @@ pub struct SaleDepositDto {
     pub returned_pieces: i64,
     pub unit_value: i64,
     pub amount: i64,
+    pub expected_products: Option<String>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -724,7 +725,31 @@ pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetai
 
     let deposits = sqlx::query_as::<_, SaleDepositDto>(
         "SELECT di.id, di.returnable_id, rpt.name AS packaging_name, rpt.code AS packaging_code,
-                di.pieces, di.returned_pieces, di.unit_value, di.amount
+                di.pieces, di.returned_pieces, di.unit_value, di.amount,
+                CASE
+                    WHEN rpt.kind = 'bottle' THEN (
+                        SELECT sl.product_name || ' (' ||
+                            CASE WHEN sl.base_quantity_milli % 1000 = 0
+                                 THEN CAST(sl.base_quantity_milli / 1000 AS TEXT)
+                                 ELSE rtrim(rtrim(printf('%.3f', sl.base_quantity_milli / 1000.0), '0'), '.')
+                            END || ' ' || sl.base_unit || ')'
+                        FROM sale_lines sl
+                        WHERE sl.id = di.sale_line_id
+                    )
+                    ELSE (
+                        SELECT GROUP_CONCAT(
+                            sl.product_name || ' (' ||
+                            CASE WHEN sl.base_quantity_milli % 1000 = 0
+                                 THEN CAST(sl.base_quantity_milli / 1000 AS TEXT)
+                                 ELSE rtrim(rtrim(printf('%.3f', sl.base_quantity_milli / 1000.0), '0'), '.')
+                            END || ' ' || sl.base_unit || ')',
+                            ' + '
+                        )
+                        FROM sale_lines sl
+                        JOIN deposit_packaging_components dpc ON dpc.packaging_id = sl.packaging_id
+                        WHERE sl.sale_id = di.sale_id AND dpc.returnable_id = di.returnable_id
+                    )
+                END AS expected_products
          FROM deposit_issues di
          JOIN returnable_packaging_types rpt ON rpt.id = di.returnable_id
          WHERE di.sale_id = ?",
@@ -931,13 +956,23 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         }
     }
 
+    struct SharedDepositAccum {
+        name: String,
+        unit_value: i64,
+        milli_pieces: i64,
+        first_line_idx: usize,
+    }
+
     let mut prepared_lines: Vec<PreparedSaleLine> = Vec::with_capacity(input.lines.len());
     let mut product_deductions: HashMap<i64, i64> = HashMap::new();
+    let mut shared_deposit_totals: HashMap<i64, SharedDepositAccum> = HashMap::new();
+    let mut shared_deposit_order: Vec<i64> = Vec::new();
     let mut subtotal_merchandise = Money::ZERO;
     let mut total_deposit = Money::ZERO;
 
     type SaleProductRow = (i64, String, String, Option<String>, Option<String>, i64);
-    type SalePackagingRow = (i64, String, i64, Option<i64>, Option<i64>, Option<i64>, i64);
+    type SalePackagingRow = (i64, String, i64, Option<i64>, i64);
+    let effective_price_tier = "retail";
 
     for line in &input.lines {
         let prod: Option<SaleProductRow> = sqlx::query_as(
@@ -955,17 +990,21 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         }
 
         let pkg: Option<SalePackagingRow> = sqlx::query_as(
-            "SELECT id, name, coefficient_milli, wholesale_price, semi_wholesale_price, retail_price, allow_fraction
+            "SELECT id, name, coefficient_milli, retail_price, allow_fraction
              FROM product_packagings WHERE id = ? AND product_id = ? AND is_active = 1",
         )
         .bind(line.packaging_id)
         .bind(pid)
         .fetch_optional(&mut *tx)
         .await?;
-        let (pkg_id, pkg_name, coeff_milli, p_whole, p_semi, p_retail, allow_fraction) = pkg
-            .ok_or_else(|| {
-                CoreError::Validation(format!("Conditionnement invalide pour \"{pname}\"."))
-            })?;
+        let (pkg_id, pkg_name, coeff_milli, p_retail, allow_fraction) = pkg.ok_or_else(|| {
+            CoreError::Validation(format!("Conditionnement invalide pour \"{pname}\"."))
+        })?;
+        if pkg_name != "casier" {
+            return Err(CoreError::Validation(format!(
+                "Seul le conditionnement \"casier\" est autorisé à la vente (reçu \"{pkg_name}\" pour \"{pname}\")."
+            )));
+        }
 
         let qty = Quantity::parse_str(&line.quantity, &format!("Quantité ({pname})"))?;
         if qty.milli_units <= 0 {
@@ -980,16 +1019,10 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         }
 
         let base_qty = qty.multiply_coefficient_to_base(Quantity::from_milli(coeff_milli))?;
-        let raw_price = match input.price_tier.as_str() {
-            "wholesale" => p_whole,
-            "semi_wholesale" => p_semi,
-            _ => p_retail,
-        };
         let unit_price = Money::from_non_negative(
-            raw_price.ok_or_else(|| {
+            p_retail.ok_or_else(|| {
                 CoreError::Validation(format!(
-                    "Tarif \"{}\" non configuré pour {pname} ({pkg_name}).",
-                    input.price_tier
+                    "Tarif \"{effective_price_tier}\" non configuré pour {pname} ({pkg_name})."
                 ))
             })?,
             &format!("Tarif {pname}"),
@@ -1016,17 +1049,21 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
                 "Le profil de consigne de \"{pname} ({pkg_name})\" n'est pas configuré."
             ))
         })?;
+        if mode == "deposit" && pkg_name != "casier" {
+            return Err(CoreError::Validation(format!(
+                "Seul le conditionnement \"casier\" est soumis au système de retour d'emballage (\"{pname}\")."
+            )));
+        }
 
         let mut deposit_items = Vec::new();
         if mode == "deposit" {
-            if qty.milli_units % 1000 != 0 {
+            if base_qty.milli_units % 1000 != 0 {
                 return Err(CoreError::Validation(format!(
-                    "Les emballages consignés exigent des quantités entières ({pname})."
+                    "Les ventes consignées doivent correspondre à un nombre entier d'unités de base ({pname})."
                 )));
             }
-            let packs = qty.milli_units / 1000;
-            let comps: Vec<(i64, i64, i64)> = sqlx::query_as(
-                "SELECT dpc.returnable_id, dpc.pieces_per_pack, rpt.deposit_value
+            let comps: Vec<(i64, i64, i64, String, String)> = sqlx::query_as(
+                "SELECT dpc.returnable_id, dpc.pieces_per_pack, rpt.deposit_value, rpt.name, rpt.kind
                  FROM deposit_packaging_components dpc
                  JOIN returnable_packaging_types rpt ON rpt.id = dpc.returnable_id
                  WHERE dpc.packaging_id = ?",
@@ -1039,14 +1076,38 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
                     "Aucun emballage consigné lié à \"{pname} ({pkg_name})\"."
                 )));
             }
-            for (rid, ppp, dep_val) in comps {
-                let pieces = packs.checked_mul(ppp).ok_or_else(|| {
+            let line_idx = prepared_lines.len();
+            for (rid, ppp, dep_val, r_name, r_kind) in comps {
+                let line_milli_pieces = qty.milli_units.checked_mul(ppp).ok_or_else(|| {
                     CoreError::Validation("Débordement du nombre de pièces consignées.".to_string())
                 })?;
-                let amt = Money::from_non_negative(dep_val, "Tarif consigne")?
-                    .checked_mul(pieces, "Montant consigne")?;
-                total_deposit = total_deposit.checked_add(amt, "Total consignes")?;
-                deposit_items.push((rid, pieces, dep_val, amt.value()));
+                if r_kind == "bottle" && line_milli_pieces % 1000 == 0 {
+                    let pieces = line_milli_pieces / 1000;
+                    let amt = Money::from_non_negative(dep_val, "Tarif consigne")?
+                        .checked_mul(pieces, "Montant consigne")?;
+                    total_deposit = total_deposit.checked_add(amt, "Total consignes")?;
+                    deposit_items.push((rid, pieces, dep_val, amt.value()));
+                } else if let Some(acc) = shared_deposit_totals.get_mut(&rid) {
+                    acc.milli_pieces =
+                        acc.milli_pieces
+                            .checked_add(line_milli_pieces)
+                            .ok_or_else(|| {
+                                CoreError::Validation(
+                                    "Débordement du nombre de pièces consignées.".to_string(),
+                                )
+                            })?;
+                } else {
+                    shared_deposit_order.push(rid);
+                    shared_deposit_totals.insert(
+                        rid,
+                        SharedDepositAccum {
+                            name: r_name,
+                            unit_value: dep_val,
+                            milli_pieces: line_milli_pieces,
+                            first_line_idx: line_idx,
+                        },
+                    );
+                }
             }
         }
 
@@ -1070,6 +1131,32 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
             cost_den,
             deposit_items,
         });
+    }
+
+    for rid in shared_deposit_order {
+        let acc = &shared_deposit_totals[&rid];
+        if acc.milli_pieces % 1000 != 0 {
+            let formatted = format!(
+                "{}.{:03}",
+                acc.milli_pieces / 1000,
+                (acc.milli_pieces % 1000).abs()
+            );
+            let clean = formatted.trim_end_matches('0').trim_end_matches('.');
+            return Err(CoreError::Validation(format!(
+                "Panachage incomplet pour « {} » : la somme des demi-casiers doit former un nombre entier de casiers (total actuel : {clean}).",
+                acc.name
+            )));
+        }
+        let pieces = acc.milli_pieces / 1000;
+        let amt = Money::from_non_negative(acc.unit_value, "Tarif consigne")?
+            .checked_mul(pieces, "Montant consigne")?;
+        total_deposit = total_deposit.checked_add(amt, "Total consignes")?;
+        prepared_lines[acc.first_line_idx].deposit_items.push((
+            rid,
+            pieces,
+            acc.unit_value,
+            amt.value(),
+        ));
     }
 
     if global_discount > subtotal_merchandise {
@@ -1164,7 +1251,7 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
     .bind(&request_key)
     .bind(input.client_id)
     .bind(&input.sale_type)
-    .bind(&input.price_tier)
+    .bind(effective_price_tier)
     .bind(subtotal_merchandise.value())
     .bind(global_discount.value())
     .bind(total_merchandise.value())

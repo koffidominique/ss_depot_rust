@@ -32,8 +32,6 @@ const INITIAL_PACKAGING_STATE: PackagingFormState = {
   name: 'casier',
   coefficient: '24',
   purchase_price: 0,
-  wholesale_price: 0,
-  semi_wholesale_price: 0,
   retail_price: 0,
   barcode: '',
   allow_fraction: false,
@@ -41,6 +39,8 @@ const INITIAL_PACKAGING_STATE: PackagingFormState = {
   deposit_mode: 'none',
   returnable_id: 0,
   returnable_pieces: 1,
+  brand_name: '',
+  brand_id: 0,
 };
 
 export function ProductsPage() {
@@ -71,8 +71,6 @@ export function ProductsPage() {
       initial_stock: '0',
       min_stock: '24',
       purchase_price: 0,
-      wholesale_price: 0,
-      semi_wholesale_price: 0,
       retail_price: 0,
       image_path: null,
     },
@@ -156,8 +154,6 @@ export function ProductsPage() {
       initial_stock: '0',
       min_stock: '24',
       purchase_price: 0,
-      wholesale_price: 0,
-      semi_wholesale_price: 0,
       retail_price: 0,
       image_path: null,
     });
@@ -176,8 +172,6 @@ export function ProductsPage() {
       initial_stock: '0',
       min_stock: String(prod.min_stock_milli / 1000),
       purchase_price: prod.purchase_price ?? 0,
-      wholesale_price: prod.wholesale_price ?? 0,
-      semi_wholesale_price: prod.semi_wholesale_price ?? 0,
       retail_price: prod.retail_price ?? 0,
       image_path: prod.image_path ?? null,
     });

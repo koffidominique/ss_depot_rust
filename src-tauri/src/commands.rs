@@ -1553,9 +1553,12 @@ pub async fn list_packaging_obligations(
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
     let db = state.db().await;
-    let list = auth::with_actor(actor, packaging_obligations::list_obligations(&db, client_id))
-        .await
-        .map_err(|e| e.to_string())?;
+    let list = auth::with_actor(
+        actor,
+        packaging_obligations::list_obligations(&db, client_id),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     serde_json::to_value(list).map_err(|e| e.to_string())
 }
 

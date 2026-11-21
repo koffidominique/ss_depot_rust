@@ -75,9 +75,9 @@ export const BUSINESS_TIPS_TOPICS: TipTopic[] = [
       'Une vente validée déduit le stock en milli-unités exactes, génère les écritures de caisse et crée automatiquement la consigne client si le conditionnement est consigné.',
     tabs: [
       {
-        name: 'Grille tarifaire (Détail / Demi-gros / Gros)',
-        role: 'Recalcule immédiatement le prix unitaire des articles du panier selon la catégorie de client.',
-        whenToUse: 'Sélectionnez Gros pour les maquis/revendeurs, Demi-gros pour les événements, Détail au comptoir.',
+        name: 'Tarification unique (Détail)',
+        role: 'Un sous-dépôt vend exclusivement au tarif Détail et au conditionnement casier.',
+        whenToUse: 'Le prix détail du casier est appliqué automatiquement à chaque ligne du panier.',
       },
       {
         name: 'Type de vente (Comptant / À crédit)',
@@ -91,13 +91,13 @@ export const BUSINESS_TIPS_TOPICS: TipTopic[] = [
         field: 'Client',
         meaning: 'Identifie le tiers facturé et détermine les droits au crédit ainsi que le suivi des emballages consignés.',
         rule: 'Le Client Comptoir (Anonyme) ne peut acheter qu’au comptant et sans crédit.',
-        example: 'Pour un bar achetant 10 casiers à régler sous 15 jours, sélectionnez sa fiche client avant de valider.',
+        example: 'Pour un client prenant 5 casiers à régler sous 15 jours, sélectionnez sa fiche client avant de valider.',
       },
       {
         formName: 'Panier de vente',
         field: 'Quantité & Conditionnement',
-        meaning: 'Chaque conditionnement (casier, pack, carton, bouteille) convertit votre saisie vers le stock de base via son coefficient exact.',
-        rule: 'Les quantités fractionnaires (ex : 0,5 casier) ne sont autorisées que si le conditionnement l’autorise.',
+        meaning: 'Seul le conditionnement casier est vendable et convertit votre saisie vers le stock de base via son coefficient exact.',
+        rule: 'Les quantités fractionnaires (ex : 0,5 casier) sont autorisées si le conditionnement l’autorise. En panachage consigné, deux demi-casiers partageant le même casier comptent pour un seul casier consigné et les bouteilles vides retournées doivent correspondre aux produits livrés.',
         example: '1 casier × 24 bouteilles = 24 bouteilles déduites du stock atomiquement.',
       },
       {
@@ -245,7 +245,7 @@ export const BUSINESS_TIPS_TOPICS: TipTopic[] = [
     title: 'Produits & Conditionnements',
     subtitle: 'Unité de base, coefficients exacts, tarification et consignes liées',
     goldenRule:
-      'Le stock est toujours suivi dans l’unité de base la plus fine (bouteille, canette...) ; les conditionnements (casier, pack, carton) ne sont que des multiples de vente ou d’achat.',
+      'Le stock est toujours suivi dans l’unité de base la plus fine (bouteille, canette...) ; le seul conditionnement commercialisable et consignable en sous-dépôt est le casier.',
     tabs: [
       {
         name: 'Modifier / Nouveau produit',
@@ -253,8 +253,8 @@ export const BUSINESS_TIPS_TOPICS: TipTopic[] = [
         whenToUse: 'Lors de la création d’une référence ou pour ajuster ses prix catalogue.',
       },
       {
-        name: 'Configurer les conditionnements (icône couches)',
-        role: 'Associe des formats de vente/achat (casier ×24, pack ×6...) et leur éventuel emballage consigné.',
+        name: 'Configurer le conditionnement casier (icône couches)',
+        role: 'Associe le format casier (ex : ×24 ou ×12) et son éventuel emballage consigné.',
         whenToUse: 'Obligatoire pour vendre un casier ou appliquer automatiquement la consigne au POS.',
       },
       {
@@ -278,21 +278,21 @@ export const BUSINESS_TIPS_TOPICS: TipTopic[] = [
       },
       {
         formName: 'Nouveau produit',
-        field: "Prix d'achat / Gros / Demi-gros / Détail",
-        meaning: 'Tarifs de référence en FCFA entiers pour l’unité de base et pré-remplissage des conditionnements.',
+        field: "Prix d'achat / Prix de vente détail",
+        meaning: 'Tarifs de référence en FCFA entiers (un sous-dépôt vend uniquement au tarif détail).',
         rule: 'Les prix sont toujours des entiers FCFA (aucun centime flottant).',
       },
       {
         formName: 'Conditionnement',
         field: 'Coefficient (en unité de base)',
-        meaning: 'Nombre exact d’unités de base contenues dans ce conditionnement.',
-        rule: 'Ex : un casier de 24 bouteilles a un coefficient de 24 ; un pack de 6 a un coefficient de 6.',
+        meaning: 'Nombre exact d’unités de base contenues dans le casier.',
+        rule: 'Ex : un casier de 24 bouteilles a un coefficient de 24.',
       },
       {
         formName: 'Conditionnement',
         field: 'Régime de consigne & Emballage consigné',
-        meaning: 'Lie automatiquement un emballage vide (ex : Casier 24 alvéoles + Bouteille verre) chaque fois que ce conditionnement est vendu.',
-        rule: 'Si « Avec emballage consigné » est choisi, la valeur de consigne s’ajoute séparément du CA marchandises.',
+        meaning: 'Lie automatiquement un emballage vide (casier plastique + bouteilles verre) chaque fois que ce casier est vendu.',
+        rule: 'Seul le casier est soumis au système de retour d’emballage ; la valeur de consigne s’ajoute séparément du CA marchandises.',
       },
     ],
     pitfalls: [

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { motion } from 'motion/react';
 import {
   AlertTriangle,
   Landmark,
@@ -10,6 +11,12 @@ import {
   Wallet,
 } from 'lucide-react';
 import { MetricCard } from '../../../components/common/MetricCard.tsx';
+import {
+  DP_CARD_HOVER,
+  DP_EASE,
+  DP_SPRING,
+  MotionStaggerGrid,
+} from '../../../components/motion/MotionPrimitives.tsx';
 import type { DashboardData } from '../../../types/erp.ts';
 import { formatDateTime, formatFcfa, formatQty } from '../../../utils/format.ts';
 
@@ -22,7 +29,10 @@ export function DashboardOverdueAlerts({ kpis }: { kpis: DashboardData['kpis'] }
   if (overdueReceivablesCount === 0 && overdueSupplierDebtsCount === 0) return null;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22, ease: DP_EASE }}
       role="region"
       aria-label="Alertes d'échéances dépassées"
       className="grid grid-cols-1 gap-3 md:grid-cols-2"
@@ -30,7 +40,7 @@ export function DashboardOverdueAlerts({ kpis }: { kpis: DashboardData['kpis'] }
       {overdueReceivablesCount > 0 && (
         <Link
           to="/debts"
-          className="flex items-center justify-between gap-3 rounded-xl border border-amber-300 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 text-xs hover:bg-amber-100/70 dark:hover:bg-amber-950/50 transition-colors"
+          className="flex items-center justify-between gap-3 rounded-xl border border-amber-300 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/30 dp-surface-interactive px-4 py-3 text-xs hover:scale-[1.01] hover:bg-amber-100/70 dark:hover:bg-amber-950/50"
         >
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="h-4 w-4 text-[#D9901A] shrink-0" />
@@ -51,7 +61,7 @@ export function DashboardOverdueAlerts({ kpis }: { kpis: DashboardData['kpis'] }
       {overdueSupplierDebtsCount > 0 && (
         <Link
           to="/suppliers"
-          className="flex items-center justify-between gap-3 rounded-xl border border-rose-300 dark:border-rose-900/60 bg-rose-50/80 dark:bg-rose-950/30 px-4 py-3 text-xs hover:bg-rose-100/70 dark:hover:bg-rose-950/50 transition-colors"
+          className="flex items-center justify-between gap-3 rounded-xl border border-rose-300 dark:border-rose-900/60 bg-rose-50/80 dark:bg-rose-950/30 dp-surface-interactive px-4 py-3 text-xs hover:scale-[1.01] hover:bg-rose-100/70 dark:hover:bg-rose-950/50"
         >
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="h-4 w-4 text-[#DC4545] shrink-0" />
@@ -69,13 +79,13 @@ export function DashboardOverdueAlerts({ kpis }: { kpis: DashboardData['kpis'] }
           </span>
         </Link>
       )}
-    </div>
+    </motion.div>
   );
 }
 
 export function DashboardKpiGrid({ kpis }: { kpis: DashboardData['kpis'] }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <MotionStaggerGrid className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <MetricCard
         label="Chiffre d'affaires marchandises"
         value={formatFcfa(kpis.revenueMerchandise)}
@@ -135,7 +145,7 @@ export function DashboardKpiGrid({ kpis }: { kpis: DashboardData['kpis'] }) {
         icon={ShoppingBag}
         tone={kpis.outOfStockCount > 0 ? 'danger' : 'success'}
       />
-    </div>
+    </MotionStaggerGrid>
   );
 }
 
@@ -145,7 +155,13 @@ export function DashboardTopProductsCard({
   topProducts: DashboardData['topProducts'];
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={DP_CARD_HOVER}
+      transition={{ ...DP_SPRING, opacity: { duration: 0.24, ease: DP_EASE } }}
+      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-5"
+    >
       <h3 className="font-display text-sm font-semibold text-[#182230] dark:text-slate-100">
         Top produits vendus
       </h3>
@@ -159,7 +175,10 @@ export function DashboardTopProductsCard({
           </p>
         ) : (
           topProducts.map((tp) => (
-            <div key={tp.product_id} className="flex items-center justify-between gap-3 py-2.5">
+            <div
+              key={tp.product_id}
+              className="flex items-center justify-between gap-3 py-2.5 px-1.5 -mx-1.5 rounded-lg hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+            >
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium text-[#182230] dark:text-slate-200">
                   {tp.product_name}
@@ -175,7 +194,7 @@ export function DashboardTopProductsCard({
           ))
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -188,7 +207,13 @@ export function DashboardBottomPanels({
 }) {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileHover={DP_CARD_HOVER}
+        transition={{ ...DP_SPRING, opacity: { duration: 0.26, ease: DP_EASE } }}
+        className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-5"
+      >
         <div className="flex items-center justify-between">
           <h3 className="font-display text-sm font-semibold text-[#182230] dark:text-slate-100">
             Alertes de stock
@@ -207,7 +232,10 @@ export function DashboardBottomPanels({
             </p>
           ) : (
             lowStockProducts.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-3 py-2.5">
+              <div
+                key={p.id}
+                className="flex items-center justify-between gap-3 py-2.5 px-1.5 -mx-1.5 rounded-lg hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+              >
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium text-[#182230] dark:text-slate-200">
                     {p.name}
@@ -229,9 +257,15 @@ export function DashboardBottomPanels({
             ))
           )}
         </div>
-      </div>
+      </motion.div>
 
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileHover={DP_CARD_HOVER}
+        transition={{ ...DP_SPRING, opacity: { duration: 0.28, ease: DP_EASE } }}
+        className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface-interactive p-5"
+      >
         <h3 className="font-display text-sm font-semibold text-[#182230] dark:text-slate-100">
           Journal d&apos;audit récent
         </h3>
@@ -242,7 +276,10 @@ export function DashboardBottomPanels({
             </p>
           ) : (
             recentAudit.map((log) => (
-              <div key={log.id} className="flex items-start justify-between gap-3 py-2.5">
+              <div
+                key={log.id}
+                className="flex items-start justify-between gap-3 py-2.5 px-1.5 -mx-1.5 rounded-lg hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+              >
                 <div className="min-w-0">
                   <div className="text-xs font-semibold text-[#182230] dark:text-slate-200">
                     {log.action}
@@ -258,7 +295,7 @@ export function DashboardBottomPanels({
             ))
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

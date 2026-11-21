@@ -6,7 +6,6 @@ import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
 import type { PackagingName, Product, ProductPackaging } from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
 import { formatCoeffDot, type PackagingFormState } from '../utils/productSchemas.ts';
-import { useMemo } from 'react';
 
 interface ReturnableTypeOption {
   id: number;
@@ -92,18 +91,20 @@ export function PackagingModal({
               </button>
             );
           })}
-          <button
-            type="button"
-            onClick={() => onStartNew(product)}
-            className={`inline-flex items-center gap-1 rounded-lg border border-dashed px-2.5 py-1 text-xs font-medium transition-colors ${
-              state.id === undefined
-                ? 'border-[#2563EB] bg-blue-50 dark:bg-blue-950/40 text-[#2563EB]'
-                : 'border-slate-300 dark:border-slate-700 text-[#667085] hover:border-[#2563EB] hover:text-[#2563EB]'
-            }`}
-          >
-            <Plus className="h-3 w-3" />
-            Nouveau
-          </button>
+          {!product.packagings.some((p) => p.name === 'casier') && (
+            <button
+              type="button"
+              onClick={() => onStartNew(product)}
+              className={`inline-flex items-center gap-1 rounded-lg border border-dashed px-2.5 py-1 text-xs font-medium transition-colors ${
+                state.id === undefined
+                  ? 'border-[#2563EB] bg-blue-50 dark:bg-blue-950/40 text-[#2563EB]'
+                  : 'border-slate-300 dark:border-slate-700 text-[#667085] hover:border-[#2563EB] hover:text-[#2563EB]'
+              }`}
+            >
+              <Plus className="h-3 w-3" />
+              Nouveau
+            </button>
+          )}
         </div>
       )}
 
@@ -118,10 +119,6 @@ export function PackagingModal({
             }
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
           >
-            <option value="bouteille">bouteille</option>
-            <option value="canette">canette</option>
-            <option value="pack">pack</option>
-            <option value="carton">carton</option>
             <option value="casier">casier</option>
           </select>
         </div>
@@ -132,22 +129,12 @@ export function PackagingModal({
           unit={product?.base_unit}
         />
         <MoneyInput
-          label="Prix d'achat"
+          label="Prix d'achat (casier)"
           value={state.purchase_price}
           onChange={(v) => onChangeState((prev) => ({ ...prev, purchase_price: v }))}
         />
         <MoneyInput
-          label="Prix gros"
-          value={state.wholesale_price}
-          onChange={(v) => onChangeState((prev) => ({ ...prev, wholesale_price: v }))}
-        />
-        <MoneyInput
-          label="Prix demi-gros"
-          value={state.semi_wholesale_price}
-          onChange={(v) => onChangeState((prev) => ({ ...prev, semi_wholesale_price: v }))}
-        />
-        <MoneyInput
-          label="Prix détail"
+          label="Prix détail (casier)"
           value={state.retail_price}
           onChange={(v) => onChangeState((prev) => ({ ...prev, retail_price: v }))}
         />
@@ -182,7 +169,9 @@ export function PackagingModal({
           Conditionnement actif
         </label>
         <div className="col-span-2 border-t border-slate-200 dark:border-slate-800 pt-3">
-          <label className="block text-xs font-medium">Régime retour emballage</label>
+          <label className="block text-xs font-medium">
+            Régime retour emballage (casier uniquement)
+          </label>
           <select
             aria-label="Régime retour emballage"
             value={state.deposit_mode}
@@ -219,9 +208,9 @@ export function PackagingModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium">Nombre d&apos;emballages / pack</label>
+              <label className="block text-xs font-medium">Nombre d&apos;emballages / casier</label>
               <input
-                aria-label="Nombre d'emballages / pack"
+                aria-label="Nombre d'emballages / casier"
                 type="number"
                 min={1}
                 value={state.returnable_pieces}

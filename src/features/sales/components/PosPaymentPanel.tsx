@@ -1,6 +1,8 @@
+import { motion } from 'motion/react';
 import { Trash2 } from 'lucide-react';
 import { MoneyInput } from '../../../components/common/MoneyInput.tsx';
 import { InlineAlert } from '../../../components/common/InlineAlert.tsx';
+import { DP_BUTTON_HOVER, DP_BUTTON_TAP, DP_SPRING_SNAPPY } from '../../../components/motion/MotionPrimitives.tsx';
 import { formatFcfa } from '../../../utils/format.ts';
 import type { PaymentMethodConfig } from '../../../types/erp.ts';
 import type { SaleCalculationResult } from '../utils/saleCalculations.ts';
@@ -167,14 +169,17 @@ export function PosPaymentPanel({
 
       {errorMsg && <InlineAlert variant="error" message={errorMsg} />}
 
-      <button
+      <motion.button
         type="button"
+        whileHover={cartLength === 0 || !totals.isValid || isSubmitting ? undefined : DP_BUTTON_HOVER}
+        whileTap={cartLength === 0 || !totals.isValid || isSubmitting ? undefined : DP_BUTTON_TAP}
+        transition={DP_SPRING_SNAPPY}
         disabled={cartLength === 0 || !totals.isValid || isSubmitting}
         onClick={onSubmitSale}
-        className="w-full rounded-xl bg-[#16A36A] py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-40"
+        className="w-full rounded-xl bg-[#16A36A] py-3 text-sm font-semibold text-white hover:bg-emerald-700 shadow-sm hover:shadow-[0_10px_22px_-6px_rgba(22,163,106,0.45)] transition-all disabled:opacity-40"
       >
         {isSubmitting ? 'Validation en cours...' : 'Valider la vente (F9)'}
-      </button>
+      </motion.button>
     </>
   );
 }

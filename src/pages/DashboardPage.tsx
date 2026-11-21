@@ -98,14 +98,14 @@ export function DashboardPage() {
           <FormTipsButton topicId="dashboard" label="Comprendre les KPI" />
           <Link
             to="/purchases"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-4 py-2 text-xs font-semibold text-[#182230] dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] dp-surface-interactive px-4 py-2 text-xs font-semibold text-[#182230] dark:text-slate-100 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap shrink-0"
           >
             <PackagePlus className="h-4 w-4 text-[#2563EB]" />
             Nouvel approvisionnement
           </Link>
           <Link
             to="/sales/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#2563EB] dp-btn-elevated px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 hover:scale-[1.025] active:scale-[0.975] whitespace-nowrap shrink-0"
           >
             <Plus className="h-4 w-4" />
             Nouvelle vente

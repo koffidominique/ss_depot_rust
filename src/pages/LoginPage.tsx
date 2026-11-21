@@ -1,5 +1,14 @@
 import { LockKeyhole, Moon, RotateCcw, ShieldCheck, Sun, CheckCircle2, Eye, EyeOff, Truck, Package, BarChart3, Users } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useState } from 'react';
+import {
+  DP_BUTTON_HOVER,
+  DP_BUTTON_TAP,
+  DP_CARD_HOVER,
+  DP_EASE,
+  DP_SPRING,
+  DP_SPRING_SNAPPY,
+} from '../components/motion/MotionPrimitives.tsx';
 import { useUiStore } from '../stores/uiStore.ts';
 import { usePinAuth } from '../features/auth/hooks/usePinAuth.ts';
 import { PinDotsIndicator, PinKeypad } from '../features/auth/components/PinKeypad.tsx';
@@ -35,14 +44,17 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen relative overflow-hidden">
       {/* Theme toggle */}
-      <button
+      <motion.button
         type="button"
+        whileHover={DP_BUTTON_HOVER}
+        whileTap={DP_BUTTON_TAP}
+        transition={DP_SPRING_SNAPPY}
         onClick={toggleTheme}
         aria-label={theme === 'light' ? 'Passer au mode sombre' : 'Passer au mode clair'}
-        className="fixed right-5 top-5 z-50 rounded-xl border border-white/20 dark:border-white/10 bg-white/10 dark:bg-black/10 backdrop-blur-sm p-2.5 text-white/90 hover:bg-white/20 dark:hover:bg-white/10 transition-all shadow-lg"
+        className="fixed right-5 top-5 z-50 rounded-xl border border-white/25 dark:border-white/15 bg-white/10 dark:bg-black/15 backdrop-blur-sm p-2.5 text-white/90 hover:bg-white/20 dark:hover:bg-white/15 hover:border-white/40 transition-colors shadow-lg"
       >
         {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-      </button>
+      </motion.button>
 
       {/* Left side - Full screen background image with overlay and CTA */}
       <div className="relative w-full lg:w-1/2 min-h-screen">
@@ -102,16 +114,23 @@ export function LoginPage() {
                 { icon: BarChart3, title: 'Rapports', desc: 'Analyses & marges' },
                 { icon: Users, title: 'Clients', desc: 'Crédits & retour emballages' },
               ].map((item, i) => (
-                <div key={i} className="group relative rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 p-4 hover:bg-white/15 transition-all">
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...DP_SPRING, delay: 0.08 + i * 0.05 }}
+                  whileHover={DP_CARD_HOVER}
+                  className="group relative rounded-2xl bg-white/10 backdrop-blur-sm border border-white/25 p-4 hover:bg-white/15 hover:border-amber-300/50 hover:shadow-[0_14px_30px_-10px_rgba(251,191,36,0.28)] transition-colors"
+                >
                   <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
-                  <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 group-hover:bg-white/25 transition-colors">
+                  <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 group-hover:bg-white/25 group-hover:scale-110 transition-all">
                     <item.icon className="h-5 w-5 text-white" />
                   </div>
                   <div className="relative mt-3">
                     <h3 className="font-semibold text-white">{item.title}</h3>
                     <p className="text-xs text-white/70">{item.desc}</p>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -153,7 +172,12 @@ export function LoginPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-6 sm:p-8">
+          <motion.div
+            initial={{ opacity: 0, y: 14, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.3, ease: DP_EASE }}
+            className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 dp-modal-surface p-6 sm:p-8"
+          >
             {/* Header */}
             <div className="flex flex-col items-center text-center mb-8">
               <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -287,11 +311,14 @@ export function LoginPage() {
 
             {/* Submit Button */}
             <div className="mt-6 space-y-3">
-              <button
+              <motion.button
                 type="button"
+                whileHover={isLoading || loading || currentInput.length !== pinLength ? undefined : DP_BUTTON_HOVER}
+                whileTap={isLoading || loading || currentInput.length !== pinLength ? undefined : DP_BUTTON_TAP}
+                transition={DP_SPRING_SNAPPY}
                 disabled={isLoading || loading || currentInput.length !== pinLength}
                 onClick={() => void handleSubmit()}
-                className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 hover:from-blue-700 hover:to-blue-800 focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 disabled:shadow-none transition-all"
+                className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 dp-btn-elevated py-3.5 text-sm font-semibold text-white hover:from-blue-700 hover:to-blue-800 focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 disabled:shadow-none"
               >
                 {loading
                   ? 'Vérification...'
@@ -302,7 +329,7 @@ export function LoginPage() {
                         ? 'Continuer'
                         : 'Enregistrer et accéder'
                       : 'Déverrouiller'}
-              </button>
+              </motion.button>
 
               {isSetup && setupStep === 'confirm' && (
                 <button
@@ -322,7 +349,7 @@ export function LoginPage() {
                 L'authentification est locale et chiffrée.
               </p>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </div>

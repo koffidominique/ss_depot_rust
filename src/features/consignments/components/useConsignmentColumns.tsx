@@ -90,8 +90,19 @@ export function useConsignmentColumns(options: {
       },
       {
         accessorKey: 'packaging_name',
-        header: 'Emballage',
-        cell: ({ row }) => `${row.original.packaging_name} (${row.original.packaging_code})`,
+        header: 'Emballage & produits attendus',
+        cell: ({ row }) => (
+          <div>
+            <div>
+              {row.original.packaging_name} ({row.original.packaging_code})
+            </div>
+            {row.original.expected_products && (
+              <div className="text-[11px] text-[#667085] dark:text-slate-400">
+                Vides attendus : {row.original.expected_products}
+              </div>
+            )}
+          </div>
+        ),
       },
       {
         id: 'remaining',

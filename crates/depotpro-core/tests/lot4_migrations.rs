@@ -309,7 +309,7 @@ async fn extract_schema_for_expected_file() {
     let snapshot = DepotDb::extract_schema_snapshot(&db.pool).await.unwrap();
     let json = serde_json::to_string_pretty(&snapshot).unwrap();
     println!("{}", json);
-    
+
     std::fs::remove_file(&db_path).ok();
     std::fs::remove_file(format!("{}-wal", db_path.display())).ok();
     std::fs::remove_file(format!("{}-shm", db_path.display())).ok();

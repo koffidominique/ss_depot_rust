@@ -62,6 +62,7 @@ pub struct OpenDepositIssueDto {
     pub returned_pieces: i64,
     pub unit_value: i64,
     pub amount: i64,
+    pub expected_products: Option<String>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -160,7 +161,31 @@ pub async fn get_overview(db: &DepotDb) -> CoreResult<ConsignmentsOverviewDto> {
     let open_issues = sqlx::query_as::<_, OpenDepositIssueDto>(
         "SELECT di.id, di.sale_id, s.reference AS sale_reference, di.client_id, c.name AS client_name,
                 di.returnable_id, rpt.name AS packaging_name, rpt.code AS packaging_code,
-                di.pieces, di.returned_pieces, di.unit_value, di.amount
+                di.pieces, di.returned_pieces, di.unit_value, di.amount,
+                CASE
+                    WHEN rpt.kind = 'bottle' THEN (
+                        SELECT sl.product_name || ' (' ||
+                            CASE WHEN sl.base_quantity_milli % 1000 = 0
+                                 THEN CAST(sl.base_quantity_milli / 1000 AS TEXT)
+                                 ELSE rtrim(rtrim(printf('%.3f', sl.base_quantity_milli / 1000.0), '0'), '.')
+                            END || ' ' || sl.base_unit || ')'
+                        FROM sale_lines sl
+                        WHERE sl.id = di.sale_line_id
+                    )
+                    ELSE (
+                        SELECT GROUP_CONCAT(
+                            sl.product_name || ' (' ||
+                            CASE WHEN sl.base_quantity_milli % 1000 = 0
+                                 THEN CAST(sl.base_quantity_milli / 1000 AS TEXT)
+                                 ELSE rtrim(rtrim(printf('%.3f', sl.base_quantity_milli / 1000.0), '0'), '.')
+                            END || ' ' || sl.base_unit || ')',
+                            ' + '
+                        )
+                        FROM sale_lines sl
+                        JOIN deposit_packaging_components dpc ON dpc.packaging_id = sl.packaging_id
+                        WHERE sl.sale_id = di.sale_id AND dpc.returnable_id = di.returnable_id
+                    )
+                END AS expected_products
          FROM deposit_issues di
          JOIN sales s ON s.id = di.sale_id
          LEFT JOIN clients c ON c.id = di.client_id
@@ -508,7 +533,7 @@ pub async fn return_client_empties(
         unit_value,
         sale_status,
     ) = issue.ok_or_else(|| CoreError::Validation("Consigne client introuvable.".to_string()))?;
-    
+
     let _should_update_packaging = client_id.is_some();
 
     if sale_status == "cancelled" {
@@ -653,26 +678,26 @@ pub async fn return_client_empties(
     if let Some(cid) = client_id {
         // Nouveau : Récupérer le dépôt issue pour connaître la quantité attendue
         let issue_data: Option<(i64, i64)> = sqlx::query_as(
-            "SELECT di.pieces, di.returned_pieces FROM deposit_issues di WHERE di.id = ?"
+            "SELECT di.pieces, di.returned_pieces FROM deposit_issues di WHERE di.id = ?",
         )
         .bind(issue_id)
         .fetch_optional(&mut *tx)
         .await?;
-        
+
         let (total_deposed, already_returned) = issue_data.unwrap_or((0, 0));
-        
+
         // Nouveau : Calculer le nouveau total retourné
         let new_total_returned = already_returned + input.pieces;
-        
+
         // Nouveau : Le solde dû = déposé - total retourné
         // Si positif, le client est débiteur ; si négatif, il a crédit
         let new_balance = total_deposed - new_total_returned;
-        
+
         // Nouveau : Mise à jour du solde client dans customer_packaging_accounts
         // Le deposit_held_amount est réduit de la valeur des pièces retournées (unit_value * pieces)
         let deposit_reduction = Money::from_non_negative(unit_value, "Tarif consigne")?
             .checked_mul(input.pieces, "Réduction dépôt")?;
-        
+
         sqlx::query(
             "INSERT INTO customer_packaging_accounts (client_id, returnable_id, balance_pieces, deposit_held_amount)
              VALUES (?, ?, ?, ?)

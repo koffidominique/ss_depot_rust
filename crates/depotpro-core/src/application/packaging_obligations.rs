@@ -57,7 +57,24 @@ pub async fn list_obligations(
     db: &DepotDb,
     client_id: Option<i64>,
 ) -> CoreResult<Vec<PackagingObligationDto>> {
-    let rows = sqlx::query_as::<_, (i64, i64, Option<String>, Option<i64>, i64, i64, i64, i64, i64, i64, i64, Option<String>, String)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            i64,
+            i64,
+            Option<String>,
+            Option<i64>,
+            i64,
+            i64,
+            i64,
+            i64,
+            i64,
+            i64,
+            i64,
+            Option<String>,
+            String,
+        ),
+    >(
         "SELECT di.id, di.sale_id, s.reference, di.client_id, di.returnable_id,
                 di.pieces, di.returned_pieces, di.lost_pieces, di.destroyed_pieces,
                 di.converted_pieces, di.unit_value, di.due_date, di.status
@@ -74,31 +91,47 @@ pub async fn list_obligations(
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     Ok(rows
         .into_iter()
-        .map(|(id, sale_id, sale_reference, cid, rid, pieces, returned, lost, destroyed, converted, unit_value, due_date, status)| {
-            let pending = pieces - returned - lost - destroyed - converted;
-            PackagingObligationDto {
+        .map(
+            |(
                 id,
                 sale_id,
                 sale_reference,
-                client_id: cid,
-                returnable_id: rid,
+                cid,
+                rid,
                 pieces,
-                returned_pieces: returned,
-                lost_pieces: lost,
-                destroyed_pieces: destroyed,
-                converted_pieces: converted,
-                pending_pieces: pending.max(0),
+                returned,
+                lost,
+                destroyed,
+                converted,
                 unit_value,
-                total_reference_value: pending.max(0) * unit_value,
-                overdue: matches!(status.as_str(), "pending" | "partially_returned")
-                    && due_date
-                        .as_deref()
-                        .map(|d| d < today.as_str())
-                        .unwrap_or(false),
                 due_date,
                 status,
-            }
-        })
+            )| {
+                let pending = pieces - returned - lost - destroyed - converted;
+                PackagingObligationDto {
+                    id,
+                    sale_id,
+                    sale_reference,
+                    client_id: cid,
+                    returnable_id: rid,
+                    pieces,
+                    returned_pieces: returned,
+                    lost_pieces: lost,
+                    destroyed_pieces: destroyed,
+                    converted_pieces: converted,
+                    pending_pieces: pending.max(0),
+                    unit_value,
+                    total_reference_value: pending.max(0) * unit_value,
+                    overdue: matches!(status.as_str(), "pending" | "partially_returned")
+                        && due_date
+                            .as_deref()
+                            .map(|d| d < today.as_str())
+                            .unwrap_or(false),
+                    due_date,
+                    status,
+                }
+            },
+        )
         .collect())
 }
 
@@ -151,10 +184,7 @@ fn resolve_policy(
         .iter()
         .find(|&(_pid, rid, cl, _d, _a, _l)| cl.is_none() && rid.is_none())
         .copied();
-    let chosen = specific_client
-        .or(client_any)
-        .or(returnable)
-        .or(global);
+    let chosen = specific_client.or(client_any).or(returnable).or(global);
     match chosen {
         Some((id, _, _, delay, auto, _late)) => (Some(id), delay, auto != 0),
         None => (None, 30, true),
@@ -164,7 +194,10 @@ fn resolve_policy(
 /// Traite les échéances : convertit les obligations échues non restituées en
 /// créances financières. Idempotent : rappelé deux fois, aucune double dette.
 /// Retourne le nombre de conversions et le montant total créé.
-pub async fn process_due_obligations(db: &DepotDb, actor: Option<&str>) -> CoreResult<ConvertSummary> {
+pub async fn process_due_obligations(
+    db: &DepotDb,
+    actor: Option<&str>,
+) -> CoreResult<ConvertSummary> {
     let (_guard, mut tx) = db.begin_write().await?;
     let summary = process_due_obligations_tx(&mut tx, actor).await?;
     tx.commit().await?;
@@ -243,7 +276,9 @@ pub(crate) async fn process_due_obligations_tx(
                 amount,
                 "debit",
                 actor,
-                Some(format!("Conversion échéance : {pending} pièce(s) non restituée(s).")),
+                Some(format!(
+                    "Conversion échéance : {pending} pièce(s) non restituée(s)."
+                )),
             )
             .await?;
         }
@@ -252,7 +287,10 @@ pub(crate) async fn process_due_obligations_tx(
         total_amount += amount;
     }
     let _ = &today;
-    Ok(ConvertSummary { conversions, total_amount })
+    Ok(ConvertSummary {
+        conversions,
+        total_amount,
+    })
 }
 
 async fn mark_converted(
@@ -290,10 +328,12 @@ async fn insert_ledger_entry(
     note: Option<String>,
 ) -> CoreResult<()> {
     let user_id: Option<i64> = match actor {
-        Some(name) => sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
-            .bind(name)
-            .fetch_optional(&mut **tx)
-            .await?,
+        Some(name) => {
+            sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
+                .bind(name)
+                .fetch_optional(&mut **tx)
+                .await?
+        }
         None => None,
     };
     let prev: i64 = sqlx::query_scalar(
@@ -303,7 +343,11 @@ async fn insert_ledger_entry(
     .bind(client_id)
     .fetch_one(&mut **tx)
     .await?;
-    let delta = if direction == "debit" { amount } else { -amount };
+    let delta = if direction == "debit" {
+        amount
+    } else {
+        -amount
+    };
     let balance_after = (prev + delta).max(0);
     sqlx::query(
         "INSERT INTO customer_packaging_financial_ledger
@@ -338,17 +382,20 @@ pub async fn declare_loss(
         ));
     }
     if input.reason.trim().is_empty() {
-        return Err(CoreError::Validation("Le motif est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le motif est obligatoire.".to_string(),
+        ));
     }
     let mut g = db.begin_write().await?;
     let tx = &mut g.1;
-    let (pieces_due, client_id): (i64, Option<i64>) = sqlx::query_as(
-        "SELECT pieces, client_id FROM deposit_issues WHERE id = ?",
-    )
-    .bind(input.deposit_issue_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or_else(|| CoreError::Validation("Obligation d'emballage introuvable.".to_string()))?;
+    let (pieces_due, client_id): (i64, Option<i64>) =
+        sqlx::query_as("SELECT pieces, client_id FROM deposit_issues WHERE id = ?")
+            .bind(input.deposit_issue_id)
+            .fetch_optional(&mut **tx)
+            .await?
+            .ok_or_else(|| {
+                CoreError::Validation("Obligation d'emballage introuvable.".to_string())
+            })?;
     let already: i64 = sqlx::query_scalar(
         "SELECT returned_pieces + lost_pieces + destroyed_pieces + converted_pieces
          FROM deposit_issues WHERE id = ?",
@@ -364,10 +411,12 @@ pub async fn declare_loss(
     }
     let request_key = DepotDb::next_sequence(tx, "DEC-PERTE").await?;
     let user_id: Option<i64> = match actor {
-        Some(name) => sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
-            .bind(name)
-            .fetch_optional(&mut **tx)
-            .await?,
+        Some(name) => {
+            sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
+                .bind(name)
+                .fetch_optional(&mut **tx)
+                .await?
+        }
         None => None,
     };
     sqlx::query(
@@ -427,11 +476,10 @@ pub async fn validate_loss_declaration(
             "Cette déclaration a déjà été traitée.".to_string(),
         ));
     }
-    let unit_value: i64 =
-        sqlx::query_scalar("SELECT unit_value FROM deposit_issues WHERE id = ?")
-            .bind(issue_id)
-            .fetch_one(&mut **tx)
-            .await?;
+    let unit_value: i64 = sqlx::query_scalar("SELECT unit_value FROM deposit_issues WHERE id = ?")
+        .bind(issue_id)
+        .fetch_one(&mut **tx)
+        .await?;
     let amount = pieces
         .checked_mul(unit_value)
         .ok_or_else(|| CoreError::Validation("Débordement du montant.".to_string()))?;
@@ -592,11 +640,13 @@ pub async fn register_late_return(
     .bind(0)
     .execute(&mut **tx)
     .await?;
-    sqlx::query("UPDATE returnable_stock_balances SET quantity = quantity + ? WHERE packaging_id = ?")
-        .bind(capped)
-        .bind(rid)
-        .execute(&mut **tx)
-        .await?;
+    sqlx::query(
+        "UPDATE returnable_stock_balances SET quantity = quantity + ? WHERE packaging_id = ?",
+    )
+    .bind(capped)
+    .bind(rid)
+    .execute(&mut **tx)
+    .await?;
     // 3. Régularisation financière : crédit à hauteur de la partie convertie restituée.
     let mut credited = 0i64;
     if let Some(cid) = client_id {
@@ -706,16 +756,17 @@ pub async fn pay_packaging_financial_debt(
                 "Le montant payé doit être strictement positif.".to_string(),
             ));
         }
-        let pm: Option<(String, i64)> = sqlx::query_as(
-            "SELECT code, active FROM payment_methods WHERE code = ?",
-        )
-        .bind(&p.method_code)
-        .fetch_optional(&mut **tx)
-        .await?;
-        let (code, active) = pm
-            .ok_or_else(|| CoreError::Validation("Moyen de paiement invalide.".to_string()))?;
+        let pm: Option<(String, i64)> =
+            sqlx::query_as("SELECT code, active FROM payment_methods WHERE code = ?")
+                .bind(&p.method_code)
+                .fetch_optional(&mut **tx)
+                .await?;
+        let (code, active) =
+            pm.ok_or_else(|| CoreError::Validation("Moyen de paiement invalide.".to_string()))?;
         if active == 0 {
-            return Err(CoreError::Validation("Moyen de paiement inactif.".to_string()));
+            return Err(CoreError::Validation(
+                "Moyen de paiement inactif.".to_string(),
+            ));
         }
         total = total.checked_add(p.amount).ok_or_else(|| {
             CoreError::Validation("Débordement du montant du règlement.".to_string())
@@ -723,7 +774,9 @@ pub async fn pay_packaging_financial_debt(
         parts.push((code, p.amount));
     }
     if total <= 0 {
-        return Err(CoreError::Validation("Le règlement doit être positif.".to_string()));
+        return Err(CoreError::Validation(
+            "Le règlement doit être positif.".to_string(),
+        ));
     }
     let balance = get_client_packaging_financial_balance(db, input.client_id)
         .await?
@@ -791,10 +844,9 @@ pub async fn get_client_packaging_dashboard(
     .bind(client_id)
     .fetch_one(&db.pool)
     .await?;
-    let packaging_financial_debt =
-        get_client_packaging_financial_balance(db, client_id)
-            .await?
-            .packaging_financial_balance;
+    let packaging_financial_debt = get_client_packaging_financial_balance(db, client_id)
+        .await?
+        .packaging_financial_balance;
     let obligations = list_obligations(db, Some(client_id)).await?;
     let pending_pieces: i64 = obligations.iter().map(|o| o.pending_pieces).sum();
     let pending_reference_value: i64 = obligations.iter().map(|o| o.total_reference_value).sum();

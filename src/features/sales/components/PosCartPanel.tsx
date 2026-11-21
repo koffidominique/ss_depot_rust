@@ -1,5 +1,7 @@
+import { AnimatePresence, motion } from 'motion/react';
 import { PauseCircle, PlayCircle, ShoppingCart, Trash2, UserPlus } from 'lucide-react';
 import { FormTipsButton } from '../../../components/common/FormTipsButton.tsx';
+import { DP_EASE } from '../../../components/motion/MotionPrimitives.tsx';
 import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
 import { formatFcfa } from '../../../utils/format.ts';
 import type { CartItem, HeldCart } from '../../../stores/uiStore.ts';
@@ -74,7 +76,7 @@ export function PosCartPanel({
 
   return (
     <div className="space-y-4 lg:col-span-5">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-5 space-y-4">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-5 space-y-4">
         <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2 font-display text-sm font-semibold">
             <ShoppingCart className="h-4 w-4 text-[#2563EB]" />
@@ -212,49 +214,58 @@ export function PosCartPanel({
               Sélectionnez un conditionnement à gauche pour démarrer la vente.
             </p>
           ) : (
-            posCart.map((item) => {
-              const lineCalc = totals.lineResults[item.key];
-              return (
-                <div key={item.key} className="py-2.5 space-y-1.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-xs font-semibold text-[#182230] dark:text-slate-100">
-                        {item.productName}
+            <AnimatePresence initial={false}>
+              {posCart.map((item) => {
+                const lineCalc = totals.lineResults[item.key];
+                return (
+                  <motion.div
+                    key={item.key}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: 14, transition: { duration: 0.14 } }}
+                    transition={{ duration: 0.2, ease: DP_EASE }}
+                    className="py-2.5 space-y-1.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-semibold text-[#182230] dark:text-slate-100">
+                          {item.productName}
+                        </div>
+                        <div className="text-[11px] text-[#667085] dark:text-slate-400">
+                          <span className="capitalize">{item.packagingName}</span> ·{' '}
+                          {formatFcfa(item.unitPrice)}
+                          {item.depositMode === 'deposit' && item.depositPerPack > 0
+                            ? ` + retour emballage ${formatFcfa(item.depositPerPack)}`
+                            : ''}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-[#667085] dark:text-slate-400">
-                        <span className="capitalize">{item.packagingName}</span> ·{' '}
-                        {formatFcfa(item.unitPrice)}
-                        {item.depositMode === 'deposit' && item.depositPerPack > 0
-                          ? ` + retour emballage ${formatFcfa(item.depositPerPack)}`
-                          : ''}
+                      <button
+                        type="button"
+                        onClick={() => onRemoveFromCart(item.key)}
+                        className="text-slate-400 hover:text-[#DC4545] transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <QuantityInput
+                        value={item.quantity}
+                        onChange={(q) => onUpdateCartItem(item.key, { quantity: q })}
+                        allowFraction={item.allowFraction}
+                        unit={item.packagingName}
+                        error={lineCalc && !lineCalc.valid ? lineCalc.error || undefined : undefined}
+                        className="w-36"
+                      />
+                      <div className="font-mono-num text-xs font-semibold">
+                        {lineCalc && lineCalc.valid && lineCalc.lineNet !== null
+                          ? formatFcfa(lineCalc.lineNet)
+                          : '—'}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveFromCart(item.key)}
-                      className="text-slate-400 hover:text-[#DC4545]"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <QuantityInput
-                      value={item.quantity}
-                      onChange={(q) => onUpdateCartItem(item.key, { quantity: q })}
-                      allowFraction={item.allowFraction}
-                      unit={item.packagingName}
-                      error={lineCalc && !lineCalc.valid ? lineCalc.error || undefined : undefined}
-                      className="w-36"
-                    />
-                    <div className="font-mono-num text-xs font-semibold">
-                      {lineCalc && lineCalc.valid && lineCalc.lineNet !== null
-                        ? formatFcfa(lineCalc.lineNet)
-                        : '—'}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           )}
         </div>
 

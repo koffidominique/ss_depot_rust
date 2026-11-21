@@ -99,22 +99,22 @@ export function ConsignmentsPage() {
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs.List className="inline-flex flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] p-1">
+          <Tabs.List className="inline-flex flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2E] dp-surface p-1">
             <Tabs.Trigger
               value="issues"
-              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] transition-all hover:text-[#182230] dark:hover:text-slate-100 data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
               Retour emballages clients ouverts ({openIssues.length})
             </Tabs.Trigger>
             <Tabs.Trigger
               value="balances"
-              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] transition-all hover:text-[#182230] dark:hover:text-slate-100 data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
               Soldes par client ({clientBalances.length})
             </Tabs.Trigger>
             <Tabs.Trigger
               value="catalog"
-              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] data-[state=active]:bg-[#2563EB] data-[state=active]:text-white"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-[#667085] transition-all hover:text-[#182230] dark:hover:text-slate-100 data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
               Catalogue &amp; stock vides ({types.length})
             </Tabs.Trigger>

@@ -132,8 +132,7 @@ export function ProductFormModal({
               >
                 <option value="bouteille">bouteille</option>
                 <option value="canette">canette</option>
-                <option value="pack">pack</option>
-                <option value="carton">carton</option>
+                <option value="casier">casier</option>
               </select>
             </div>
           )}
@@ -179,34 +178,10 @@ export function ProductFormModal({
           />
           <Controller
             control={form.control}
-            name="wholesale_price"
-            render={({ field, fieldState }) => (
-              <MoneyInput
-                label="Prix gros"
-                value={field.value}
-                onChange={field.onChange}
-                error={fieldState.error?.message}
-              />
-            )}
-          />
-          <Controller
-            control={form.control}
-            name="semi_wholesale_price"
-            render={({ field, fieldState }) => (
-              <MoneyInput
-                label="Prix demi-gros"
-                value={field.value}
-                onChange={field.onChange}
-                error={fieldState.error?.message}
-              />
-            )}
-          />
-          <Controller
-            control={form.control}
             name="retail_price"
             render={({ field, fieldState }) => (
               <MoneyInput
-                label="Prix détail"
+                label="Prix de vente détail"
                 value={field.value}
                 onChange={field.onChange}
                 error={fieldState.error?.message}

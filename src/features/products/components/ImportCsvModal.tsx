@@ -25,7 +25,7 @@ export function ImportCsvModal({
       open={open}
       onOpenChange={onOpenChange}
       title="Importer des produits (CSV)"
-      description="Colonnes attendues : name;base_unit;category;brand;barcode;stock;min_stock;purchase_price;wholesale_price;semi_wholesale_price;retail_price"
+      description="Colonnes attendues : name;base_unit;category;brand;barcode;stock;min_stock;purchase_price;retail_price"
       maxWidthClass="max-w-lg"
       error={error}
       footer={

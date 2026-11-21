@@ -1,10 +1,5 @@
-export type PackagingName =
-  | "casier"
-  | "carton"
-  | "bouteille"
-  | "pack"
-  | "canette";
-export type PriceTier = "wholesale" | "semi_wholesale" | "retail";
+export type PackagingName = "casier";
+export type PriceTier = "retail";
 export type CreditPolicy = "forbidden" | "limited" | "unlimited";
 export type UserRole =
   | "owner"
@@ -201,6 +196,7 @@ export interface SaleDetail extends SaleSummary {
     returned_pieces: number;
     unit_value: number;
     amount: number;
+    expected_products?: string | null;
   }>;
   cancellation: {
     id: number;

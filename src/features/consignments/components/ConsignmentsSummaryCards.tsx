@@ -1,5 +1,6 @@
 import { Repeat } from 'lucide-react';
 import { MetricCard } from '../../../components/common/MetricCard.tsx';
+import { MotionStaggerGrid } from '../../../components/motion/MotionPrimitives.tsx';
 import { formatFcfa, formatNumber } from '../../../utils/format.ts';
 
 interface ConsignmentsSummaryCardsProps {
@@ -16,7 +17,7 @@ export function ConsignmentsSummaryCards({
   totalHeldAmount,
 }: ConsignmentsSummaryCardsProps) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <MotionStaggerGrid className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <MetricCard
         label="Vides en stock dépôt"
         value={`${formatNumber(totalDepotPieces)} pcs`}
@@ -34,6 +35,6 @@ export function ConsignmentsSummaryCards({
         value={formatFcfa(totalHeldAmount)}
         hint="Séparés du chiffre d'affaires marchandises"
       />
-    </div>
+    </MotionStaggerGrid>
   );
 }

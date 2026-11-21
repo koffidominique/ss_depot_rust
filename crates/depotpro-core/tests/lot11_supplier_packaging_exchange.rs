@@ -14,7 +14,9 @@ async fn test7_reappro_fournisseur_echange_emballages_par_type_exact() {
     let db = fresh_db("t7").await;
 
     // Catégorie + fournisseur
-    let cat = products::create_category(&db, "Bières T7", None).await.unwrap();
+    let cat = products::create_category(&db, "Bières T7", None)
+        .await
+        .unwrap();
     let sup = purchases::create_supplier(
         &db,
         purchases::CreateSupplierInput {
@@ -169,8 +171,18 @@ async fn test7_reappro_fournisseur_echange_emballages_par_type_exact() {
     )
     .await
     .unwrap();
-    let line33 = po.lines.iter().find(|l| l.product_id == bock33.id).unwrap().id;
-    let line50 = po.lines.iter().find(|l| l.product_id == bock50.id).unwrap().id;
+    let line33 = po
+        .lines
+        .iter()
+        .find(|l| l.product_id == bock33.id)
+        .unwrap()
+        .id;
+    let line50 = po
+        .lines
+        .iter()
+        .find(|l| l.product_id == bock50.id)
+        .unwrap()
+        .id;
 
     // Stock d'emballages vides insuffisant pour les 50 cl (12 < requis pour 20+10=attends 10)
     // Cas : on tente de réceptionner 20 x 33 et 10 x 50 → il faut 20 casiers 33 et 10 casiers 50.
@@ -246,21 +258,25 @@ async fn test7_reappro_fournisseur_echange_emballages_par_type_exact() {
     .fetch_one(&db.pool)
     .await
     .unwrap();
-    assert!(mov33 >= 1 && mov50 >= 1, "Mouvements d'échange tracés par type");
+    assert!(
+        mov33 >= 1 && mov50 >= 1,
+        "Mouvements d'échange tracés par type"
+    );
 
     // 4. AUCUNE dette financière d'emballages créée automatiquement (règle 9.4).
-    let ledger: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM customer_packaging_financial_ledger",
-    )
-    .fetch_one(&db.pool)
-    .await
-    .unwrap();
-    assert_eq!(ledger, 0, "Aucun compte de dette d'emballages automatique côté fournisseur");
-    let conversions: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM packaging_conversions")
+    let ledger: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM customer_packaging_financial_ledger")
             .fetch_one(&db.pool)
             .await
             .unwrap();
+    assert_eq!(
+        ledger, 0,
+        "Aucun compte de dette d'emballages automatique côté fournisseur"
+    );
+    let conversions: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM packaging_conversions")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(conversions, 0);
 }
 
@@ -269,7 +285,9 @@ async fn test7b_stock_emballages_insuffisant_bloque_la_reception() {
     // Règle 9.4 : le système doit signaler une quantité insuffisante avant validation.
     let db = fresh_db("t7b").await;
 
-    let cat = products::create_category(&db, "Bières T7b", None).await.unwrap();
+    let cat = products::create_category(&db, "Bières T7b", None)
+        .await
+        .unwrap();
     let sup = purchases::create_supplier(
         &db,
         purchases::CreateSupplierInput {
