@@ -35,7 +35,7 @@ pub async fn upsert_packaging(
     require_current_actor_permission(Permission::CatalogWrite)?;
     if !ALLOWED_PACKAGING_NAMES.contains(&pkg.name.as_str()) {
         return Err(CoreError::Validation(
-            "Type de conditionnement invalide : seul \"casier\" est autorisé.".to_string(),
+            "Type de conditionnement invalide : choisissez casier, carton, bouteille, pack ou canette.".to_string(),
         ));
     }
     if pkg.deposit_mode.as_deref() == Some("deposit") && pkg.name != "casier" {
