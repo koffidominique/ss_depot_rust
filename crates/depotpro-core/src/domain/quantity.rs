@@ -124,7 +124,29 @@ mod tests {
         let q = Quantity::parse_str("10", "Cmd").unwrap();
         let coeff = Quantity::from_milli(24_000);
         let base = q.multiply_coefficient_to_base(coeff).unwrap();
-        assert_eq!(base.milli_units, 240_000); // 240 bouteilles
+        assert_eq!(base.milli_units, 240_000); // 10 casiers × 24 = 240 bouteilles
+
+        // DEPOTPRO conserve le stock en unités individuelles : un demi-casier
+        // de 24 bouteilles doit consommer exactement 12 bouteilles.
+        let half_crate = Quantity::parse_str("0.5", "Demi-casier").unwrap();
+        let crate_of_24 = Quantity::from_milli(24_000);
+        assert_eq!(
+            half_crate.multiply_coefficient_to_base(crate_of_24).unwrap().milli_units,
+            12_000
+        );
+
+        // Le moteur ne suppose pas qu'un carton est toujours de 24 :
+        // il utilise le coefficient paramétré pour chaque conditionnement.
+        let one_carton = Quantity::parse_str("1", "Carton").unwrap();
+        assert_eq!(
+            one_carton.multiply_coefficient_to_base(Quantity::from_milli(24_000)).unwrap().milli_units,
+            24_000
+        );
+        let two_packs = Quantity::parse_str("2", "Packs").unwrap();
+        assert_eq!(
+            two_packs.multiply_coefficient_to_base(Quantity::from_milli(6_000)).unwrap().milli_units,
+            12_000
+        );
 
         assert!(Quantity::parse_str("1.2345", "Précision").is_err());
         assert!(Quantity::parse_str("1.", "Point final").is_err());
