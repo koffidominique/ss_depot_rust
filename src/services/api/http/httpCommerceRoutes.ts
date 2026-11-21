@@ -54,6 +54,8 @@ export const httpAuthApi = {
 
 export const httpCatalogApi = {
   listCategories: () => httpRequest<Awaited<ReturnType<ApiClient['listCategories']>>>('/api/categories'),
+  getProductFormMetadata: () =>
+    httpRequest<Awaited<ReturnType<ApiClient['getProductFormMetadata']>>>('/api/product-form-metadata'),
   createCategory: (name: string, description?: string) =>
     httpRequest<Awaited<ReturnType<ApiClient['createCategory']>>>('/api/categories', {
       method: 'POST',
