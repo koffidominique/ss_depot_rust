@@ -315,7 +315,6 @@ async fn extract_schema_for_expected_file() {
     std::fs::remove_file(format!("{}-shm", db_path.display())).ok();
 }
 
-
 #[tokio::test]
 async fn lot4_migration_18_creates_brewery_reference_and_brand_links() {
     let db_path = temp_db_path("brewery_catalogue");
