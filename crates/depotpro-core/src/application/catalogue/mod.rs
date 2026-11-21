@@ -5,8 +5,8 @@
 #![allow(clippy::needless_borrows_for_generic_args, clippy::collapsible_match)]
 
 mod bottle_profiles;
-mod breweries;
 mod brands;
+mod breweries;
 mod compatibility_groups;
 mod container_types;
 mod crate_types;
