@@ -106,8 +106,8 @@ pub async fn update_packaging_value(
             .bind(id)
             .fetch_optional(&mut *tx)
             .await?;
-    let existing = existing
-        .ok_or_else(|| CoreError::NotFound("Valeur d'emballage introuvable.".into()))?;
+    let existing =
+        existing.ok_or_else(|| CoreError::NotFound("Valeur d'emballage introuvable.".into()))?;
 
     let value_type = input.value_type.unwrap_or(existing.value_type);
     let amount = input.amount.unwrap_or(existing.amount);

@@ -76,7 +76,14 @@ pub async fn create_disposable_packaging_type(
     }
 
     let (_guard, mut tx) = db.begin_write().await?;
-    check_duplicate(&mut tx, "disposable_packaging_types", "code", &clean_code, None).await?;
+    check_duplicate(
+        &mut tx,
+        "disposable_packaging_types",
+        "code",
+        &clean_code,
+        None,
+    )
+    .await?;
     let id = sqlx::query(
         "INSERT INTO disposable_packaging_types (code, name, packaging_type, units_per_pack, unit_volume_ml, material, is_returnable, description, is_active)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",

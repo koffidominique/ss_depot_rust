@@ -29,9 +29,26 @@ export function ProductStepSpecs({ form, containerTypes }: ProductStepSpecsProps
                 field.onChange(id);
                 const ct = containerTypes?.find((x) => x.id === id);
                 if (ct) {
-                  form.setValue('container_type', ct.name);
+                  const mappedType =
+                    ct.material === 'glass'
+                      ? ct.is_returnable === 1
+                        ? 'glass_returnable'
+                        : 'glass_disposable'
+                      : ct.material === 'pet'
+                        ? 'pet'
+                        : ct.material === 'aluminium'
+                          ? 'can'
+                          : ct.material === 'plastic'
+                            ? 'plastic_bottle'
+                            : 'other';
+                  form.setValue('container_type', mappedType);
                   if (ct.volume_ml) form.setValue('volume_ml', ct.volume_ml);
-                  if (ct.material) form.setValue('container_material', ct.material);
+                  if (ct.material) {
+                    form.setValue(
+                      'container_material',
+                      ct.material === 'wood' ? 'other' : ct.material
+                    );
+                  }
                   form.setValue('container_returnable', ct.is_returnable === 1);
                   form.setValue('container_recyclable', ct.is_recyclable === 1);
                   form.setValue('container_deposit_amount', ct.default_deposit_amount);
@@ -70,12 +87,12 @@ export function ProductStepSpecs({ form, containerTypes }: ProductStepSpecsProps
           {...form.register('container_material')}
           className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
         >
-          <option value="verre">Verre</option>
-          <option value="PET">PET (Plastique)</option>
+          <option value="glass">Verre</option>
+          <option value="pet">PET (Plastique)</option>
           <option value="aluminium">Aluminium (Canette)</option>
-          <option value="brique">Brique / Tetra</option>
-          <option value="inox">Inox (Fût)</option>
-          <option value="autre">Autre</option>
+          <option value="carton">Carton / Tetra</option>
+          <option value="plastic">Plastique</option>
+          <option value="other">Autre</option>
         </select>
       </div>
 

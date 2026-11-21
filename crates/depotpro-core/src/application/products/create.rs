@@ -39,10 +39,14 @@ pub async fn create_product_v4(
     let name = input.name.trim().to_string();
     let base_unit = input.base_unit.trim().to_string();
     if name.is_empty() {
-        return Err(CoreError::Validation("Le nom du produit est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le nom du produit est obligatoire.".to_string(),
+        ));
     }
     if base_unit.is_empty() {
-        return Err(CoreError::Validation("L'unité de base est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "L'unité de base est obligatoire.".to_string(),
+        ));
     }
 
     let initial_stock = Quantity::parse_str(
@@ -233,28 +237,104 @@ pub async fn create_product_v4(
             semi_wholesale_price, retail_price, image_path, is_active, updated_at
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
     )
-    .bind(&reference).bind(clean_barcode).bind(&name).bind(brand_text.as_deref())
-    .bind(extras.brewery_id).bind(extras.brand_id).bind(input.category_id).bind(extras.subcategory_id)
-    .bind(extras.variant_label.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(&reference)
+    .bind(clean_barcode)
+    .bind(&name)
+    .bind(brand_text.as_deref())
+    .bind(extras.brewery_id)
+    .bind(extras.brand_id)
+    .bind(input.category_id)
+    .bind(extras.subcategory_id)
+    .bind(
+        extras
+            .variant_label
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(input.supplier_id)
-    .bind(input.description.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        input
+            .description
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(extras.alcohol_degree_milli)
-    .bind(if extras.is_alcoholic.unwrap_or(false) { 1_i64 } else { 0_i64 })
-    .bind(extras.ingredients.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(extras.beverage_color.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(extras.storage_temp.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(if extras.is_alcoholic.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(
+        extras
+            .ingredients
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        extras
+            .beverage_color
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        extras
+            .storage_temp
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(extras.shelf_life_days)
-    .bind(if extras.is_perishable.unwrap_or(false) { 1_i64 } else { 0_i64 })
-    .bind(if extras.track_batches.unwrap_or(false) { 1_i64 } else { 0_i64 })
-    .bind(if extras.track_expiry.unwrap_or(false) { 1_i64 } else { 0_i64 })
-    .bind(if extras.allow_credit_sale.unwrap_or(true) { 1_i64 } else { 0_i64 })
-    .bind(if extras.allow_unit_sale.unwrap_or(true) { 1_i64 } else { 0_i64 })
-    .bind(if extras.allow_mixed_sale.unwrap_or(true) { 1_i64 } else { 0_i64 })
-    .bind(default_loc_id).bind(status).bind(&base_unit)
-    .bind(initial_stock.milli_units).bind(min_stock.milli_units).bind(max_stock.milli_units)
-    .bind(avg_num).bind(avg_den).bind(purchase_price).bind(wholesale_price)
-    .bind(semi_price).bind(retail_price).bind(image_path).bind(is_active_val)
-    .execute(&mut *tx).await?.last_insert_rowid();
+    .bind(if extras.is_perishable.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if extras.track_batches.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if extras.track_expiry.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if extras.allow_credit_sale.unwrap_or(true) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if extras.allow_unit_sale.unwrap_or(true) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if extras.allow_mixed_sale.unwrap_or(true) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(default_loc_id)
+    .bind(status)
+    .bind(&base_unit)
+    .bind(initial_stock.milli_units)
+    .bind(min_stock.milli_units)
+    .bind(max_stock.milli_units)
+    .bind(avg_num)
+    .bind(avg_den)
+    .bind(purchase_price)
+    .bind(wholesale_price)
+    .bind(semi_price)
+    .bind(retail_price)
+    .bind(image_path)
+    .bind(is_active_val)
+    .execute(&mut *tx)
+    .await?
+    .last_insert_rowid();
 
     let variant_id = if let Some(ref v) = extras.variant {
         Some(create_initial_variant_tx(&mut tx, product_id, &name, v).await?)
@@ -267,17 +347,35 @@ pub async fn create_product_v4(
             "INSERT INTO stock_movements (product_id, variant_id, location_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, unit_cost, reason, reference_document)
              VALUES (?, ?, ?, 'manual_adjust', ?, 0, ?, ?, 'Inventaire initial à la création', ?)",
         )
-        .bind(product_id).bind(variant_id).bind(default_loc_id).bind(initial_stock.milli_units)
-        .bind(initial_stock.milli_units).bind(purchase_price).bind(&reference).execute(&mut *tx).await?;
+        .bind(product_id)
+        .bind(variant_id)
+        .bind(default_loc_id)
+        .bind(initial_stock.milli_units)
+        .bind(initial_stock.milli_units)
+        .bind(purchase_price)
+        .bind(&reference)
+        .execute(&mut *tx)
+        .await?;
         if let Some(lid) = default_loc_id {
             sqlx::query("INSERT INTO stock_balances (product_id, variant_id, location_id, quantity_milli) VALUES (?, ?, ?, ?)")
-                .bind(product_id).bind(variant_id).bind(lid).bind(initial_stock.milli_units).execute(&mut *tx).await?;
+                .bind(product_id)
+                .bind(variant_id)
+                .bind(lid)
+                .bind(initial_stock.milli_units)
+                .execute(&mut *tx)
+                .await?;
         }
     }
 
     let first_pkg_id = insert_initial_packagings_tx(
-        &mut tx, product_id, variant_id, &base_unit, packagings, &pkg_extras,
-    ).await?;
+        &mut tx,
+        product_id,
+        variant_id,
+        &base_unit,
+        packagings,
+        &pkg_extras,
+    )
+    .await?;
 
     if let Some(ref units) = extras.sales_units {
         create_initial_sales_units_tx(&mut tx, product_id, variant_id, first_pkg_id, units).await?;
@@ -285,7 +383,14 @@ pub async fn create_product_v4(
     if let Some(ref sups) = extras.product_suppliers {
         create_initial_product_suppliers_tx(&mut tx, product_id, sups).await?;
     }
-    audit_log_tx(&mut tx, "CREATE_PRODUCT", "products", Some(product_id.to_string()), &format!("Création produit {reference} — {name}")).await?;
+    audit_log_tx(
+        &mut tx,
+        "CREATE_PRODUCT",
+        "products",
+        Some(product_id.to_string()),
+        &format!("Création produit {reference} — {name}"),
+    )
+    .await?;
     tx.commit().await?;
     get_product_by_id(db, product_id).await
 }

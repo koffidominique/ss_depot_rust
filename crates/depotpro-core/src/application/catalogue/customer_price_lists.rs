@@ -116,8 +116,8 @@ pub async fn update_customer_price_list(
             .bind(id)
             .fetch_optional(&mut *tx)
             .await?;
-    let existing = existing
-        .ok_or_else(|| CoreError::NotFound("Grille tarifaire introuvable.".into()))?;
+    let existing =
+        existing.ok_or_else(|| CoreError::NotFound("Grille tarifaire introuvable.".into()))?;
 
     let code = match input.code {
         Some(c) => {

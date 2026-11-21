@@ -44,6 +44,42 @@ pub(crate) async fn validate_brewery_and_brand_tx(
     Ok(None)
 }
 
+pub(crate) fn normalize_container_type(raw: Option<&str>) -> Option<&'static str> {
+    let trimmed = raw?.trim().to_lowercase();
+    if trimmed.is_empty() {
+        return None;
+    }
+    match trimmed.as_str() {
+        "glass_returnable" | "ct-glass-ret" => Some("glass_returnable"),
+        "glass_disposable" | "ct-glass-disp" => Some("glass_disposable"),
+        "pet" | "ct-pet" => Some("pet"),
+        "can" | "ct-can" | "canette" => Some("can"),
+        "plastic_bottle" | "plastique" => Some("plastic_bottle"),
+        "other" | "ct-other" | "ct-keg" | "ct-tetra" | "ct-pouch" => Some("other"),
+        s if s.contains("verre") && s.contains("consign") => Some("glass_returnable"),
+        s if s.contains("verre") => Some("glass_disposable"),
+        s if s.contains("pet") => Some("pet"),
+        s if s.contains("can") || s.contains("alu") => Some("can"),
+        s if s.contains("plast") => Some("plastic_bottle"),
+        _ => Some("other"),
+    }
+}
+
+pub(crate) fn normalize_container_material(raw: Option<&str>) -> Option<&'static str> {
+    let trimmed = raw?.trim().to_lowercase();
+    if trimmed.is_empty() {
+        return None;
+    }
+    match trimmed.as_str() {
+        "glass" | "verre" => Some("glass"),
+        "pet" => Some("pet"),
+        "aluminium" | "aluminum" | "alu" => Some("aluminium"),
+        "carton" | "brique" | "tetra" | "tetrapak" => Some("carton"),
+        "plastic" | "plastique" => Some("plastic"),
+        _ => Some("other"),
+    }
+}
+
 pub(crate) async fn create_initial_variant_tx(
     tx: &mut Transaction<'_, Sqlite>,
     product_id: i64,
@@ -108,6 +144,9 @@ pub(crate) async fn create_initial_variant_tx(
         .map(str::to_string)
         .unwrap_or_else(|| format!("{product_name} — {} ml", variant.volume_ml));
 
+    let norm_type = normalize_container_type(variant.container_type.as_deref());
+    let norm_mat = normalize_container_material(variant.container_material.as_deref());
+
     let variant_id = sqlx::query(
         "INSERT INTO product_variants (
             product_id, name, sku, barcode, volume_ml, container_type, container_type_id,
@@ -119,11 +158,19 @@ pub(crate) async fn create_initial_variant_tx(
     .bind(clean_sku)
     .bind(clean_bc)
     .bind(variant.volume_ml)
-    .bind(variant.container_type.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(norm_type)
     .bind(variant.container_type_id)
-    .bind(variant.container_material.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(if variant.container_returnable.unwrap_or(false) { 1_i64 } else { 0_i64 })
-    .bind(if variant.container_recyclable.unwrap_or(false) { 1_i64 } else { 0_i64 })
+    .bind(norm_mat)
+    .bind(if variant.container_returnable.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
+    .bind(if variant.container_recyclable.unwrap_or(false) {
+        1_i64
+    } else {
+        0_i64
+    })
     .bind(variant.container_deposit_amount.unwrap_or(0))
     .execute(&mut **tx)
     .await?

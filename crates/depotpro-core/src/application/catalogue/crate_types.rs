@@ -113,11 +113,10 @@ pub async fn update_crate_type(
 ) -> CoreResult<CrateTypeDto> {
     require_current_actor_permission(Permission::CatalogWrite)?;
     let (_guard, mut tx) = db.begin_write().await?;
-    let existing: Option<CrateTypeDto> =
-        sqlx::query_as("SELECT * FROM crate_types WHERE id = ?")
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await?;
+    let existing: Option<CrateTypeDto> = sqlx::query_as("SELECT * FROM crate_types WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
     let existing = existing.ok_or_else(|| CoreError::NotFound("Casier introuvable.".into()))?;
 
     let code = match input.code {
