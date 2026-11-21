@@ -18,6 +18,7 @@ pub(crate) fn catalogue_router() -> Router<AppState> {
             "/api/breweries",
             get(catalogue_refs::list_breweries).post(catalogue_refs::create_brewery),
         )
+        .route("/api/breweries/:id", put(catalogue_refs::update_brewery))
         .route(
             "/api/brands",
             get(catalogue_refs::list_brands).post(catalogue_refs::create_brand),
