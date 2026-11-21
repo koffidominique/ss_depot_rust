@@ -7,20 +7,19 @@ import type {
   Brewery,
   Category,
   ContainerTypeRef,
+  PackagingTypeRef,
   Product,
   StockLocationRef,
   Supplier,
 } from '../../../types/erp.ts';
 import type { ProductFormValues } from '../utils/productSchemas.ts';
 import { ProductStepIdentity } from './ProductStepIdentity.tsx';
-import {
-  ProductStepSpecs,
-  ProductStepUnitsAndPricing,
-} from './ProductStepSpecsAndUnits.tsx';
-import {
-  ProductStepStock,
-  ProductStepSuppliers,
-} from './ProductStepStockAndSupplier.tsx';
+import { ProductStepSpecs } from './ProductStepSpecsAndUnits.tsx';
+import { ProductStepPackaging } from './ProductStepPackaging.tsx';
+import { ProductStepSalesUnits } from './ProductStepSalesUnits.tsx';
+import { ProductStepUnitsAndPricing } from './ProductStepUnitsAndPricing.tsx';
+import { ProductStepStockAndSupplier } from './ProductStepStockAndSupplier.tsx';
+import { ProductPreviewCard } from './ProductPreviewCard.tsx';
 
 interface ProductFormModalProps {
   open: boolean;
@@ -31,6 +30,7 @@ interface ProductFormModalProps {
   breweries?: Brewery[];
   brands?: BrandRef[];
   containerTypes?: ContainerTypeRef[];
+  packagingTypes?: PackagingTypeRef[];
   stockLocations?: StockLocationRef[];
   suppliers?: Supplier[];
   error: string | null;
@@ -42,9 +42,10 @@ interface ProductFormModalProps {
 const STEPS = [
   { id: 1, label: '1. Identité' },
   { id: 2, label: '2. Contenant' },
-  { id: 3, label: '3. Unités & tarifs' },
-  { id: 4, label: '4. Stock' },
-  { id: 5, label: '5. Fournisseur' },
+  { id: 3, label: '3. Emballage' },
+  { id: 4, label: '4. Unités vente' },
+  { id: 5, label: '5. Tarifs & consigne' },
+  { id: 6, label: '6. Stock & fournisseur' },
 ] as const;
 
 export function ProductFormModal({
@@ -56,6 +57,7 @@ export function ProductFormModal({
   breweries,
   brands,
   containerTypes,
+  packagingTypes,
   stockLocations,
   suppliers,
   error,
@@ -74,10 +76,10 @@ export function ProductFormModal({
     <ModalDialog
       open={open}
       onOpenChange={handleOpenChange}
-      title={editingProduct ? `Modifier ${editingProduct.name}` : 'Nouveau produit'}
+      title={editingProduct ? `Modifier ${editingProduct.name}` : 'Nouveau produit boisson'}
       tipsTopicId="products"
       tipsLabel="Aide champs"
-      maxWidthClass="max-w-2xl"
+      maxWidthClass="max-w-4xl"
       scrollable
       error={error}
     >
@@ -99,28 +101,46 @@ export function ProductFormModal({
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-        {step === 1 && (
-          <ProductStepIdentity
-            form={form}
-            isEditing={Boolean(editingProduct)}
-            categories={categories}
-            breweries={breweries}
-            brands={brands}
-            onImageFileChange={onImageFileChange}
-          />
-        )}
-        {step === 2 && <ProductStepSpecs form={form} containerTypes={containerTypes} />}
-        {step === 3 && (
-          <ProductStepUnitsAndPricing form={form} isEditing={Boolean(editingProduct)} />
-        )}
-        {step === 4 && (
-          <ProductStepStock
-            form={form}
-            isEditing={Boolean(editingProduct)}
-            locations={stockLocations}
-          />
-        )}
-        {step === 5 && <ProductStepSuppliers form={form} suppliers={suppliers} />}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            {step === 1 && (
+              <ProductStepIdentity
+                form={form}
+                isEditing={Boolean(editingProduct)}
+                categories={categories}
+                breweries={breweries}
+                brands={brands}
+                onImageFileChange={onImageFileChange}
+              />
+            )}
+            {step === 2 && <ProductStepSpecs form={form} containerTypes={containerTypes} />}
+            {step === 3 && (
+              <ProductStepPackaging
+                form={form}
+                isEditing={Boolean(editingProduct)}
+                packagingTypes={packagingTypes}
+              />
+            )}
+            {step === 4 && (
+              <ProductStepSalesUnits form={form} isEditing={Boolean(editingProduct)} />
+            )}
+            {step === 5 && (
+              <ProductStepUnitsAndPricing form={form} isEditing={Boolean(editingProduct)} />
+            )}
+            {step === 6 && (
+              <ProductStepStockAndSupplier
+                form={form}
+                isEditing={Boolean(editingProduct)}
+                locations={stockLocations}
+                suppliers={suppliers}
+              />
+            )}
+          </div>
+
+          <div className="lg:col-span-1 pt-4">
+            <ProductPreviewCard form={form} breweries={breweries} categories={categories} />
+          </div>
+        </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
           <div className="flex items-center gap-2">
@@ -133,10 +153,10 @@ export function ProductFormModal({
                 Précédent
               </button>
             )}
-            {step < 5 && (
+            {step < 6 && (
               <button
                 type="button"
-                onClick={() => setStep((s) => Math.min(5, s + 1))}
+                onClick={() => setStep((s) => Math.min(6, s + 1))}
                 className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-xs font-medium text-[#2563EB]"
               >
                 Suivant

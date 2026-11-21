@@ -1,7 +1,11 @@
 import { apiClient } from '../../../services/api/createApiClient.ts';
-import type { Category, Product } from '../../../types/erp.ts';
+import type { Category, PackagingName, Product } from '../../../types/erp.ts';
 import { compressLocalImage } from '../../../utils/image.ts';
-import type { PackagingFormState, ProductFormValues } from './productSchemas.ts';
+import type {
+  PackagingFormState,
+  ProductFormValues,
+  SalesUnitDraft,
+} from './productSchemas.ts';
 
 /* ============================================================================
  * Helpers de la page Produits (valeurs par défaut, CSV & compression photo)
@@ -32,6 +36,77 @@ export const INITIAL_PACKAGING_STATE: PackagingFormState = {
   brand_id: 0,
 };
 
+export function buildStandardSalesUnits(
+  packagingName: PackagingName,
+  baseUnit: string,
+  coeffStr: string,
+  retailPrice: number,
+  unitRetailPrice: number,
+): SalesUnitDraft[] {
+  const coeff = Math.max(1, Math.round(Number(coeffStr) || 1));
+  const isCan = baseUnit === 'canette' || packagingName === 'canette';
+  const unitLabel = isCan ? 'Canette' : 'Bouteille';
+  const unitType = isCan ? 'can' : 'bottle';
+  const computedUnit =
+    unitRetailPrice > 0
+      ? unitRetailPrice
+      : retailPrice > 0 && coeff > 1
+        ? Math.round(retailPrice / coeff)
+        : retailPrice;
+
+  const list: SalesUnitDraft[] = [
+    {
+      label: `${unitLabel} (unité)`,
+      unit_type: unitType,
+      conversion_factor: 1,
+      is_virtual: false,
+      allow_fraction: false,
+      retail_price: computedUnit > 0 ? computedUnit : null,
+      wholesale_price: null,
+      semi_wholesale_price: null,
+      min_selling_price: null,
+      is_default_sale: coeff === 1,
+    },
+  ];
+  if (coeff >= 4 && coeff % 2 === 0 && packagingName === 'casier') {
+    const half = coeff / 2;
+    list.push({
+      label: `Demi-casier (${half})`,
+      unit_type: 'half_crate',
+      conversion_factor: half,
+      is_virtual: true,
+      allow_fraction: false,
+      retail_price: retailPrice > 0 ? Math.round(retailPrice / 2) : null,
+      wholesale_price: null,
+      semi_wholesale_price: null,
+      min_selling_price: null,
+      is_default_sale: false,
+    });
+  }
+  if (coeff > 1) {
+    const pkgType =
+      packagingName === 'casier'
+        ? 'crate'
+        : packagingName === 'carton'
+          ? 'carton'
+          : 'pack';
+    const capName = packagingName.charAt(0).toUpperCase() + packagingName.slice(1);
+    list.push({
+      label: `${capName} × ${coeff}`,
+      unit_type: pkgType,
+      conversion_factor: coeff,
+      is_virtual: false,
+      allow_fraction: packagingName === 'casier',
+      retail_price: retailPrice > 0 ? retailPrice : null,
+      wholesale_price: null,
+      semi_wholesale_price: null,
+      min_selling_price: null,
+      is_default_sale: true,
+    });
+  }
+  return list;
+}
+
 export function createProductDefaultValues(categories?: Category[]): ProductFormValues {
   const firstRootCat = categories?.find((c) => !c.parent_id) ?? categories?.[0];
   return {
@@ -61,8 +136,14 @@ export function createProductDefaultValues(categories?: Category[]): ProductForm
     shelf_life_days: null,
     is_perishable: false,
     base_unit: 'bouteille',
+    packaging_type_id: null,
     packaging_name: 'casier',
     packaging_coeff: '1',
+    package_sku: '',
+    package_reusable: false,
+    package_returnable: false,
+    package_cost: 0,
+    sales_units: [],
     purchase_price: 0,
     wholesale_price: 0,
     semi_wholesale_price: 0,
@@ -119,8 +200,25 @@ export function editProductDefaultValues(prod: Product): ProductFormValues {
     shelf_life_days: prod.shelf_life_days ?? null,
     is_perishable: prod.is_perishable === 1,
     base_unit: prod.base_unit,
+    packaging_type_id: firstPkg?.packaging_type_id ?? null,
     packaging_name: firstPkg?.name ?? 'casier',
     packaging_coeff: firstPkg ? String(firstPkg.coefficient_milli / 1000) : '1',
+    package_sku: firstPkg?.package_sku || '',
+    package_reusable: firstPkg?.is_reusable === 1,
+    package_returnable: firstPkg?.is_returnable === 1,
+    package_cost: firstPkg?.package_cost ?? 0,
+    sales_units: (prod.sales_units ?? []).map((u) => ({
+      label: u.label,
+      unit_type: u.unit_type,
+      conversion_factor: u.conversion_factor,
+      is_virtual: u.is_virtual === 1,
+      allow_fraction: u.allow_fraction === 1,
+      retail_price: u.retail_price,
+      wholesale_price: u.wholesale_price,
+      semi_wholesale_price: u.semi_wholesale_price,
+      min_selling_price: u.min_selling_price,
+      is_default_sale: u.is_default_sale === 1,
+    })),
     purchase_price: prod.purchase_price ?? 0,
     wholesale_price: prod.wholesale_price ?? 0,
     semi_wholesale_price: prod.semi_wholesale_price ?? 0,

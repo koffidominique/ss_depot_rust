@@ -99,7 +99,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
         .unwrap();
     assert_eq!(pm_count, 6);
     assert_eq!(exp_cat_count, 6);
-    assert_eq!(cat_count, 4);
+    assert_eq!(cat_count, 14);
 
     // 4. L'assistant de configuration met à jour setup_completed = 1
     let updated = reports::update_settings(

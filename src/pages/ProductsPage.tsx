@@ -71,6 +71,7 @@ export function ProductsPage() {
     breweriesQuery,
     brandsQuery,
     containerTypesQuery,
+    packagingTypesQuery,
     stockLocationsQuery,
     suppliersQuery,
     productsQuery,
@@ -225,6 +226,7 @@ export function ProductsPage() {
         breweries={breweriesQuery.data?.items}
         brands={brandsQuery.data?.items}
         containerTypes={containerTypesQuery.data?.items}
+        packagingTypes={packagingTypesQuery.data}
         stockLocations={stockLocationsQuery.data}
         suppliers={suppliersQuery.data}
         error={formError}

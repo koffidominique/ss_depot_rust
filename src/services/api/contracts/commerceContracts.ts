@@ -91,15 +91,15 @@ export interface CatalogApiClient {
   createBrewery(input: {
     name: string;
     code?: string;
-    country?: string;
-    contact_info?: string;
+    shortName?: string;
+    countryCode?: string;
   }): Promise<Brewery>;
   listBrandsV4(search?: string): Promise<PaginatedResult<BrandRef>>;
   createBrandV4(input: {
     name: string;
-    code?: string;
-    brewery_id?: number | null;
-    country?: string;
+    code: string;
+    breweryId?: number | null;
+    countryOfOrigin?: string;
   }): Promise<BrandRef>;
   listContainerTypesV4(): Promise<PaginatedResult<ContainerTypeRef>>;
   listPackagingTypesV4(): Promise<PackagingTypeRef[]>;

@@ -11,6 +11,31 @@ export const PACKAGING_OPTIONS: PackagingName[] = [
   'canette',
 ];
 
+export const salesUnitDraftSchema = z.object({
+  label: z.string().trim().min(1, 'Libellé requis.'),
+  unit_type: z.enum([
+    'bottle',
+    'can',
+    'pack',
+    'carton',
+    'half_crate',
+    'crate',
+    'film',
+    'pallet',
+    'custom',
+  ]),
+  conversion_factor: z.number().int().min(1, 'Facteur >= 1.'),
+  is_virtual: z.boolean(),
+  allow_fraction: z.boolean(),
+  retail_price: z.number().int().min(0).nullable(),
+  wholesale_price: z.number().int().min(0).nullable(),
+  semi_wholesale_price: z.number().int().min(0).nullable(),
+  min_selling_price: z.number().int().min(0).nullable(),
+  is_default_sale: z.boolean(),
+});
+
+export type SalesUnitDraft = z.infer<typeof salesUnitDraftSchema>;
+
 export const productSchema = z.object({
   // Étape 1 — Identité
   name: z.string().trim().min(1, 'Le nom du produit est obligatoire.'),
@@ -39,13 +64,21 @@ export const productSchema = z.object({
   storage_temp: z.string().trim(),
   shelf_life_days: z.number().int().min(0).nullable(),
   is_perishable: z.boolean(),
-  // Étape 3 — Conditionnements, tarifs & consignes
+  // Étape 3 — Emballage commercial
   base_unit: z.string().min(1),
+  packaging_type_id: z.number().int().nullable(),
   packaging_name: z.enum(['casier', 'carton', 'bouteille', 'pack', 'canette']),
   packaging_coeff: z
     .string()
     .trim()
     .refine((v) => v === '' || qtyPattern.test(v), 'Coefficient invalide.'),
+  package_sku: z.string().trim(),
+  package_reusable: z.boolean(),
+  package_returnable: z.boolean(),
+  package_cost: z.number().int().min(0),
+  // Étape 4 — Unités de vente configurables
+  sales_units: z.array(salesUnitDraftSchema),
+  // Étape 5 — Tarifs & consignes
   purchase_price: z.number().int().min(0, 'Montant positif ou nul requis.'),
   wholesale_price: z.number().int().min(0),
   semi_wholesale_price: z.number().int().min(0),
@@ -57,7 +90,7 @@ export const productSchema = z.object({
   allow_mixed_sale: z.boolean(),
   allow_credit_sale: z.boolean(),
   unit_retail_price: z.number().int().min(0),
-  // Étape 4 — Stock & traçabilité
+  // Étape 6 — Stock, traçabilité & fournisseur principal
   initial_stock: z
     .string()
     .trim()
@@ -74,7 +107,6 @@ export const productSchema = z.object({
   track_batches: z.boolean(),
   track_expiry: z.boolean(),
   status: z.enum(['active', 'draft', 'inactive']),
-  // Étape 5 — Fournisseur principal
   supplier_id: z.number().int().nullable(),
   supplier_product_code: z.string().trim(),
   purchase_unit: z.string().trim(),
