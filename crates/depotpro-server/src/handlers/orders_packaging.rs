@@ -103,21 +103,9 @@ pub(crate) async fn add_variant_packaging(
         Err(e) => return e.into_response(),
     };
     let db = state.db().await;
-    let product_id: Option<i64> =
-        match sqlx::query_scalar("SELECT product_id FROM product_variants WHERE id = ?")
-            .bind(variant_id)
-            .fetch_optional(&db.pool)
-            .await
-        {
-            Ok(pid) => pid,
-            Err(e) => return map_err(e.into()).into_response(),
-        };
-    let Some(product_id) = product_id else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Variante introuvable." })),
-        )
-            .into_response();
+    let product_id = match orders::get_variant_product_id(&db, variant_id).await {
+        Ok(pid) => pid,
+        Err(e) => return map_err(e).into_response(),
     };
     payload.extras.variant_id = Some(variant_id);
     match auth::with_actor(
@@ -145,65 +133,25 @@ pub(crate) async fn add_variant_price(
     Path(variant_id): Path<i64>,
     Json(payload): Json<VariantPriceInput>,
 ) -> impl IntoResponse {
-    let _actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
         Ok(a) => a,
         Err(e) => return e.into_response(),
     };
-    if payload.price_xof < 0 {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Le prix doit être >= 0." })),
-        )
-            .into_response();
-    }
     let db = state.db().await;
-    let prod_id: Option<i64> =
-        match sqlx::query_scalar("SELECT product_id FROM product_variants WHERE id = ?")
-            .bind(variant_id)
-            .fetch_optional(&db.pool)
-            .await
-        {
-            Ok(pid) => pid,
-            Err(e) => return map_err(e.into()).into_response(),
-        };
-    let Some(prod_id) = prod_id else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Variante introuvable." })),
-        )
-            .into_response();
-    };
-    let price_type = match payload.price_type.trim().to_uppercase().as_str() {
-        "PURCHASE" | "RETAIL" | "WHOLESALE" | "SEMI_WHOLESALE" | "UNIT" | "PACKAGE"
-        | "MINIMUM_SELLING_PRICE" => payload.price_type.trim().to_uppercase(),
-        _ => "RETAIL".to_string(),
-    };
-    let res = sqlx::query(
-        "INSERT INTO price_history (
-            product_id, variant_id, supplier_id, price_type, new_retail_price,
-            currency, effective_from, reason
-         ) VALUES (?, ?, ?, ?, ?, 'FCFA', date('now'), ?)",
+    match auth::with_actor(
+        actor,
+        orders::add_variant_price(
+            &db,
+            variant_id,
+            &payload.price_type,
+            payload.price_xof,
+            payload.supplier_id,
+            payload.reason.as_deref(),
+        ),
     )
-    .bind(prod_id)
-    .bind(variant_id)
-    .bind(payload.supplier_id)
-    .bind(&price_type)
-    .bind(payload.price_xof)
-    .bind(payload.reason.as_deref().unwrap_or("Tarif variante"))
-    .execute(&db.pool)
-    .await;
-    match res {
-        Ok(r) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({
-                "id": r.last_insert_rowid(),
-                "product_id": prod_id,
-                "variant_id": variant_id,
-                "price_type": price_type,
-                "price_xof": payload.price_xof,
-            })),
-        )
-            .into_response(),
-        Err(e) => map_err(e.into()).into_response(),
+    .await
+    {
+        Ok(res) => (StatusCode::CREATED, Json(res)).into_response(),
+        Err(e) => map_err(e).into_response(),
     }
 }

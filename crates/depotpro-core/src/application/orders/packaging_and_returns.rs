@@ -238,3 +238,61 @@ pub async fn return_customer_deposits(
     tx.commit().await?;
     load_customer_deposits(&db.pool, customer_id).await
 }
+
+pub async fn get_variant_product_id(db: &DepotDb, variant_id: i64) -> CoreResult<i64> {
+    let pid: Option<i64> =
+        sqlx::query_scalar("SELECT product_id FROM product_variants WHERE id = ?")
+            .bind(variant_id)
+            .fetch_optional(&db.pool)
+            .await?;
+    pid.ok_or_else(|| CoreError::NotFound("Variante introuvable.".into()))
+}
+
+pub async fn add_variant_price(
+    db: &DepotDb,
+    variant_id: i64,
+    price_type: &str,
+    price_xof: i64,
+    supplier_id: Option<i64>,
+    reason: Option<&str>,
+) -> CoreResult<serde_json::Value> {
+    require_current_actor_permission(Permission::CatalogWrite)?;
+    if price_xof < 0 {
+        return Err(CoreError::Validation("Le prix doit être >= 0.".into()));
+    }
+    let prod_id = get_variant_product_id(db, variant_id).await?;
+    let pt = match price_type.trim().to_uppercase().as_str() {
+        "PURCHASE"
+        | "RETAIL"
+        | "WHOLESALE"
+        | "SEMI_WHOLESALE"
+        | "UNIT"
+        | "PACKAGE"
+        | "MINIMUM_SELLING_PRICE" => price_type.trim().to_uppercase(),
+        _ => "RETAIL".to_string(),
+    };
+    let (_guard, mut tx) = db.begin_write().await?;
+    let res = sqlx::query(
+        "INSERT INTO price_history (
+            product_id, variant_id, supplier_id, price_type, new_retail_price,
+            currency, effective_from, reason
+         ) VALUES (?, ?, ?, ?, ?, 'FCFA', date('now'), ?)",
+    )
+    .bind(prod_id)
+    .bind(variant_id)
+    .bind(supplier_id)
+    .bind(&pt)
+    .bind(price_xof)
+    .bind(reason.unwrap_or("Tarif variante"))
+    .execute(&mut *tx)
+    .await?;
+    let id = res.last_insert_rowid();
+    tx.commit().await?;
+    Ok(serde_json::json!({
+        "id": id,
+        "product_id": prod_id,
+        "variant_id": variant_id,
+        "price_type": pt,
+        "price_xof": price_xof,
+    }))
+}

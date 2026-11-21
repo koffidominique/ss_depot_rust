@@ -54,7 +54,11 @@ pub(crate) async fn create_order(
     };
     let db = state.db().await;
     match auth::with_actor(actor, orders::create_order(&db, payload)).await {
-        Ok(res) => (StatusCode::CREATED, Json(serde_json::to_value(res).unwrap())).into_response(),
+        Ok(res) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(res).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }

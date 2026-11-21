@@ -133,10 +133,12 @@ pub async fn cancel_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> {
             .await?;
         }
     }
-    sqlx::query("UPDATE orders SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?")
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE orders SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     get_order(db, id).await
 }

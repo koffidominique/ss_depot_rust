@@ -21,7 +21,8 @@ pub use dtos::*;
 pub use lifecycle::{confirm_order, deliver_order};
 pub use lifecycle_settlement::{cancel_order, invoice_order, pay_order};
 pub use packaging_and_returns::{
-    get_customer_deposit_history, get_customer_deposits, get_packaging_stock,
-    list_packaging_assets, return_customer_deposits, return_order_packaging,
+    add_variant_price, get_customer_deposit_history, get_customer_deposits, get_packaging_stock,
+    get_variant_product_id, list_packaging_assets, return_customer_deposits,
+    return_order_packaging,
 };
 pub use queries::{get_order, list_orders};

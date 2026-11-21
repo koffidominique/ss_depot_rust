@@ -112,7 +112,7 @@ pub fn compose_order_allocations(
             warnings.push(format!("Aucun casier physique actif pour {class}"));
             continue;
         }
-        active.sort_by(|a, b| b.capacity.cmp(&a.capacity));
+        active.sort_by_key(|a| std::cmp::Reverse(a.capacity));
 
         let preferred = native_caps
             .get(&class)

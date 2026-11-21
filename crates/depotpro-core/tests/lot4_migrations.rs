@@ -214,7 +214,7 @@ async fn lot4_existing_columns_and_missing_columns_upgrade_cleanly() {
     assert_eq!(settings_b.setup_completed, 0);
 
     let snap_b = DepotDb::extract_schema_snapshot(&db_b.pool).await.unwrap();
-    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V18_JSON).unwrap();
+    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V19_JSON).unwrap();
     assert_eq!(normalize_snapshot(snap_b), normalize_snapshot(expected));
 
     let _ = std::fs::remove_file(&existing_cols_path);

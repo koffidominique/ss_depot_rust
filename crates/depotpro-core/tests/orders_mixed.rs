@@ -10,7 +10,10 @@ use depotpro_core::infrastructure::db::DepotDb;
 
 fn temp_db_path(tag: &str) -> PathBuf {
     std::env::temp_dir()
-        .join(format!("depotpro_orders_mixed_{tag}_{}", uuid::Uuid::new_v4()))
+        .join(format!(
+            "depotpro_orders_mixed_{tag}_{}",
+            uuid::Uuid::new_v4()
+        ))
         .join("depotpro.db")
 }
 
@@ -421,7 +424,9 @@ async fn orders_mixed_cases_1_to_7_and_lifecycle() {
     let ret_hist = orders::get_customer_deposit_history(&db, client.id)
         .await
         .unwrap();
-    assert!(ret_hist.iter().any(|m| m.movement_type == "LIVRAISON_CLIENT"));
+    assert!(ret_hist
+        .iter()
+        .any(|m| m.movement_type == "LIVRAISON_CLIENT"));
     assert!(ret_hist.iter().any(|m| m.movement_type == "RETOUR_CLIENT"));
 
     let stock_empty: i64 =
