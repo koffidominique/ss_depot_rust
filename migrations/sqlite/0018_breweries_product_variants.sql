@@ -102,7 +102,7 @@ UPDATE brands
 SET brewery_id = (SELECT id FROM breweries WHERE code = 'BRASSIVOIRE-CI'),
     updated_at = datetime('now')
 WHERE lower(trim(name)) IN (
-    'ivoire', 'ivoire classic', 'ivoire black', 'black', 'heineken',
+    'ivoire', 'ivoire classic', 'ivoire black', 'heineken',
     'desperados', 'rhino energy malt'
 );
 
