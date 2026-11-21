@@ -116,16 +116,17 @@ async fn test3_non_restitution_a_echeance_convertit_et_idempotent() {
     assert_eq!(s2.conversions, 0, "Idempotent : rien à la 2e exécution");
     assert_eq!(s2.total_amount, 0);
 
-    let bal = get_client_packaging_financial_balance(&db, client_id).await.unwrap();
+    let bal = get_client_packaging_financial_balance(&db, client_id)
+        .await
+        .unwrap();
     assert_eq!(bal.packaging_financial_balance, 18000);
 
-    let conv_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM packaging_conversions WHERE deposit_issue_id = ?",
-    )
-    .bind(issue_id)
-    .fetch_one(&db.pool)
-    .await
-    .unwrap();
+    let conv_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM packaging_conversions WHERE deposit_issue_id = ?")
+            .bind(issue_id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
     assert_eq!(conv_count, 1, "Une seule ligne de conversion");
 }
 
@@ -142,7 +143,9 @@ async fn test2_restitution_avant_echeance_solde_sans_dette() {
         .unwrap();
 
     // Retour de 2 casiers avant échéance via register_late_return (retour simple).
-    let credited = register_late_return(&db, issue_id, 2, Some("owner")).await.unwrap();
+    let credited = register_late_return(&db, issue_id, 2, Some("owner"))
+        .await
+        .unwrap();
     assert_eq!(credited, 0, "Aucun crédit : rien n'a été converti");
 
     // L'échéance passe ensuite : seuls les 3 casiers restants sont convertis.
@@ -152,9 +155,15 @@ async fn test2_restitution_avant_echeance_solde_sans_dette() {
         .await
         .unwrap();
     let s = process_due_obligations(&db, None).await.unwrap();
-    assert_eq!(s.total_amount, 3 * 3600, "Seuls les 3 casiers restants sont convertis");
+    assert_eq!(
+        s.total_amount,
+        3 * 3600,
+        "Seuls les 3 casiers restants sont convertis"
+    );
 
-    let bal = get_client_packaging_financial_balance(&db, client_id).await.unwrap();
+    let bal = get_client_packaging_financial_balance(&db, client_id)
+        .await
+        .unwrap();
     assert_eq!(bal.packaging_financial_balance, 10800);
     let stock: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(quantity), 0) FROM returnable_stock_balances WHERE packaging_id = 1",
@@ -188,12 +197,17 @@ async fn test5_perte_avant_echeance_validee_convertit_une_seule_fois() {
     )
     .await
     .unwrap();
-    let amount = validate_loss_declaration(&db, decl_id, Some("owner")).await.unwrap();
+    let amount = validate_loss_declaration(&db, decl_id, Some("owner"))
+        .await
+        .unwrap();
     assert_eq!(amount, 2 * 3600, "Créance immédiate = 2 × 3600");
 
     // Validation impossible une seconde fois.
     let retry = validate_loss_declaration(&db, decl_id, Some("owner")).await;
-    assert!(retry.is_err(), "La déclaration déjà validée doit être refusée");
+    assert!(
+        retry.is_err(),
+        "La déclaration déjà validée doit être refusée"
+    );
 
     let conv_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM packaging_conversions WHERE reason = 'loss' AND deposit_issue_id = ?",
@@ -204,7 +218,9 @@ async fn test5_perte_avant_echeance_validee_convertit_une_seule_fois() {
     .unwrap();
     assert_eq!(conv_count, 1);
 
-    let bal = get_client_packaging_financial_balance(&db, client_id).await.unwrap();
+    let bal = get_client_packaging_financial_balance(&db, client_id)
+        .await
+        .unwrap();
     assert_eq!(bal.packaging_financial_balance, 7200);
 
     // À l'échéance (due_date désormais passée), seuls les 3 casiers restants sont convertis.
@@ -224,13 +240,19 @@ async fn test6_retour_tardif_apres_conversion_regularise() {
     let (client_id, issue_id) = seed_fixture(&db).await;
 
     process_due_obligations(&db, Some("owner")).await.unwrap();
-    let before = get_client_packaging_financial_balance(&db, client_id).await.unwrap();
+    let before = get_client_packaging_financial_balance(&db, client_id)
+        .await
+        .unwrap();
     assert_eq!(before.packaging_financial_balance, 18000);
 
-    let credited = register_late_return(&db, issue_id, 2, Some("owner")).await.unwrap();
+    let credited = register_late_return(&db, issue_id, 2, Some("owner"))
+        .await
+        .unwrap();
     assert_eq!(credited, 2 * 3600, "Crédit = 2 × 3600");
 
-    let after = get_client_packaging_financial_balance(&db, client_id).await.unwrap();
+    let after = get_client_packaging_financial_balance(&db, client_id)
+        .await
+        .unwrap();
     assert_eq!(after.packaging_financial_balance, 10800);
 
     // L'historique initial est intact.
@@ -249,7 +271,10 @@ async fn test6_retour_tardif_apres_conversion_regularise() {
     .fetch_one(&db.pool)
     .await
     .unwrap();
-    assert_eq!(ledger_count, 2, "Écriture de dette + contre-écriture, aucune suppression");
+    assert_eq!(
+        ledger_count, 2,
+        "Écriture de dette + contre-écriture, aucune suppression"
+    );
 }
 
 #[tokio::test]
@@ -275,19 +300,29 @@ async fn test_reglement_creance_emballages_et_dashboard_separe() {
     // Avant conversion : dette commerciale (30 000 − 8 000 payé),
     // créance d'emballages 0, 5 pièces en attente (valeur indicative 18 000 NON exigible).
     // NB : seed_fixture ne crée pas de customer_receivable → dette commerciale 0 ici.
-    let dash0 = get_client_packaging_dashboard(&db, client_id).await.unwrap();
+    let dash0 = get_client_packaging_dashboard(&db, client_id)
+        .await
+        .unwrap();
     assert_eq!(dash0.commercial_debt, 0, "Pas de receivable dans ce fixture");
     assert_eq!(dash0.packaging_financial_debt, 0);
     assert_eq!(dash0.pending_pieces, 5);
     assert_eq!(dash0.pending_reference_value, 18_000);
-    assert_eq!(dash0.total_financial_due, 0, "La valeur indicative n'est pas exigible");
+    assert_eq!(
+        dash0.total_financial_due, 0,
+        "La valeur indicative n'est pas exigible"
+    );
 
     // Échéance → conversion 18 000.
     process_due_obligations(&db, Some("owner")).await.unwrap();
-    let dash1 = get_client_packaging_dashboard(&db, client_id).await.unwrap();
+    let dash1 = get_client_packaging_dashboard(&db, client_id)
+        .await
+        .unwrap();
     assert_eq!(dash1.packaging_financial_debt, 18_000);
     assert_eq!(dash1.total_financial_due, 18_000);
-    assert_eq!(dash1.pending_pieces, 0, "Quantité convertie : plus d'obligation physique");
+    assert_eq!(
+        dash1.pending_pieces, 0,
+        "Quantité convertie : plus d'obligation physique"
+    );
 
     // Règlement partiel de la créance d'emballages : 10 000.
     let pay = pay_packaging_financial_debt(
@@ -326,8 +361,13 @@ async fn test_reglement_creance_emballages_et_dashboard_separe() {
     assert_eq!(pay2.packaging_financial_balance, 8_000, "Idempotent");
 
     // Solde commercial INTACT : le règlement d'emballages ne touche pas la dette marchandise.
-    let dash2 = get_client_packaging_dashboard(&db, client_id).await.unwrap();
-    assert_eq!(dash2.commercial_debt, 0, "Dette commerciale inchangée (registres séparés)");
+    let dash2 = get_client_packaging_dashboard(&db, client_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        dash2.commercial_debt, 0,
+        "Dette commerciale inchangée (registres séparés)"
+    );
     assert_eq!(dash2.packaging_financial_debt, 8_000);
     assert_eq!(dash2.total_financial_due, 8_000);
 
@@ -346,7 +386,10 @@ async fn test_reglement_creance_emballages_et_dashboard_separe() {
         Some("owner"),
     )
     .await;
-    assert!(over.is_err(), "Le règlement ne doit pas dépasser la créance");
+    assert!(
+        over.is_err(),
+        "Le règlement ne doit pas dépasser la créance"
+    );
 
     let entries: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM customer_packaging_financial_ledger WHERE client_id = ?",

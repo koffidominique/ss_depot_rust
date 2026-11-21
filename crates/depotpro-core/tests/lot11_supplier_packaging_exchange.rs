@@ -246,21 +246,24 @@ async fn test7_reappro_fournisseur_echange_emballages_par_type_exact() {
     .fetch_one(&db.pool)
     .await
     .unwrap();
-    assert!(mov33 >= 1 && mov50 >= 1, "Mouvements d'échange tracés par type");
+    assert!(
+        mov33 >= 1 && mov50 >= 1,
+        "Mouvements d'échange tracés par type"
+    );
 
     // 4. AUCUNE dette financière d'emballages créée automatiquement (règle 9.4).
-    let ledger: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM customer_packaging_financial_ledger",
-    )
-    .fetch_one(&db.pool)
-    .await
-    .unwrap();
-    assert_eq!(ledger, 0, "Aucun compte de dette d'emballages automatique côté fournisseur");
-    let conversions: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM packaging_conversions")
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let ledger: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM customer_packaging_financial_ledger")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        ledger, 0,
+        "Aucun compte de dette d'emballages automatique côté fournisseur"
+    );
+    let conversions: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM packaging_conversions")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(conversions, 0);
 }
 
