@@ -173,7 +173,10 @@ async fn axum_lot9_http_json_and_error_code_parity() {
         Some(&pack_payload),
     )
     .await;
-    assert_eq!(st, 200, "un conditionnement pack de 6 doit être accepté : {pack_body}");
+    assert_eq!(
+        st, 200,
+        "un conditionnement pack de 6 doit être accepté : {pack_body}"
+    );
 
     let casier_payload = serde_json::json!({
         "id": pkg_id,
