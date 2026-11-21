@@ -14,7 +14,7 @@ use crate::infrastructure::db::DepotDb;
 use super::packaging::validate_packaging_prices;
 use super::{
     get_product_by_id, sanitize_image_path, CreateProductInput, PackagingInput, ProductSummaryDto,
-    ALLOWED_PACKAGING_NAMES,
+    ALLOWED_CONTAINER_TYPES, ALLOWED_PACKAGING_NAMES,
 };
 
 pub async fn create_product(
@@ -62,13 +62,35 @@ pub async fn create_product(
         .transpose()?;
     let image_path = sanitize_image_path(input.image_path.as_deref())?;
 
+    if let Some(volume_ml) = input.volume_ml {
+        if volume_ml <= 0 {
+            return Err(CoreError::Validation("Le volume du contenant doit être positif.".to_string()));
+        }
+    }
+    if input.volume_ml.is_some() != input.container_type.is_some() {
+        return Err(CoreError::Validation(
+            "Le volume et le type de contenant doivent être renseignés ensemble.".to_string(),
+        ));
+    }
+    if let Some(kind) = input.container_type.as_deref() {
+        if !ALLOWED_CONTAINER_TYPES.contains(&kind) {
+            return Err(CoreError::Validation("Type de contenant invalide.".to_string()));
+        }
+    }
+    if let Some(degree) = input.alcohol_degree {
+        if !degree.is_finite() || !(0.0..=100.0).contains(&degree) {
+            return Err(CoreError::Validation(
+                "Le degré d'alcool doit être compris entre 0 et 100 %.".to_string(),
+            ));
+        }
+    }
     let default_pkg_name = "casier".to_string();
     let packagings = match input.packagings {
         Some(list) if !list.is_empty() => list,
         _ => vec![PackagingInput {
             id: None,
             name: default_pkg_name,
-            coefficient: "1".to_string(),
+            coefficient: "24".to_string(),
             purchase_price,
             wholesale_price,
             semi_wholesale_price: semi_price,
@@ -133,6 +155,48 @@ pub async fn create_product(
         }
     }
 
+    let brand_label = if let Some(brand_id) = input.brand_id {
+        let brand = sqlx::query_as::<_, (String, Option<i64>)>(
+            "SELECT name, brewery_id FROM brands WHERE id = ? AND is_active = 1",
+        )
+        .bind(brand_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| CoreError::Validation("Marque introuvable ou inactive.".to_string()))?;
+        if input.brewery_id.is_some() && input.brewery_id != brand.1 {
+            return Err(CoreError::Validation(
+                "La marque sélectionnée n'appartient pas à la brasserie choisie.".to_string(),
+            ));
+        }
+        Some(brand.0)
+    } else {
+        if input.brewery_id.is_some() {
+            return Err(CoreError::Validation(
+                "Sélectionnez une marque pour cette brasserie.".to_string(),
+            ));
+        }
+        input.brand.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string)
+    };
+
+    if let Some(profile_id) = input.bottle_profile_id {
+        if sqlx::query_scalar::<_, i64>("SELECT id FROM bottle_profiles WHERE id = ?")
+            .bind(profile_id).fetch_optional(&mut *tx).await?.is_none() {
+            return Err(CoreError::Validation("Profil de bouteille introuvable.".to_string()));
+        }
+    }
+    if let Some(crate_id) = input.crate_type_id {
+        if sqlx::query_scalar::<_, i64>("SELECT id FROM crate_types WHERE id = ?")
+            .bind(crate_id).fetch_optional(&mut *tx).await?.is_none() {
+            return Err(CoreError::Validation("Type de casier introuvable.".to_string()));
+        }
+    }
+    if let Some(group_id) = input.compatibility_group_id {
+        if sqlx::query_scalar::<_, i64>("SELECT id FROM compatibility_groups WHERE id = ?")
+            .bind(group_id).fetch_optional(&mut *tx).await?.is_none() {
+            return Err(CoreError::Validation("Groupe de compatibilité introuvable.".to_string()));
+        }
+    }
+
     let clean_barcode = input
         .barcode
         .as_deref()
@@ -158,15 +222,16 @@ pub async fn create_product(
     let avg_den = purchase_price.map(|_| "1".to_string());
 
     let product_id = sqlx::query(
-        "INSERT INTO products (reference, barcode, name, brand, category_id, supplier_id, description, base_unit,
+        "INSERT INTO products (reference, barcode, name, brand, brand_id, category_id, supplier_id, description, base_unit,
                                stock_milli, min_stock_milli, max_stock_milli, average_cost_num, average_cost_den,
                                purchase_price, wholesale_price, semi_wholesale_price, retail_price, image_path)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&reference)
     .bind(clean_barcode)
     .bind(&name)
-    .bind(input.brand.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(brand_label.as_deref())
+    .bind(input.brand_id)
     .bind(input.category_id)
     .bind(input.supplier_id)
     .bind(input.description.as_deref().map(str::trim).filter(|s| !s.is_empty()))
@@ -184,6 +249,36 @@ pub async fn create_product(
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
+
+    // La fiche physique est enregistrée dans product_variants, puis liée au
+    // produit. Le stock de référence reste compté en bouteilles/canettes.
+    if input.volume_ml.is_some() && input.container_type.is_some() {
+        let variant_name = input.variant_name.as_deref()
+            .map(str::trim).filter(|s| !s.is_empty()).unwrap_or(&name);
+        let variant_id = sqlx::query(
+            "INSERT INTO product_variants
+                (product_id, name, volume_ml, container_type, alcohol_degree,
+                 bottle_profile_id, crate_type_id, compatibility_group_id, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+        )
+        .bind(product_id)
+        .bind(variant_name)
+        .bind(input.volume_ml)
+        .bind(input.container_type.as_deref())
+        .bind(input.alcohol_degree)
+        .bind(input.bottle_profile_id)
+        .bind(input.crate_type_id)
+        .bind(input.compatibility_group_id)
+        .execute(&mut *tx)
+        .await?
+        .last_insert_rowid();
+
+        sqlx::query("UPDATE products SET variant_id = ? WHERE id = ?")
+            .bind(variant_id)
+            .bind(product_id)
+            .execute(&mut *tx)
+            .await?;
+    }
 
     if initial_stock.milli_units > 0 {
         sqlx::query(
