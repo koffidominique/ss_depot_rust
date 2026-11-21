@@ -8,7 +8,7 @@ use crate::infrastructure::db::DepotDb;
 
 use super::helpers::check_duplicate;
 use super::{
-    CreateCrateTypeInput, CrateTypeDto, PaginatedQuery, PaginatedResponse, UpdateCrateTypeInput,
+    CrateTypeDto, CreateCrateTypeInput, PaginatedQuery, PaginatedResponse, UpdateCrateTypeInput,
 };
 
 pub async fn list_crate_type(

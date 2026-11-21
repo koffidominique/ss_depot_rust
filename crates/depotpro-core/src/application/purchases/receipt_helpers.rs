@@ -24,7 +24,7 @@ pub(crate) async fn exchange_supplier_packaging_tx(
     .await?;
 
     for (returnable_id, pieces_per_pack) in &packaging_components {
-        let total_pieces_to_exchange = (*qty_milli as i128 * *pieces_per_pack as i128) / 1000;
+        let total_pieces_to_exchange = (qty_milli as i128 * *pieces_per_pack as i128) / 1000;
         if total_pieces_to_exchange > 0 {
             let pieces_to_exchange = i64::try_from(total_pieces_to_exchange).map_err(|_| {
                 CoreError::Validation("Débordement quantité échange fournisseur".to_string())

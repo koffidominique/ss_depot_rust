@@ -9,8 +9,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 
 use super::{
-    AdjustReturnableStockInput, CreateReturnableTypeInput, ReturnableMovementDto,
-    ReturnableTypeDto,
+    AdjustReturnableStockInput, CreateReturnableTypeInput, ReturnableMovementDto, ReturnableTypeDto,
 };
 
 pub async fn create_returnable_type(

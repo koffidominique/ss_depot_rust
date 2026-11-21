@@ -5,11 +5,11 @@
 use crate::application::reports::AppSettingsDto;
 
 use super::encoding_and_layout::{format_fcfa_ascii, wrap_text};
+use super::header_section::draw_header_and_party;
 use super::primitives::{
     assemble_pdf_bytes, draw_line, draw_table_header, draw_text, draw_text_right, start_page,
     MARGIN, PAGE_H, RIGHT,
 };
-use super::header_section::draw_header_and_party;
 use super::summary_section::draw_summary_section;
 use super::{DocumentPdfInput, DocumentPdfLine};
 

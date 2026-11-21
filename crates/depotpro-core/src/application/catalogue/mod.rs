@@ -52,7 +52,6 @@ pub use dtos::{
     PackagingMaterialDto, PackagingValueDto, PaginatedQuery, PaginatedResponse, PriceHistoryDto,
     ProductVariantDto, SupplierProductPriceDto, UnitOfMeasureDto,
 };
-pub(crate) use helpers::deserialize_opt_bool_or_int;
 pub use inputs_catalog::{
     CreateBottleProfileInput, CreateBrandInput, CreateCompatibilityGroupInput,
     CreateContainerTypeInput, CreateCrateTypeInput, CreateDisposablePackagingTypeInput,

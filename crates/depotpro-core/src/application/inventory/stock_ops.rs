@@ -9,8 +9,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 
 use super::{
-    AdjustStockInput, StockMovementDto, StockOverviewDto, StockProductDto,
-    StockProductEnrichedDto,
+    AdjustStockInput, StockMovementDto, StockOverviewDto, StockProductDto, StockProductEnrichedDto,
 };
 
 pub async fn get_stock_overview(db: &DepotDb) -> CoreResult<StockOverviewDto> {

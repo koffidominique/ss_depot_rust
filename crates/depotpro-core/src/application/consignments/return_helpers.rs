@@ -38,12 +38,11 @@ pub(crate) async fn apply_return_credit_reduction_tx(
     if credit_reduction.value() <= 0 {
         return Ok(());
     }
-    let rec: Option<(i64, i64)> = sqlx::query_as(
-        "SELECT id, remaining_amount FROM customer_receivables WHERE sale_id = ?",
-    )
-    .bind(sale_id)
-    .fetch_optional(&mut **tx)
-    .await?;
+    let rec: Option<(i64, i64)> =
+        sqlx::query_as("SELECT id, remaining_amount FROM customer_receivables WHERE sale_id = ?")
+            .bind(sale_id)
+            .fetch_optional(&mut **tx)
+            .await?;
     let (rec_id, rem) = rec.ok_or_else(|| {
         CoreError::InvalidPayment("Aucune créance associée à cette vente.".to_string())
     })?;

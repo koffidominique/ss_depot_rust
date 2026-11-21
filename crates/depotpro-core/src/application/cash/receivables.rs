@@ -94,8 +94,8 @@ pub async fn pay_receivable(
                 .bind(&p.method_code)
                 .fetch_optional(&mut *tx)
                 .await?;
-        let (code, active) = pm
-            .ok_or_else(|| CoreError::InvalidPayment("Moyen de paiement invalide.".to_string()))?;
+        let (code, active) =
+            pm.ok_or_else(|| CoreError::InvalidPayment("Moyen de paiement invalide.".to_string()))?;
         if active == 0 {
             return Err(CoreError::InvalidPayment(
                 "Moyen de paiement inactif.".to_string(),

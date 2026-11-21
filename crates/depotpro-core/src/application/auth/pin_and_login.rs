@@ -7,9 +7,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 use serde::Serialize;
 
-use super::{
-    require_current_actor_permission, Permission, SessionIdentity, PIN_MAX_ATTEMPTS,
-};
+use super::{require_current_actor_permission, Permission, SessionIdentity, PIN_MAX_ATTEMPTS};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
