@@ -78,8 +78,14 @@ pub(crate) fn core_and_commerce_router() -> Router<AppState> {
             "/api/purchases",
             get(purchases::list_purchases).post(purchases::create_purchase),
         )
-        .route("/api/purchases/:id/receive", post(purchases::receive_purchase))
-        .route("/api/purchases/:id/cancel", post(purchases::cancel_purchase))
+        .route(
+            "/api/purchases/:id/receive",
+            post(purchases::receive_purchase),
+        )
+        .route(
+            "/api/purchases/:id/cancel",
+            post(purchases::cancel_purchase),
+        )
         .route("/api/supplier-debts", get(purchases::list_supplier_debts))
         .route(
             "/api/supplier-debts/:id/pay",
@@ -101,7 +107,10 @@ pub(crate) fn core_and_commerce_router() -> Router<AppState> {
 pub(crate) fn packaging_and_system_router() -> Router<AppState> {
     Router::new()
         // Consignations & obligations financières
-        .route("/api/consignments", get(consignments::consignments_overview))
+        .route(
+            "/api/consignments",
+            get(consignments::consignments_overview),
+        )
         .route(
             "/api/consignments/types",
             post(consignments::create_returnable_type),

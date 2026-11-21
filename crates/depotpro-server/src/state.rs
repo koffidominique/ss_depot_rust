@@ -59,9 +59,7 @@ pub(crate) fn map_err(err: CoreError) -> (StatusCode, Json<serde_json::Value>) {
         CoreError::RateLimited(_) => (StatusCode::TOO_MANY_REQUESTS, "RATE_LIMITED"),
         CoreError::Validation(_) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR"),
         CoreError::InsufficientStock(_) => (StatusCode::BAD_REQUEST, "INSUFFICIENT_STOCK"),
-        CoreError::CreditPolicyViolation(_) => {
-            (StatusCode::BAD_REQUEST, "CREDIT_POLICY_VIOLATION")
-        }
+        CoreError::CreditPolicyViolation(_) => (StatusCode::BAD_REQUEST, "CREDIT_POLICY_VIOLATION"),
         CoreError::SessionNotOpen(_) => (StatusCode::BAD_REQUEST, "SESSION_NOT_OPEN"),
         CoreError::SessionAlreadyOpen(_) => (StatusCode::BAD_REQUEST, "SESSION_ALREADY_OPEN"),
         CoreError::HistoricalImmutable(_) => (StatusCode::BAD_REQUEST, "HISTORICAL_IMMUTABLE"),

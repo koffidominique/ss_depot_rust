@@ -74,8 +74,7 @@ pub(crate) fn catalogue_router() -> Router<AppState> {
         )
         .route(
             "/api/container-types",
-            get(catalogue_units::list_container_types)
-                .post(catalogue_units::create_container_type),
+            get(catalogue_units::list_container_types).post(catalogue_units::create_container_type),
         )
         .route(
             "/api/container-types/:id",
