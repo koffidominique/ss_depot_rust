@@ -50,10 +50,9 @@ pub(crate) async fn resolve_preview_lines_tx(
             CoreError::NotFound(format!("Variante #{} introuvable.", item.variant_id))
         })?;
 
-        let compat = v
-            .compatibility_class
-            .clone()
-            .unwrap_or_else(|| compute_compatibility_class(v.container_type.as_deref(), v.volume_ml));
+        let compat = v.compatibility_class.clone().unwrap_or_else(|| {
+            compute_compatibility_class(v.container_type.as_deref(), v.volume_ml)
+        });
         let native_cap = v
             .native_crate_capacity
             .or_else(|| compute_native_crate_capacity(v.container_type.as_deref(), v.volume_ml));
@@ -62,8 +61,7 @@ pub(crate) async fn resolve_preview_lines_tx(
         }
 
         let unit_norm = item.requested_unit.trim().to_lowercase();
-        let factor =
-            resolve_unit_factor_tx(tx, v.product_id, v.id, &unit_norm, native_cap).await?;
+        let factor = resolve_unit_factor_tx(tx, v.product_id, v.id, &unit_norm, native_cap).await?;
         let base_quantity = item.requested_quantity * factor;
         let unit_price_xof = match item.unit_price_xof {
             Some(p) if p >= 0 => p,
@@ -192,7 +190,9 @@ pub(crate) async fn load_assets_by_class_tx(
     .await?;
     let mut map: HashMap<String, Vec<PackagingAssetDto>> = HashMap::new();
     for r in rows {
-        map.entry(r.compatibility_class.clone()).or_default().push(r);
+        map.entry(r.compatibility_class.clone())
+            .or_default()
+            .push(r);
     }
     Ok(map)
 }

@@ -110,7 +110,9 @@ async fn apply_customer_empty_return_tx(
     .fetch_optional(&mut **tx)
     .await?;
     let (held_qty, held_amt, unit_dep) = held_row.ok_or_else(|| {
-        CoreError::Validation("Aucun solde consigné détenu par ce client pour cet emballage.".into())
+        CoreError::Validation(
+            "Aucun solde consigné détenu par ce client pour cet emballage.".into(),
+        )
     })?;
     if quantity > held_qty {
         return Err(CoreError::Validation(format!(
@@ -166,12 +168,12 @@ pub async fn return_order_packaging(
     let row: Option<(i64, String)> =
         sqlx::query_as("SELECT customer_id, status FROM orders WHERE id = ?")
             .bind(order_id)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?;
     let (customer_id, status) =
         row.ok_or_else(|| CoreError::NotFound("Commande introuvable.".into()))?;
     if !matches!(status.as_str(), "delivered" | "invoiced" | "paid") {
-        return Err(CoreError::InvalidState(
+        return Err(CoreError::Validation(
             "Seule une commande livrée peut enregistrer un retour d'emballage.".into(),
         ));
     }
@@ -182,7 +184,7 @@ pub async fn return_order_packaging(
     )
     .bind(order_id)
     .bind(input.packaging_asset_id)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(&mut *tx)
     .await?;
     let (alloc_id, alloc_qty, ret_qty) = alloc_row.ok_or_else(|| {
         CoreError::NotFound("Allocation d'emballage introuvable sur cette commande.".into())
@@ -209,7 +211,7 @@ pub async fn return_order_packaging(
     )
     .bind(input.quantity)
     .bind(alloc_id)
-    .execute(&mut **tx)
+    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;

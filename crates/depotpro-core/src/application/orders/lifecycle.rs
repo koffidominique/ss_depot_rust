@@ -19,12 +19,12 @@ pub async fn confirm_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
          FROM orders WHERE id = ?",
     )
     .bind(id)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(&mut *tx)
     .await?;
     let (order_number, status, customer_id, payment_method, total_collect) =
         row.ok_or_else(|| CoreError::NotFound("Commande introuvable.".into()))?;
     if status != "draft" {
-        return Err(CoreError::InvalidState(format!(
+        return Err(CoreError::Validation(format!(
             "Impossible de confirmer une commande au statut {status}."
         )));
     }
@@ -34,11 +34,11 @@ pub async fn confirm_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
             "SELECT policy, credit_limit FROM client_credit_settings WHERE client_id = ?",
         )
         .bind(customer_id)
-        .fetch_optional(&mut **tx)
+        .fetch_optional(&mut *tx)
         .await?;
         let (policy, limit) = credit_row.unwrap_or_else(|| ("forbidden".to_string(), None));
         if policy == "forbidden" {
-            return Err(CoreError::CreditLimit(
+            return Err(CoreError::CreditPolicyViolation(
                 "Ce client n'est pas autorisé à commander à crédit.".to_string(),
             ));
         }
@@ -49,10 +49,10 @@ pub async fn confirm_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
                  WHERE client_id = ? AND status IN ('open', 'partial')",
             )
             .bind(customer_id)
-            .fetch_one(&mut **tx)
+            .fetch_one(&mut *tx)
             .await?;
             if used + total_collect > max_credit {
-                return Err(CoreError::CreditLimit(format!(
+                return Err(CoreError::CreditPolicyViolation(format!(
                     "Plafond crédit dépassé ({} + {} > {} FCFA).",
                     used, total_collect, max_credit
                 )));
@@ -64,12 +64,12 @@ pub async fn confirm_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
         "SELECT id, product_id, variant_id, base_quantity FROM order_lines WHERE order_id = ?",
     )
     .bind(id)
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *tx)
     .await?;
 
     let allow_neg: i64 =
         sqlx::query_scalar("SELECT allow_negative_stock FROM app_settings WHERE id = 1")
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?
             .unwrap_or(0);
 
@@ -78,7 +78,7 @@ pub async fn confirm_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
             "SELECT stock_milli, name, default_location_id FROM products WHERE id = ?",
         )
         .bind(product_id)
-        .fetch_one(&mut **tx)
+        .fetch_one(&mut *tx)
         .await?;
         let qty_milli = base_qty * 1000;
         let next_milli = stock_milli - qty_milli;
@@ -91,7 +91,7 @@ pub async fn confirm_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
         sqlx::query("UPDATE products SET stock_milli = ? WHERE id = ?")
             .bind(next_milli)
             .bind(product_id)
-            .execute(&mut **tx)
+            .execute(&mut *tx)
             .await?;
         sync_stock_balance_tx(&mut tx, product_id, next_milli).await?;
         sqlx::query(
@@ -110,14 +110,16 @@ pub async fn confirm_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
         .bind(variant_id)
         .bind(id)
         .bind(line_id)
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await?;
     }
 
-    sqlx::query("UPDATE orders SET status = 'confirmed', updated_at = datetime('now') WHERE id = ?")
-        .bind(id)
-        .execute(&mut **tx)
-        .await?;
+    sqlx::query(
+        "UPDATE orders SET status = 'confirmed', updated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
     audit_log_tx(
         &mut tx,
         "confirm_order",
@@ -136,12 +138,12 @@ pub async fn deliver_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
     let row: Option<(String, String, i64)> =
         sqlx::query_as("SELECT order_number, status, customer_id FROM orders WHERE id = ?")
             .bind(id)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?;
     let (order_number, status, customer_id) =
         row.ok_or_else(|| CoreError::NotFound("Commande introuvable.".into()))?;
     if !matches!(status.as_str(), "confirmed" | "preparing") {
-        return Err(CoreError::InvalidState(
+        return Err(CoreError::Validation(
             "La commande doit être confirmée avant livraison.".to_string(),
         ));
     }
@@ -151,7 +153,7 @@ pub async fn deliver_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
          FROM order_packaging_allocations WHERE order_id = ?",
     )
     .bind(id)
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *tx)
     .await?;
 
     for (alloc_id, asset_id, qty, is_consigned, unit_dep) in allocs {
@@ -170,7 +172,7 @@ pub async fn deliver_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
         .bind(unit_dep)
         .bind(total_dep)
         .bind(format!("Livraison commande {order_number}"))
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query(
@@ -178,7 +180,7 @@ pub async fn deliver_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
         )
         .bind(qty)
         .bind(asset_id)
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await?;
 
         if is_consigned == 1 {
@@ -196,7 +198,7 @@ pub async fn deliver_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
             .bind(asset_id)
             .bind(qty)
             .bind(total_dep)
-            .execute(&mut **tx)
+            .execute(&mut *tx)
             .await?;
         }
     }
@@ -207,7 +209,7 @@ pub async fn deliver_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
          updated_at = datetime('now') WHERE id = ?",
     )
     .bind(id)
-    .execute(&mut **tx)
+    .execute(&mut *tx)
     .await?;
     audit_log_tx(
         &mut tx,

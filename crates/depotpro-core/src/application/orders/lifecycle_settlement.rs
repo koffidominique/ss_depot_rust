@@ -15,17 +15,17 @@ pub async fn invoice_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
     let (_guard, mut tx) = db.begin_write().await?;
     let status: Option<String> = sqlx::query_scalar("SELECT status FROM orders WHERE id = ?")
         .bind(id)
-        .fetch_optional(&mut **tx)
+        .fetch_optional(&mut *tx)
         .await?;
     let status = status.ok_or_else(|| CoreError::NotFound("Commande introuvable.".into()))?;
     if !matches!(status.as_str(), "confirmed" | "delivered") {
-        return Err(CoreError::InvalidState(
+        return Err(CoreError::Validation(
             "La commande doit être confirmée ou livrée pour être facturée.".into(),
         ));
     }
     sqlx::query("UPDATE orders SET status = 'invoiced', updated_at = datetime('now') WHERE id = ?")
         .bind(id)
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await?;
     tx.commit().await?;
     get_order(db, id).await
@@ -40,7 +40,7 @@ pub async fn pay_order(db: &DepotDb, id: i64, input: PayOrderInput) -> CoreResul
     let row: Option<(i64, i64)> =
         sqlx::query_as("SELECT paid_xof, total_to_collect_xof FROM orders WHERE id = ?")
             .bind(id)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?;
     let (paid, total) = row.ok_or_else(|| CoreError::NotFound("Commande introuvable.".into()))?;
     let next_paid = paid + input.amount_xof;
@@ -66,7 +66,7 @@ pub async fn pay_order(db: &DepotDb, id: i64, input: PayOrderInput) -> CoreResul
     .bind(&method)
     .bind(pay_status)
     .bind(id)
-    .execute(&mut **tx)
+    .execute(&mut *tx)
     .await?;
     tx.commit().await?;
     get_order(db, id).await
@@ -78,15 +78,15 @@ pub async fn cancel_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> {
     let row: Option<(String, String)> =
         sqlx::query_as("SELECT order_number, status FROM orders WHERE id = ?")
             .bind(id)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?;
     let (order_number, status) =
         row.ok_or_else(|| CoreError::NotFound("Commande introuvable.".into()))?;
     if status == "cancelled" {
-        return Err(CoreError::InvalidState("Commande déjà annulée.".into()));
+        return Err(CoreError::Validation("Commande déjà annulée.".into()));
     }
     if matches!(status.as_str(), "delivered" | "invoiced" | "paid") {
-        return Err(CoreError::InvalidState(
+        return Err(CoreError::Validation(
             "Impossible d'annuler une commande déjà livrée ou payée.".into(),
         ));
     }
@@ -95,20 +95,21 @@ pub async fn cancel_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> {
             "SELECT id, product_id, variant_id, base_quantity FROM order_lines WHERE order_id = ?",
         )
         .bind(id)
-        .fetch_all(&mut **tx)
+        .fetch_all(&mut *tx)
         .await?;
         for (line_id, product_id, variant_id, base_qty) in lines {
-            let (stock_milli, loc_id): (i64, Option<i64>) =
-                sqlx::query_as("SELECT stock_milli, default_location_id FROM products WHERE id = ?")
-                    .bind(product_id)
-                    .fetch_one(&mut **tx)
-                    .await?;
+            let (stock_milli, loc_id): (i64, Option<i64>) = sqlx::query_as(
+                "SELECT stock_milli, default_location_id FROM products WHERE id = ?",
+            )
+            .bind(product_id)
+            .fetch_one(&mut *tx)
+            .await?;
             let qty_milli = base_qty * 1000;
             let next_milli = stock_milli + qty_milli;
             sqlx::query("UPDATE products SET stock_milli = ? WHERE id = ?")
                 .bind(next_milli)
                 .bind(product_id)
-                .execute(&mut **tx)
+                .execute(&mut *tx)
                 .await?;
             sync_stock_balance_tx(&mut tx, product_id, next_milli).await?;
             sqlx::query(
@@ -128,13 +129,13 @@ pub async fn cancel_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> {
             .bind(variant_id)
             .bind(id)
             .bind(line_id)
-            .execute(&mut **tx)
+            .execute(&mut *tx)
             .await?;
         }
     }
     sqlx::query("UPDATE orders SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?")
         .bind(id)
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await?;
     tx.commit().await?;
     get_order(db, id).await

@@ -27,7 +27,7 @@ pub async fn create_order(db: &DepotDb, input: CreateOrderInput) -> CoreResult<O
     let client_ok: Option<i64> =
         sqlx::query_scalar("SELECT id FROM clients WHERE id = ? AND is_active = 1")
             .bind(input.customer_id)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(&mut *tx)
             .await?;
     if client_ok.is_none() {
         return Err(CoreError::NotFound("Client introuvable ou inactif.".into()));
@@ -37,8 +37,7 @@ pub async fn create_order(db: &DepotDb, input: CreateOrderInput) -> CoreResult<O
     check_min_selling_prices_tx(&mut tx, &lines, input.allow_price_override.unwrap_or(false))
         .await?;
     let allocations =
-        resolve_allocations_tx(&mut tx, &lines, &native_caps, input.allocations.as_deref())
-            .await?;
+        resolve_allocations_tx(&mut tx, &lines, &native_caps, input.allocations.as_deref()).await?;
     let totals = compute_order_totals(
         &lines,
         &allocations,
@@ -75,7 +74,7 @@ pub async fn create_order(db: &DepotDb, input: CreateOrderInput) -> CoreResult<O
     .bind(input.delivery_address.as_deref())
     .bind(input.notes.as_deref())
     .bind(actor_id)
-    .execute(&mut **tx)
+    .execute(&mut *tx)
     .await?
     .last_insert_rowid();
 
@@ -114,11 +113,11 @@ pub async fn update_order(
     let (_guard, mut tx) = db.begin_write().await?;
     let status: Option<String> = sqlx::query_scalar("SELECT status FROM orders WHERE id = ?")
         .bind(id)
-        .fetch_optional(&mut **tx)
+        .fetch_optional(&mut *tx)
         .await?;
     let status = status.ok_or_else(|| CoreError::NotFound("Commande introuvable.".into()))?;
     if status != "draft" {
-        return Err(CoreError::InvalidState(
+        return Err(CoreError::Validation(
             "Seule une commande en brouillon (draft) peut être modifiée.".to_string(),
         ));
     }
@@ -130,11 +129,11 @@ pub async fn update_order(
         }
         sqlx::query("DELETE FROM order_lines WHERE order_id = ?")
             .bind(id)
-            .execute(&mut **tx)
+            .execute(&mut *tx)
             .await?;
         sqlx::query("DELETE FROM order_packaging_allocations WHERE order_id = ?")
             .bind(id)
-            .execute(&mut **tx)
+            .execute(&mut *tx)
             .await?;
         let (lines, native_caps) = resolve_preview_lines_tx(&mut tx, raw_lines).await?;
         check_min_selling_prices_tx(&mut tx, &lines, input.allow_price_override.unwrap_or(false))
@@ -170,14 +169,14 @@ pub async fn update_order(
         .bind(totals.deposit_due_xof)
         .bind(totals.total_to_collect_xof)
         .bind(id)
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await?;
     }
     if let Some(cid) = input.customer_id {
         sqlx::query("UPDATE orders SET customer_id = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(cid)
             .bind(id)
-            .execute(&mut **tx)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(pm) = input.payment_method {
@@ -186,7 +185,7 @@ pub async fn update_order(
         )
         .bind(pm)
         .bind(id)
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await?;
     }
     tx.commit().await?;

@@ -147,7 +147,11 @@ pub fn compose_order_allocations(
 
         if total_qty > 0 {
             let is_consigned = chosen.returnable == 1;
-            let unit_dep = if is_consigned { chosen.deposit_value } else { 0 };
+            let unit_dep = if is_consigned {
+                chosen.deposit_value
+            } else {
+                0
+            };
             allocations.push(PreviewAllocationDto {
                 packaging_asset_id: chosen.id,
                 packaging_name: chosen.name.clone(),
