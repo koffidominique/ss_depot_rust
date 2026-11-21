@@ -289,7 +289,7 @@ async fn lot4_interrupted_migration_rolls_back_and_partial_migration_recovers() 
     let report = DepotDb::apply_migrations(&pool_p).await.unwrap();
     assert_eq!(
         report.applied_versions,
-        vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+        vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
     );
     assert_eq!(report.skipped_legacy_columns_for, vec![2]);
     pool_p.close().await;
