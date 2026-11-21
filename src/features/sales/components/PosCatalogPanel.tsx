@@ -2,7 +2,7 @@ import type { RefObject } from 'react';
 import { Package, Plus } from 'lucide-react';
 import { SearchInput } from '../../../components/forms/SearchInput.tsx';
 import { formatFcfa, formatQty } from '../../../utils/format.ts';
-import type { PriceTier, Product, ProductPackaging } from '../../../types/erp.ts';
+import type { Product, ProductPackaging } from '../../../types/erp.ts';
 import { getTierPrice } from '../hooks/usePosData.ts';
 
 interface PosCatalogPanelProps {
@@ -10,8 +10,6 @@ interface PosCatalogPanelProps {
   search: string;
   onSearchChange: (value: string) => void;
   onScanEnter: (rawCode: string) => Promise<void>;
-  posPriceTier: PriceTier;
-  onPriceTierChange: (tier: PriceTier) => void;
   products: Product[];
   onAddPackaging: (product: Product, pkg: ProductPackaging) => void;
 }
@@ -21,8 +19,6 @@ export function PosCatalogPanel({
   search,
   onSearchChange,
   onScanEnter,
-  posPriceTier,
-  onPriceTierChange,
   products,
   onAddPackaging,
 }: PosCatalogPanelProps) {
@@ -44,27 +40,8 @@ export function PosCatalogPanel({
           className="flex-1 min-w-[220px]"
           inputClassName="py-2.5"
         />
-        <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] p-1">
-          {(
-            [
-              ['retail', 'Détail'],
-              ['semi_wholesale', 'Demi-gros'],
-              ['wholesale', 'Gros'],
-            ] as const
-          ).map(([tier, label]) => (
-            <button
-              key={tier}
-              type="button"
-              onClick={() => onPriceTierChange(tier)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
-                posPriceTier === tier
-                  ? 'bg-[#2563EB] text-white'
-                  : 'text-[#667085] dark:text-slate-300 hover:text-[#182230]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111A2E] px-3 py-1.5 text-xs font-medium text-[#2563EB]">
+          Tarif Détail · Casier uniquement
         </div>
       </div>
 
@@ -114,7 +91,7 @@ export function PosCatalogPanel({
 
             <div className="mt-3 flex flex-wrap gap-2">
               {prod.packagings
-                .filter((pk) => pk.is_active)
+                .filter((pk) => pk.is_active && pk.name === 'casier')
                 .map((pk) => (
                   <button
                     key={pk.id}
@@ -125,7 +102,7 @@ export function PosCatalogPanel({
                     <Plus className="h-3 w-3" />
                     <span className="capitalize">{pk.name}</span>
                     <span className="font-mono-num text-[#667085] dark:text-slate-400">
-                      {formatFcfa(getTierPrice(pk, posPriceTier))}
+                      {formatFcfa(getTierPrice(pk))}
                     </span>
                   </button>
                 ))}

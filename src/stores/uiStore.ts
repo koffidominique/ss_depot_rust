@@ -237,7 +237,7 @@ export const useUiStore = create<UiState>((set, get) => ({
       heldCarts: remaining,
       posCart: target.items,
       posClientId: target.clientId,
-      posPriceTier: target.priceTier,
+      posPriceTier: 'retail',
       posSaleType: target.saleType,
     });
     return target;
@@ -251,6 +251,6 @@ export const useUiStore = create<UiState>((set, get) => ({
     }),
 
   setPosClientId: (posClientId) => set({ posClientId }),
-  setPosPriceTier: (posPriceTier) => set({ posPriceTier }),
+  setPosPriceTier: () => set({ posPriceTier: 'retail' }),
   setPosSaleType: (posSaleType) => set({ posSaleType }),
 }));

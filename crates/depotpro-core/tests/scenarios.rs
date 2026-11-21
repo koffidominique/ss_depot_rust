@@ -29,7 +29,7 @@ async fn rust_core_scenarios_a_through_l() {
         .unwrap();
     assert!(auth::verify_owner_pin(&db, "654321").await.is_ok());
 
-    // Scénario A — Catégorie + Produit + Conditionnements exacts (bouteille=1, pack=6, casier=24)
+    // Scénario A — Catégorie + Produit + Conditionnement casier uniquement (casier=24)
     let cat = products::create_category(&db, "Bières Test", None)
         .await
         .unwrap();
@@ -66,65 +66,53 @@ async fn rust_core_scenarios_a_through_l() {
             semi_wholesale_price: Some(600),
             retail_price: Some(650),
             image_path: Some("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==".to_string()),
-            packagings: Some(vec![
-                products::PackagingInput {
-                    id: None,
-                    name: "bouteille".to_string(),
-                    coefficient: "1".to_string(),
-                    purchase_price: Some(450),
-                    wholesale_price: Some(550),
-                    semi_wholesale_price: Some(600),
-                    retail_price: Some(650),
-                    barcode: None,
-                    allow_fraction: Some(false),
-                    is_active: Some(true),
-                    deposit_mode: Some("none".to_string()),
-                    components: None,
-                },
-                products::PackagingInput {
-                    id: None,
-                    name: "pack".to_string(),
-                    coefficient: "6".to_string(),
-                    purchase_price: Some(2700),
-                    wholesale_price: Some(3300),
-                    semi_wholesale_price: Some(3600),
-                    retail_price: Some(3900),
-                    barcode: None,
-                    allow_fraction: Some(false),
-                    is_active: Some(true),
-                    deposit_mode: Some("none".to_string()),
-                    components: None,
-                },
-                products::PackagingInput {
-                    id: None,
-                    name: "casier".to_string(),
-                    coefficient: "24".to_string(),
-                    purchase_price: Some(10800),
-                    wholesale_price: Some(13200),
-                    semi_wholesale_price: Some(14400),
-                    retail_price: Some(15600),
-                    barcode: None,
-                    allow_fraction: Some(false),
-                    is_active: Some(true),
-                    deposit_mode: Some("deposit".to_string()),
-                    components: Some(vec![products::DepositComponentInput {
-                        returnable_id: crate_type.id,
-                        pieces_per_pack: 1,
-                    }]),
-                },
-            ]),
+            packagings: Some(vec![products::PackagingInput {
+                id: None,
+                name: "casier".to_string(),
+                coefficient: "24".to_string(),
+                purchase_price: Some(10800),
+                wholesale_price: Some(13200),
+                semi_wholesale_price: Some(14400),
+                retail_price: Some(15600),
+                barcode: None,
+                allow_fraction: Some(false),
+                is_active: Some(true),
+                deposit_mode: Some("deposit".to_string()),
+                components: Some(vec![products::DepositComponentInput {
+                    returnable_id: crate_type.id,
+                    pieces_per_pack: 1,
+                }]),
+            }]),
         },
     )
     .await
     .unwrap();
 
-    let pkg_btl = prod
-        .packagings
-        .iter()
-        .find(|p| p.name == "bouteille")
-        .unwrap();
+    // Seul le conditionnement "casier" est autorisé (bouteille, pack, carton rejetés)
+    for forbidden_pkg in ["bouteille", "canette", "pack", "carton"] {
+        assert!(products::upsert_packaging(
+            &db,
+            prod.id,
+            products::PackagingInput {
+                id: None,
+                name: forbidden_pkg.to_string(),
+                coefficient: "1".to_string(),
+                purchase_price: None,
+                wholesale_price: None,
+                semi_wholesale_price: None,
+                retail_price: Some(500),
+                barcode: None,
+                allow_fraction: Some(false),
+                is_active: Some(true),
+                deposit_mode: Some("none".to_string()),
+                components: None,
+            },
+        )
+        .await
+        .is_err());
+    }
+
     let pkg_casier = prod.packagings.iter().find(|p| p.name == "casier").unwrap();
-    assert_eq!(pkg_btl.coefficient_milli, 1_000);
     assert_eq!(pkg_casier.coefficient_milli, 24_000);
     assert_eq!(
         Quantity::parse_str("10", "cmd")
@@ -199,7 +187,7 @@ async fn rust_core_scenarios_a_through_l() {
         .unwrap();
     assert_eq!(stock_after_rec, 240_000);
 
-    // Scénario C — Ouverture session caisse puis vente 1 casier + 3 bouteilles (-27 bouteilles)
+    // Scénario C — Ouverture session caisse puis vente 1 casier (-24 bouteilles)
     let session = cash::open_cash_session(
         &db,
         cash::OpenCashInput {
@@ -237,23 +225,15 @@ async fn rust_core_scenarios_a_through_l() {
             price_tier: "retail".to_string(),
             discount_amount: Some(0),
             notes: None,
-            lines: vec![
-                sales::CreateSaleLineInput {
-                    product_id: prod.id,
-                    packaging_id: pkg_casier.id,
-                    quantity: "1".to_string(),
-                    discount_amount: Some(0),
-                },
-                sales::CreateSaleLineInput {
-                    product_id: prod.id,
-                    packaging_id: pkg_btl.id,
-                    quantity: "3".to_string(),
-                    discount_amount: Some(0),
-                },
-            ],
+            lines: vec![sales::CreateSaleLineInput {
+                product_id: prod.id,
+                packaging_id: pkg_casier.id,
+                quantity: "1".to_string(),
+                discount_amount: Some(0),
+            }],
             payments: vec![sales::PaymentPartInput {
                 method_code: "cash".to_string(),
-                amount: 15_600 + 2_500 + 3 * 650,
+                amount: 15_600 + 2_500,
             }],
             due_date: None,
         },
@@ -266,7 +246,7 @@ async fn rust_core_scenarios_a_through_l() {
         .fetch_one(&db.pool)
         .await
         .unwrap();
-    assert_eq!(stock_after_c, 213_000); // 240 - 27
+    assert_eq!(stock_after_c, 216_000); // 240 - 24
 
     // Scénario K — Retour emballage consigné (bon état + endommagé -> solde client soldé)
     let ov = consignments::get_overview(&db).await.unwrap();

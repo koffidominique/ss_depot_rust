@@ -105,7 +105,7 @@ async fn lot2_pos_parity_credit_limits_cash_diff_and_consignments() {
             image_path: None,
             packagings: Some(vec![products::PackagingInput {
                 id: None,
-                name: "bouteille".to_string(),
+                name: "casier".to_string(),
                 coefficient: "1".to_string(),
                 purchase_price: Some(400),
                 wholesale_price: Some(450),
@@ -143,7 +143,7 @@ async fn lot2_pos_parity_credit_limits_cash_diff_and_consignments() {
             image_path: None,
             packagings: Some(vec![products::PackagingInput {
                 id: None,
-                name: "bouteille".to_string(),
+                name: "casier".to_string(),
                 coefficient: "1".to_string(),
                 purchase_price: Some(80),
                 wholesale_price: Some(90),

@@ -937,7 +937,8 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
     let mut total_deposit = Money::ZERO;
 
     type SaleProductRow = (i64, String, String, Option<String>, Option<String>, i64);
-    type SalePackagingRow = (i64, String, i64, Option<i64>, Option<i64>, Option<i64>, i64);
+    type SalePackagingRow = (i64, String, i64, Option<i64>, i64);
+    let effective_price_tier = "retail";
 
     for line in &input.lines {
         let prod: Option<SaleProductRow> = sqlx::query_as(
@@ -955,17 +956,21 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         }
 
         let pkg: Option<SalePackagingRow> = sqlx::query_as(
-            "SELECT id, name, coefficient_milli, wholesale_price, semi_wholesale_price, retail_price, allow_fraction
+            "SELECT id, name, coefficient_milli, retail_price, allow_fraction
              FROM product_packagings WHERE id = ? AND product_id = ? AND is_active = 1",
         )
         .bind(line.packaging_id)
         .bind(pid)
         .fetch_optional(&mut *tx)
         .await?;
-        let (pkg_id, pkg_name, coeff_milli, p_whole, p_semi, p_retail, allow_fraction) = pkg
-            .ok_or_else(|| {
-                CoreError::Validation(format!("Conditionnement invalide pour \"{pname}\"."))
-            })?;
+        let (pkg_id, pkg_name, coeff_milli, p_retail, allow_fraction) = pkg.ok_or_else(|| {
+            CoreError::Validation(format!("Conditionnement invalide pour \"{pname}\"."))
+        })?;
+        if pkg_name != "casier" {
+            return Err(CoreError::Validation(format!(
+                "Seul le conditionnement \"casier\" est autorisé à la vente (reçu \"{pkg_name}\" pour \"{pname}\")."
+            )));
+        }
 
         let qty = Quantity::parse_str(&line.quantity, &format!("Quantité ({pname})"))?;
         if qty.milli_units <= 0 {
@@ -980,16 +985,10 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
         }
 
         let base_qty = qty.multiply_coefficient_to_base(Quantity::from_milli(coeff_milli))?;
-        let raw_price = match input.price_tier.as_str() {
-            "wholesale" => p_whole,
-            "semi_wholesale" => p_semi,
-            _ => p_retail,
-        };
         let unit_price = Money::from_non_negative(
-            raw_price.ok_or_else(|| {
+            p_retail.ok_or_else(|| {
                 CoreError::Validation(format!(
-                    "Tarif \"{}\" non configuré pour {pname} ({pkg_name}).",
-                    input.price_tier
+                    "Tarif \"{effective_price_tier}\" non configuré pour {pname} ({pkg_name})."
                 ))
             })?,
             &format!("Tarif {pname}"),
@@ -1016,6 +1015,11 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
                 "Le profil de consigne de \"{pname} ({pkg_name})\" n'est pas configuré."
             ))
         })?;
+        if mode == "deposit" && pkg_name != "casier" {
+            return Err(CoreError::Validation(format!(
+                "Seul le conditionnement \"casier\" est soumis au système de retour d'emballage (\"{pname}\")."
+            )));
+        }
 
         let mut deposit_items = Vec::new();
         if mode == "deposit" {
@@ -1164,7 +1168,7 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
     .bind(&request_key)
     .bind(input.client_id)
     .bind(&input.sale_type)
-    .bind(&input.price_tier)
+    .bind(effective_price_tier)
     .bind(subtotal_merchandise.value())
     .bind(global_discount.value())
     .bind(total_merchandise.value())

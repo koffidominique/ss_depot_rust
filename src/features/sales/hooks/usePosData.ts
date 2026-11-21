@@ -3,15 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../services/api/createApiClient.ts';
 import type { CartItem } from '../../../stores/uiStore.ts';
 import type {
-  PriceTier,
   ProductPackaging,
   SaleDetail,
 } from '../../../types/erp.ts';
 import type { SaleCalculationResult } from '../utils/saleCalculations.ts';
 
-export function getTierPrice(pkg: ProductPackaging, tier: PriceTier): number {
-  if (tier === 'wholesale') return pkg.wholesale_price ?? pkg.retail_price ?? 0;
-  if (tier === 'semi_wholesale') return pkg.semi_wholesale_price ?? pkg.retail_price ?? 0;
+export function getTierPrice(pkg: ProductPackaging): number {
   return pkg.retail_price ?? 0;
 }
 
@@ -54,7 +51,6 @@ interface UsePosMutationsOptions {
   requestKey: string;
   posClientId: number | null;
   posSaleType: 'cash' | 'credit';
-  posPriceTier: PriceTier;
   globalDiscount: number;
   dueDate: string;
   posCart: CartItem[];
@@ -70,7 +66,6 @@ export function usePosMutations({
   requestKey,
   posClientId,
   posSaleType,
-  posPriceTier,
   globalDiscount,
   dueDate,
   posCart,
@@ -93,7 +88,7 @@ export function usePosMutations({
         request_key: requestKey,
         client_id: posClientId,
         sale_type: posSaleType,
-        price_tier: posPriceTier,
+        price_tier: 'retail',
         discount_amount: globalDiscount,
         due_date: posSaleType === 'credit' && dueDate ? dueDate : undefined,
         lines: posCart.map((c) => ({

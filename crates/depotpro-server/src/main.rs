@@ -4028,7 +4028,7 @@ mod tests {
             "POST",
             &format!("/api/products/{prod_id}/packagings"),
             &[("Authorization", &auth_hdr)],
-            Some(r#"{"name":"bouteille","coefficient":1,"retail_price":700}"#),
+            Some(r#"{"name":"casier","coefficient":1,"retail_price":700}"#),
         )
         .await;
         assert_eq!(st, 409);
@@ -4045,12 +4045,31 @@ mod tests {
             "is_active": 1
         })
         .to_string();
-        let (st, pack_body) = send_http(
+        let (st, _) = send_http(
             addr,
             "POST",
             &format!("/api/products/{prod_id}/packagings"),
             &[("Authorization", &auth_hdr)],
             Some(&pack_payload),
+        )
+        .await;
+        assert_eq!(st, 400);
+
+        let casier_payload = serde_json::json!({
+            "id": pkg_id,
+            "name": "casier",
+            "coefficient": 1,
+            "retail_price": 650,
+            "allow_fraction": 0,
+            "is_active": 1
+        })
+        .to_string();
+        let (st, pack_body) = send_http(
+            addr,
+            "POST",
+            &format!("/api/products/{prod_id}/packagings"),
+            &[("Authorization", &auth_hdr)],
+            Some(&casier_payload),
         )
         .await;
         assert_eq!(st, 200);

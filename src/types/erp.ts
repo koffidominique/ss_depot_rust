@@ -1,10 +1,5 @@
-export type PackagingName =
-  | "casier"
-  | "carton"
-  | "bouteille"
-  | "pack"
-  | "canette";
-export type PriceTier = "wholesale" | "semi_wholesale" | "retail";
+export type PackagingName = "casier";
+export type PriceTier = "retail";
 export type CreditPolicy = "forbidden" | "limited" | "unlimited";
 export type UserRole =
   | "owner"

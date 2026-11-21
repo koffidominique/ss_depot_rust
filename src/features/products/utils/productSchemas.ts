@@ -18,8 +18,6 @@ export const productSchema = z.object({
     .trim()
     .refine((v) => v === '' || qtyPattern.test(v), 'Seuil invalide (3 décimales max).'),
   purchase_price: z.number().int().min(0, 'Montant positif ou nul requis.'),
-  wholesale_price: z.number().int().min(0, 'Montant positif ou nul requis.'),
-  semi_wholesale_price: z.number().int().min(0, 'Montant positif ou nul requis.'),
   retail_price: z.number().int().min(0, 'Montant positif ou nul requis.'),
   image_path: z.string().nullable(),
 });
@@ -38,8 +36,6 @@ export interface PackagingFormState {
   name: PackagingName;
   coefficient: string;
   purchase_price: number;
-  wholesale_price: number;
-  semi_wholesale_price: number;
   retail_price: number;
   barcode: string;
   allow_fraction: boolean;
@@ -62,11 +58,9 @@ export function buildPackagingStateFromExisting(pk: ProductPackaging): Packaging
   const firstComponent = pk.components?.[0];
   return {
     id: pk.id,
-    name: pk.name,
+    name: 'casier',
     coefficient: formatCoeffDot(pk.coefficient_milli),
     purchase_price: pk.purchase_price ?? 0,
-    wholesale_price: pk.wholesale_price ?? 0,
-    semi_wholesale_price: pk.semi_wholesale_price ?? 0,
     retail_price: pk.retail_price ?? 0,
     barcode: pk.barcode || '',
     allow_fraction: pk.allow_fraction === 1,
@@ -80,18 +74,11 @@ export function buildPackagingStateFromExisting(pk: ProductPackaging): Packaging
 }
 
 export function buildNewPackagingState(prod: Product): PackagingFormState {
-  const candidateNames: PackagingName[] = ['casier', 'pack', 'carton', 'bouteille', 'canette'];
-  const nextName =
-    candidateNames.find((n) => !prod.packagings.some((p) => p.name === n)) || 'casier';
-  const defaultCoeff =
-    nextName === 'casier' ? '24' : nextName === 'carton' ? '12' : nextName === 'pack' ? '6' : '1';
   return {
     id: undefined,
-    name: nextName,
-    coefficient: defaultCoeff,
+    name: 'casier',
+    coefficient: '24',
     purchase_price: prod.purchase_price ?? 0,
-    wholesale_price: 0,
-    semi_wholesale_price: 0,
     retail_price: 0,
     barcode: '',
     allow_fraction: false,

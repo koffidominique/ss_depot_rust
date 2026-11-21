@@ -80,8 +80,6 @@ export function useProductMutations(callbacks: {
           category_id: values.category_id,
           min_stock: values.min_stock || '0',
           purchase_price: values.purchase_price,
-          wholesale_price: values.wholesale_price,
-          semi_wholesale_price: values.semi_wholesale_price,
           retail_price: values.retail_price,
           image_path: values.image_path,
         });
@@ -95,8 +93,6 @@ export function useProductMutations(callbacks: {
         initial_stock: values.initial_stock || '0',
         min_stock: values.min_stock || '0',
         purchase_price: values.purchase_price,
-        wholesale_price: values.wholesale_price,
-        semi_wholesale_price: values.semi_wholesale_price,
         retail_price: values.retail_price,
         image_path: values.image_path,
       });
@@ -131,8 +127,6 @@ export function useProductMutations(callbacks: {
         name: pkg.name,
         coefficient: pkg.coefficient,
         purchase_price: pkg.purchase_price,
-        wholesale_price: pkg.wholesale_price,
-        semi_wholesale_price: pkg.semi_wholesale_price,
         retail_price: pkg.retail_price,
         barcode: pkg.barcode || null,
         allow_fraction: pkg.allow_fraction,
