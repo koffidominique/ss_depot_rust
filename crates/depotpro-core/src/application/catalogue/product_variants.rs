@@ -43,7 +43,7 @@ pub async fn list_product_variants(
     .await?;
 
     let rows = sqlx::query_as::<_, ProductVariantDto>(
-        "SELECT * FROM product_variants 
+        "SELECT id, product_id, name, reference, barcode, volume_ml, container_type, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at FROM product_variants 
          WHERE (? = 1 OR is_active = 1)
            AND (? = 0 OR product_id = ?)
            AND (? = 0 OR name LIKE ? OR COALESCE(reference, '') LIKE ? OR COALESCE(barcode, '') LIKE ?)
@@ -129,7 +129,7 @@ pub async fn create_product_variant(
     tx.commit().await?;
 
     let created =
-        sqlx::query_as::<_, ProductVariantDto>("SELECT * FROM product_variants WHERE id = ?")
+        sqlx::query_as::<_, ProductVariantDto>("SELECT id, product_id, name, reference, barcode, volume_ml, container_type, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at FROM product_variants WHERE id = ?")
             .bind(id)
             .fetch_one(&db.pool)
             .await?;
@@ -230,7 +230,7 @@ pub async fn update_product_variant(
     tx.commit().await?;
 
     let updated =
-        sqlx::query_as::<_, ProductVariantDto>("SELECT * FROM product_variants WHERE id = ?")
+        sqlx::query_as::<_, ProductVariantDto>("SELECT id, product_id, name, reference, barcode, volume_ml, container_type, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at FROM product_variants WHERE id = ?")
             .bind(id)
             .fetch_one(&db.pool)
             .await?;
