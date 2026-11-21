@@ -239,42 +239,44 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await page.setViewportSize({ width: 1440, height: 900 });
     await loginWithPin(page, '123456');
 
-    const { bockVarId, drogbaVarId } = await page.evaluate(async () => {
-      const catRes = await fetch('/api/categories', { credentials: 'same-origin' });
-      const cats = (await catRes.json()) as Array<{ id: number }>;
-      const catId = cats[0].id;
+    const loginRes = await page.request.post('/api/auth/login', { data: { pin: '123456' } });
+    expect(loginRes.ok()).toBeTruthy();
+    const { token } = (await loginRes.json()) as { token: string };
+    const authHeaders = { Authorization: `Bearer ${token}` };
 
-      const makeProd = async (name: string, sku: string) => {
-        const res = await fetch('/api/products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({
+    const catRes = await page.request.get('/api/categories', { headers: authHeaders });
+    expect(catRes.ok()).toBeTruthy();
+    const cats = (await catRes.json()) as Array<{ id: number }>;
+    const catId = cats[0].id;
+
+    const makeProd = async (name: string, sku: string) => {
+      const res = await page.request.post('/api/products', {
+        headers: authHeaders,
+        data: {
+          name,
+          category_id: catId,
+          base_unit: 'bouteille',
+          initial_stock: 100,
+          purchase_price: 300,
+          wholesale_price: 400,
+          retail_price: 400,
+          sku,
+          variant: {
             name,
-            category_id: catId,
-            base_unit: 'bouteille',
-            initial_stock: 100,
-            purchase_price: 300,
-            wholesale_price: 400,
-            retail_price: 400,
-            sku,
-            variant: {
-              name,
-              sku: `${sku}-VAR`,
-              volume_ml: 330,
-              container_type: 'glass_returnable',
-              container_returnable: true,
-            },
-          }),
-        });
-        const data = (await res.json()) as { variant_id: number };
-        return data.variant_id;
-      };
+            sku: `${sku}-VAR`,
+            volume_ml: 330,
+            container_type: 'glass_returnable',
+            container_returnable: true,
+          },
+        },
+      });
+      expect(res.ok()).toBeTruthy();
+      const data = (await res.json()) as { variant_id: number };
+      return data.variant_id;
+    };
 
-      const bockVarId = await makeProd('Bock 33cl E2E', 'BOCK-E2E');
-      const drogbaVarId = await makeProd('Drogba 33cl E2E', 'DROGBA-E2E');
-      return { bockVarId, drogbaVarId };
-    });
+    const bockVarId = await makeProd('Bock 33cl E2E', 'BOCK-E2E');
+    const drogbaVarId = await makeProd('Drogba 33cl E2E', 'DROGBA-E2E');
 
     await page.goto('/orders');
     await expect(

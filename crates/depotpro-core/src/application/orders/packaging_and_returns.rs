@@ -274,9 +274,9 @@ pub async fn add_variant_price(
     let (_guard, mut tx) = db.begin_write().await?;
     let res = sqlx::query(
         "INSERT INTO price_history (
-            product_id, variant_id, supplier_id, price_type, new_retail_price,
-            currency, effective_from, reason
-         ) VALUES (?, ?, ?, ?, ?, 'FCFA', date('now'), ?)",
+            entity_type, entity_id, variant_id, supplier_id, price_type,
+            new_price, currency, effective_from, reason
+         ) VALUES ('product', ?, ?, ?, ?, ?, 'FCFA', date('now'), ?)",
     )
     .bind(prod_id)
     .bind(variant_id)

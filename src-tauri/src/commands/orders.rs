@@ -201,9 +201,12 @@ pub async fn get_customer_deposit_history_v4(
 ) -> Result<serde_json::Value, String> {
     let actor = verify_desktop_perm(&state, &token, Permission::ConsignmentsRead).await?;
     let db = state.db().await;
-    let res = auth::with_actor(actor, orders::get_customer_deposit_history(&db, customer_id))
-        .await
-        .map_err(|e| e.to_string())?;
+    let res = auth::with_actor(
+        actor,
+        orders::get_customer_deposit_history(&db, customer_id),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     serde_json::to_value(res).map_err(|e| e.to_string())
 }
 

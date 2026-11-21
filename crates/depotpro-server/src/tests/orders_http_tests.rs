@@ -123,7 +123,10 @@ async fn axum_orders_mixed_crate_and_deposit_lifecycle() {
     .await;
     assert_eq!(st, 200);
     let vars_json: serde_json::Value = serde_json::from_str(&vars_res).unwrap();
-    assert_eq!(vars_json["items"][0]["compatibility_class"], "bottle_33cl_glass");
+    assert_eq!(
+        vars_json["items"][0]["compatibility_class"],
+        "bottle_33cl_glass"
+    );
     assert_eq!(vars_json["items"][0]["native_crate_capacity"], 24);
 
     let (st, _) = send_http(
@@ -257,8 +260,7 @@ async fn axum_orders_mixed_crate_and_deposit_lifecycle() {
     assert_eq!(hist_arr.as_array().unwrap().len(), 2);
 
     // Création + annulation d'une 2e commande
-    let (st, ord2_res) =
-        send_http(addr, "POST", "/api/orders", &hdrs, Some(&create_payload)).await;
+    let (st, ord2_res) = send_http(addr, "POST", "/api/orders", &hdrs, Some(&create_payload)).await;
     assert_eq!(st, 201);
     let oid2 = serde_json::from_str::<serde_json::Value>(&ord2_res).unwrap()["order"]["id"]
         .as_i64()
