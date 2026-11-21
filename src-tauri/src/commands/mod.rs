@@ -3,7 +3,7 @@
 // ============================================================================
 
 use chrono::Utc;
-use depotpro_core::application::auth::{self, Permission, SessionIdentity};
+use depotpro_core::application::auth::{self as core_auth, Permission, SessionIdentity};
 
 use crate::state::DesktopState;
 
@@ -36,6 +36,6 @@ pub(crate) async fn verify_desktop_perm(
     permission: Permission,
 ) -> Result<SessionIdentity, String> {
     let actor = verify_desktop_session(state, token).await?;
-    auth::require_permission(&actor, permission).map_err(|e| e.to_string())?;
+    core_auth::require_permission(&actor, permission).map_err(|e| e.to_string())?;
     Ok(actor)
 }
