@@ -23,6 +23,7 @@ pub struct UpdateBrandInput {
     pub code: Option<String>,
     pub name: Option<String>,
     pub description: Option<Option<String>>,
+    pub brewery_id: Option<Option<i64>>,
     #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
     pub is_active: Option<bool>,
 }
