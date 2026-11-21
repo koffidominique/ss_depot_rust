@@ -761,8 +761,8 @@ pub async fn pay_packaging_financial_debt(
                 .bind(&p.method_code)
                 .fetch_optional(&mut **tx)
                 .await?;
-        let (code, active) = pm
-            .ok_or_else(|| CoreError::Validation("Moyen de paiement invalide.".to_string()))?;
+        let (code, active) =
+            pm.ok_or_else(|| CoreError::Validation("Moyen de paiement invalide.".to_string()))?;
         if active == 0 {
             return Err(CoreError::Validation(
                 "Moyen de paiement inactif.".to_string(),

@@ -432,14 +432,13 @@ pub async fn set_catalogue_product_active(
     require_current_actor_permission(Permission::CatalogWrite)?;
 
     let (_guard, mut tx) = db.begin_write().await?;
-    let row: Option<(String, String)> = sqlx::query_as(
-        "SELECT code, name FROM catalogue_products WHERE id = ?",
-    )
-    .bind(product_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-    let (code, name) = row
-        .ok_or_else(|| CoreError::Validation("Référence catalogue introuvable.".to_string()))?;
+    let row: Option<(String, String)> =
+        sqlx::query_as("SELECT code, name FROM catalogue_products WHERE id = ?")
+            .bind(product_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let (code, name) =
+        row.ok_or_else(|| CoreError::Validation("Référence catalogue introuvable.".to_string()))?;
 
     sqlx::query(
         "UPDATE catalogue_products SET is_active = ?, updated_at = datetime('now') WHERE id = ?",
@@ -451,23 +450,30 @@ pub async fn set_catalogue_product_active(
 
     crate::application::sales::audit_log_tx(
         &mut tx,
-        if is_active { "CATALOG_REACTIVATE" } else { "CATALOG_ARCHIVE" },
+        if is_active {
+            "CATALOG_REACTIVATE"
+        } else {
+            "CATALOG_ARCHIVE"
+        },
         "catalogue_products",
         Some(product_id.to_string()),
         &format!(
             "{} de la référence {code} ({name})",
-            if is_active { "Réactivation" } else { "Archivage" }
+            if is_active {
+                "Réactivation"
+            } else {
+                "Archivage"
+            }
         ),
     )
     .await?;
     tx.commit().await?;
 
-    let (is_active_db, is_sellable): (i64, i64) = sqlx::query_as(
-        "SELECT is_active, is_sellable FROM catalogue_products WHERE id = ?",
-    )
-    .bind(product_id)
-    .fetch_one(&db.pool)
-    .await?;
+    let (is_active_db, is_sellable): (i64, i64) =
+        sqlx::query_as("SELECT is_active, is_sellable FROM catalogue_products WHERE id = ?")
+            .bind(product_id)
+            .fetch_one(&db.pool)
+            .await?;
     Ok(CatalogueProductStatusDto {
         id: product_id,
         code,
@@ -544,12 +550,11 @@ pub async fn set_reference_price(
         });
     }
 
-    let existing: Option<(String, i64)> = sqlx::query_as(
-        "SELECT code, unit_price FROM catalogue_products WHERE id = ?",
-    )
-    .bind(product_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let existing: Option<(String, i64)> =
+        sqlx::query_as("SELECT code, unit_price FROM catalogue_products WHERE id = ?")
+            .bind(product_id)
+            .fetch_optional(&mut *tx)
+            .await?;
     let (code, old_price) = existing
         .ok_or_else(|| CoreError::Validation("Référence catalogue introuvable.".to_string()))?;
     if old_price == input.reference_price {
@@ -627,14 +632,16 @@ pub async fn list_reference_price_history(
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, pid, price, reason, changed_by, created_at)| ReferencePriceDto {
-            id,
-            product_id: pid,
-            reference_price: price,
-            previous_price: 0,
-            reason,
-            changed_by,
-            created_at,
-        })
+        .map(
+            |(id, pid, price, reason, changed_by, created_at)| ReferencePriceDto {
+                id,
+                product_id: pid,
+                reference_price: price,
+                previous_price: 0,
+                reason,
+                changed_by,
+                created_at,
+            },
+        )
         .collect())
 }
