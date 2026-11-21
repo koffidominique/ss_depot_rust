@@ -12,6 +12,7 @@ pub struct CreateBrandInput {
     pub code: String,
     pub name: String,
     pub description: Option<String>,
+    pub brewery_id: Option<i64>,
     #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
     pub is_active: Option<bool>,
 }
