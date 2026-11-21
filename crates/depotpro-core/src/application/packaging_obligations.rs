@@ -276,7 +276,9 @@ pub(crate) async fn process_due_obligations_tx(
                 amount,
                 "debit",
                 actor,
-                Some(format!("Conversion échéance : {pending} pièce(s) non restituée(s).")),
+                Some(format!(
+                    "Conversion échéance : {pending} pièce(s) non restituée(s)."
+                )),
             )
             .await?;
         }
@@ -326,10 +328,12 @@ async fn insert_ledger_entry(
     note: Option<String>,
 ) -> CoreResult<()> {
     let user_id: Option<i64> = match actor {
-        Some(name) => sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
-            .bind(name)
-            .fetch_optional(&mut **tx)
-            .await?,
+        Some(name) => {
+            sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
+                .bind(name)
+                .fetch_optional(&mut **tx)
+                .await?
+        }
         None => None,
     };
     let prev: i64 = sqlx::query_scalar(
@@ -339,7 +343,11 @@ async fn insert_ledger_entry(
     .bind(client_id)
     .fetch_one(&mut **tx)
     .await?;
-    let delta = if direction == "debit" { amount } else { -amount };
+    let delta = if direction == "debit" {
+        amount
+    } else {
+        -amount
+    };
     let balance_after = (prev + delta).max(0);
     sqlx::query(
         "INSERT INTO customer_packaging_financial_ledger
@@ -374,17 +382,20 @@ pub async fn declare_loss(
         ));
     }
     if input.reason.trim().is_empty() {
-        return Err(CoreError::Validation("Le motif est obligatoire.".to_string()));
+        return Err(CoreError::Validation(
+            "Le motif est obligatoire.".to_string(),
+        ));
     }
     let mut g = db.begin_write().await?;
     let tx = &mut g.1;
-    let (pieces_due, client_id): (i64, Option<i64>) = sqlx::query_as(
-        "SELECT pieces, client_id FROM deposit_issues WHERE id = ?",
-    )
-    .bind(input.deposit_issue_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or_else(|| CoreError::Validation("Obligation d'emballage introuvable.".to_string()))?;
+    let (pieces_due, client_id): (i64, Option<i64>) =
+        sqlx::query_as("SELECT pieces, client_id FROM deposit_issues WHERE id = ?")
+            .bind(input.deposit_issue_id)
+            .fetch_optional(&mut **tx)
+            .await?
+            .ok_or_else(|| {
+                CoreError::Validation("Obligation d'emballage introuvable.".to_string())
+            })?;
     let already: i64 = sqlx::query_scalar(
         "SELECT returned_pieces + lost_pieces + destroyed_pieces + converted_pieces
          FROM deposit_issues WHERE id = ?",
@@ -400,10 +411,12 @@ pub async fn declare_loss(
     }
     let request_key = DepotDb::next_sequence(tx, "DEC-PERTE").await?;
     let user_id: Option<i64> = match actor {
-        Some(name) => sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
-            .bind(name)
-            .fetch_optional(&mut **tx)
-            .await?,
+        Some(name) => {
+            sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
+                .bind(name)
+                .fetch_optional(&mut **tx)
+                .await?
+        }
         None => None,
     };
     sqlx::query(
@@ -463,11 +476,10 @@ pub async fn validate_loss_declaration(
             "Cette déclaration a déjà été traitée.".to_string(),
         ));
     }
-    let unit_value: i64 =
-        sqlx::query_scalar("SELECT unit_value FROM deposit_issues WHERE id = ?")
-            .bind(issue_id)
-            .fetch_one(&mut **tx)
-            .await?;
+    let unit_value: i64 = sqlx::query_scalar("SELECT unit_value FROM deposit_issues WHERE id = ?")
+        .bind(issue_id)
+        .fetch_one(&mut **tx)
+        .await?;
     let amount = pieces
         .checked_mul(unit_value)
         .ok_or_else(|| CoreError::Validation("Débordement du montant.".to_string()))?;
@@ -752,7 +764,9 @@ pub async fn pay_packaging_financial_debt(
         let (code, active) = pm
             .ok_or_else(|| CoreError::Validation("Moyen de paiement invalide.".to_string()))?;
         if active == 0 {
-            return Err(CoreError::Validation("Moyen de paiement inactif.".to_string()));
+            return Err(CoreError::Validation(
+                "Moyen de paiement inactif.".to_string(),
+            ));
         }
         total = total.checked_add(p.amount).ok_or_else(|| {
             CoreError::Validation("Débordement du montant du règlement.".to_string())
@@ -760,7 +774,9 @@ pub async fn pay_packaging_financial_debt(
         parts.push((code, p.amount));
     }
     if total <= 0 {
-        return Err(CoreError::Validation("Le règlement doit être positif.".to_string()));
+        return Err(CoreError::Validation(
+            "Le règlement doit être positif.".to_string(),
+        ));
     }
     let balance = get_client_packaging_financial_balance(db, input.client_id)
         .await?
