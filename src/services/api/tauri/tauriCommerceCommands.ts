@@ -80,6 +80,11 @@ export const tauriCatalogApi = {
       "list_categories",
       { token: getStoredTauriToken() },
     ),
+  getProductFormMetadata: () =>
+    tauriInvoke<Awaited<ReturnType<ApiClient["getProductFormMetadata"]>>>(
+      "get_product_form_metadata",
+      { token: getStoredTauriToken() },
+    ),
   createCategory: (name: string, description?: string) =>
     tauriInvoke<Awaited<ReturnType<ApiClient["createCategory"]>>>(
       "create_category",
