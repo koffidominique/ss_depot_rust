@@ -6,6 +6,7 @@ import type {
   DashboardData,
   PaginatedResult,
   Product,
+  ProductFormMetadata,
   PurchaseOrder,
   Receivable,
   SaleDetail,
@@ -48,6 +49,7 @@ export interface AuthApiClient {
 
 export interface CatalogApiClient {
   listCategories(): Promise<Category[]>;
+  getProductFormMetadata(): Promise<ProductFormMetadata>;
   createCategory(name: string, description?: string): Promise<Category>;
   listProducts(params?: {
     search?: string;
