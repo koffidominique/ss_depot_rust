@@ -191,7 +191,7 @@ pub async fn create_product(
         }
     }
     if let Some(group_id) = input.compatibility_group_id {
-        if sqlx::query_scalar::<_, i64>("SELECT id FROM compatibility_groups WHERE id = ?")
+        if sqlx::query_scalar::<_, i64>("SELECT id FROM crate_compatibility_groups WHERE id = ?")
             .bind(group_id).fetch_optional(&mut *tx).await?.is_none() {
             return Err(CoreError::Validation("Groupe de compatibilité introuvable.".to_string()));
         }
