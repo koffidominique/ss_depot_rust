@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS breweries (
 
 ALTER TABLE brands ADD COLUMN brewery_id INTEGER NULL
     REFERENCES breweries(id) ON DELETE RESTRICT;
+ALTER TABLE brands ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'));
 
 -- Colonnes attendues par les services de variantes existants (elles étaient
 -- consommées côté Rust mais absentes des migrations historiques).
