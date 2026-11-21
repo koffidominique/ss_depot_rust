@@ -62,10 +62,16 @@ pub async fn update_product(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let cur = existing.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
+    let cur =
+        existing.ok_or_else(|| CoreError::Validation("Produit introuvable.".to_string()))?;
 
-    let name = input.name.as_deref().map(str::trim).filter(|v| !v.is_empty())
-        .map(str::to_string).unwrap_or_else(|| cur.name.clone());
+    let name = input
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| cur.name.clone());
     if name.is_empty() {
         return Err(CoreError::Validation("Nom produit invalide.".to_string()));
     }
@@ -167,21 +173,31 @@ pub async fn update_product(
     let purchase_price = input
         .purchase_price
         .map(|v| Money::from_non_negative(v, "Prix d'achat").map(|m| m.value()))
-        .transpose()?.or(cur.purchase_price);
-    let wholesale_price = input.wholesale_price
+        .transpose()?
+        .or(cur.purchase_price);
+    let wholesale_price = input
+        .wholesale_price
         .map(|v| Money::from_non_negative(v, "Prix gros").map(|m| m.value()))
-        .transpose()?.or(cur.wholesale_price);
-    let semi_price = input.semi_wholesale_price
+        .transpose()?
+        .or(cur.wholesale_price);
+    let semi_price = input
+        .semi_wholesale_price
         .map(|v| Money::from_non_negative(v, "Prix demi-gros").map(|m| m.value()))
-        .transpose()?.or(cur.semi_wholesale_price);
-    let retail_price = input.retail_price
+        .transpose()?
+        .or(cur.semi_wholesale_price);
+    let retail_price = input
+        .retail_price
         .map(|v| Money::from_non_negative(v, "Prix détail").map(|m| m.value()))
-        .transpose()?.or(cur.retail_price);
+        .transpose()?
+        .or(cur.retail_price);
     let image_path = match input.image_path.as_ref() {
         Some(opt) => sanitize_image_path(opt.as_deref())?,
         None => cur.image_path.clone(),
     };
-    let is_active = input.is_active.map(|b| if b { 1_i64 } else { 0_i64 }).unwrap_or(cur.is_active);
+    let is_active = input
+        .is_active
+        .map(|b| if b { 1_i64 } else { 0_i64 })
+        .unwrap_or(cur.is_active);
 
     sqlx::query(
         "UPDATE products
