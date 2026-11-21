@@ -62,7 +62,9 @@ export function editProductDefaultValues(prod: Product, metadata?: ProductFormMe
     brand_id: prod.brand_id ?? brand?.id ?? 0,
     brewery_id: prod.brewery_id ?? brand?.breweryId ?? 0,
     variant_name: prod.variant_name ?? prod.name,
-    volume_ml: prod.volume_ml ?? 330,
+    // Ne pas inventer un format physique sur une ancienne fiche non renseignée.
+    // L'opérateur devra saisir le volume réel avant d'enregistrer cette modification.
+    volume_ml: prod.volume_ml ?? 0,
     container_type: prod.container_type ?? 'other',
     alcohol_degree: prod.alcohol_degree ?? 0,
     packaging_type: (firstPackaging?.name === 'carton' || firstPackaging?.name === 'pack' ? firstPackaging.name : 'casier'),
