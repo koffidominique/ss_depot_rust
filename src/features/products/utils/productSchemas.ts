@@ -8,7 +8,7 @@ export const productSchema = z.object({
   brand: z.string().trim(),
   brand_id: z.number().int().min(1, 'Sélectionnez une marque.'),
   brewery_id: z.number().int().min(1, 'Sélectionnez une brasserie.'),
-  variant_name: z.string().trim().min(1, 'Le nom de la variante est obligatoire.'),
+  variant_name: z.string().trim(),
   volume_ml: z.number().int().min(1, 'Le volume doit être supérieur à 0 ml.'),
   container_type: z.enum(['glass_returnable', 'glass_disposable', 'pet', 'can', 'plastic_bottle', 'other']),
   alcohol_degree: z.number().min(0).max(100, 'Le degré doit être compris entre 0 et 100 %.'),
