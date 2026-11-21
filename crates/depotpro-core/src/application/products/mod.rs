@@ -14,7 +14,7 @@ mod serde_helpers;
 mod update;
 
 pub use create::create_product;
-pub use metadata::get_product_form_metadata;
+
 pub use csv_io::{export_products_csv, import_products_csv};
 pub use packaging::upsert_packaging;
 pub(crate) use queries::get_product_by_id;
@@ -25,8 +25,16 @@ pub(crate) use serde_helpers::{
 };
 pub use update::update_product;
 
-pub(crate) const ALLOWED_PACKAGING_NAMES: &[&str] = &["casier", "carton", "bouteille", "pack", "canette"];
-pub(crate) const ALLOWED_CONTAINER_TYPES: &[&str] = &["glass_returnable", "glass_disposable", "pet", "can", "plastic_bottle", "other"];
+pub(crate) const ALLOWED_PACKAGING_NAMES: &[&str] =
+    &["casier", "carton", "bouteille", "pack", "canette"];
+pub(crate) const ALLOWED_CONTAINER_TYPES: &[&str] = &[
+    "glass_returnable",
+    "glass_disposable",
+    "pet",
+    "can",
+    "plastic_bottle",
+    "other",
+];
 
 #[derive(Debug, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
