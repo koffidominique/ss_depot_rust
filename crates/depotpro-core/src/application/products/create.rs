@@ -107,7 +107,7 @@ pub async fn create_product(
     for pkg in &packagings {
         if !ALLOWED_PACKAGING_NAMES.contains(&pkg.name.as_str()) {
             return Err(CoreError::Validation(format!(
-                "Conditionnement non autorisé : {} (seul \"casier\" est autorisé)",
+                "Conditionnement non autorisé : {} (casier, carton, bouteille, pack ou canette)",
                 pkg.name
             )));
         }
