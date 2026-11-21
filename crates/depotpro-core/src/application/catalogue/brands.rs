@@ -33,7 +33,7 @@ pub async fn list_brand(
     .await?;
 
     let rows = sqlx::query_as::<_, BrandDto>(
-        "SELECT * FROM brands WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
+        "SELECT id, code, name, description, brewery_id, is_active, created_at, updated_at FROM brands WHERE (? = 1 OR is_active = 1) AND (? = 0 OR name LIKE ? OR code LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
     .bind(if has_search { 1_i64 } else { 0_i64 })
@@ -90,7 +90,7 @@ pub async fn create_brand(db: &DepotDb, input: CreateBrandInput) -> CoreResult<B
     .last_insert_rowid();
     tx.commit().await?;
 
-    let created = sqlx::query_as::<_, BrandDto>("SELECT * FROM brands WHERE id = ?")
+    let created = sqlx::query_as::<_, BrandDto>("SELECT id, code, name, description, brewery_id, is_active, created_at, updated_at FROM brands WHERE id = ?")
         .bind(id)
         .fetch_one(&db.pool)
         .await?;
@@ -151,7 +151,7 @@ pub async fn update_brand(db: &DepotDb, id: i64, input: UpdateBrandInput) -> Cor
     q.execute(&mut *tx).await?;
     tx.commit().await?;
 
-    let updated = sqlx::query_as::<_, BrandDto>("SELECT * FROM brands WHERE id = ?")
+    let updated = sqlx::query_as::<_, BrandDto>("SELECT id, code, name, description, brewery_id, is_active, created_at, updated_at FROM brands WHERE id = ?")
         .bind(id)
         .fetch_one(&db.pool)
         .await?;
