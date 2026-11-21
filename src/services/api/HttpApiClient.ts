@@ -35,6 +35,7 @@ export class HttpApiClient implements ApiClient {
 
   /* --- Catégories & Produits --- */
   listCategories = httpCatalogApi.listCategories;
+  getProductFormMetadata = httpCatalogApi.getProductFormMetadata;
   createCategory = httpCatalogApi.createCategory;
   listProducts = httpCatalogApi.listProducts;
   createProduct = httpCatalogApi.createProduct;
