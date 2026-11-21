@@ -97,15 +97,33 @@ pub async fn create_product_variant(
         ));
     }
     if input.volume_ml.is_some_and(|v| v <= 0) {
-        return Err(CoreError::Validation("Le volume de la variante doit être positif.".to_string()));
+        return Err(CoreError::Validation(
+            "Le volume de la variante doit être positif.".to_string(),
+        ));
     }
     if let Some(ref kind) = input.container_type {
-        if !["glass_returnable", "glass_disposable", "pet", "can", "plastic_bottle", "other"].contains(&kind.as_str()) {
-            return Err(CoreError::Validation("Type de contenant invalide.".to_string()));
+        if ![
+            "glass_returnable",
+            "glass_disposable",
+            "pet",
+            "can",
+            "plastic_bottle",
+            "other",
+        ]
+        .contains(&kind.as_str())
+        {
+            return Err(CoreError::Validation(
+                "Type de contenant invalide.".to_string(),
+            ));
         }
     }
-    if input.alcohol_degree.is_some_and(|v| !v.is_finite() || !(0.0..=100.0).contains(&v)) {
-        return Err(CoreError::Validation("Le degré d'alcool doit être compris entre 0 et 100 %.".to_string()));
+    if input
+        .alcohol_degree
+        .is_some_and(|v| !v.is_finite() || !(0.0..=100.0).contains(&v))
+    {
+        return Err(CoreError::Validation(
+            "Le degré d'alcool doit être compris entre 0 et 100 %.".to_string(),
+        ));
     }
     if let Some(ref code) = input.reference {
         let dup: Option<i64> =
@@ -173,7 +191,9 @@ pub async fn update_product_variant(
             Some(value) => {
                 let clean = value.trim();
                 if clean.is_empty() {
-                    return Err(CoreError::Validation("La référence ne peut pas être vide.".to_string()));
+                    return Err(CoreError::Validation(
+                        "La référence ne peut pas être vide.".to_string(),
+                    ));
                 }
                 updates.push("reference = ?".to_string());
                 binds.push(clean.to_string());
@@ -199,7 +219,9 @@ pub async fn update_product_variant(
         match volume {
             Some(value) => {
                 if value <= 0 {
-                    return Err(CoreError::Validation("Le volume doit être positif.".to_string()));
+                    return Err(CoreError::Validation(
+                        "Le volume doit être positif.".to_string(),
+                    ));
                 }
                 updates.push("volume_ml = ?".to_string());
                 binds.push(value.to_string());
@@ -210,8 +232,19 @@ pub async fn update_product_variant(
     if let Some(ref container_type) = input.container_type {
         match container_type {
             Some(value) => {
-                if !["glass_returnable", "glass_disposable", "pet", "can", "plastic_bottle", "other"].contains(&value.as_str()) {
-                    return Err(CoreError::Validation("Type de contenant invalide.".to_string()));
+                if ![
+                    "glass_returnable",
+                    "glass_disposable",
+                    "pet",
+                    "can",
+                    "plastic_bottle",
+                    "other",
+                ]
+                .contains(&value.as_str())
+                {
+                    return Err(CoreError::Validation(
+                        "Type de contenant invalide.".to_string(),
+                    ));
                 }
                 updates.push("container_type = ?".to_string());
                 binds.push(value.clone());
@@ -223,7 +256,9 @@ pub async fn update_product_variant(
         match alcohol {
             Some(value) => {
                 if !value.is_finite() || !(0.0..=100.0).contains(&value) {
-                    return Err(CoreError::Validation("Le degré d'alcool doit être compris entre 0 et 100 %.".to_string()));
+                    return Err(CoreError::Validation(
+                        "Le degré d'alcool doit être compris entre 0 et 100 %.".to_string(),
+                    ));
                 }
                 updates.push("alcohol_degree = ?".to_string());
                 binds.push(value.to_string());
@@ -234,10 +269,15 @@ pub async fn update_product_variant(
     if let Some(ref profile) = input.bottle_profile_id {
         match profile {
             Some(value) => {
-                let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM bottle_profiles WHERE id = ?")
-                    .bind(value).fetch_optional(&mut *tx).await?;
+                let exists: Option<i64> =
+                    sqlx::query_scalar("SELECT id FROM bottle_profiles WHERE id = ?")
+                        .bind(value)
+                        .fetch_optional(&mut *tx)
+                        .await?;
                 if exists.is_none() {
-                    return Err(CoreError::Validation("Profil de bouteille introuvable.".to_string()));
+                    return Err(CoreError::Validation(
+                        "Profil de bouteille introuvable.".to_string(),
+                    ));
                 }
                 updates.push("bottle_profile_id = ?".to_string());
                 binds.push(value.to_string());
@@ -248,10 +288,15 @@ pub async fn update_product_variant(
     if let Some(ref crate_type) = input.crate_type_id {
         match crate_type {
             Some(value) => {
-                let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM crate_types WHERE id = ?")
-                    .bind(value).fetch_optional(&mut *tx).await?;
+                let exists: Option<i64> =
+                    sqlx::query_scalar("SELECT id FROM crate_types WHERE id = ?")
+                        .bind(value)
+                        .fetch_optional(&mut *tx)
+                        .await?;
                 if exists.is_none() {
-                    return Err(CoreError::Validation("Type de casier introuvable.".to_string()));
+                    return Err(CoreError::Validation(
+                        "Type de casier introuvable.".to_string(),
+                    ));
                 }
                 updates.push("crate_type_id = ?".to_string());
                 binds.push(value.to_string());
@@ -262,10 +307,15 @@ pub async fn update_product_variant(
     if let Some(ref group) = input.compatibility_group_id {
         match group {
             Some(value) => {
-                let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM crate_compatibility_groups WHERE id = ?")
-                    .bind(value).fetch_optional(&mut *tx).await?;
+                let exists: Option<i64> =
+                    sqlx::query_scalar("SELECT id FROM crate_compatibility_groups WHERE id = ?")
+                        .bind(value)
+                        .fetch_optional(&mut *tx)
+                        .await?;
                 if exists.is_none() {
-                    return Err(CoreError::Validation("Groupe de compatibilité introuvable.".to_string()));
+                    return Err(CoreError::Validation(
+                        "Groupe de compatibilité introuvable.".to_string(),
+                    ));
                 }
                 updates.push("compatibility_group_id = ?".to_string());
                 binds.push(value.to_string());
