@@ -8,7 +8,7 @@ test-results/
 *.log
 .env*
 !.env.example
-data/
+/data/
 *.db
 *.db-wal
 *.db-shm
@@ -17,3 +17,4 @@ data/
 # Rust / Tauri build artifacts
 target/
 src-tauri/gen/
+__pycache__/

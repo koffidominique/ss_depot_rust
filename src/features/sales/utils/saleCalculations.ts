@@ -1,4 +1,26 @@
 import type { DepositComponent } from '../../../types/erp.ts';
+import {
+  MAX_SAFE_BIG,
+  type SharedDepositAccumulator,
+  bigIntToSafeNumber,
+  computeExactBaseQtyMilli,
+  computeExactLineGrossFcfa,
+  computeLineDepositFcfa,
+  consolidateSharedDeposits,
+  parseQtyInputToMilliBigInt,
+  toNonNegativeIntFcfaBigInt,
+} from './saleMathHelpers.ts';
+
+/* ============================================================================
+ * Exports publics & Contrats de calcul du panier POS
+ * ============================================================================ */
+
+export {
+  computeExactBaseQtyMilli,
+  computeExactLineGrossFcfa,
+  parseQtyInputToMilliBigInt,
+  toNonNegativeIntFcfaBigInt,
+};
 
 export interface SaleCalculationItem {
   key: string;
@@ -43,121 +65,30 @@ export interface SaleCalculationResult {
   overpaidAmount: number | null;
 }
 
-const MAX_SAFE_BIG = BigInt(Number.MAX_SAFE_INTEGER);
-
-function bigIntToSafeNumber(value: bigint, label: string): { ok: true; num: number } | { ok: false; error: string } {
-  if (value < 0n || value > MAX_SAFE_BIG) {
-    return { ok: false, error: `${label} dépasse la capacité numérique autorisée.` };
-  }
-  return { ok: true, num: Number(value) };
+function emptyInvalidResult(
+  hasItems: boolean,
+  errors: string[],
+  lineResults: Record<string, SaleLineCalculationResult>,
+  paidTotal: number | null
+): SaleCalculationResult {
+  return {
+    isValid: false,
+    hasItems,
+    errors,
+    lineResults,
+    subtotalMerch: null,
+    netMerch: null,
+    totalDeposit: null,
+    grandTotal: null,
+    paidTotal,
+    remainingAmount: null,
+    overpaidAmount: null,
+  };
 }
 
-/**
- * Parse une quantité saisie (ex: "2", "1.5", "1,250") en milli-unités exactes via BigInt.
- * Refuse les valeurs nulles, négatives, incomplètes ("1.", ".5") ou > 3 décimales.
- */
-export function parseQtyInputToMilliBigInt(
-  raw: string,
-  label = 'Quantité'
-): { ok: true; milli: bigint } | { ok: false; error: string } {
-  const clean = String(raw ?? '').trim().replace(',', '.');
-  if (!clean) {
-    return { ok: false, error: `${label} : saisie requise.` };
-  }
-  if (!/^\d+(\.\d{1,3})?$/.test(clean)) {
-    if (/^\d+\.$/.test(clean)) {
-      return { ok: false, error: `${label} : saisie décimale incomplète.` };
-    }
-    if (/^\d+\.\d{4,}$/.test(clean)) {
-      return { ok: false, error: `${label} : maximum 3 décimales autorisées sans arrondi.` };
-    }
-    return { ok: false, error: `${label} invalide.` };
-  }
-  const [intPart, fracPart = ''] = clean.split('.');
-  const milli = BigInt(intPart) * 1000n + BigInt(fracPart.padEnd(3, '0'));
-  if (milli <= 0n) {
-    return { ok: false, error: `${label} doit être strictement positive.` };
-  }
-  if (milli > MAX_SAFE_BIG) {
-    return { ok: false, error: `${label} dépasse la limite autorisée.` };
-  }
-  return { ok: true, milli };
-}
-
-/**
- * Valide un entier FCFA >= 0 dans l'intervalle sûr IEEE-754 et le retourne en BigInt.
- */
-export function toNonNegativeIntFcfaBigInt(
-  value: unknown,
-  label = 'Montant'
-): { ok: true; fcfa: bigint } | { ok: false; error: string } {
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
-      return { ok: false, error: `${label} doit être un entier FCFA positif ou nul.` };
-    }
-    if (!Number.isSafeInteger(value)) {
-      return { ok: false, error: `${label} dépasse la capacité numérique autorisée.` };
-    }
-    return { ok: true, fcfa: BigInt(value) };
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim().replace(/\s+/g, '');
-    if (!/^\d+$/.test(trimmed)) {
-      return { ok: false, error: `${label} doit être un entier FCFA positif ou nul.` };
-    }
-    const big = BigInt(trimmed);
-    if (big > MAX_SAFE_BIG) {
-      return { ok: false, error: `${label} dépasse la capacité numérique autorisée.` };
-    }
-    return { ok: true, fcfa: big };
-  }
-  return { ok: false, error: `${label} invalide.` };
-}
-
-/**
- * Calcule le montant brut exact d'une ligne = (qtyMilli * unitPriceFcfa) / 1000.
- * Exige un entier FCFA exact (zéro arrondi silencieux).
- */
-export function computeExactLineGrossFcfa(
-  qtyMilli: bigint,
-  unitPriceFcfa: bigint,
-  label = 'Ligne'
-): { ok: true; amount: bigint } | { ok: false; error: string } {
-  const prod = qtyMilli * unitPriceFcfa;
-  if (prod % 1000n !== 0n) {
-    return {
-      ok: false,
-      error: `${label} : le produit quantité × prix unitaire ne correspond pas à un nombre entier de FCFA.`,
-    };
-  }
-  const res = prod / 1000n;
-  if (res > MAX_SAFE_BIG) {
-    return { ok: false, error: `${label} : montant hors limites.` };
-  }
-  return { ok: true, amount: res };
-}
-
-export function computeExactBaseQtyMilli(
-  qtyMilli: bigint,
-  coeffMilli: number,
-  label = 'Ligne'
-): { ok: true; baseMilli: bigint } | { ok: false; error: string } {
-  if (!Number.isSafeInteger(coeffMilli) || coeffMilli <= 0) {
-    return { ok: false, error: `${label} : coefficient de conditionnement invalide.` };
-  }
-  const prod = qtyMilli * BigInt(coeffMilli);
-  if (prod % 1000n !== 0n) {
-    return {
-      ok: false,
-      error: `${label} : conversion en unité de base non exacte au millième.`,
-    };
-  }
-  const res = prod / 1000n;
-  if (res <= 0n || res > MAX_SAFE_BIG) {
-    return { ok: false, error: `${label} : quantité de base hors limites.` };
-  }
-  return { ok: true, baseMilli: res };
-}
+/* ============================================================================
+ * Calcul global exact du panier (lignes, panachage, remises & règlements)
+ * ============================================================================ */
 
 /**
  * Calcule de manière exacte (BigInt) les lignes, remises, consignes et règlements du panier POS.
@@ -175,11 +106,9 @@ export function calculateSaleCart(
   let subtotalMerchBig = 0n;
   let totalDepositBig = 0n;
   let allLinesValid = true;
-  const sharedDeposits = new Map<
-    number,
-    { name: string; depositValue: number; milliPieces: bigint }
-  >();
+  const sharedDeposits = new Map<number, SharedDepositAccumulator>();
 
+  /* --- 1. Validation & calcul ligne par ligne --- */
   for (const item of items) {
     const label = `${item.productName} (${item.packagingName})`;
     const failLine = (msg: string): void => {
@@ -236,71 +165,18 @@ export function calculateSaleCart(
       continue;
     }
 
-    let lineDepositBig = 0n;
-    if (item.depositMode === null) {
-      failLine(`Le profil de consigne de "${label}" n'est pas configuré.`);
+    const depCheck = computeLineDepositFcfa({
+      label,
+      qtyMilli,
+      baseMilli: baseCheck.baseMilli,
+      depositMode: item.depositMode,
+      depositPerPack: item.depositPerPack,
+      depositComponents: item.depositComponents,
+      sharedDeposits,
+    });
+    if (!depCheck.ok) {
+      failLine(depCheck.error);
       continue;
-    }
-    if (item.depositMode === 'deposit') {
-      if (baseCheck.baseMilli % 1000n !== 0n) {
-        failLine(
-          `Les ventes consignées doivent correspondre à un nombre entier d'unités de base pour "${label}".`
-        );
-        continue;
-      }
-
-      if (item.depositComponents && item.depositComponents.length > 0) {
-        let componentError: string | null = null;
-        for (const comp of item.depositComponents) {
-          const parsedDepVal = toNonNegativeIntFcfaBigInt(
-            comp.deposit_value,
-            `Consigne (${comp.name})`
-          );
-          if (!parsedDepVal.ok) {
-            componentError = parsedDepVal.error;
-            break;
-          }
-          const lineMilliPieces = qtyMilli * BigInt(comp.pieces_per_pack);
-          if (comp.kind === 'bottle' && lineMilliPieces % 1000n === 0n) {
-            const pieces = lineMilliPieces / 1000n;
-            lineDepositBig += pieces * parsedDepVal.fcfa;
-            if (lineDepositBig > MAX_SAFE_BIG) {
-              componentError = `Montant de consigne hors limites pour "${label}".`;
-              break;
-            }
-          } else {
-            const prev = sharedDeposits.get(comp.returnable_id);
-            sharedDeposits.set(comp.returnable_id, {
-              name: comp.name,
-              depositValue: Number(parsedDepVal.fcfa),
-              milliPieces: (prev?.milliPieces ?? 0n) + lineMilliPieces,
-            });
-          }
-        }
-        if (componentError) {
-          failLine(componentError);
-          continue;
-        }
-      } else {
-        if (qtyMilli % 1000n !== 0n) {
-          failLine(`Les emballages consignés exigent des quantités entières pour "${label}".`);
-          continue;
-        }
-        const parsedDepPerPack = toNonNegativeIntFcfaBigInt(
-          item.depositPerPack,
-          `Consigne unitaire (${label})`
-        );
-        if (!parsedDepPerPack.ok) {
-          failLine(parsedDepPerPack.error);
-          continue;
-        }
-        const packs = qtyMilli / 1000n;
-        lineDepositBig = packs * parsedDepPerPack.fcfa;
-        if (lineDepositBig > MAX_SAFE_BIG) {
-          failLine(`Montant de consigne hors limites pour "${label}".`);
-          continue;
-        }
-      }
     }
 
     const lineNetBig = grossCheck.amount - parsedDisc.fcfa;
@@ -308,14 +184,14 @@ export function calculateSaleCart(
     const baseNum = bigIntToSafeNumber(baseCheck.baseMilli, `Quantité de base (${label})`);
     const grossNum = bigIntToSafeNumber(grossCheck.amount, `Montant brut (${label})`);
     const netNum = bigIntToSafeNumber(lineNetBig, `Montant net (${label})`);
-    const depNum = bigIntToSafeNumber(lineDepositBig, `Consigne (${label})`);
+    const depNum = bigIntToSafeNumber(depCheck.amount, `Consigne (${label})`);
     if (!qtyNum.ok || !baseNum.ok || !grossNum.ok || !netNum.ok || !depNum.ok) {
       failLine(`Débordement numérique sur "${label}".`);
       continue;
     }
 
     subtotalMerchBig += lineNetBig;
-    totalDepositBig += lineDepositBig;
+    totalDepositBig += depCheck.amount;
     lineResults[item.key] = {
       valid: true,
       qtyMilli: qtyNum.num,
@@ -327,29 +203,19 @@ export function calculateSaleCart(
     };
   }
 
-  for (const acc of sharedDeposits.values()) {
-    if (acc.milliPieces % 1000n !== 0n) {
-      allLinesValid = false;
-      const intPart = acc.milliPieces / 1000n;
-      const fracPart = acc.milliPieces % 1000n;
-      const formatted =
-        fracPart === 0n
-          ? intPart.toString()
-          : `${intPart.toString()}.${fracPart.toString().padStart(3, '0').replace(/0+$/, '')}`;
-      errors.push(
-        `Panachage incomplet pour « ${acc.name} » : la somme des demi-casiers doit former un nombre entier de casiers (total actuel : ${formatted}).`
-      );
-      continue;
-    }
-    const pieces = acc.milliPieces / 1000n;
-    totalDepositBig += pieces * BigInt(acc.depositValue);
+  /* --- 2. Consolidation des casiers partagés (panachage demi-casiers) --- */
+  const pooledDeposits = consolidateSharedDeposits(sharedDeposits, errors);
+  if (!pooledDeposits.ok) {
+    allLinesValid = false;
+  } else {
+    totalDepositBig += pooledDeposits.amount;
     if (totalDepositBig > MAX_SAFE_BIG) {
       allLinesValid = false;
-      errors.push(`Montant de consigne hors limites pour « ${acc.name} ».`);
+      errors.push('Total des consignes hors limites.');
     }
   }
 
-  // Validation paiements (indépendant du panier)
+  /* --- 3. Validation des paiements & remise globale --- */
   let paidTotalBig = 0n;
   let paymentsValid = true;
   for (const p of payments) {
@@ -368,7 +234,6 @@ export function calculateSaleCart(
   }
   const paidTotal = paymentsValid ? Number(paidTotalBig) : null;
 
-  // Remise globale
   const parsedGlobalDisc = toNonNegativeIntFcfaBigInt(globalDiscountInput, 'Remise globale');
   if (!parsedGlobalDisc.ok) {
     errors.push(parsedGlobalDisc.error);
@@ -376,38 +241,15 @@ export function calculateSaleCart(
 
   const hasItems = items.length > 0;
   if (!hasItems || !allLinesValid || !parsedGlobalDisc.ok || !paymentsValid) {
-    return {
-      isValid: false,
-      hasItems,
-      errors,
-      lineResults,
-      subtotalMerch: null,
-      netMerch: null,
-      totalDeposit: null,
-      grandTotal: null,
-      paidTotal,
-      remainingAmount: null,
-      overpaidAmount: null,
-    };
+    return emptyInvalidResult(hasItems, errors, lineResults, paidTotal);
   }
 
   if (parsedGlobalDisc.fcfa > subtotalMerchBig) {
     errors.push('La remise globale dépasse le sous-total marchandises.');
-    return {
-      isValid: false,
-      hasItems,
-      errors,
-      lineResults,
-      subtotalMerch: null,
-      netMerch: null,
-      totalDeposit: null,
-      grandTotal: null,
-      paidTotal,
-      remainingAmount: null,
-      overpaidAmount: null,
-    };
+    return emptyInvalidResult(hasItems, errors, lineResults, paidTotal);
   }
 
+  /* --- 4. Totaux finaux & reste dû / trop-perçu --- */
   const netMerchBig = subtotalMerchBig - parsedGlobalDisc.fcfa;
   const grandTotalBig = netMerchBig + totalDepositBig;
 
@@ -418,35 +260,16 @@ export function calculateSaleCart(
 
   if (!subRes.ok || !netRes.ok || !depRes.ok || !grandRes.ok) {
     errors.push('Le total calculé dépasse la capacité numérique autorisée.');
-    return {
-      isValid: false,
-      hasItems,
-      errors,
-      lineResults,
-      subtotalMerch: null,
-      netMerch: null,
-      totalDeposit: null,
-      grandTotal: null,
-      paidTotal,
-      remainingAmount: null,
-      overpaidAmount: null,
-    };
+    return emptyInvalidResult(hasItems, errors, lineResults, paidTotal);
   }
 
   if (grandTotalBig <= 0n) {
     errors.push('Le total de la vente doit être strictement positif.');
     return {
-      isValid: false,
-      hasItems,
-      errors,
-      lineResults,
+      ...emptyInvalidResult(hasItems, errors, lineResults, paidTotal),
       subtotalMerch: subRes.num,
       netMerch: netRes.num,
       totalDeposit: depRes.num,
-      grandTotal: null,
-      paidTotal,
-      remainingAmount: null,
-      overpaidAmount: null,
     };
   }
 
