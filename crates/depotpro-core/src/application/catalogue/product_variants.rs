@@ -109,14 +109,15 @@ pub async fn create_product_variant(
         }
     }
     let id = sqlx::query(
-        "INSERT INTO product_variants (product_id, name, reference, barcode, volume_ml, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO product_variants (product_id, name, reference, barcode, volume_ml, container_type, alcohol_degree, bottle_profile_id, crate_type_id, compatibility_group_id, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     )
     .bind(input.product_id)
     .bind(&clean_name)
     .bind(input.reference.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(input.barcode.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(input.volume_ml)
+    .bind(input.container_type.as_deref())
     .bind(input.alcohol_degree)
     .bind(input.bottle_profile_id)
     .bind(input.crate_type_id)
@@ -172,6 +173,17 @@ pub async fn update_product_variant(
         if let Some(v) = vol {
             updates.push("volume_ml = ?".to_string());
             binds.push(v.to_string());
+        }
+    }
+    if let Some(ref ct) = input.container_type {
+        if let Some(value) = ct {
+            if !["glass_returnable", "glass_disposable", "pet", "can", "plastic_bottle", "other"].contains(&value.as_str()) {
+                return Err(CoreError::Validation("Type de contenant invalide.".to_string()));
+            }
+            updates.push("container_type = ?".to_string());
+            binds.push(value.clone());
+        } else {
+            updates.push("container_type = NULL".to_string());
         }
     }
     if let Some(alc) = input.alcohol_degree {
