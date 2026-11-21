@@ -213,3 +213,12 @@ export function buildNewPackagingState(prod: Product): PackagingFormState {
     brand_id: prod.brand_id ?? 0,
   };
 }
+
+export function normalizeProductName(raw: string): string {
+  return raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}

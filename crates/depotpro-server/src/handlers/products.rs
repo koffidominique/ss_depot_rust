@@ -207,12 +207,12 @@ pub(crate) async fn delete_product(
     headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
-    let actor = match require_perm(&state, &headers, Permission::CatalogWrite).await {
+    let actor = match require_perm(&state, &headers, Permission::CatalogDelete).await {
         Ok(a) => a,
         Err(e) => return e.into_response(),
     };
     let db = state.db().await;
-    match auth::with_actor(actor, products::delete_or_archive_product(&db, id)).await {
+    match auth::with_actor(actor, products::delete_product(&db, id)).await {
         Ok(res) => (StatusCode::OK, Json(serde_json::to_value(res).unwrap())).into_response(),
         Err(e) => map_err(e).into_response(),
     }

@@ -2,12 +2,16 @@
 // Export et import CSV du catalogue produits
 // ============================================================================
 
+use std::collections::HashSet;
+
 use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::sales::audit_log_tx;
 use crate::domain::money::Money;
 use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
+
+use super::duplicate::normalize_product_name;
 
 fn format_milli(milli: i64) -> String {
     let whole = milli / 1000;
@@ -105,6 +109,13 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
     })?;
 
     let (_guard, mut tx) = db.begin_write().await?;
+    let existing_prod_names: Vec<String> = sqlx::query_scalar("SELECT name FROM products")
+        .fetch_all(&mut *tx)
+        .await?;
+    let mut seen_norm_names: HashSet<String> = existing_prod_names
+        .iter()
+        .map(|n| normalize_product_name(n))
+        .collect();
     let mut created: i64 = 0;
 
     for (line_num, line) in lines.iter().enumerate().skip(1) {
@@ -112,6 +123,13 @@ pub async fn import_products_csv(db: &DepotDb, csv: &str) -> CoreResult<i64> {
         let name = cols.get(name_idx).map(String::as_str).unwrap_or("").trim();
         if name.is_empty() {
             continue;
+        }
+        let norm_name = normalize_product_name(name);
+        if !seen_norm_names.insert(norm_name) {
+            return Err(CoreError::DuplicateOperation(format!(
+                "Ligne {} : un produit nommé « {name} » existe déjà.",
+                line_num + 1
+            )));
         }
         let base_unit = cols
             .get(unit_idx)

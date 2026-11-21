@@ -1,6 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../services/api/createApiClient.ts';
-import type { Category, Product } from '../../../types/erp.ts';
+import type {
+  ApplyCatalogPresetsResult,
+  Category,
+  DeleteProductResult,
+  Product,
+} from '../../../types/erp.ts';
 import type {
   CategoryFormValues,
   PackagingFormState,
@@ -18,6 +23,10 @@ export function useProductMutations(callbacks: {
   onSavedProduct: () => void;
   onSavedPackaging: (isUpdate: boolean) => void;
   onArchivedProduct: () => void;
+  onDeletedProduct?: (res: DeleteProductResult) => void;
+  onDeleteError?: (message: string) => void;
+  onAppliedPresets?: (res: ApplyCatalogPresetsResult) => void;
+  onPresetsError?: (message: string) => void;
   onCreatedCategory: (cat: Category) => void;
   onImportedCsv: (createdCount: number) => void;
   onError: (message: string) => void;
@@ -51,6 +60,7 @@ export function useProductMutations(callbacks: {
         allow_mixed_sale: values.allow_mixed_sale,
         default_location_id: values.default_location_id,
         status: values.status,
+        is_active: values.status !== 'inactive',
       };
 
       if (editingProduct) {
@@ -60,6 +70,7 @@ export function useProductMutations(callbacks: {
           barcode: values.barcode.trim() || null,
           category_id: values.category_id,
           supplier_id: values.supplier_id,
+          clear_supplier_id: values.supplier_id === null,
           description: values.description.trim() || null,
           min_stock: values.min_stock || '0',
           max_stock: values.max_stock || '0',
@@ -251,11 +262,49 @@ export function useProductMutations(callbacks: {
       callbacks.onError(err instanceof Error ? err.message : 'Erreur import CSV.'),
   });
 
+  const deleteProductMutation = useMutation({
+    mutationFn: (id: number) => apiClient.deleteProduct(id),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['stock'] });
+      callbacks.onDeletedProduct?.(res);
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : 'Erreur suppression produit.';
+      if (callbacks.onDeleteError) callbacks.onDeleteError(msg);
+      else callbacks.onError(msg);
+    },
+  });
+
+  const applyPresetsMutation = useMutation({
+    mutationFn: ({ keys, activate }: { keys: string[]; activate: boolean }) =>
+      apiClient.applyCatalogPresets(keys, activate),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['categories'] });
+      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      qc.invalidateQueries({ queryKey: ['breweries'] });
+      qc.invalidateQueries({ queryKey: ['consignments'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['catalog-presets'] });
+      callbacks.onAppliedPresets?.(res);
+    },
+    onError: (err) => {
+      const msg =
+        err instanceof Error ? err.message : 'Erreur application catalogue brasseries.';
+      if (callbacks.onPresetsError) callbacks.onPresetsError(msg);
+      else callbacks.onError(msg);
+    },
+  });
+
   return {
     saveProductMutation,
     archiveMutation,
     upsertPkgMutation,
     createCategoryMutation,
     importCsvMutation,
+    deleteProductMutation,
+    applyPresetsMutation,
   };
 }

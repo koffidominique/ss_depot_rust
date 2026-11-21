@@ -166,9 +166,9 @@ pub async fn delete_product(
     token: String,
     id: i64,
 ) -> Result<serde_json::Value, String> {
-    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogDelete).await?;
     let db = state.db().await;
-    let res = auth::with_actor(actor, products::delete_or_archive_product(&db, id))
+    let res = auth::with_actor(actor, products::delete_product(&db, id))
         .await
         .map_err(|e| e.to_string())?;
     serde_json::to_value(res).map_err(|e| e.to_string())
@@ -216,4 +216,35 @@ pub async fn import_products_csv(
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "created": created }))
+}
+
+#[tauri::command]
+pub async fn list_catalog_presets(
+    state: State<'_, DesktopState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogRead).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(actor, products::list_catalog_presets(&db))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn apply_catalog_presets(
+    state: State<'_, DesktopState>,
+    token: String,
+    keys: Vec<String>,
+    activate: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::CatalogWrite).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(
+        actor,
+        products::apply_catalog_presets(&db, products::ApplyCatalogPresetsInput { keys, activate }),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
 }

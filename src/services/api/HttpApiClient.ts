@@ -59,6 +59,8 @@ export class HttpApiClient implements ApiClient {
   listDepositRules = httpCatalogApi.listDepositRules;
   exportProductsCsv = httpCatalogApi.exportProductsCsv;
   importProductsCsv = httpCatalogApi.importProductsCsv;
+  listCatalogPresets = httpCatalogApi.listCatalogPresets;
+  applyCatalogPresets = httpCatalogApi.applyCatalogPresets;
 
   /* --- Clients, Ventes & Créances --- */
   listClients = httpSalesApi.listClients;

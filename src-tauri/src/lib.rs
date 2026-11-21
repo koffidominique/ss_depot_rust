@@ -131,6 +131,8 @@ pub fn run() {
             commands::products::upsert_packaging,
             commands::products::export_products_csv,
             commands::products::import_products_csv,
+            commands::products::list_catalog_presets,
+            commands::products::apply_catalog_presets,
             commands::sales::list_clients,
             commands::sales::create_client,
             commands::sales::update_client,

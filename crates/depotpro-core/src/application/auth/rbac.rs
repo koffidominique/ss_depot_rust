@@ -156,6 +156,7 @@ impl Role {
 pub enum Permission {
     CatalogRead,
     CatalogWrite,
+    CatalogDelete,
     SalesRead,
     SalesWrite,
     SalesCancelReturn,
@@ -186,6 +187,7 @@ impl Permission {
     pub const ALL: &'static [Permission] = &[
         Permission::CatalogRead,
         Permission::CatalogWrite,
+        Permission::CatalogDelete,
         Permission::SalesRead,
         Permission::SalesWrite,
         Permission::SalesCancelReturn,
@@ -216,6 +218,7 @@ impl Permission {
         match self {
             Permission::CatalogRead => "catalog:read",
             Permission::CatalogWrite => "catalog:write",
+            Permission::CatalogDelete => "catalog:delete",
             Permission::SalesRead => "sales:read",
             Permission::SalesWrite => "sales:write",
             Permission::SalesCancelReturn => "sales:cancel_return",

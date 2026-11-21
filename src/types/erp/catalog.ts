@@ -238,3 +238,58 @@ export interface PaginatedResult<T> {
   pageSize: number;
   totalPages: number;
 }
+
+export interface CatalogPresetComponent {
+  returnable_code: string;
+  returnable_name: string;
+  pieces_per_pack: number;
+}
+
+export interface CatalogPresetPackaging {
+  name: string;
+  coefficient: string;
+  purchase_price: number;
+  wholesale_price: number;
+  semi_wholesale_price: number;
+  retail_price: number;
+  barcode: string | null;
+  allow_fraction: boolean;
+  deposit_mode: 'none' | 'deposit';
+  components: CatalogPresetComponent[];
+}
+
+export interface CatalogPresetItem {
+  key: string;
+  brewery: 'SOLIBRA' | 'BRASSIVOIRE' | string;
+  name: string;
+  brand: string;
+  barcode: string;
+  category: string;
+  base_unit: string;
+  initial_stock: string;
+  min_stock: string;
+  purchase_price: number;
+  wholesale_price: number;
+  semi_wholesale_price: number;
+  retail_price: number;
+  description: string;
+  packagings: CatalogPresetPackaging[];
+  existing_product_id: number | null;
+  existing_reference: string | null;
+  existing_is_active: number | null;
+}
+
+export interface ApplyCatalogPresetsResult {
+  created: number;
+  reactivated: number;
+  skipped: number;
+  activate: boolean;
+  products: Product[];
+}
+
+export interface DeleteProductResult {
+  deleted: boolean;
+  id: number;
+  reference: string;
+  name: string;
+}

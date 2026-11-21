@@ -7,7 +7,7 @@ use axum::Router;
 
 use crate::handlers::{
     auth, backups, cash_and_reports, consignments, health, packaging_components,
-    partial_returns_and_validation, products, purchases, sales, stock,
+    partial_returns_and_validation, products, products_presets, purchases, sales, stock,
 };
 use crate::state::AppState;
 
@@ -55,6 +55,14 @@ pub(crate) fn core_and_commerce_router() -> Router<AppState> {
         .route(
             "/api/products/import/csv",
             post(products::import_products_csv),
+        )
+        .route(
+            "/api/products/presets",
+            get(products_presets::list_catalog_presets),
+        )
+        .route(
+            "/api/products/presets/apply",
+            post(products_presets::apply_catalog_presets),
         )
         // Ventes, clients & créances
         .route(

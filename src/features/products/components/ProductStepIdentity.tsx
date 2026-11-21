@@ -1,12 +1,14 @@
 import { Controller, type UseFormReturn } from 'react-hook-form';
-import { Image as ImageIcon, Trash2 } from 'lucide-react';
-import type { BrandRef, Brewery, Category } from '../../../types/erp.ts';
-import type { ProductFormValues } from '../utils/productSchemas.ts';
+import { AlertTriangle, Image as ImageIcon, Trash2 } from 'lucide-react';
+import type { BrandRef, Brewery, Category, Product } from '../../../types/erp.ts';
+import { normalizeProductName, type ProductFormValues } from '../utils/productSchemas.ts';
 import { BrandQuickSelect, BreweryQuickSelect } from './ProductInlineRefs.tsx';
 
 interface ProductStepIdentityProps {
   form: UseFormReturn<ProductFormValues>;
   isEditing: boolean;
+  editingProductId?: number | null;
+  existingProducts?: Product[];
   categories?: Category[];
   breweries?: Brewery[];
   brands?: BrandRef[];
@@ -16,12 +18,23 @@ interface ProductStepIdentityProps {
 export function ProductStepIdentity({
   form,
   isEditing,
+  editingProductId,
+  existingProducts,
   categories,
   breweries,
   brands,
   onImageFileChange,
 }: ProductStepIdentityProps) {
   const selectedCatId = form.watch('category_id');
+  const watchedName = form.watch('name');
+  const normalizedName = normalizeProductName(watchedName || '');
+  const duplicateMatch =
+    normalizedName.length > 0 && existingProducts
+      ? existingProducts.find(
+          (p) => p.id !== editingProductId && normalizeProductName(p.name) === normalizedName,
+        ) ?? null
+      : null;
+
   const rootCategories = categories?.filter((c) => !c.parent_id) ?? [];
   const subCategories = categories?.filter((c) => c.parent_id === selectedCatId) ?? [];
 
@@ -46,6 +59,18 @@ export function ProductStepIdentity({
           <p className="mt-1 text-[11px] text-[#DC4545]" role="alert">
             {form.formState.errors.name.message}
           </p>
+        )}
+        {duplicateMatch && (
+          <div
+            role="status"
+            className="mt-1.5 flex items-start gap-2 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
+          >
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D9901A]" />
+            <span>
+              Doublon détecté : « {duplicateMatch.name} » ({duplicateMatch.reference}) existe déjà
+              dans le catalogue.
+            </span>
+          </div>
         )}
       </div>
 

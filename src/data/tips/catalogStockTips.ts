@@ -24,12 +24,23 @@ export const PRODUCTS_TIP: TipTopic = {
       whenToUse: 'Obligatoire pour vendre un casier ou appliquer automatiquement la consigne au POS.',
     },
     {
+      name: 'Catalogue brasseries (SOLIBRA / BRASSIVOIRE)',
+      role: 'Pré-remplit jusqu’à 60 fiches produits (30 SOLIBRA + 30 BRASSIVOIRE) avec codes EAN-13, conditionnements et consignes à stock initial 0.',
+      whenToUse: 'Au démarrage d’un dépôt pour charger tout ou partie du catalogue officiel en mode actif ou inactif.',
+    },
+    {
       name: 'Import / Export CSV',
       role: 'Permet de sauvegarder ou d’importer rapidement un catalogue séparé par points-virgules (;).',
       whenToUse: 'Lors de la mise en place initiale ou d’une mise à jour en masse.',
     },
   ],
   fields: [
+    {
+      formName: 'Nouveau produit',
+      field: 'Anti-doublon normalisé & Statut initial',
+      meaning: 'Le système normalise accents, casse et espaces pour empêcher deux fiches identiques ; un produit peut être enregistré en actif ou inactif.',
+      rule: 'La suppression définitive est réservée au Propriétaire uniquement sur les articles sans historique (ventes, achats ou stock) ; sinon il faut archiver.',
+    },
     {
       formName: 'Nouveau produit',
       field: 'Unité de base & Stock initial',

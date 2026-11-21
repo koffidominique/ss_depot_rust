@@ -25,6 +25,7 @@ interface ProductFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editingProduct: Product | null;
+  existingProducts?: Product[];
   form: UseFormReturn<ProductFormValues>;
   categories?: Category[];
   breweries?: Brewery[];
@@ -52,6 +53,7 @@ export function ProductFormModal({
   open,
   onOpenChange,
   editingProduct,
+  existingProducts,
   form,
   categories,
   breweries,
@@ -107,6 +109,8 @@ export function ProductFormModal({
               <ProductStepIdentity
                 form={form}
                 isEditing={Boolean(editingProduct)}
+                editingProductId={editingProduct?.id ?? null}
+                existingProducts={existingProducts}
                 categories={categories}
                 breweries={breweries}
                 brands={brands}

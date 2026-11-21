@@ -308,6 +308,68 @@ async fn axum_lot9_http_json_and_error_code_parity() {
     assert_eq!(rest_json["foreignKeyErrors"], 0);
     assert!(rest_json["safetyBackup"].as_str().is_some());
 
+    // Catalogue prédéfini brasseries SOLIBRA / BRASSIVOIRE (60 références)
+    let (st, presets_body) = send_http(
+        addr,
+        "GET",
+        "/api/products/presets",
+        &[("Authorization", &auth_hdr)],
+        None,
+    )
+    .await;
+    assert_eq!(st, 200);
+    let presets_json: serde_json::Value = serde_json::from_str(&presets_body).unwrap();
+    let items = presets_json["items"].as_array().unwrap();
+    assert_eq!(items.len(), 60);
+    let first_key = items[0]["key"].as_str().unwrap();
+
+    let apply_payload = serde_json::json!({
+        "keys": [first_key],
+        "activate": true
+    })
+    .to_string();
+    let (st, apply_body) = send_http(
+        addr,
+        "POST",
+        "/api/products/presets/apply",
+        &[("Authorization", &auth_hdr)],
+        Some(&apply_payload),
+    )
+    .await;
+    assert_eq!(st, 200);
+    let apply_json: serde_json::Value = serde_json::from_str(&apply_body).unwrap();
+    assert_eq!(apply_json["created"], 1);
+    assert_eq!(apply_json["products"][0]["is_active"], 1);
+    let applied_id = apply_json["products"][0]["id"].as_i64().unwrap();
+
+    // Suppression produit : refusé si lié à des mouvements/ventes, autorisé si vierge (Owner)
+    let (st_hist, hist_body) = send_http(
+        addr,
+        "DELETE",
+        &format!("/api/products/{prod_id}"),
+        &[("Authorization", &auth_hdr)],
+        None,
+    )
+    .await;
+    assert_eq!(st_hist, 400);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&hist_body).unwrap()["code"],
+        "HISTORICAL_IMMUTABLE"
+    );
+
+    let (st_del, del_body) = send_http(
+        addr,
+        "DELETE",
+        &format!("/api/products/{applied_id}"),
+        &[("Authorization", &auth_hdr)],
+        None,
+    )
+    .await;
+    assert_eq!(st_del, 200);
+    let del_json: serde_json::Value = serde_json::from_str(&del_body).unwrap();
+    assert_eq!(del_json["deleted"], true);
+    assert_eq!(del_json["id"], applied_id);
+
     srv.abort();
     let _ = std::fs::remove_dir_all(&dir);
 }

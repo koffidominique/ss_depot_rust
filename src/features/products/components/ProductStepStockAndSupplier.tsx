@@ -80,12 +80,15 @@ export function ProductStepStockAndSupplier({
       </div>
 
       <div>
-        <label className="block text-xs font-medium">Fournisseur principal</label>
+        <label htmlFor="product-supplier" className="block text-xs font-medium">
+          Fournisseur principal
+        </label>
         <Controller
           control={form.control}
           name="supplier_id"
           render={({ field }) => (
             <select
+              id="product-supplier"
               value={field.value ?? ''}
               onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
               className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
@@ -138,8 +141,11 @@ export function ProductStepStockAndSupplier({
       </div>
 
       <div>
-        <label className="block text-xs font-medium">Statut catalogue</label>
+        <label htmlFor="product-status" className="block text-xs font-medium">
+          Statut catalogue
+        </label>
         <select
+          id="product-status"
           {...form.register('status')}
           className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
         >

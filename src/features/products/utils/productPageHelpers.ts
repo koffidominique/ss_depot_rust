@@ -236,9 +236,11 @@ export function editProductDefaultValues(prod: Product): ProductFormValues {
     default_location_id: prod.default_location_id ?? null,
     track_batches: prod.track_batches === 1,
     track_expiry: prod.track_expiry === 1,
-    status: (prod.status === 'draft' || prod.status === 'inactive'
-      ? prod.status
-      : 'active') as 'active' | 'draft' | 'inactive',
+    status: (prod.is_active === 0
+      ? 'inactive'
+      : prod.status === 'draft' || prod.status === 'inactive'
+        ? prod.status
+        : 'active') as 'active' | 'draft' | 'inactive',
     supplier_id: prod.supplier_id ?? null,
     supplier_product_code: '',
     purchase_unit: 'casier',

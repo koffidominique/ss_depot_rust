@@ -143,4 +143,14 @@ export const tauriCatalogApi = {
       token: getStoredTauriToken(),
       csv,
     }),
+  listCatalogPresets: () =>
+    tauriInvoke<Awaited<ReturnType<ApiClient["listCatalogPresets"]>>>(
+      "list_catalog_presets",
+      { token: getStoredTauriToken() },
+    ),
+  applyCatalogPresets: (keys: string[], activate: boolean) =>
+    tauriInvoke<Awaited<ReturnType<ApiClient["applyCatalogPresets"]>>>(
+      "apply_catalog_presets",
+      { token: getStoredTauriToken(), keys, activate },
+    ),
 };

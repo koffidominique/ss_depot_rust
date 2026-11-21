@@ -12,7 +12,7 @@ export interface ProductFilters {
   pageSize?: number;
 }
 
-export function useProductsQueries(filters: ProductFilters) {
+export function useProductsQueries(filters: ProductFilters, presetsOpen = false) {
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
     queryFn: () => apiClient.listCategories(),
@@ -53,6 +53,12 @@ export function useProductsQueries(filters: ProductFilters) {
     queryFn: () => apiClient.listSuppliers(),
   });
 
+  const catalogPresetsQuery = useQuery({
+    queryKey: ['catalog-presets'],
+    queryFn: () => apiClient.listCatalogPresets(),
+    enabled: presetsOpen,
+  });
+
   const productsQuery = useQuery({
     queryKey: [
       'products',
@@ -82,6 +88,7 @@ export function useProductsQueries(filters: ProductFilters) {
     packagingTypesQuery,
     stockLocationsQuery,
     suppliersQuery,
+    catalogPresetsQuery,
     productsQuery,
   };
 }

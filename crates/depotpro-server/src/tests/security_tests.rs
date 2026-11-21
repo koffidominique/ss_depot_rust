@@ -227,6 +227,42 @@ async fn axum_enforces_session_expiry_revocation_origin_and_rbac() {
     .await;
     assert_eq!(st, 401);
 
+    // 6. Suppression définitive de produit réservée strictement au Owner (Admin -> 403)
+    let (st, _) = send_http(
+        addr,
+        "POST",
+        "/api/auth/users",
+        &[("Authorization", &format!("Bearer {owner_token}"))],
+        Some(
+            r#"{"username":"admin_sec","displayName":"Karim Admin","role":"admin","pin":"778899"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(st, 201);
+    let (st, login_admin) = send_http(
+        addr,
+        "POST",
+        "/api/auth/login",
+        &[],
+        Some(r#"{"username":"admin_sec","pin":"778899"}"#),
+    )
+    .await;
+    assert_eq!(st, 200);
+    let admin_token = serde_json::from_str::<serde_json::Value>(&login_admin).unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let (st, _) = send_http(
+        addr,
+        "DELETE",
+        "/api/products/1",
+        &[("Authorization", &format!("Bearer {admin_token}"))],
+        None,
+    )
+    .await;
+    assert_eq!(st, 403);
+
     srv.abort();
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -12,9 +12,14 @@ mod create_prep_helpers;
 mod create_units_helpers;
 pub(crate) mod create_v4_helpers;
 mod csv_io;
+mod delete;
+mod duplicate;
 mod hydrate;
 mod packaging;
 mod packaging_deposit;
+mod presets;
+mod presets_helpers;
+mod presets_types;
 mod queries;
 mod serde_helpers;
 mod update;
@@ -25,7 +30,14 @@ pub use categories::{
 };
 pub use create::{create_product, create_product_v4};
 pub use csv_io::{export_products_csv, import_products_csv};
+pub use delete::{delete_product, DeleteProductResultDto};
+pub use duplicate::normalize_product_name;
 pub use packaging::{upsert_packaging, upsert_packaging_v4};
+pub use presets::{apply_catalog_presets, list_catalog_presets};
+pub use presets_types::{
+    ApplyCatalogPresetsInput, ApplyCatalogPresetsResultDto, CatalogPresetComponentDto,
+    CatalogPresetItemDto, CatalogPresetListDto, CatalogPresetPackagingDto,
+};
 pub use queries::{
     delete_or_archive_product, get_product_by_id, list_active_products, list_products,
 };
@@ -275,7 +287,7 @@ pub struct CreateProductInput {
     pub packagings: Option<Vec<PackagingInput>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct UpdateProductInput {
     pub name: Option<String>,
     pub brand: Option<String>,

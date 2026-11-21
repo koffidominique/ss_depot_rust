@@ -1,12 +1,15 @@
 import type {
+  ApplyCatalogPresetsResult,
   AuthStatus,
   BrandRef,
   Brewery,
+  CatalogPresetItem,
   Category,
   Client,
   ContainerTypeRef,
   CreditPolicy,
   DashboardData,
+  DeleteProductResult,
   DepositRuleRef,
   PackagingTypeRef,
   PaginatedResult,
@@ -80,9 +83,12 @@ export interface CatalogApiClient {
   }): Promise<PaginatedResult<Product>>;
   createProduct(input: Record<string, unknown>): Promise<Product>;
   updateProduct(id: number, input: Record<string, unknown>): Promise<Product>;
-  deleteProduct(
-    id: number,
-  ): Promise<{ id: number; action: string; is_active: number }>;
+  deleteProduct(id: number): Promise<DeleteProductResult>;
+  listCatalogPresets(): Promise<{ items: CatalogPresetItem[] }>;
+  applyCatalogPresets(
+    keys: string[],
+    activate: boolean,
+  ): Promise<ApplyCatalogPresetsResult>;
   upsertPackaging(
     productId: number,
     pkg: Record<string, unknown>,

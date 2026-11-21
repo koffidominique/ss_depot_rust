@@ -76,7 +76,7 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     const prodModal = page.getByRole('dialog');
     await prodModal.locator('input[type="text"]').first().fill('Youki Cocktail 50cl');
     await prodModal.getByRole('button', { name: 'Enregistrer' }).click();
-    await expect(page.getByRole('cell', { name: /Youki Cocktail 50cl/i })).toBeVisible();
+    await expect(page.locator('tbody').getByText('Youki Cocktail 50cl', { exact: true })).toBeVisible();
 
     await page.goto('/sales/new');
     await expect(
@@ -328,6 +328,91 @@ test.describe('DEPOTPRO PREMIUM V3 — Scénarios E2E Interface & Métier', () =
     await page.getByRole('button', { name: /Retourner 1 Casier 24 × 33cl verre/i }).click();
     await expect(
       page.getByRole('button', { name: /Retourner 1 Casier 24 × 33cl verre/i })
+    ).toBeHidden();
+
+    expect(errors).toEqual([]);
+  });
+
+  test('Scénario 7 — Catalogue brasseries (60 produits dont Valpierre), anti-doublon et suppression Owner', async ({
+    page,
+  }) => {
+    const errors = trackRuntimeErrors(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginWithPin(page, '123456');
+
+    await page.goto('/products');
+    await expect(
+      page.getByRole('heading', { name: 'Catalogue produits & conditionnements', level: 1 })
+    ).toBeVisible();
+
+    // 1. Ouverture catalogue brasseries (60 produits : 30 SOLIBRA + 30 BRASSIVOIRE)
+    await page.getByRole('button', { name: 'Catalogue brasseries', exact: true }).click();
+    const presetsDialog = page.getByRole('dialog');
+    await expect(
+      presetsDialog.getByRole('button', { name: 'Toutes (60)', exact: true })
+    ).toBeVisible();
+    await expect(
+      presetsDialog.getByRole('button', { name: 'SOLIBRA (30)', exact: true })
+    ).toBeVisible();
+    await expect(
+      presetsDialog.getByRole('button', { name: 'BRASSIVOIRE (30)', exact: true })
+    ).toBeVisible();
+
+    await presetsDialog.getByRole('button', { name: 'Vins & Spiritueux', exact: true }).click();
+    await expect(
+      presetsDialog.getByText('Vin Valpierre Rouge 75cl', { exact: true })
+    ).toBeVisible();
+    await presetsDialog
+      .getByLabel('Sélectionner Vin Valpierre Rouge 75cl', { exact: true })
+      .check();
+    await presetsDialog
+      .getByRole('button', { name: 'Activer la sélection (1)', exact: true })
+      .click();
+
+    await expect(
+      page.locator('tbody').getByText('Vin Valpierre Rouge 75cl', { exact: true })
+    ).toBeVisible();
+
+    // 2. Détection d'un doublon en direct dans la modale Nouveau produit + vérification API 409
+    await page.getByRole('button', { name: 'Nouveau produit', exact: true }).click();
+    const formDialog = page.getByRole('dialog');
+    await formDialog.locator('#product-name').fill('  vin valpierre   rouge 75cl ');
+    await expect(
+      formDialog.getByText(/Doublon détecté : « Vin Valpierre Rouge 75cl »/i)
+    ).toBeVisible();
+    await formDialog.getByRole('button', { name: 'Annuler', exact: true }).click();
+
+    const loginRes = await page.request.post('/api/auth/login', { data: { pin: '123456' } });
+    expect(loginRes.ok()).toBeTruthy();
+    const { token } = (await loginRes.json()) as { token: string };
+    const authHeaders = { Authorization: `Bearer ${token}` };
+
+    const catsRes = await page.request.get('/api/categories', { headers: authHeaders });
+    const cats = (await catsRes.json()) as Array<{ id: number }>;
+    const dupRes = await page.request.post('/api/products', {
+      headers: authHeaders,
+      data: {
+        name: 'VIN VALPIERRE ROUGE 75CL',
+        category_id: cats[0].id,
+        base_unit: 'bouteille',
+        retail_price: 2500,
+      },
+    });
+    expect(dupRes.status()).toBe(409);
+
+    // 3. Suppression définitive réservée au Propriétaire (produit vierge sans ventes/achats)
+    await page
+      .getByRole('button', { name: 'Supprimer Vin Valpierre Rouge 75cl', exact: true })
+      .click();
+    const deleteDialog = page.getByRole('dialog');
+    await expect(
+      deleteDialog.getByText(/Supprimer définitivement Vin Valpierre Rouge 75cl/i)
+    ).toBeVisible();
+    await deleteDialog
+      .getByRole('button', { name: 'Supprimer définitivement', exact: true })
+      .click();
+    await expect(
+      page.locator('tbody').getByText('Vin Valpierre Rouge 75cl', { exact: true })
     ).toBeHidden();
 
     expect(errors).toEqual([]);

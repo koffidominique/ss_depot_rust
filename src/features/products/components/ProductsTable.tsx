@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import { Archive, Edit3, Image as ImageIcon, Layers } from 'lucide-react';
+import { Archive, Edit3, Image as ImageIcon, Layers, Power, Trash2 } from 'lucide-react';
 import { DataTable } from '../../../components/tables/DataTable.tsx';
 import { StatusBadge } from '../../../components/common/StatusBadge.tsx';
 import type { Product, ProductPackaging } from '../../../types/erp.ts';
@@ -14,6 +14,8 @@ interface ProductsTableProps {
   onEdit: (product: Product) => void;
   onManagePackagings: (product: Product, targetPkg?: ProductPackaging) => void;
   onToggleArchive: (product: Product) => void;
+  canDelete?: boolean;
+  onDelete?: (product: Product) => void;
 }
 
 export function ProductsTable({
@@ -25,6 +27,8 @@ export function ProductsTable({
   onEdit,
   onManagePackagings,
   onToggleArchive,
+  canDelete = false,
+  onDelete,
 }: ProductsTableProps) {
   const columns: ColumnDef<Product>[] = [
     {
@@ -73,6 +77,7 @@ export function ProductsTable({
               {row.original.category_name}
               {row.original.brewery_name ? ` · ${row.original.brewery_name}` : ''}
               {row.original.brand ? ` · ${row.original.brand}` : ''}
+              {row.original.supplier_name ? ` · ${row.original.supplier_name}` : ''}
             </div>
           </div>
         </div>
@@ -175,10 +180,29 @@ export function ProductsTable({
             type="button"
             onClick={() => onToggleArchive(row.original)}
             title={row.original.is_active ? 'Archiver' : 'Réactiver'}
-            className="rounded-md border border-slate-200 dark:border-slate-700 p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className={`rounded-md border p-1.5 transition-colors ${
+              row.original.is_active
+                ? 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                : 'border-emerald-200 dark:border-emerald-800 text-[#16A36A] dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+            }`}
           >
-            <Archive className="h-3.5 w-3.5" />
+            {row.original.is_active ? (
+              <Archive className="h-3.5 w-3.5" />
+            ) : (
+              <Power className="h-3.5 w-3.5" />
+            )}
           </button>
+          {canDelete && onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(row.original)}
+              title="Supprimer définitivement (Owner)"
+              aria-label={`Supprimer ${row.original.name}`}
+              className="rounded-md border border-rose-200 dark:border-rose-900/60 p-1.5 text-[#DC4545] dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       ),
     },

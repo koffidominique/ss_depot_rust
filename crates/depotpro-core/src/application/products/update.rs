@@ -12,6 +12,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 
 use super::create_v4_helpers::validate_brewery_and_brand_tx;
+use super::duplicate::ensure_unique_product_name;
 use super::v4_types::ProductV4UpdateExtras;
 use super::{get_product_by_id, sanitize_image_path, ProductSummaryDto, UpdateProductInput};
 
@@ -92,6 +93,7 @@ pub async fn update_product_v4(
         }
         None => cur.name,
     };
+    ensure_unique_product_name(&mut tx, &name, Some(id)).await?;
 
     if let Some(cid) = input.category_id {
         if sqlx::query_scalar::<_, i64>("SELECT id FROM categories WHERE id = ?")
@@ -174,20 +176,20 @@ pub async fn update_product_v4(
         Some(opt) => sanitize_image_path(opt.as_deref())?,
         None => cur.image_path,
     };
-    let is_active = input
-        .is_active
-        .map(|b| if b { 1_i64 } else { 0_i64 })
-        .unwrap_or(cur.is_active);
-    let status = extras
-        .status
-        .filter(|s| matches!(s.as_str(), "draft" | "active" | "inactive"))
-        .unwrap_or_else(|| {
-            if is_active == 0 {
-                "inactive".into()
-            } else {
-                cur.status
-            }
-        });
+    let supplier_id = if extras.clear_supplier_id == Some(true) {
+        None
+    } else {
+        input.supplier_id.or(cur.supplier_id)
+    };
+    let (is_active, status) = match (input.is_active, extras.status.as_deref()) {
+        (Some(false), _) => (0_i64, "inactive".to_string()),
+        (Some(true), Some("draft")) => (1_i64, "draft".to_string()),
+        (Some(true), _) => (1_i64, "active".to_string()),
+        (None, Some("inactive")) => (0_i64, "inactive".to_string()),
+        (None, Some("active")) => (1_i64, "active".to_string()),
+        (None, Some("draft")) => (1_i64, "draft".to_string()),
+        _ => (cur.is_active, cur.status),
+    };
 
     sqlx::query(
         "UPDATE products
@@ -209,7 +211,7 @@ pub async fn update_product_v4(
     .bind(input.category_id.unwrap_or(cur.category_id))
     .bind(extras.subcategory_id.unwrap_or(cur.subcategory_id))
     .bind(extras.variant_label.unwrap_or(cur.variant_label))
-    .bind(input.supplier_id.or(cur.supplier_id))
+    .bind(supplier_id)
     .bind(input.description.or(cur.description))
     .bind(extras.alcohol_degree_milli.unwrap_or(cur.alcohol_degree_milli))
     .bind(extras.is_alcoholic.map(|b| if b { 1 } else { 0 }).unwrap_or(cur.is_alcoholic))

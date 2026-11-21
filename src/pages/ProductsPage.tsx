@@ -1,8 +1,12 @@
 import { useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { Archive, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { InlineAlert } from '../components/common/InlineAlert.tsx';
+import { ModalDialog } from '../components/dialogs/ModalDialog.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
+import { useUiStore } from '../stores/uiStore.ts';
 import type { Product, ProductPackaging } from '../types/erp.ts';
 import {
   buildNewPackagingState,
@@ -30,12 +34,16 @@ import { ProductFormModal } from '../features/products/components/ProductFormMod
 import { PackagingModal } from '../features/products/components/PackagingModal.tsx';
 import { ImportCsvModal } from '../features/products/components/ImportCsvModal.tsx';
 import { CategoryModal } from '../features/products/components/CategoryModal.tsx';
+import { CatalogPresetsModal } from '../features/products/components/CatalogPresetsModal.tsx';
 
 /* ============================================================================
  * Page Catalogue Produits & Conditionnements
  * ============================================================================ */
 
 export function ProductsPage() {
+  const currentUser = useUiStore((s) => s.currentUser);
+  const isOwner = currentUser?.role === 'owner';
+
   /* --- 1. États locaux (filtres, pagination, modales) --- */
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
@@ -50,6 +58,10 @@ export function ProductsPage() {
   const [pkgState, setPkgState] = useState<PackagingFormState>(INITIAL_PACKAGING_STATE);
   const [csvOpen, setCsvOpen] = useState(false);
   const [csvText, setCsvText] = useState('');
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const [presetsSubmitError, setPresetsSubmitError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -74,14 +86,18 @@ export function ProductsPage() {
     packagingTypesQuery,
     stockLocationsQuery,
     suppliersQuery,
+    catalogPresetsQuery,
     productsQuery,
-  } = useProductsQueries({
-    search,
-    categoryId,
-    includeArchived,
-    lowStockOnly,
-    page,
-  });
+  } = useProductsQueries(
+    {
+      search,
+      categoryId,
+      includeArchived,
+      lowStockOnly,
+      page,
+    },
+    presetsOpen,
+  );
 
   const {
     saveProductMutation,
@@ -89,6 +105,8 @@ export function ProductsPage() {
     upsertPkgMutation,
     createCategoryMutation,
     importCsvMutation,
+    deleteProductMutation,
+    applyPresetsMutation,
   } = useProductMutations({
     onSavedProduct: () => {
       setCreateOpen(false);
@@ -103,6 +121,24 @@ export function ProductsPage() {
       setFeedback(isUpdate ? 'Conditionnement mis à jour.' : 'Conditionnement enregistré.');
     },
     onArchivedProduct: () => setFeedback('Statut du produit mis à jour.'),
+    onDeletedProduct: (res) => {
+      setDeleteTarget(null);
+      setDeleteError(null);
+      setFeedback(`Produit « ${res.name} » (${res.reference}) supprimé définitivement.`);
+    },
+    onDeleteError: (msg) => setDeleteError(msg),
+    onAppliedPresets: (res) => {
+      setPresetsOpen(false);
+      setPresetsSubmitError(null);
+      if (res.created > 0 || res.reactivated > 0) {
+        setFeedback(
+          `Catalogue brasseries appliqué : ${res.created} créé(s), ${res.reactivated} réactivé(s) (${res.skipped} inchangé(s)).`,
+        );
+      } else {
+        setFeedback(`Tous les produits sélectionnés étaient déjà à jour (${res.skipped}).`);
+      }
+    },
+    onPresetsError: (msg) => setPresetsSubmitError(msg),
     onCreatedCategory: (created) => {
       setCatOpen(false);
       categoryForm.reset({ name: '', description: '' });
@@ -194,6 +230,10 @@ export function ProductsPage() {
           setFormError(null);
           setCsvOpen(true);
         }}
+        onOpenPresets={() => {
+          setPresetsSubmitError(null);
+          setPresetsOpen(true);
+        }}
         onOpenNewProduct={openCreateModal}
       />
 
@@ -214,6 +254,11 @@ export function ProductsPage() {
           onEdit={openEditModal}
           onManagePackagings={openPackagingModal}
           onToggleArchive={(prod) => archiveMutation.mutate(prod)}
+          canDelete={isOwner}
+          onDelete={(prod) => {
+            setDeleteError(null);
+            setDeleteTarget(prod);
+          }}
         />
       )}
 
@@ -221,6 +266,7 @@ export function ProductsPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         editingProduct={editingProduct}
+        existingProducts={data?.items}
         form={productForm}
         categories={categories}
         breweries={breweriesQuery.data?.items}
@@ -281,6 +327,94 @@ export function ProductsPage() {
         isPending={createCategoryMutation.isPending}
         onSubmit={(values) => createCategoryMutation.mutate(values)}
       />
+
+      <CatalogPresetsModal
+        open={presetsOpen}
+        onOpenChange={(nextOpen) => {
+          setPresetsOpen(nextOpen);
+          if (!nextOpen) setPresetsSubmitError(null);
+        }}
+        items={catalogPresetsQuery.data?.items}
+        isLoading={catalogPresetsQuery.isLoading}
+        loadError={
+          catalogPresetsQuery.error instanceof Error ? catalogPresetsQuery.error.message : null
+        }
+        submitError={presetsSubmitError}
+        isPending={applyPresetsMutation.isPending}
+        onApply={(keys, activate) => applyPresetsMutation.mutate({ keys, activate })}
+      />
+
+      <ModalDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+        title={
+          deleteTarget
+            ? `Supprimer définitivement ${deleteTarget.name} ?`
+            : 'Supprimer le produit'
+        }
+        subtitle="Action réservée au Propriétaire : la suppression définitive n'est possible que si le produit n'a aucun historique (ventes, achats, commandes ou mouvements de stock)."
+        maxWidthClass="max-w-lg"
+        error={deleteError}
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2.5">
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-medium"
+              >
+                Annuler
+              </button>
+            </Dialog.Close>
+            {deleteTarget && deleteTarget.is_active === 1 && (
+              <button
+                type="button"
+                disabled={archiveMutation.isPending || deleteProductMutation.isPending}
+                onClick={() => {
+                  const target = deleteTarget;
+                  archiveMutation.mutate(target, {
+                    onSuccess: () => {
+                      setDeleteTarget(null);
+                      setDeleteError(null);
+                    },
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3.5 py-2 text-xs font-medium text-[#D9901A]"
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Archiver à la place
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={!deleteTarget || deleteProductMutation.isPending}
+              onClick={() => {
+                if (!deleteTarget) return;
+                deleteProductMutation.mutate(deleteTarget.id);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#DC4545] px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {deleteProductMutation.isPending ? 'Suppression...' : 'Supprimer définitivement'}
+            </button>
+          </div>
+        }
+      >
+        {deleteTarget && (
+          <div className="mt-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-3 text-xs text-[#667085] dark:text-slate-300 space-y-1">
+            <div>
+              Référence : <span className="font-mono-num font-semibold">{deleteTarget.reference}</span>
+            </div>
+            <div>
+              Catégorie : {deleteTarget.category_name} · Unité : {deleteTarget.base_unit}
+            </div>
+          </div>
+        )}
+      </ModalDialog>
     </div>
   );
 }

@@ -137,6 +137,13 @@ export const httpCatalogApi = {
       method: 'POST',
       body: JSON.stringify({ csv }),
     }),
+  listCatalogPresets: () =>
+    httpRequest<Awaited<ReturnType<ApiClient['listCatalogPresets']>>>('/api/products/presets'),
+  applyCatalogPresets: (keys: string[], activate: boolean) =>
+    httpRequest<Awaited<ReturnType<ApiClient['applyCatalogPresets']>>>('/api/products/presets/apply', {
+      method: 'POST',
+      body: JSON.stringify({ keys, activate }),
+    }),
 };
 
 export const httpSalesApi = {

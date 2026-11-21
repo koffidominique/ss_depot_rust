@@ -1,4 +1,4 @@
-import { Download, Plus, Upload } from 'lucide-react';
+import { Download, PackagePlus, Plus, Upload } from 'lucide-react';
 import { SearchInput } from '../../../components/forms/SearchInput.tsx';
 import type { Category } from '../../../types/erp.ts';
 
@@ -19,6 +19,7 @@ interface ProductsToolbarProps {
   onOpenNewCategory: () => void;
   onExportCsv: () => void;
   onOpenImportCsv: () => void;
+  onOpenPresets: () => void;
   onOpenNewProduct: () => void;
 }
 
@@ -35,6 +36,7 @@ export function ProductsToolbar({
   onOpenNewCategory,
   onExportCsv,
   onOpenImportCsv,
+  onOpenPresets,
   onOpenNewProduct,
 }: ProductsToolbarProps) {
   return (
@@ -112,6 +114,14 @@ export function ProductsToolbar({
         >
           <Upload className="h-3.5 w-3.5" />
           Import CSV
+        </button>
+        <button
+          type="button"
+          onClick={onOpenPresets}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-3.5 py-2 text-xs font-semibold text-[#2563EB] dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 whitespace-nowrap shrink-0"
+        >
+          <PackagePlus className="h-3.5 w-3.5" />
+          Catalogue brasseries
         </button>
         <button
           type="button"

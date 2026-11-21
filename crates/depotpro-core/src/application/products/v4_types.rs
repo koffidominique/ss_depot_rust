@@ -148,6 +148,8 @@ pub struct ProductV4CreateExtras {
     pub allow_mixed_sale: Option<bool>,
     pub default_location_id: Option<i64>,
     pub status: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
+    pub is_active: Option<bool>,
     pub variant: Option<InitialVariantInput>,
     pub packaging_extras: Option<Vec<PackagingV4Extras>>,
     pub sales_units: Option<Vec<InitialSalesUnitInput>>,
@@ -181,4 +183,6 @@ pub struct ProductV4UpdateExtras {
     pub allow_mixed_sale: Option<bool>,
     pub default_location_id: Option<Option<i64>>,
     pub status: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_bool_or_int")]
+    pub clear_supplier_id: Option<bool>,
 }

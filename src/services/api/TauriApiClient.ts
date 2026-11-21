@@ -59,6 +59,8 @@ export class TauriApiClient implements ApiClient {
   listDepositRules = tauriCatalogApi.listDepositRules;
   exportProductsCsv = tauriCatalogApi.exportProductsCsv;
   importProductsCsv = tauriCatalogApi.importProductsCsv;
+  listCatalogPresets = tauriCatalogApi.listCatalogPresets;
+  applyCatalogPresets = tauriCatalogApi.applyCatalogPresets;
 
   /* --- Clients, Ventes & Créances --- */
   listClients = tauriSalesApi.listClients;

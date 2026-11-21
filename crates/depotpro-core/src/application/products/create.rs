@@ -17,6 +17,7 @@ use super::create_units_helpers::{
     create_initial_product_suppliers_tx, create_initial_sales_units_tx,
 };
 use super::create_v4_helpers::{create_initial_variant_tx, validate_brewery_and_brand_tx};
+use super::duplicate::ensure_unique_product_name;
 use super::v4_types::ProductV4CreateExtras;
 use super::{get_product_by_id, sanitize_image_path, CreateProductInput, ProductSummaryDto};
 
@@ -84,6 +85,7 @@ pub async fn create_product_v4(
     )?;
 
     let (_guard, mut tx) = db.begin_write().await?;
+    ensure_unique_product_name(&mut tx, &name, None).await?;
 
     let clean_barcode = input
         .barcode
@@ -110,12 +112,20 @@ pub async fn create_product_v4(
         .map(str::to_string)
         .or(resolved_brand);
 
+    let is_active_val: i64 = match extras.is_active {
+        Some(false) => 0,
+        _ if extras.status.as_deref() == Some("inactive") => 0,
+        _ => 1,
+    };
     let status = extras
         .status
         .as_deref()
         .filter(|s| matches!(*s, "draft" | "active" | "inactive"))
-        .unwrap_or("active");
-    let is_active_val: i64 = if status == "inactive" { 0 } else { 1 };
+        .unwrap_or(if is_active_val == 0 {
+            "inactive"
+        } else {
+            "active"
+        });
     let default_loc_id = match extras.default_location_id {
         Some(lid) => Some(lid),
         None => {

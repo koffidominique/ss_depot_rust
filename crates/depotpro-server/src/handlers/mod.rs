@@ -20,6 +20,7 @@ pub(crate) mod orders_packaging;
 pub(crate) mod packaging_components;
 pub(crate) mod partial_returns_and_validation;
 pub(crate) mod products;
+pub(crate) mod products_presets;
 pub(crate) mod purchases;
 pub(crate) mod sales;
 pub(crate) mod stock;
