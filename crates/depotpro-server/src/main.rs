@@ -2791,7 +2791,12 @@ async fn packaging_obligations_list(
         Err(e) => return e.into_response(),
     };
     let db = state.db().await;
-    match auth::with_actor(actor, packaging_obligations::list_obligations(&db, q.client_id)).await {
+    match auth::with_actor(
+        actor,
+        packaging_obligations::list_obligations(&db, q.client_id),
+    )
+    .await
+    {
         Ok(list) => Json(serde_json::to_value(list).unwrap()).into_response(),
         Err(e) => map_err(e).into_response(),
     }
@@ -3482,10 +3487,7 @@ fn build_router(state: AppState) -> Router {
             "/api/packaging-obligations/dashboard/:client_id",
             get(packaging_dashboard),
         )
-        .route(
-            "/api/packaging-obligations/pay",
-            post(packaging_pay_debt),
-        )
+        .route("/api/packaging-obligations/pay", post(packaging_pay_debt))
         // PHASE 4 catalogue_seed.md : administration OWNER du catalogue standard
         .route(
             "/api/catalogue-products/:id/active",
