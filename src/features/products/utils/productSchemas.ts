@@ -66,7 +66,7 @@ export function buildPackagingStateFromExisting(pk: ProductPackaging): Packaging
   const firstComponent = pk.components?.[0];
   return {
     id: pk.id,
-    name: 'casier',
+    name: pk.name,
     coefficient: formatCoeffDot(pk.coefficient_milli),
     purchase_price: pk.purchase_price ?? 0,
     retail_price: pk.retail_price ?? 0,
@@ -82,10 +82,14 @@ export function buildPackagingStateFromExisting(pk: ProductPackaging): Packaging
 }
 
 export function buildNewPackagingState(prod: Product): PackagingFormState {
+  const used = new Set(prod.packagings.map((packaging) => packaging.name));
+  const nextName = (['casier', 'carton', 'pack', 'bouteille', 'canette'] as const)
+    .find((name) => !used.has(name)) ?? 'casier';
+  const defaultCoefficient = nextName === 'bouteille' ? '1' : nextName === 'pack' ? '6' : '24';
   return {
     id: undefined,
-    name: 'casier',
-    coefficient: '24',
+    name: nextName,
+    coefficient: defaultCoefficient,
     purchase_price: prod.purchase_price ?? 0,
     retail_price: 0,
     barcode: '',
