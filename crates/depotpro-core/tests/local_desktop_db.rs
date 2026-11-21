@@ -1,4 +1,4 @@
-use depotpro_core::application::auth::{self, SessionIdentity, UserRole};
+use depotpro_core::application::auth;
 use depotpro_core::infrastructure::backup::{
     create_consistent_backup, import_backup_bytes, inspect_local_db, list_backups,
     read_backup_bytes,
@@ -8,21 +8,10 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::path::PathBuf;
 
 fn temp_dir(prefix: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "depotpro_local_{prefix}_{}",
-        uuid::Uuid::new_v4()
-    ));
+    let dir =
+        std::env::temp_dir().join(format!("depotpro_local_{prefix}_{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).unwrap();
     dir
-}
-
-fn owner_actor() -> SessionIdentity {
-    SessionIdentity {
-        user_id: "1".to_string(),
-        username: "owner".to_string(),
-        display_name: "Propriétaire".to_string(),
-        role: UserRole::Owner,
-    }
 }
 
 #[tokio::test]
@@ -55,13 +44,15 @@ async fn pre_upgrade_backup_inspect_and_import_work_locally() {
     let db = DepotDb::connect_with_backup_dir(&db_path, &backup_dir)
         .await
         .unwrap();
+    let actor = auth::setup_owner_pin(&db, "123456").await.unwrap();
+
     let loc_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM stock_locations")
         .fetch_one(&db.pool)
         .await
         .unwrap();
     assert!(loc_count >= 1);
 
-    let pre_backups = auth::with_actor(owner_actor(), async { list_backups(&backup_dir) })
+    let pre_backups = auth::with_actor(actor.clone(), async { list_backups(&backup_dir) })
         .await
         .unwrap();
     assert!(
@@ -70,7 +61,7 @@ async fn pre_upgrade_backup_inspect_and_import_work_locally() {
     );
 
     // 2. Diagnostic base locale SQLite
-    let status = auth::with_actor(owner_actor(), inspect_local_db(&db, &backup_dir))
+    let status = auth::with_actor(actor.clone(), inspect_local_db(&db, &backup_dir))
         .await
         .unwrap();
     assert_eq!(status.integrity, "ok");
@@ -81,23 +72,29 @@ async fn pre_upgrade_backup_inspect_and_import_work_locally() {
 
     // 3. Rejet d'un fichier invalide + import d'une sauvegarde valide
     let bad = auth::with_actor(
-        owner_actor(),
-        import_backup_bytes(&db, &backup_dir, "corrupt.db", b"not a sqlite file at all..."),
+        actor.clone(),
+        import_backup_bytes(
+            &db,
+            &backup_dir,
+            "corrupt.db",
+            b"not a sqlite file at all...",
+        ),
     )
     .await;
     assert!(bad.is_err());
 
-    let exported = auth::with_actor(owner_actor(), create_consistent_backup(&db, &backup_dir))
+    let exported = auth::with_actor(actor.clone(), create_consistent_backup(&db, &backup_dir))
         .await
         .unwrap();
     let exp_name = exported.file_name().unwrap().to_string_lossy().to_string();
-    let (_, raw_bytes) =
-        auth::with_actor(owner_actor(), async { read_backup_bytes(&backup_dir, &exp_name) })
-            .await
-            .unwrap();
+    let (_, raw_bytes) = auth::with_actor(actor.clone(), async {
+        read_backup_bytes(&backup_dir, &exp_name)
+    })
+    .await
+    .unwrap();
 
     let imported = auth::with_actor(
-        owner_actor(),
+        actor,
         import_backup_bytes(&db, &backup_dir, "usb_copy.db", &raw_bytes),
     )
     .await

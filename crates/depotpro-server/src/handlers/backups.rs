@@ -43,7 +43,11 @@ pub(crate) async fn import_backup(
     )
     .await
     {
-        Ok(dto) => (StatusCode::CREATED, Json(serde_json::to_value(dto).unwrap())).into_response(),
+        Ok(dto) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(dto).unwrap()),
+        )
+            .into_response(),
         Err(e) => map_err(e).into_response(),
     }
 }

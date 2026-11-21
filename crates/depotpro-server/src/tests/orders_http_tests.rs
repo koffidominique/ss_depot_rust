@@ -280,8 +280,7 @@ async fn axum_orders_mixed_crate_and_deposit_lifecycle() {
     );
 
     // Diagnostic base locale + création et import de sauvegarde
-    let (st, db_st_res) =
-        send_http(addr, "GET", "/api/backups/db-status", &hdrs, None).await;
+    let (st, db_st_res) = send_http(addr, "GET", "/api/backups/db-status", &hdrs, None).await;
     assert_eq!(st, 200);
     let db_st: serde_json::Value = serde_json::from_str(&db_st_res).unwrap();
     assert_eq!(db_st["integrity"], "ok");

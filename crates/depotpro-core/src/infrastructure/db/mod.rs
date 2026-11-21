@@ -85,7 +85,9 @@ async fn backup_before_schema_upgrade(db_path: &Path, backup_dir: &Path) -> Core
     }
 
     std::fs::create_dir_all(backup_dir).map_err(|e| {
-        CoreError::Internal(format!("Création répertoire sauvegarde pré-migration : {e}"))
+        CoreError::Internal(format!(
+            "Création répertoire sauvegarde pré-migration : {e}"
+        ))
     })?;
     let ts = chrono::Utc::now().format("%Y%m%d%H%M%S");
     let dest = backup_dir.join(format!("depotpro_backup_{ts}_pre{current_v}.db"));

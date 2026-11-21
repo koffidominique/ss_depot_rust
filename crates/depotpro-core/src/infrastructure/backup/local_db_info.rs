@@ -149,7 +149,9 @@ pub async fn import_backup_bytes(
     };
 
     std::fs::rename(&tmp_path, &final_path).map_err(|e| {
-        CoreError::Internal(format!("Enregistrement sauvegarde importée impossible : {e}"))
+        CoreError::Internal(format!(
+            "Enregistrement sauvegarde importée impossible : {e}"
+        ))
     })?;
 
     let sha256 = sha256_bytes(bytes);
