@@ -137,8 +137,10 @@ export class HttpApiClient implements ApiClient {
   addPaymentMethod = httpSystemApi.addPaymentMethod;
   togglePaymentMethod = httpSystemApi.togglePaymentMethod;
   listBackups = httpSystemApi.listBackups;
+  getLocalDbStatus = httpSystemApi.getLocalDbStatus;
   createBackup = httpSystemApi.createBackup;
   createEncryptedBackup = httpSystemApi.createEncryptedBackup;
+  importBackup = httpSystemApi.importBackup;
   verifyBackup = httpSystemApi.verifyBackup;
   verifyEncryptedBackup = httpSystemApi.verifyEncryptedBackup;
   restoreBackup = httpSystemApi.restoreBackup;

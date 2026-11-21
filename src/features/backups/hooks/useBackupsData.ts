@@ -15,6 +15,13 @@ export function useBackupsQuery() {
   });
 }
 
+export function useLocalDbStatusQuery() {
+  return useQuery({
+    queryKey: ['local-db-status'],
+    queryFn: () => apiClient.getLocalDbStatus(),
+  });
+}
+
 interface UseBackupsMutationsOptions {
   onStatus: (msg: { type: 'ok' | 'err'; text: string }) => void;
   onClearPassphraseModal: () => void;
@@ -32,6 +39,7 @@ export function useBackupsMutations({
     mutationFn: () => apiClient.createBackup(),
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: ['backups'] });
+      qc.invalidateQueries({ queryKey: ['local-db-status'] });
       onStatus({
         type: 'ok',
         text: `Sauvegarde cohérente créée et vérifiée : ${created.name}`,
@@ -48,6 +56,7 @@ export function useBackupsMutations({
     mutationFn: (secret: string) => apiClient.createEncryptedBackup(secret),
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: ['backups'] });
+      qc.invalidateQueries({ queryKey: ['local-db-status'] });
       onClearPassphraseModal();
       onStatus({
         type: 'ok',
@@ -58,6 +67,24 @@ export function useBackupsMutations({
       onStatus({
         type: 'err',
         text: err instanceof Error ? err.message : 'Erreur sauvegarde chiffrée.',
+      }),
+  });
+
+  const importMut = useMutation({
+    mutationFn: (args: { filename: string; bytes: Uint8Array }) =>
+      apiClient.importBackup(args.filename, args.bytes),
+    onSuccess: (imported) => {
+      qc.invalidateQueries({ queryKey: ['backups'] });
+      qc.invalidateQueries({ queryKey: ['local-db-status'] });
+      onStatus({
+        type: 'ok',
+        text: `Sauvegarde importée et vérifiée : ${imported.name} — vous pouvez maintenant la restaurer depuis la liste.`,
+      });
+    },
+    onError: (err) =>
+      onStatus({
+        type: 'err',
+        text: err instanceof Error ? err.message : 'Erreur import sauvegarde.',
       }),
   });
 
@@ -135,5 +162,5 @@ export function useBackupsMutations({
     }
   };
 
-  return { createMut, createEncMut, verifyMut, restoreMut, downloadBackupFile };
+  return { createMut, createEncMut, importMut, verifyMut, restoreMut, downloadBackupFile };
 }

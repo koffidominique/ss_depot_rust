@@ -6,6 +6,7 @@ use serde::Serialize;
 
 mod create_and_list;
 mod crypto;
+mod local_db_info;
 mod paths;
 mod restore;
 mod restore_engine;
@@ -19,6 +20,7 @@ pub use crypto::{
     create_encrypted_backup, decrypt_backup_bytes, encrypt_backup_bytes,
     restore_encrypted_backup_and_reconnect, verify_encrypted_backup,
 };
+pub use local_db_info::{import_backup_bytes, inspect_local_db, LocalDbStatusDto};
 pub use paths::{is_valid_backup_filename, resolve_safe_backup_path};
 pub use restore::{restore_and_reconnect, restore_and_reconnect_with_hook, restore_backup};
 pub use sha256::{sha256_bytes, sha256_file};

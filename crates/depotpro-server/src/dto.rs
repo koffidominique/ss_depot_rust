@@ -34,6 +34,13 @@ pub(crate) struct EncryptedBackupPayload {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct ImportBackupPayload {
+    pub(crate) filename: String,
+    pub(crate) bytes: Vec<u8>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct SearchQuery {
     pub(crate) search: Option<String>,
     pub(crate) status: Option<String>,

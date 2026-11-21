@@ -279,6 +279,40 @@ async fn axum_orders_mixed_crate_and_deposit_lifecycle() {
         "cancelled"
     );
 
+    // Diagnostic base locale + création et import de sauvegarde
+    let (st, db_st_res) =
+        send_http(addr, "GET", "/api/backups/db-status", &hdrs, None).await;
+    assert_eq!(st, 200);
+    let db_st: serde_json::Value = serde_json::from_str(&db_st_res).unwrap();
+    assert_eq!(db_st["integrity"], "ok");
+    assert_eq!(db_st["foreignKeyErrors"], 0);
+
+    let (st, bkp_res) = send_http(addr, "POST", "/api/backups", &hdrs, None).await;
+    assert_eq!(st, 201);
+    let bkp_name = serde_json::from_str::<serde_json::Value>(&bkp_res).unwrap()["name"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let bkp_bytes = std::fs::read(dir.join("backups").join(&bkp_name)).unwrap();
+    let imp_payload = serde_json::json!({
+        "filename": "desktop_usb.db",
+        "bytes": bkp_bytes
+    })
+    .to_string();
+    let (st, imp_res) = send_http(
+        addr,
+        "POST",
+        "/api/backups/import",
+        &hdrs,
+        Some(&imp_payload),
+    )
+    .await;
+    assert_eq!(st, 201);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&imp_res).unwrap()["integrity"],
+        "ok"
+    );
+
     srv.abort();
     let _ = std::fs::remove_dir_all(&dir);
 }

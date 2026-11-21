@@ -103,12 +103,19 @@ export const httpSystemApi = {
       body: JSON.stringify({ active }),
     }),
   listBackups: () => httpRequest<Awaited<ReturnType<ApiClient['listBackups']>>>('/api/backups'),
+  getLocalDbStatus: () =>
+    httpRequest<Awaited<ReturnType<ApiClient['getLocalDbStatus']>>>('/api/backups/db-status'),
   createBackup: () =>
     httpRequest<Awaited<ReturnType<ApiClient['createBackup']>>>('/api/backups', { method: 'POST' }),
   createEncryptedBackup: (passphrase: string) =>
     httpRequest<Awaited<ReturnType<ApiClient['createEncryptedBackup']>>>('/api/backups/encrypted', {
       method: 'POST',
       body: JSON.stringify({ passphrase }),
+    }),
+  importBackup: (filename: string, bytes: Uint8Array) =>
+    httpRequest<Awaited<ReturnType<ApiClient['importBackup']>>>('/api/backups/import', {
+      method: 'POST',
+      body: JSON.stringify({ filename, bytes: Array.from(bytes) }),
     }),
   verifyBackup: (name: string) =>
     httpRequest<Awaited<ReturnType<ApiClient['verifyBackup']>>>(`/api/backups/${encodeURIComponent(name)}/verify`),

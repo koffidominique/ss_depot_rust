@@ -238,6 +238,12 @@ pub(crate) fn packaging_and_system_router() -> Router<AppState> {
             "/api/backups",
             get(backups::list_backups).post(backups::create_backup),
         )
+        .route("/api/backups/db-status", get(backups::get_local_db_status))
+        .route(
+            "/api/backups/import",
+            post(backups::import_backup)
+                .layer(axum::extract::DefaultBodyLimit::max(64 * 1024 * 1024)),
+        )
         .route(
             "/api/backups/encrypted",
             post(backups::create_encrypted_backup),

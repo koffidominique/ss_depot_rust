@@ -138,8 +138,10 @@ export class TauriApiClient implements ApiClient {
   addPaymentMethod = tauriSystemApi.addPaymentMethod;
   togglePaymentMethod = tauriSystemApi.togglePaymentMethod;
   listBackups = tauriSystemApi.listBackups;
+  getLocalDbStatus = tauriSystemApi.getLocalDbStatus;
   createBackup = tauriSystemApi.createBackup;
   createEncryptedBackup = tauriSystemApi.createEncryptedBackup;
+  importBackup = tauriSystemApi.importBackup;
   verifyBackup = tauriSystemApi.verifyBackup;
   verifyEncryptedBackup = tauriSystemApi.verifyEncryptedBackup;
   restoreBackup = tauriSystemApi.restoreBackup;
