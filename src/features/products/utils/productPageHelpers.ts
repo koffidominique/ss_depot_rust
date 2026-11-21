@@ -27,13 +27,14 @@ export function createProductDefaultValues(
   categories?: Category[],
   metadata?: ProductFormMetadata,
 ): ProductFormValues {
-  const defaultBrewery = metadata?.breweries[0];
-  const defaultBrand = metadata?.brands.find((brand) => brand.breweryId === defaultBrewery?.id);
+  // Ne jamais présélectionner une marque : éviter d'enregistrer une boisson
+  // sous SOLIBRA ou BRASSIVOIRE par défaut alors que l'opérateur n'a rien choisi.
+  void metadata;
   return {
     name: '',
-    brand: defaultBrand?.name ?? '',
-    brand_id: defaultBrand?.id ?? 0,
-    brewery_id: defaultBrewery?.id ?? 0,
+    brand: '',
+    brand_id: 0,
+    brewery_id: 0,
     variant_name: '',
     volume_ml: 330,
     container_type: 'glass_returnable',
