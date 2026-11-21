@@ -329,18 +329,15 @@ async fn lot4_migration_18_creates_brewery_reference_and_brand_links() {
     .unwrap();
     assert_eq!(brewery_count, 2);
 
-    let solibra_id: i64 = sqlx::query_scalar(
-        "SELECT id FROM breweries WHERE code = 'SOLIBRA-CI'",
-    )
-    .fetch_one(&db.pool)
-    .await
-    .unwrap();
-    let bock_producer: Option<i64> = sqlx::query_scalar(
-        "SELECT brewery_id FROM brands WHERE lower(name) = 'bock'",
-    )
-    .fetch_optional(&db.pool)
-    .await
-    .unwrap();
+    let solibra_id: i64 = sqlx::query_scalar("SELECT id FROM breweries WHERE code = 'SOLIBRA-CI'")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    let bock_producer: Option<i64> =
+        sqlx::query_scalar("SELECT brewery_id FROM brands WHERE lower(name) = 'bock'")
+            .fetch_optional(&db.pool)
+            .await
+            .unwrap();
     assert_eq!(bock_producer, Some(solibra_id));
 
     let brands_without_producer: i64 = sqlx::query_scalar(
@@ -351,24 +348,33 @@ async fn lot4_migration_18_creates_brewery_reference_and_brand_links() {
     .unwrap();
     assert_eq!(brands_without_producer, 0);
 
-    let variant_columns: Vec<String> = sqlx::query_scalar(
-        "SELECT name FROM pragma_table_info('product_variants')",
-    )
-    .fetch_all(&db.pool)
-    .await
-    .unwrap();
-    for required in ["reference", "container_type", "alcohol_degree", "updated_at"] {
-        assert!(variant_columns.iter().any(|column| column == required), "missing product_variants.{required}");
+    let variant_columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('product_variants')")
+            .fetch_all(&db.pool)
+            .await
+            .unwrap();
+    for required in [
+        "reference",
+        "container_type",
+        "alcohol_degree",
+        "updated_at",
+    ] {
+        assert!(
+            variant_columns.iter().any(|column| column == required),
+            "missing product_variants.{required}"
+        );
     }
 
-    let brand_columns: Vec<String> = sqlx::query_scalar(
-        "SELECT name FROM pragma_table_info('brands')",
-    )
-    .fetch_all(&db.pool)
-    .await
-    .unwrap();
+    let brand_columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('brands')")
+            .fetch_all(&db.pool)
+            .await
+            .unwrap();
     for required in ["brewery_id", "updated_at"] {
-        assert!(brand_columns.iter().any(|column| column == required), "missing brands.{required}");
+        assert!(
+            brand_columns.iter().any(|column| column == required),
+            "missing brands.{required}"
+        );
     }
 
     let _ = std::fs::remove_file(&db_path);
