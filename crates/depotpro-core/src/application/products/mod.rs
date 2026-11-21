@@ -29,6 +29,7 @@ pub(crate) const ALLOWED_PACKAGING_NAMES: &[&str] = &["casier", "carton", "boute
 pub(crate) const ALLOWED_CONTAINER_TYPES: &[&str] = &["glass_returnable", "glass_disposable", "pet", "can", "plastic_bottle", "other"];
 
 #[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct BreweryOptionDto {
     pub id: i64,
     pub code: String,
@@ -37,6 +38,7 @@ pub struct BreweryOptionDto {
 }
 
 #[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct BrandOptionDto {
     pub id: i64,
     pub code: String,
