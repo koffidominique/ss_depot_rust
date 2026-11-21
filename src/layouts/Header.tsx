@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { Lock, Moon, Sun, Landmark, Settings, HelpCircle, Search, AlertTriangle, Menu, Power } from 'lucide-react';
+import { Lock, Moon, Sun, Landmark, Settings, HelpCircle, Search, AlertTriangle, Menu, Power, Download, WifiOff } from 'lucide-react';
 import { DP_BUTTON_HOVER, DP_BUTTON_TAP, DP_SPRING_SNAPPY } from '../components/motion/MotionPrimitives.tsx';
+import { usePwaInstall } from '../pwa/pwaManager.ts';
 import { apiClient } from '../services/api/createApiClient.ts';
 import { useUiStore } from '../stores/uiStore.ts';
 import { resolveTopicIdFromPath } from '../data/businessTips.ts';
@@ -39,6 +40,7 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
   const setCurrentUser = useUiStore((s) => s.setCurrentUser);
   const setToken = useUiStore((s) => s.setToken);
   const openTips = useUiStore((s) => s.openTips);
+  const { canInstall, isOnline, promptInstall } = usePwaInstall();
   const [searchOpen, setSearchOpen] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
 
@@ -153,6 +155,31 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void } =
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {!isOnline && (
+          <span
+            title="Mode hors-ligne actif"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 px-2 py-1.5 text-xs font-medium text-[#D9901A] whitespace-nowrap shrink-0"
+          >
+            <WifiOff className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">Hors-ligne</span>
+          </span>
+        )}
+
+        {canInstall && (
+          <motion.button
+            type="button"
+            whileHover={DP_BUTTON_HOVER}
+            whileTap={DP_BUTTON_TAP}
+            transition={DP_SPRING_SNAPPY}
+            onClick={() => void promptInstall()}
+            aria-label="Installer l'application PWA"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1.5 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:shadow-sm transition-colors whitespace-nowrap shrink-0"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">Installer l&apos;app</span>
+          </motion.button>
+        )}
+
         {totalOverdue > 0 && (
           <Link
             to={overdueReceivables > 0 ? '/debts' : '/suppliers'}
