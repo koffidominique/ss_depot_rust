@@ -5,25 +5,29 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+mod categories;
 mod create;
 mod create_packagings;
+mod create_prep_helpers;
+mod create_units_helpers;
 pub(crate) mod create_v4_helpers;
 mod csv_io;
 mod hydrate;
 mod packaging;
+mod packaging_deposit;
 mod queries;
 mod serde_helpers;
 mod update;
 pub mod v4_types;
 
+pub use categories::{
+    create_category, create_category_with_parent, list_categories, update_category,
+};
 pub use create::{create_product, create_product_v4};
 pub use csv_io::{export_products_csv, import_products_csv};
 pub use packaging::{upsert_packaging, upsert_packaging_v4};
 pub(crate) use queries::get_product_by_id;
-pub use queries::{
-    create_category, create_category_with_parent, delete_or_archive_product, list_active_products,
-    list_categories, list_products, update_category,
-};
+pub use queries::{delete_or_archive_product, list_active_products, list_products};
 pub(crate) use serde_helpers::{
     deserialize_nullable_opt, deserialize_opt_bool_or_int, deserialize_opt_qty_str,
     deserialize_qty_str, sanitize_image_path,

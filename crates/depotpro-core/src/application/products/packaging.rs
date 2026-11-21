@@ -9,6 +9,9 @@ use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 
+use super::packaging_deposit::{
+    record_packaging_price_changes_tx, upsert_packaging_deposit_profile_tx,
+};
 use super::v4_types::PackagingV4Extras;
 use super::{get_product_by_id, PackagingInput, ProductPackagingDto, ALLOWED_PACKAGING_NAMES};
 
@@ -202,28 +205,7 @@ pub async fn upsert_packaging_v4(
         .execute(&mut *tx)
         .await?;
 
-        for (ptype, old_v, new_v) in [
-            ("PURCHASE", prev.0, pkg.purchase_price),
-            ("WHOLESALE", prev.1, pkg.wholesale_price),
-            ("SEMI_WHOLESALE", prev.2, pkg.semi_wholesale_price),
-            ("RETAIL", prev.3, pkg.retail_price),
-        ] {
-            if old_v != new_v {
-                if let Some(nv) = new_v {
-                    sqlx::query(
-                        "INSERT INTO price_history (entity_type, entity_id, variant_id, price_type, old_price, new_price, currency, effective_from, reason)
-                         VALUES ('product_packaging', ?, ?, ?, ?, ?, 'FCFA', datetime('now'), 'Mise à jour conditionnement')",
-                    )
-                    .bind(id)
-                    .bind(ex.variant_id)
-                    .bind(ptype)
-                    .bind(old_v)
-                    .bind(nv)
-                    .execute(&mut *tx)
-                    .await?;
-                }
-            }
-        }
+        record_packaging_price_changes_tx(&mut tx, id, ex.variant_id, prev, &pkg).await?;
         id
     } else {
         sqlx::query(
@@ -281,54 +263,13 @@ pub async fn upsert_packaging_v4(
         .last_insert_rowid()
     };
 
-    let mode = if pkg.deposit_mode.as_deref() == Some("deposit") {
-        "deposit"
-    } else {
-        "none"
-    };
-    sqlx::query(
-        "INSERT INTO deposit_packaging_profiles (packaging_id, mode) VALUES (?, ?)
-         ON CONFLICT(packaging_id) DO UPDATE SET mode = excluded.mode",
+    upsert_packaging_deposit_profile_tx(
+        &mut tx,
+        pkg_id,
+        pkg.deposit_mode.as_deref(),
+        pkg.components,
     )
-    .bind(pkg_id)
-    .bind(mode)
-    .execute(&mut *tx)
     .await?;
-
-    sqlx::query("DELETE FROM deposit_packaging_components WHERE packaging_id = ?")
-        .bind(pkg_id)
-        .execute(&mut *tx)
-        .await?;
-
-    if mode == "deposit" {
-        if let Some(comps) = pkg.components {
-            for c in comps {
-                if c.pieces_per_pack <= 0 {
-                    return Err(CoreError::Validation(
-                        "Pièces par conditionnement invalides.".to_string(),
-                    ));
-                }
-                let rt_exists: Option<i64> =
-                    sqlx::query_scalar("SELECT id FROM returnable_packaging_types WHERE id = ?")
-                        .bind(c.returnable_id)
-                        .fetch_optional(&mut *tx)
-                        .await?;
-                if rt_exists.is_none() {
-                    return Err(CoreError::Validation(
-                        "Type d'emballage consigné introuvable.".to_string(),
-                    ));
-                }
-                sqlx::query(
-                    "INSERT INTO deposit_packaging_components (packaging_id, returnable_id, pieces_per_pack) VALUES (?, ?, ?)",
-                )
-                .bind(pkg_id)
-                .bind(c.returnable_id)
-                .bind(c.pieces_per_pack)
-                .execute(&mut *tx)
-                .await?;
-            }
-        }
-    }
 
     audit_log_tx(
         &mut tx,

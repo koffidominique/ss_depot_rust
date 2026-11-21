@@ -2,8 +2,6 @@
 // Création atomique d'un produit, variante physique, conditionnements & stock
 // ============================================================================
 
-use std::collections::HashSet;
-
 use crate::application::auth::{require_current_actor_permission, Permission};
 use crate::application::sales::audit_log_tx;
 use crate::domain::money::Money;
@@ -12,16 +10,15 @@ use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 
 use super::create_packagings::insert_initial_packagings_tx;
-use super::create_v4_helpers::{
-    create_initial_product_suppliers_tx, create_initial_sales_units_tx, create_initial_variant_tx,
-    validate_brewery_and_brand_tx,
+use super::create_prep_helpers::{
+    prepare_and_validate_packagings, record_initial_stock_tx, validate_create_refs_and_codes_tx,
 };
-use super::packaging::{validate_packaging_extras, validate_packaging_prices};
+use super::create_units_helpers::{
+    create_initial_product_suppliers_tx, create_initial_sales_units_tx,
+};
+use super::create_v4_helpers::{create_initial_variant_tx, validate_brewery_and_brand_tx};
 use super::v4_types::ProductV4CreateExtras;
-use super::{
-    get_product_by_id, sanitize_image_path, CreateProductInput, PackagingInput, ProductSummaryDto,
-    ALLOWED_PACKAGING_NAMES,
-};
+use super::{get_product_by_id, sanitize_image_path, CreateProductInput, ProductSummaryDto};
 
 pub async fn create_product(
     db: &DepotDb,
@@ -76,85 +73,32 @@ pub async fn create_product_v4(
         .transpose()?;
     let image_path = sanitize_image_path(input.image_path.as_deref())?;
 
-    let packagings = match input.packagings {
-        Some(list) if !list.is_empty() => list,
-        _ => vec![PackagingInput {
-            id: None,
-            name: "casier".to_string(),
-            coefficient: "1".to_string(),
-            purchase_price,
-            wholesale_price,
-            semi_wholesale_price: semi_price,
-            retail_price,
-            barcode: None,
-            allow_fraction: Some(false),
-            is_active: Some(true),
-            deposit_mode: Some("none".to_string()),
-            components: None,
-        }],
-    };
     let pkg_extras = extras.packaging_extras.unwrap_or_default();
-
-    let mut seen_pkg_names = HashSet::with_capacity(packagings.len());
-    for (idx, pkg) in packagings.iter().enumerate() {
-        if !ALLOWED_PACKAGING_NAMES.contains(&pkg.name.as_str()) {
-            return Err(CoreError::Validation(format!(
-                "Conditionnement non autorisé : {} (autorisés : casier, carton, bouteille, pack, canette)",
-                pkg.name
-            )));
-        }
-        if !seen_pkg_names.insert(pkg.name.clone()) {
-            return Err(CoreError::DuplicateOperation(format!(
-                "Conditionnement \"{}\" dupliqué sur le même produit.",
-                pkg.name
-            )));
-        }
-        let coeff = Quantity::parse_str(&pkg.coefficient, &format!("Coefficient ({})", pkg.name))?;
-        if coeff.milli_units <= 0 {
-            return Err(CoreError::Validation(
-                "Coefficient nul interdit.".to_string(),
-            ));
-        }
-        validate_packaging_prices(pkg)?;
-        if let Some(ex) = pkg_extras.get(idx) {
-            validate_packaging_extras(ex)?;
-        }
-    }
+    let packagings = prepare_and_validate_packagings(
+        input.packagings,
+        purchase_price,
+        wholesale_price,
+        semi_price,
+        retail_price,
+        &pkg_extras,
+    )?;
 
     let (_guard, mut tx) = db.begin_write().await?;
 
-    if sqlx::query_scalar::<_, i64>("SELECT id FROM categories WHERE id = ?")
-        .bind(input.category_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .is_none()
-    {
-        return Err(CoreError::Validation("Catégorie introuvable.".to_string()));
-    }
-    if let Some(sub_id) = extras.subcategory_id {
-        if sqlx::query_scalar::<_, i64>("SELECT id FROM categories WHERE id = ?")
-            .bind(sub_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .is_none()
-        {
-            return Err(CoreError::Validation(
-                "Sous-catégorie introuvable.".to_string(),
-            ));
-        }
-    }
-    if let Some(sup_id) = input.supplier_id {
-        if sqlx::query_scalar::<_, i64>("SELECT id FROM suppliers WHERE id = ?")
-            .bind(sup_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .is_none()
-        {
-            return Err(CoreError::Validation(
-                "Fournisseur introuvable.".to_string(),
-            ));
-        }
-    }
+    let clean_barcode = input
+        .barcode
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let reference = validate_create_refs_and_codes_tx(
+        &mut tx,
+        input.category_id,
+        extras.subcategory_id,
+        input.supplier_id,
+        clean_barcode,
+        extras.sku.as_deref(),
+    )
+    .await?;
 
     let resolved_brand =
         validate_brewery_and_brand_tx(&mut tx, extras.brewery_id, extras.brand_id).await?;
@@ -165,48 +109,6 @@ pub async fn create_product_v4(
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .or(resolved_brand);
-
-    let clean_barcode = input
-        .barcode
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty());
-    if let Some(bc) = clean_barcode {
-        let dup: Option<(i64,)> = sqlx::query_as(
-            "SELECT id FROM products WHERE barcode = ? UNION SELECT id FROM product_packagings WHERE barcode = ? UNION SELECT id FROM product_variants WHERE barcode = ?",
-        )
-        .bind(bc).bind(bc).bind(bc)
-        .fetch_optional(&mut *tx)
-        .await?;
-        if dup.is_some() {
-            return Err(CoreError::DuplicateOperation(
-                "Ce code-barres est déjà utilisé.".to_string(),
-            ));
-        }
-    }
-
-    let reference = match extras
-        .sku
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_uppercase)
-    {
-        Some(custom_sku) => {
-            let dup: Option<i64> =
-                sqlx::query_scalar("SELECT id FROM products WHERE reference = ?")
-                    .bind(&custom_sku)
-                    .fetch_optional(&mut *tx)
-                    .await?;
-            if dup.is_some() {
-                return Err(CoreError::DuplicateOperation(format!(
-                    "Ce code SKU existe déjà : {custom_sku}"
-                )));
-            }
-            custom_sku
-        }
-        None => DepotDb::next_sequence(&mut tx, "PROD").await?,
-    };
 
     let status = extras
         .status
@@ -344,30 +246,16 @@ pub async fn create_product_v4(
         None
     };
 
-    if initial_stock.milli_units > 0 {
-        sqlx::query(
-            "INSERT INTO stock_movements (product_id, variant_id, location_id, movement_type, quantity_milli, stock_before_milli, stock_after_milli, unit_cost, reason, reference_document)
-             VALUES (?, ?, ?, 'manual_adjust', ?, 0, ?, ?, 'Inventaire initial à la création', ?)",
-        )
-        .bind(product_id)
-        .bind(variant_id)
-        .bind(default_loc_id)
-        .bind(initial_stock.milli_units)
-        .bind(initial_stock.milli_units)
-        .bind(purchase_price)
-        .bind(&reference)
-        .execute(&mut *tx)
-        .await?;
-        if let Some(lid) = default_loc_id {
-            sqlx::query("INSERT INTO stock_balances (product_id, variant_id, location_id, quantity_milli) VALUES (?, ?, ?, ?)")
-                .bind(product_id)
-                .bind(variant_id)
-                .bind(lid)
-                .bind(initial_stock.milli_units)
-                .execute(&mut *tx)
-                .await?;
-        }
-    }
+    record_initial_stock_tx(
+        &mut tx,
+        product_id,
+        variant_id,
+        default_loc_id,
+        initial_stock.milli_units,
+        purchase_price,
+        &reference,
+    )
+    .await?;
 
     let first_pkg_id = insert_initial_packagings_tx(
         &mut tx,

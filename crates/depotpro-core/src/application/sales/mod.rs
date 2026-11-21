@@ -6,6 +6,7 @@ mod cancel;
 mod client_updates;
 mod clients;
 mod create;
+mod create_deposit_helpers;
 mod create_helpers;
 mod create_line_resolver;
 mod create_persistence;
