@@ -77,7 +77,13 @@ pub(crate) async fn persist_sale_lines_and_deposits_tx(
         .bind(-line.base_qty_milli)
         .bind(cur_stock)
         .bind(next_stock)
-        .bind(format!("Vente {} ({})", ctx.sale_ref, line.sales_unit_label.as_deref().unwrap_or(&line.packaging_name)))
+        .bind(format!(
+            "Vente {} ({})",
+            ctx.sale_ref,
+            line.sales_unit_label
+                .as_deref()
+                .unwrap_or(&line.packaging_name)
+        ))
         .bind(ctx.sale_ref)
         .execute(&mut **tx)
         .await?;

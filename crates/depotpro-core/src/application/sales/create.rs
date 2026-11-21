@@ -12,8 +12,8 @@ use super::create_persistence::{
     persist_sale_lines_and_deposits_tx, persist_sale_payments_and_receivable_tx, SalePersistCtx,
 };
 use super::{
-    audit_log_tx, get_sale_detail, require_open_session_tx, CreateSaleInput,
-    CreateSaleLineV4Input, CreateSaleV4Input, SaleDetailDto,
+    audit_log_tx, get_sale_detail, require_open_session_tx, CreateSaleInput, CreateSaleLineV4Input,
+    CreateSaleV4Input, SaleDetailDto,
 };
 
 pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<SaleDetailDto> {
@@ -41,10 +41,7 @@ pub async fn create_sale(db: &DepotDb, input: CreateSaleInput) -> CoreResult<Sal
     create_sale_v4(db, v4).await
 }
 
-pub async fn create_sale_v4(
-    db: &DepotDb,
-    input: CreateSaleV4Input,
-) -> CoreResult<SaleDetailDto> {
+pub async fn create_sale_v4(db: &DepotDb, input: CreateSaleV4Input) -> CoreResult<SaleDetailDto> {
     require_current_actor_permission(Permission::SalesWrite)?;
     let request_key = input.request_key.trim().to_string();
     if request_key.is_empty() {

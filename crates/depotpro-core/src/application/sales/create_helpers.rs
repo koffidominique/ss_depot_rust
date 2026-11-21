@@ -189,7 +189,12 @@ pub(crate) async fn prepare_sale_lines_tx(
                         shared_deposit_order.push(rid);
                         shared_deposit_totals.insert(
                             rid,
-                            SharedDepositAccum { name: r_name, unit_value: dep_val, milli_pieces: line_milli_pieces, first_line_idx: line_idx },
+                            SharedDepositAccum {
+                                name: r_name,
+                                unit_value: dep_val,
+                                milli_pieces: line_milli_pieces,
+                                first_line_idx: line_idx,
+                            },
                         );
                     }
                 }

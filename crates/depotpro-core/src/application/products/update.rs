@@ -181,7 +181,13 @@ pub async fn update_product_v4(
     let status = extras
         .status
         .filter(|s| matches!(s.as_str(), "draft" | "active" | "inactive"))
-        .unwrap_or_else(|| if is_active == 0 { "inactive".into() } else { cur.status });
+        .unwrap_or_else(|| {
+            if is_active == 0 {
+                "inactive".into()
+            } else {
+                cur.status
+            }
+        });
 
     sqlx::query(
         "UPDATE products
@@ -243,12 +249,24 @@ pub async fn update_product_v4(
                     "INSERT INTO price_history (entity_type, entity_id, price_type, old_price, new_price, currency, effective_from, reason)
                      VALUES ('product', ?, ?, ?, ?, 'FCFA', datetime('now'), 'Mise à jour fiche produit')",
                 )
-                .bind(id).bind(ptype).bind(old_v).bind(nv).execute(&mut *tx).await?;
+                .bind(id)
+                .bind(ptype)
+                .bind(old_v)
+                .bind(nv)
+                .execute(&mut *tx)
+                .await?;
             }
         }
     }
 
-    audit_log_tx(&mut tx, "UPDATE_PRODUCT", "products", Some(id.to_string()), &format!("Mise à jour produit {}", cur.reference)).await?;
+    audit_log_tx(
+        &mut tx,
+        "UPDATE_PRODUCT",
+        "products",
+        Some(id.to_string()),
+        &format!("Mise à jour produit {}", cur.reference),
+    )
+    .await?;
     tx.commit().await?;
     get_product_by_id(db, id).await
 }

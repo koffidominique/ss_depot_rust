@@ -194,12 +194,25 @@ pub async fn delete_or_archive_product(db: &DepotDb, id: i64) -> CoreResult<bool
         return Ok(false);
     }
     sqlx::query("DELETE FROM deposit_packaging_components WHERE packaging_id IN (SELECT id FROM product_packagings WHERE product_id = ?)")
-        .bind(id).execute(&mut *tx).await?;
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM deposit_packaging_profiles WHERE packaging_id IN (SELECT id FROM product_packagings WHERE product_id = ?)")
-        .bind(id).execute(&mut *tx).await?;
-    sqlx::query("DELETE FROM product_packagings WHERE product_id = ?").bind(id).execute(&mut *tx).await?;
-    sqlx::query("DELETE FROM product_variants WHERE product_id = ?").bind(id).execute(&mut *tx).await?;
-    let res = sqlx::query("DELETE FROM products WHERE id = ?").bind(id).execute(&mut *tx).await?;
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM product_packagings WHERE product_id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM product_variants WHERE product_id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    let res = sqlx::query("DELETE FROM products WHERE id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     if res.rows_affected() == 0 {
         return Err(CoreError::NotFound("Produit introuvable.".to_string()));
     }
@@ -237,10 +250,18 @@ pub async fn list_products(
            ))",
     )
     .bind(if include_archived { 1_i64 } else { 0_i64 })
-    .bind(cat_filter).bind(cat_filter).bind(cat_filter)
+    .bind(cat_filter)
+    .bind(cat_filter)
+    .bind(cat_filter)
     .bind(if low_stock_only { 1_i64 } else { 0_i64 })
     .bind(if has_search { 1_i64 } else { 0_i64 })
-    .bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern)
+    .bind(&pattern)
+    .bind(&pattern)
+    .bind(&pattern)
+    .bind(&pattern)
+    .bind(&pattern)
+    .bind(&pattern)
+    .bind(&pattern)
     .fetch_one(&db.pool)
     .await?;
 
@@ -260,11 +281,20 @@ pub async fn list_products(
     );
     let rows = sqlx::query_as::<_, ProductRow>(&sql)
         .bind(if include_archived { 1_i64 } else { 0_i64 })
-        .bind(cat_filter).bind(cat_filter).bind(cat_filter)
+        .bind(cat_filter)
+        .bind(cat_filter)
+        .bind(cat_filter)
         .bind(if low_stock_only { 1_i64 } else { 0_i64 })
         .bind(if has_search { 1_i64 } else { 0_i64 })
-        .bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern)
-        .bind(ps).bind(offset)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(ps)
+        .bind(offset)
         .fetch_all(&db.pool)
         .await?;
 
