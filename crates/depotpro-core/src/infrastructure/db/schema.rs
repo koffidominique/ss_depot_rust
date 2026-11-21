@@ -143,12 +143,18 @@ impl DepotDb {
                 ("Eau gazeuse", "Eaux minérales gazeuses et tonics"),
                 ("Jus", "Jus de fruits naturels et conditionnés"),
                 ("Nectar", "Nectars de fruits"),
-                ("Boisson énergisante", "Boissons énergisantes et stimulantes"),
+                (
+                    "Boisson énergisante",
+                    "Boissons énergisantes et stimulantes",
+                ),
                 ("Boisson maltée sans alcool", "Boissons maltées sans alcool"),
                 ("Vin", "Vins rouges, blancs et rosés"),
                 ("Champagne / mousseux", "Champagnes et vins mousseux"),
                 ("Spiritueux", "Spiritueux et liqueurs"),
-                ("Cocktail prêt à boire", "Cocktails et panachés prêts à boire"),
+                (
+                    "Cocktail prêt à boire",
+                    "Cocktails et panachés prêts à boire",
+                ),
                 ("Autres", "Autres boissons et produits divers"),
             ] {
                 sqlx::query("INSERT OR IGNORE INTO categories (name, description) VALUES (?, ?)")
