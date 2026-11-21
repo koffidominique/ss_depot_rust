@@ -107,3 +107,75 @@ pub async fn create_brewery(db: &DepotDb, input: CreateBreweryInput) -> CoreResu
     .await
     .map_err(Into::into)
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateBreweryInput {
+    pub name: Option<String>,
+    pub country_code: Option<String>,
+    pub address: Option<Option<String>>,
+    pub website: Option<Option<String>>,
+    pub notes: Option<Option<String>>,
+    pub is_active: Option<bool>,
+}
+
+pub async fn update_brewery(
+    db: &DepotDb,
+    id: i64,
+    input: UpdateBreweryInput,
+) -> CoreResult<BreweryDto> {
+    require_current_actor_permission(Permission::CatalogWrite)?;
+    let (_guard, mut tx) = db.begin_write().await?;
+    let current: Option<BreweryDto> = sqlx::query_as(
+        "SELECT id, code, name, country_code, address, website, notes, is_active, created_at, updated_at
+         FROM breweries WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let current = current.ok_or_else(|| CoreError::NotFound("Brasserie introuvable.".to_string()))?;
+
+    let name = input.name.as_deref().map(str::trim).filter(|s| !s.is_empty())
+        .unwrap_or(&current.name);
+    if name.is_empty() {
+        return Err(CoreError::Validation("Le nom de la brasserie est obligatoire.".to_string()));
+    }
+    let country_code = input.country_code.as_deref().map(str::trim).unwrap_or(&current.country_code).to_uppercase();
+    if country_code.len() != 2 || !country_code.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err(CoreError::Validation("Le pays doit être un code ISO alpha-2 (ex. CI).".to_string()));
+    }
+
+    let duplicate: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM breweries WHERE lower(name) = lower(?) AND id != ?",
+    )
+    .bind(name).bind(id).fetch_optional(&mut *tx).await?;
+    if duplicate.is_some() {
+        return Err(CoreError::DuplicateOperation("Une autre brasserie utilise déjà ce nom.".to_string()));
+    }
+
+    sqlx::query(
+        "UPDATE breweries
+         SET name = ?, country_code = ?, address = ?, website = ?, notes = ?,
+             is_active = ?, updated_at = datetime('now')
+         WHERE id = ?",
+    )
+    .bind(name)
+    .bind(&country_code)
+    .bind(input.address.unwrap_or(current.address))
+    .bind(input.website.unwrap_or(current.website))
+    .bind(input.notes.unwrap_or(current.notes))
+    .bind(input.is_active.map(|v| if v { 1_i64 } else { 0_i64 }).unwrap_or(current.is_active))
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    sqlx::query_as::<_, BreweryDto>(
+        "SELECT id, code, name, country_code, address, website, notes, is_active, created_at, updated_at
+         FROM breweries WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&db.pool)
+    .await
+    .map_err(Into::into)
+}
