@@ -97,8 +97,8 @@ async fn rust_core_scenarios_a_through_l() {
     .await
     .unwrap();
 
-    // Seul le conditionnement "casier" est autorisé (bouteille, pack, carton rejetés)
-    for forbidden_pkg in ["bouteille", "canette", "pack", "carton"] {
+    // Les cinq unités de vente prévues sont acceptées ; les formats inconnus restent rejetés.
+    for forbidden_pkg in ["palette", "fût"] {
         assert!(products::upsert_packaging(
             &db,
             prod.id,
