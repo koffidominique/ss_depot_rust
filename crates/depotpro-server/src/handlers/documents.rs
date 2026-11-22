@@ -54,7 +54,11 @@ pub(crate) async fn archive_sale_document(
     };
     let db = state.db().await;
     match auth::with_actor(actor, documents::archive_sale_document(&db, id)).await {
-        Ok(result) => (StatusCode::CREATED, Json(serde_json::to_value(result).unwrap())).into_response(),
+        Ok(result) => (
+            StatusCode::CREATED,
+            Json(serde_json::to_value(result).unwrap()),
+        )
+            .into_response(),
         Err(error) => map_err(error).into_response(),
     }
 }
