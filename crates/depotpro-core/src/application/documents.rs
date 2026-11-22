@@ -11,7 +11,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::FromRow;
 
-type CustomerSnapshotRow = (String, Option<String>, Option<String>, Option<String>, Option<String>);
+type CustomerSnapshotRow = (
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 
 fn default_page() -> i64 {
     1
@@ -193,9 +199,9 @@ async fn customer_snapshot(
     };
     let row: Option<CustomerSnapshotRow> =
         sqlx::query_as("SELECT name, phone, address, city, email FROM clients WHERE id = ?")
-        .bind(id)
-        .fetch_optional(&db.pool)
-        .await?;
+            .bind(id)
+            .fetch_optional(&db.pool)
+            .await?;
     if let Some((name, phone, address, city, email)) = row {
         let code: Option<String> = sqlx::query_scalar("SELECT code FROM clients WHERE id = ?")
             .bind(id)
