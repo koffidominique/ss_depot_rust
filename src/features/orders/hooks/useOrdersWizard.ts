@@ -13,6 +13,9 @@ import {
   saveOrderDraft,
   type OrderDraftState,
 } from '../utils/orderComposition.ts';
+import { buildOrderReceiptDocument } from '../utils/orderPrintDocument.ts';
+import { buildArchivedDocumentPrintable } from '../../documents/utils/buildArchivedDocumentPrintable.ts';
+import type { PrintableDocumentData } from '../../../components/documents/DocumentPrintModal.tsx';
 
 export const EMPTY_ORDER_DRAFT: OrderDraftState = {
   customer_id: null,
@@ -30,6 +33,7 @@ export function useOrdersWizard() {
   const [draft, setDraft] = useState<OrderDraftState>(() => loadOrderDraft() ?? EMPTY_ORDER_DRAFT);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [activeOrder, setActiveOrder] = useState<CustomerOrderDetail | null>(null);
+  const [receiptDoc, setReceiptDoc] = useState<PrintableDocumentData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -155,12 +159,25 @@ export function useOrdersWizard() {
         ? apiClient.updateCustomerOrder(editingOrderId, payload)
         : apiClient.createCustomerOrder(payload);
     },
-    onSuccess: (detail) => {
+    onSuccess: async (detail) => {
       setError(null);
       setEditingOrderId(null);
       clearOrderDraft();
       setDraft(EMPTY_ORDER_DRAFT);
       refreshAll(detail);
+      const client =
+        clientsQuery.data?.find((c) => c.id === detail.order.customer_id) ?? null;
+      try {
+        const archived = await apiClient.archiveOrderDocument(detail.order.id);
+        setReceiptDoc(buildArchivedDocumentPrintable(archived));
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? `Commande créée, mais archivage du document impossible : ${err.message}`
+            : "Commande créée, mais archivage du document impossible.",
+        );
+        setReceiptDoc(buildOrderReceiptDocument(detail, client, null));
+      }
       setStep(5);
     },
     onError: (err) => setError(err instanceof Error ? err.message : 'Erreur création commande.'),
@@ -206,6 +223,8 @@ export function useOrdersWizard() {
     setEditingOrderId,
     activeOrder,
     setActiveOrder,
+    receiptDoc,
+    closeReceiptDoc: () => setReceiptDoc(null),
     error,
     setError,
     clients: clientsQuery.data ?? [],

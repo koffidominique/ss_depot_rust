@@ -121,7 +121,7 @@ export function PrintableDocumentSheet({
       </table>
 
 
-      {/* Allocations physiques et consignes des commandes */}
+      {/* Allocations physiques : casiers, consignes et retours */}
       {doc.packagingRows && doc.packagingRows.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-[#101B33]">
@@ -132,9 +132,9 @@ export function PrintableDocumentSheet({
               <tr className="border-b border-slate-300 text-[#667085]">
                 <th className="py-2 pr-2 font-semibold">Emballage</th>
                 <th className="py-2 px-2 text-right font-semibold">Capacité</th>
-                <th className="py-2 px-2 text-right font-semibold">Qté</th>
+                <th className="py-2 px-2 text-right font-semibold">Quantité</th>
                 <th className="py-2 px-2 text-right font-semibold">Consigné</th>
-                <th className="py-2 px-2 text-right font-semibold">Consigne totale</th>
+                <th className="py-2 px-2 text-right font-semibold">Consigne</th>
                 <th className="py-2 pl-2 text-right font-semibold">Retournés</th>
               </tr>
             </thead>
@@ -143,12 +143,16 @@ export function PrintableDocumentSheet({
                 <tr key={index}>
                   <td className="py-2 pr-2">
                     <div className="font-medium">{row.label}</div>
-                    {row.providedBy && <div className="text-[10px] text-[#667085]">Fourni par : {row.providedBy}</div>}
+                    {row.providedBy && (
+                      <div className="text-[10px] text-[#667085]">Fourni par : {row.providedBy}</div>
+                    )}
                   </td>
                   <td className="py-2 px-2 text-right font-mono-num">{row.capacity}</td>
                   <td className="py-2 px-2 text-right font-mono-num">{row.quantity}</td>
                   <td className="py-2 px-2 text-right">{row.isConsigned ? "Oui" : "Non"}</td>
-                  <td className="py-2 px-2 text-right font-mono-num">{row.depositTotal > 0 ? formatFcfa(row.depositTotal) : "—"}</td>
+                  <td className="py-2 px-2 text-right font-mono-num">
+                    {row.depositTotal > 0 ? formatFcfa(row.depositTotal) : "—"}
+                  </td>
                   <td className="py-2 pl-2 text-right font-mono-num">{row.returnedQuantity}</td>
                 </tr>
               ))}
@@ -176,8 +180,8 @@ export function PrintableDocumentSheet({
             </div>
           )}
           {doc.notes && (
-            <div className="rounded-lg border border-slate-200 p-3 text-[#667085]">
-              <span className="font-semibold text-[#182230]">Observation : </span>
+            <div className="rounded-lg border border-slate-200 p-3 text-[#667085] whitespace-pre-line">
+              <span className="font-semibold text-[#182230]">Observations &amp; conditions : </span>
               {doc.notes}
             </div>
           )}
@@ -205,6 +209,28 @@ export function PrintableDocumentSheet({
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Bloc de validation (signatures) */}
+      <div className="grid grid-cols-2 gap-6 pt-2 text-xs">
+        <div className="rounded-lg border border-slate-300 p-3">
+          <div className="font-semibold text-[#101B33] mb-2">Le client</div>
+          <div className="space-y-3 text-[#667085]">
+            <div>Nom : ______________________</div>
+            <div>Date : ______________________</div>
+            <div>Signature : ______________________</div>
+          </div>
+        </div>
+        <div className="rounded-lg border border-slate-300 p-3">
+          <div className="font-semibold text-[#101B33] mb-2">
+            Le responsable du sous-dépôt
+          </div>
+          <div className="space-y-3 text-[#667085]">
+            <div>Nom : ______________________</div>
+            <div>Date : ______________________</div>
+            <div>Signature / Cachet : ______________________</div>
+          </div>
         </div>
       </div>
 

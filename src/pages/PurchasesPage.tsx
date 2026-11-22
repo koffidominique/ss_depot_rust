@@ -6,6 +6,7 @@ import {
 } from '../components/documents/DocumentPrintModal.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
 import type { PurchaseOrder } from '../types/erp.ts';
+import { formatFcfa, formatQty } from '../utils/format.ts';
 import { exportPurchasesCsv } from '../utils/csv.ts';
 import {
   usePurchasesMutations,
@@ -16,6 +17,41 @@ import { PurchaseOrderModal } from '../features/purchases/components/PurchaseOrd
 import { PurchaseReceiveModal } from '../features/purchases/components/PurchaseReceiveModal.tsx';
 import { PurchaseDetailModal } from '../features/purchases/components/PurchaseDetailModal.tsx';
 import { PurchaseCancelModal } from '../features/purchases/components/PurchaseCancelModal.tsx';
+
+/* Construit le bon de commande / bon de réception fournisseur imprimable. */
+function buildPurchaseOrderDoc(order: PurchaseOrder): PrintableDocumentData {
+  return {
+    docType:
+      order.receipts.length > 0 ? 'BON DE RÉCEPTION' : 'BON DE COMMANDE',
+    reference: order.reference,
+    date: order.created_at,
+    statusLabel: order.status,
+    partyTitle: 'Fournisseur',
+    partyName: order.supplier_name,
+    partyDetails: `Code ${order.supplier_code} · Commande ${order.reference}`,
+    lines: order.lines.map((l) => ({
+      label: l.product_name,
+      sublabel:
+        `${l.packaging_name} (×${formatQty(l.coefficient_milli, l.base_unit)})` +
+        (order.receipts.length > 0
+          ? ` · Reçu : ${formatQty(l.received_quantity_milli)} / ${formatQty(l.ordered_quantity_milli)}`
+          : ''),
+      quantity: formatQty(l.ordered_quantity_milli),
+      unitPrice: l.unit_price,
+      total: l.line_total,
+    })),
+    summaryRows: [
+      { label: 'Total commandé', value: formatFcfa(order.total_amount) },
+      {
+        label: 'Total réceptionné',
+        value: formatFcfa(order.received_amount),
+        tone: 'success',
+        bold: true,
+      },
+    ],
+    notes: order.notes,
+  };
+}
 
 export function PurchasesPage() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -30,13 +66,15 @@ export function PurchasesPage() {
   );
 
   const { createPoMutation, receiveMutation, cancelPoMutation } = usePurchasesMutations({
-    onCreatedPo: () => {
+    onCreatedPo: (created: PurchaseOrder) => {
       setCreateOpen(false);
       setErrorMsg(null);
+      setPrintDoc(buildPurchaseOrderDoc(created));
     },
-    onReceivedPo: () => {
+    onReceivedPo: (updated: PurchaseOrder) => {
       setReceiveTarget(null);
       setErrorMsg(null);
+      setPrintDoc(buildPurchaseOrderDoc(updated));
     },
     onCancelledPo: () => {
       setCancelTarget(null);

@@ -20,8 +20,10 @@ pub use renderer::render_document_pdf;
 pub(crate) const VALID_DOC_TYPES: &[&str] = &[
     "FACTURE",
     "REÇU DE VENTE",
+    "REÇU DE COMMANDE",
     "AVOIR CLIENT",
     "BON DE COMMANDE",
+    "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION",
     "BON DE RÉCEPTION",
     "REÇU RETOUR EMBALLAGES",
     "RAPPORT DE CAISSE",
@@ -61,6 +63,20 @@ pub struct DocumentPdfPayment {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentPdfPackagingRow {
+    pub label: String,
+    pub capacity: i64,
+    pub quantity: i64,
+    pub is_consigned: bool,
+    pub deposit_unit: i64,
+    pub deposit_total: i64,
+    pub provided_by: Option<String>,
+    pub returned_quantity: i64,
+}
+
 pub struct DocumentPdfInput {
     pub doc_type: String,
     pub reference: String,
@@ -74,6 +90,8 @@ pub struct DocumentPdfInput {
     #[serde(default)]
     pub summary_rows: Vec<DocumentPdfSummaryRow>,
     pub payments: Option<Vec<DocumentPdfPayment>>,
+    #[serde(default)]
+    pub packaging_rows: Vec<DocumentPdfPackagingRow>,
     pub notes: Option<String>,
 }
 
@@ -172,6 +190,16 @@ mod tests {
                         label: "Espèces".to_string(),
                         amount: 1_350_000,
                     }]),
+                    packaging_rows: vec![DocumentPdfPackagingRow {
+                        label: "Casier 33 cl".to_string(),
+                        capacity: 24,
+                        quantity: 2,
+                        is_consigned: true,
+                        deposit_unit: 1_000,
+                        deposit_total: 2_000,
+                        provided_by: Some("SOUS-DÉPÔT".to_string()),
+                        returned_quantity: 1,
+                    }],
                     notes: Some("Contrôle conforme sans écart.".to_string()),
                 },
             );

@@ -40,6 +40,7 @@ export function buildArchivedDocumentPrintable(
       date: archived.document.documentDate,
       statusLabel: archived.document.sourceStatus,
       partyName: archived.document.customerName,
+      partyPhone: snapshot.customer?.phone ?? archived.document.customerPhone,
       partyDetails: [
         snapshot.customer?.code,
         snapshot.customer?.phone,
@@ -68,20 +69,33 @@ export function buildArchivedDocumentPrintable(
     returnedQuantity: allocation.returned_quantity,
   }));
 
+  const mixedComposition = detail.links.map((link) => {
+    const line = detail.lines.find((item) => item.id === link.order_line_id);
+    const allocation = detail.allocations.find(
+      (item) => item.id === link.order_packaging_allocation_id,
+    );
+    return line && allocation
+      ? `${line.product_name} ${line.variant_name} : ${link.units_in_packaging} unité(s) dans ${allocation.packaging_name}`
+      : null;
+  }).filter(Boolean);
+
   const notes = [
     order.delivery_date ? `Livraison prévue : ${order.delivery_date}` : null,
     order.delivery_address ? `Adresse de livraison : ${order.delivery_address}` : null,
     order.payment_method ? `Mode prévu : ${order.payment_method}` : null,
+    mixedComposition.length > 0 ? `Composition des casiers mixtes : ${mixedComposition.join(" ; ")}` : null,
     order.notes,
-  ].filter(Boolean).join(" · ");
+    "Ce bon de commande ne constitue pas une facture ni une preuve de paiement.",
+  ].filter(Boolean).join("\\n");
 
   return {
-    docType: "BON DE COMMANDE",
+    docType: "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION",
     reference: archived.document.documentReference,
     date: archived.document.documentDate,
     statusLabel: ORDER_STATUS_LABELS[archived.document.sourceStatus] ?? archived.document.sourceStatus,
     partyTitle: "Client",
     partyName: archived.document.customerName,
+    partyPhone: customer?.phone ?? archived.document.customerPhone,
     partyDetails: [
       customer?.code,
       customer?.phone ?? archived.document.customerPhone,

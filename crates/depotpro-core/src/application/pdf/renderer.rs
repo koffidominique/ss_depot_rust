@@ -129,6 +129,80 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         draw_line(cmds, MARGIN, y, RIGHT, y, (0.91, 0.933, 0.957), 0.6);
     }
 
+
+    if !doc.packaging_rows.is_empty() {
+        if y - 30.0 < 64.0 {
+            start_page(&mut pages, &mut y);
+            let cmds = pages.last_mut().unwrap();
+            draw_text(
+                cmds,
+                MARGIN,
+                y - 10.0,
+                &format!("{} · {} — Emballages (suite)", company_name, doc.reference),
+                9.0,
+                true,
+                (0.063, 0.106, 0.2),
+            );
+            y -= 24.0;
+        }
+        {
+            let cmds = pages.last_mut().unwrap();
+            draw_text(
+                cmds,
+                MARGIN,
+                y - 8.0,
+                "Emballages et casiers affectés",
+                9.0,
+                true,
+                (0.063, 0.106, 0.2),
+            );
+            y -= 18.0;
+        }
+
+        for packaging in &doc.packaging_rows {
+            let deposit_status = if packaging.is_consigned { "Consigné" } else { "Non consigné" };
+            let mut details = format!(
+                "{} · capacité {} · quantité {} · {} · consigne {} · retournés {}",
+                packaging.label,
+                packaging.capacity,
+                packaging.quantity,
+                deposit_status,
+                format_fcfa_ascii(packaging.deposit_total),
+                packaging.returned_quantity
+            );
+            if let Some(provider) = packaging.provided_by.as_deref() {
+                if !provider.trim().is_empty() {
+                    details.push_str(&format!(" · fourni par {}", provider.trim()));
+                }
+            }
+            let text_lines = wrap_text(&details, 460.0, 7.5, false);
+            let row_h = (8.0 + text_lines.len() as f64 * 9.0).max(18.0);
+            if y - row_h < 64.0 {
+                start_page(&mut pages, &mut y);
+                let cmds = pages.last_mut().unwrap();
+                draw_text(
+                    cmds,
+                    MARGIN,
+                    y - 10.0,
+                    &format!("{} · {} — Emballages (suite)", company_name, doc.reference),
+                    9.0,
+                    true,
+                    (0.063, 0.106, 0.2),
+                );
+                y -= 24.0;
+            }
+            let cmds = pages.last_mut().unwrap();
+            let mut text_y = y - 10.0;
+            for line in &text_lines {
+                draw_text(cmds, MARGIN + 6.0, text_y, line, 7.5, false, (0.094, 0.133, 0.188));
+                text_y -= 9.0;
+            }
+            y -= row_h;
+            draw_line(cmds, MARGIN, y, RIGHT, y, (0.91, 0.933, 0.957), 0.6);
+        }
+        y -= 8.0;
+    }
+
     y -= 14.0;
 
     let note_lines = doc

@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { InlineAlert } from '../components/common/InlineAlert.tsx';
 import {
   DocumentPrintModal,
   type PrintableDocumentData,
 } from '../components/documents/DocumentPrintModal.tsx';
-import { buildArchivedDocumentPrintable } from '../features/documents/utils/buildArchivedDocumentPrintable.ts';
+import { InlineAlert } from '../components/common/InlineAlert.tsx';
 import { apiClient } from '../services/api/createApiClient.ts';
 import type { PreviewAllocation } from '../types/erp.ts';
 import { OrderStepClient } from '../features/orders/components/OrderStepClient.tsx';
@@ -14,6 +13,7 @@ import { OrderStepReview } from '../features/orders/components/OrderStepReview.t
 import { OrderStepConfirm } from '../features/orders/components/OrderStepConfirm.tsx';
 import { OrdersListTable } from '../features/orders/components/OrdersListTable.tsx';
 import { useOrdersWizard } from '../features/orders/hooks/useOrdersWizard.ts';
+import { buildArchivedDocumentPrintable } from '../features/documents/utils/buildArchivedDocumentPrintable.ts';
 
 const STEPS = [
   { id: 1, label: '1. Client' },
@@ -24,7 +24,6 @@ const STEPS = [
 ] as const;
 
 export function OrdersPage() {
-  const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
   const {
     step,
     setStep,
@@ -34,6 +33,8 @@ export function OrdersPage() {
     setEditingOrderId,
     activeOrder,
     setActiveOrder,
+    receiptDoc,
+    closeReceiptDoc,
     error,
     setError,
     clients,
@@ -48,6 +49,7 @@ export function OrdersPage() {
     startEditingDraft,
   } = useOrdersWizard();
 
+  const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
   const activeClient = clients.find((c) => c.id === draft.customer_id) ?? null;
 
   const handleArchiveAndPrintOrder = async () => {
@@ -188,7 +190,9 @@ export function OrdersPage() {
                 setActiveOrder(null);
                 setStep(1);
               }}
-              onPrintOrder={() => void handleArchiveAndPrintOrder()}
+              onPrintReceipt={() => void handleArchiveAndPrintOrder()}
+              client={activeClient}
+              agentName={null}
             />
           )}
         </div>
@@ -240,7 +244,9 @@ export function OrdersPage() {
           }
         />
       </div>
+
       <DocumentPrintModal doc={printDoc} onClose={() => setPrintDoc(null)} />
+      <DocumentPrintModal doc={receiptDoc} onClose={closeReceiptDoc} />
     </div>
   );
 }
