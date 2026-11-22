@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   CalendarDays,
@@ -149,7 +149,7 @@ export function DocumentsArchivePage() {
     [filters],
   );
 
-  const applyFilters = (event: React.FormEvent<HTMLFormElement>) => {
+  const applyFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setActionError(null);
     setFilters({ ...draft, search: draft.search?.trim() ?? "", page: 1, pageSize: 25 });
