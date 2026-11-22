@@ -210,6 +210,11 @@ export const httpPurchasesApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  updatePurchaseOrder: (orderId: number, input: Record<string, unknown>) =>
+    httpRequest<Awaited<ReturnType<ApiClient['updatePurchaseOrder']>>>(`/api/purchases/${orderId}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   receivePurchaseOrder: (orderId: number, input: ReceivePurchaseOrderPayload) =>
     httpRequest(`/api/purchases/${orderId}/receive`, {
       method: 'POST',

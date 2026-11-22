@@ -1,10 +1,15 @@
 import type { AppSettings } from '../../types/erp.ts';
-import { formatDateTime, formatFcfa } from '../../utils/format.ts';
+import { formatDate, formatDateTime, formatFcfa } from '../../utils/format.ts';
 import type { PrintableDocumentData } from './DocumentPrintModal.tsx';
 
-/* ============================================================================
- * Feuille imprimable (en-tête société, tiers, lignes, ventilation & totaux)
- * ============================================================================ */
+function companyDetails(company: AppSettings | undefined) {
+  return [
+    company?.address,
+    [company?.city, company?.country].filter(Boolean).join(', '),
+    company?.phone ? `Tél. ${company.phone}` : null,
+    company?.email,
+  ].filter(Boolean).join(' · ');
+}
 
 export function PrintableDocumentSheet({
   doc,
@@ -13,193 +18,149 @@ export function PrintableDocumentSheet({
   doc: PrintableDocumentData;
   company: AppSettings | undefined;
 }) {
+  const isCustomerReceipt = doc.docType === 'REÇU DE COMMANDE';
+  const isPurchaseOrder = doc.docType === 'BON DE COMMANDE';
+  const secondaryName = doc.secondaryPartyName || company?.company_name || 'Sous-dépôt';
+  const secondaryDetails = doc.secondaryPartyDetails || companyDetails(company);
+  const senderTitle = isPurchaseOrder ? 'FOURNISSEUR' : (doc.partyTitle || 'CLIENT');
+  const receiverTitle = doc.secondaryPartyTitle || (isPurchaseOrder ? 'LIVRER À' : 'DESTINATAIRE');
+  const clientSignatures = isCustomerReceipt || doc.partyTitle?.toLowerCase().includes('client');
+
   return (
-    <div className="p-8 space-y-6 bg-white text-[#182230]">
-      {/* En-tête commercial */}
-      <div className="flex items-start justify-between gap-6 border-b-2 border-[#101B33] pb-5">
-        <div className="flex items-start gap-3">
+    <article className="document-sheet space-y-5 bg-white px-7 py-7 text-black sm:px-10 sm:py-9">
+      <header className="flex items-start justify-between gap-5">
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl font-black uppercase leading-none tracking-tight sm:text-4xl">
+            {isCustomerReceipt ? 'REÇU DE COMMANDE' : isPurchaseOrder ? 'BON DE COMMANDE' : doc.docType}
+          </h1>
+          <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            {isCustomerReceipt
+              ? 'Accusé de réception · Document commercial, non justificatif de paiement'
+              : isPurchaseOrder
+                ? 'Demande d’approvisionnement fournisseur'
+                : 'Document commercial'}
+          </p>
+        </div>
+        <div className="flex max-w-[48%] items-start gap-3 text-right">
           {company?.logo_path ? (
-            <img
-              src={company.logo_path}
-              alt={company.company_name || 'Logo dépôt'}
-              className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-contain p-0.5 shrink-0"
-            />
+            <img src={company.logo_path} alt={company.company_name || 'Logo'} className="h-14 w-14 shrink-0 object-contain" />
           ) : (
-            <svg viewBox="0 0 36 36" className="h-10 w-10 shrink-0" aria-hidden="true">
-              <rect width="36" height="36" rx="8" fill="#101B33" />
-              <path
-                d="M9 12h18M9 18h18M9 24h10"
-                stroke="#60A5FA"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-              <circle cx="25" cy="24" r="3" fill="#2563EB" />
-            </svg>
+            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-slate-950 text-lg font-black text-white">
+              {(company?.company_name || 'DP').slice(0, 2).toUpperCase()}
+            </div>
           )}
           <div>
-            <div className="font-display text-lg font-bold tracking-tight text-[#101B33]">
-              {company?.company_name || 'DEPOTPRO'}
-            </div>
-            {company?.company_legal_name && (
-              <div className="text-xs text-[#667085]">{company.company_legal_name}</div>
-            )}
-            <div className="mt-1 text-xs text-[#667085] space-y-0.5">
-              {company?.address && <div>{company.address}</div>}
-              <div>
-                {[company?.city, company?.country].filter(Boolean).join(', ')}
-                {company?.phone ? ` · Tél : ${company.phone}` : ''}
-              </div>
-              {company?.email && <div>{company.email}</div>}
-            </div>
+            <div className="font-display text-base font-extrabold uppercase leading-tight">{company?.company_name || 'DEPOTPRO'}</div>
+            {company?.company_legal_name && <div className="mt-0.5 text-[11px] text-slate-600">{company.company_legal_name}</div>}
+            <div className="mt-1 max-w-64 text-[10px] leading-relaxed text-slate-600">{companyDetails(company) || 'Coordonnées à compléter dans les paramètres'}</div>
           </div>
         </div>
+      </header>
 
-        <div className="text-right">
-          <div className="text-xs font-bold tracking-wider text-[#2563EB] uppercase">
-            {doc.docType}
-          </div>
-          <div className="mt-1 font-mono-num text-base font-bold text-[#101B33]">
-            {doc.reference}
-          </div>
-          <div className="mt-1 font-mono-num text-xs text-[#667085]">
-            {formatDateTime(doc.date)}
-          </div>
-          {doc.statusLabel && (
-            <div className="mt-1 text-xs font-semibold text-[#182230]">
-              Statut : {doc.statusLabel}
-            </div>
-          )}
+      <div className="grid grid-cols-2 divide-x divide-white bg-black text-white">
+        <div className="px-3 py-2.5">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-300">N° document</div>
+          <div className="mt-0.5 font-mono-num text-base font-bold">{doc.reference}</div>
+        </div>
+        <div className="px-3 py-2.5">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Date d’émission</div>
+          <div className="mt-0.5 text-sm font-bold">{formatDateTime(doc.date)}</div>
+          {doc.deliveryDate && <div className="mt-0.5 text-[10px]">Livraison prévue : {formatDate(doc.deliveryDate)}</div>}
         </div>
       </div>
 
-      {/* Tiers */}
-      {doc.partyName && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs">
-          <span className="font-semibold text-[#667085] uppercase tracking-wide">
-            {doc.partyTitle || 'Tiers'} :{' '}
-          </span>
-          <span className="font-semibold text-[#182230]">{doc.partyName}</span>
-          {doc.partyDetails && (
-            <div className="mt-0.5 text-[#667085]">{doc.partyDetails}</div>
-          )}
+      <section className="grid grid-cols-2 gap-4">
+        <div className="min-h-24 border border-black">
+          <h2 className="bg-black px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white">{senderTitle}</h2>
+          <div className="space-y-1 px-3 py-2 text-xs">
+            <div className="font-bold">{doc.partyName || '—'}</div>
+            {doc.partyDetails && <div className="whitespace-pre-line leading-relaxed text-slate-700">{doc.partyDetails}</div>}
+            {doc.partyPhone && !doc.partyDetails?.includes(doc.partyPhone) && <div>Tél. {doc.partyPhone}</div>}
+          </div>
         </div>
-      )}
+        <div className="min-h-24 border border-black">
+          <h2 className="bg-black px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white">{receiverTitle}</h2>
+          <div className="space-y-1 px-3 py-2 text-xs">
+            <div className="font-bold">{secondaryName}</div>
+            {secondaryDetails && <div className="whitespace-pre-line leading-relaxed text-slate-700">{secondaryDetails}</div>}
+            {doc.statusLabel && <div className="pt-0.5 text-[10px] font-semibold uppercase text-slate-600">Statut : {doc.statusLabel}</div>}
+          </div>
+        </div>
+      </section>
 
-      {/* Tableau des lignes */}
-      <table className="w-full border-collapse text-left text-xs">
-        <thead>
-          <tr className="border-b border-slate-300 text-[#667085]">
-            <th className="py-2 pr-2 font-semibold">Désignation</th>
-            <th className="py-2 px-2 font-semibold text-right">Quantité</th>
-            <th className="py-2 px-2 font-semibold text-right">P.U.</th>
-            <th className="py-2 pl-2 font-semibold text-right">Montant</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {doc.lines.map((line, i) => (
-            <tr key={i}>
-              <td className="py-2.5 pr-2">
-                <div className="font-medium text-[#182230]">{line.label}</div>
-                {line.sublabel && (
-                  <div className="text-[11px] text-[#667085]">{line.sublabel}</div>
-                )}
-              </td>
-              <td className="py-2.5 px-2 text-right font-mono-num">{line.quantity}</td>
-              <td className="py-2.5 px-2 text-right font-mono-num">
-                {line.unitPrice !== undefined && line.unitPrice !== null
-                  ? formatFcfa(line.unitPrice)
-                  : '—'}
-              </td>
-              <td className="py-2.5 pl-2 text-right font-mono-num font-semibold">
-                {line.total !== undefined && line.total !== null
-                  ? formatFcfa(line.total)
-                  : '—'}
-              </td>
+      <div className="overflow-hidden border border-black">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead className="bg-black text-white">
+            <tr>
+              <th className="w-[14%] px-2 py-2 text-center font-bold uppercase">Qté</th>
+              <th className="px-2 py-2 font-bold uppercase">Description</th>
+              <th className="w-[19%] px-2 py-2 text-right font-bold uppercase">Prix unitaire</th>
+              <th className="w-[20%] px-2 py-2 text-right font-bold uppercase">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {doc.lines.length ? doc.lines.map((line, index) => (
+              <tr key={`${line.label}-${index}`} className="border-t border-black align-top">
+                <td className="border-r border-black px-2 py-2 text-center font-mono-num">{line.quantity}</td>
+                <td className="border-r border-black px-2 py-2">
+                  <div className="font-semibold">{line.label}</div>
+                  {line.sublabel && <div className="mt-0.5 whitespace-pre-line text-[10px] leading-relaxed text-slate-600">{line.sublabel}</div>}
+                </td>
+                <td className="border-r border-black px-2 py-2 text-right font-mono-num">{line.unitPrice == null ? '—' : formatFcfa(line.unitPrice)}</td>
+                <td className="px-2 py-2 text-right font-mono-num font-semibold">{line.total == null ? '—' : formatFcfa(line.total)}</td>
+              </tr>
+            )) : <tr className="border-t border-black"><td colSpan={4} className="px-3 py-6 text-center text-slate-500">Aucune ligne</td></tr>}
+          </tbody>
+        </table>
+      </div>
 
-      {/* Totaux & Paiements */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
-        <div className="space-y-2 text-xs">
-          {doc.payments && doc.payments.length > 0 && (
-            <div className="rounded-lg border border-slate-200 p-3">
-              <div className="font-semibold text-[#101B33] mb-1.5">
-                Ventilation des règlements
-              </div>
-              <div className="space-y-1">
-                {doc.payments.map((p, idx) => (
-                  <div key={idx} className="flex justify-between">
-                    <span className="text-[#667085]">{p.label}</span>
-                    <span className="font-mono-num font-medium">{formatFcfa(p.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {doc.notes && (
-            <div className="rounded-lg border border-slate-200 p-3 text-[#667085] whitespace-pre-line">
-              <span className="font-semibold text-[#182230]">Observations &amp; conditions : </span>
-              {doc.notes}
-            </div>
-          )}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+        <div className="border border-black">
+          <h2 className="bg-black px-3 py-2 text-xs font-bold text-white">Observations et conditions</h2>
+          <div className="min-h-28 whitespace-pre-line px-3 py-3 text-xs leading-relaxed text-slate-700">
+            {doc.notes || (isPurchaseOrder
+              ? 'Merci de confirmer la disponibilité et le délai de livraison. Toute réception physique sera contrôlée séparément.'
+              : 'Merci pour votre confiance.')}
+          </div>
         </div>
-
-        <div className="rounded-lg border border-slate-300 bg-slate-50 p-4 text-xs space-y-1.5">
-          {(doc.summaryRows || []).map((row, idx) => {
-            const toneCls =
-              row.tone === 'success'
-                ? 'text-[#16A36A]'
-                : row.tone === 'warning'
-                  ? 'text-[#D9901A]'
-                  : row.tone === 'danger'
-                    ? 'text-[#DC4545]'
-                    : 'text-[#182230]';
+        <div className="space-y-2 self-start px-1 py-1 text-xs">
+          {(doc.summaryRows || []).map((row, index) => {
+            const emphasis = row.bold || /total|reste à payer/i.test(row.label);
             return (
-              <div
-                key={idx}
-                className={`flex justify-between ${
-                  row.bold ? 'border-t border-slate-300 pt-1.5 text-sm font-bold' : ''
-                } ${toneCls}`}
-              >
-                <span>{row.label}</span>
-                <span className="font-mono-num">{row.value}</span>
+              <div key={`${row.label}-${index}`} className={`flex justify-between gap-3 ${emphasis ? 'border-t border-black pt-2 text-sm font-bold' : ''} ${row.tone === 'danger' ? 'text-red-700' : row.tone === 'success' ? 'text-emerald-700' : row.tone === 'warning' ? 'text-amber-700' : ''}`}>
+                <span>{row.label}</span><span className="shrink-0 text-right font-mono-num">{row.value}</span>
               </div>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      {/* Bloc de validation (signatures) */}
-      <div className="grid grid-cols-2 gap-6 pt-2 text-xs">
-        <div className="rounded-lg border border-slate-300 p-3">
-          <div className="font-semibold text-[#101B33] mb-2">Le client</div>
-          <div className="space-y-3 text-[#667085]">
-            <div>Nom : ______________________</div>
-            <div>Date : ______________________</div>
-            <div>Signature : ______________________</div>
-          </div>
-        </div>
-        <div className="rounded-lg border border-slate-300 p-3">
-          <div className="font-semibold text-[#101B33] mb-2">
-            Le responsable du sous-dépôt
-          </div>
-          <div className="space-y-3 text-[#667085]">
-            <div>Nom : ______________________</div>
-            <div>Date : ______________________</div>
-            <div>Signature / Cachet : ______________________</div>
-          </div>
-        </div>
-      </div>
+      {doc.payments && doc.payments.length > 0 && (
+        <section className="border border-slate-400 p-3 text-xs">
+          <h2 className="mb-2 font-bold uppercase">Règlements enregistrés</h2>
+          {doc.payments.map((payment, index) => <div key={`${payment.label}-${index}`} className="flex justify-between border-t border-slate-200 py-1"><span>{payment.label}</span><span className="font-mono-num">{formatFcfa(payment.amount)}</span></div>)}
+        </section>
+      )}
 
-      {/* Pied de page document */}
-      <div className="border-t border-slate-200 pt-4 flex items-center justify-between text-[11px] text-[#667085]">
-        <span>
-          {company?.company_name || 'DEPOTPRO'} · Document généré localement sans recalcul rétroactif
-        </span>
-        <span className="font-mono-num">Réf. {doc.reference}</span>
-      </div>
-    </div>
+      <section className="grid grid-cols-2 gap-5 pt-1 text-xs">
+        <div className="min-h-24 border border-slate-400 px-3 py-2">
+          <div className="font-bold">{clientSignatures ? 'Reçu par le client' : isPurchaseOrder ? 'Visa du fournisseur' : 'Le tiers'}</div>
+          <div className="mt-2 space-y-3 text-slate-600"><div>Nom : __________________________</div><div>Date et signature : __________________________</div></div>
+        </div>
+        <div className="min-h-24 border border-slate-400 px-3 py-2">
+          <div className="font-bold">{isPurchaseOrder ? 'Émis par le sous-dépôt' : 'Responsable du sous-dépôt'}</div>
+          <div className="mt-2 space-y-3 text-slate-600"><div>Nom : __________________________</div><div>Date et cachet : __________________________</div></div>
+        </div>
+      </section>
+
+      <footer className="border-t border-slate-300 pt-3 text-center text-[10px] italic text-slate-500">
+        {isCustomerReceipt
+          ? 'Merci pour votre confiance. Ce reçu confirme la commande et ne remplace pas une facture ou un reçu de paiement.'
+          : isPurchaseOrder
+            ? 'Bon de commande émis sous réserve de validation et de contrôle à la réception physique.'
+            : `${company?.company_name || 'DEPOTPRO'} · Document généré à partir des données commerciales enregistrées.`}
+        <div className="mt-1 not-italic">Réf. {doc.reference} · {company?.company_name || 'DEPOTPRO'}</div>
+      </footer>
+    </article>
   );
 }

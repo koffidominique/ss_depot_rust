@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod cash;
+pub mod commercial_documents;
 pub mod catalogue;
 pub mod consignments;
 pub mod inventory;

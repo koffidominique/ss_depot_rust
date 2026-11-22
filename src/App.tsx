@@ -14,6 +14,9 @@ const OrdersPage = lazy(() => import('./pages/OrdersPage.tsx').then((m) => ({ de
 const SalesHistoryPage = lazy(() =>
   import('./pages/SalesHistoryPage.tsx').then((m) => ({ default: m.SalesHistoryPage }))
 );
+const CommercialDocumentsPage = lazy(() =>
+  import('./pages/CommercialDocumentsPage.tsx').then((m) => ({ default: m.CommercialDocumentsPage }))
+);
 const ClientsPage = lazy(() => import('./pages/ClientsPage.tsx').then((m) => ({ default: m.ClientsPage })));
 const DebtsPage = lazy(() => import('./pages/DebtsPage.tsx').then((m) => ({ default: m.DebtsPage })));
 const ProductsPage = lazy(() => import('./pages/ProductsPage.tsx').then((m) => ({ default: m.ProductsPage })));
@@ -119,6 +122,7 @@ export default function App() {
                   <Route path="/sales/new" element={<SalesPage />} />
                   <Route path="/orders" element={<OrdersPage />} />
                   <Route path="/sales" element={<SalesHistoryPage />} />
+                  <Route path="/commercial-documents" element={<CommercialDocumentsPage />} />
                   <Route path="/clients" element={<ClientsPage />} />
                   <Route path="/debts" element={<DebtsPage />} />
                   <Route path="/products" element={<ProductsPage />} />

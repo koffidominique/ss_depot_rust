@@ -121,6 +121,17 @@ pub async fn update_order(
             "Seule une commande en brouillon (draft) peut être modifiée.".to_string(),
         ));
     }
+    let approval_status: Option<String> = sqlx::query_scalar(
+        "SELECT status FROM commercial_document_workflows WHERE document_type = 'customer_order' AND document_id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if matches!(approval_status.as_deref(), Some("pending_owner_approval" | "approved")) {
+        return Err(CoreError::Validation(
+            "Une commande soumise ou approuvée ne peut pas être modifiée. Demandez une modification au propriétaire.".into(),
+        ));
+    }
     if let Some(ref raw_lines) = input.lines {
         if raw_lines.is_empty() {
             return Err(CoreError::Validation(

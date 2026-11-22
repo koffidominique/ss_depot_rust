@@ -8,6 +8,8 @@ import type { Client } from '../../../types/erp.ts';
 interface OrderStepConfirmProps {
   orderDetail: CustomerOrderDetail;
   isBusy: boolean;
+  isOwner: boolean;
+  onSubmitForApproval: () => void;
   onConfirm: () => void;
   onDeliver: () => void;
   onInvoice: () => void;
@@ -24,6 +26,8 @@ interface OrderStepConfirmProps {
 export function OrderStepConfirm({
   orderDetail,
   isBusy,
+  isOwner,
+  onSubmitForApproval,
   onConfirm,
   onDeliver,
   onInvoice,
@@ -60,16 +64,26 @@ export function OrderStepConfirm({
         </p>
       </div>
 
+      {order.approval_status === 'pending_owner_approval' && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+          En attente de validation du propriétaire. Aucun mouvement de stock n’a encore été enregistré.
+        </div>
+      )}
+      {order.approval_status === 'rejected' && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-200">
+          Commande rejetée. Consultez l’historique des documents avant toute nouvelle soumission.
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
-        {order.status === 'draft' && (
+        {order.status === 'draft' && order.approval_status !== 'pending_owner_approval' && (
           <>
             <button
               type="button"
               disabled={isBusy}
-              onClick={onConfirm}
+              onClick={isOwner ? onConfirm : onSubmitForApproval}
               className="rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
             >
-              Confirmer (déduire stock)
+              {isOwner ? 'Confirmer (déduire stock)' : 'Soumettre au propriétaire'}
             </button>
             <button
               type="button"

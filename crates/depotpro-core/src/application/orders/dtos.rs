@@ -134,6 +134,7 @@ pub struct OrderSummaryDto {
     pub customer_name: String,
     pub order_type: String,
     pub status: String,
+    pub approval_status: Option<String>,
     pub subtotal_xof: i64,
     pub deposit_total_xof: i64,
     pub discount_xof: i64,
@@ -235,6 +236,8 @@ pub struct OrderDetailDto {
 pub struct PayOrderInput {
     pub amount_xof: i64,
     pub method: String,
+    #[serde(default)]
+    pub request_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

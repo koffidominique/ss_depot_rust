@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Ban, Eye, PackageCheck, Printer } from 'lucide-react';
+import { Ban, Eye, PackageCheck, Pencil, Printer } from 'lucide-react';
 import { DataTable } from '../../../components/tables/DataTable.tsx';
 import { StatusBadge } from '../../../components/common/StatusBadge.tsx';
 import type { PrintableDocumentData } from '../../../components/documents/DocumentPrintModal.tsx';
@@ -10,6 +10,7 @@ import { formatDateTime, formatFcfa, formatQty } from '../../../utils/format.ts'
 interface PurchasesTableProps {
   orders: PurchaseOrder[];
   onInspect: (order: PurchaseOrder) => void;
+  onCorrect: (order: PurchaseOrder) => void;
   onPrint: (doc: PrintableDocumentData) => void;
   onReceive: (order: PurchaseOrder) => void;
   onCancel: (order: PurchaseOrder) => void;
@@ -18,6 +19,7 @@ interface PurchasesTableProps {
 export function PurchasesTable({
   orders,
   onInspect,
+  onCorrect,
   onPrint,
   onReceive,
   onCancel,
@@ -63,6 +65,11 @@ export function PurchasesTable({
         header: 'Actions',
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
+            {row.original.approval_status === 'changes_requested' && row.original.status === 'confirmed' && row.original.received_amount === 0 && row.original.receipts.length === 0 && (
+              <button type="button" onClick={() => onCorrect(row.original)} className="inline-flex items-center gap-1 rounded-lg border border-amber-300 px-2.5 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:text-amber-300">
+                <Pencil className="h-3.5 w-3.5" /> Corriger
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onInspect(row.original)}
@@ -134,7 +141,7 @@ export function PurchasesTable({
         ),
       },
     ],
-    [onInspect, onPrint, onReceive, onCancel]
+    [onInspect, onCorrect, onPrint, onReceive, onCancel]
   );
 
   return (

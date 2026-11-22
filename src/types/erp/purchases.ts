@@ -8,7 +8,11 @@ export interface PurchaseOrder {
   supplier_id: number;
   supplier_name: string;
   supplier_code: string;
+  supplier_phone?: string;
+  supplier_address?: string | null;
+  supplier_email?: string | null;
   status: "draft" | "confirmed" | "partial" | "received" | "cancelled";
+  approval_status?: string | null;
   total_amount: number;
   received_amount: number;
   expected_date: string | null;

@@ -84,6 +84,21 @@ pub async fn create_purchase_order(
 }
 
 #[tauri::command]
+pub async fn update_purchase_order(
+    state: State<'_, DesktopState>,
+    token: String,
+    purchase_order_id: i64,
+    payload: purchases::UpdatePurchaseOrderInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::PurchasesWrite).await?;
+    let db = state.db().await;
+    let po = auth::with_actor(actor, purchases::update_purchase_order(&db, purchase_order_id, payload))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(po).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn receive_purchase_order(
     state: State<'_, DesktopState>,
     token: String,

@@ -100,6 +100,23 @@ pub(crate) async fn create_purchase(
     }
 }
 
+pub(crate) async fn update_purchase(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(payload): Json<purchases::UpdatePurchaseOrderInput>,
+) -> impl IntoResponse {
+    let actor = match require_perm(&state, &headers, Permission::PurchasesWrite).await {
+        Ok(a) => a,
+        Err(e) => return e.into_response(),
+    };
+    let db = state.db().await;
+    match auth::with_actor(actor, purchases::update_purchase_order(&db, id, payload)).await {
+        Ok(po) => (StatusCode::OK, Json(serde_json::to_value(po).unwrap())).into_response(),
+        Err(e) => map_err(e).into_response(),
+    }
+}
+
 pub(crate) async fn receive_purchase(
     State(state): State<AppState>,
     headers: HeaderMap,

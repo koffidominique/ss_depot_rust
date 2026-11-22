@@ -7,6 +7,7 @@ use axum::response::{IntoResponse, Json};
 pub(crate) mod auth;
 pub(crate) mod backups;
 pub(crate) mod cash_and_reports;
+pub(crate) mod commercial_documents;
 pub(crate) mod catalogue_disposables;
 pub(crate) mod catalogue_price_items_and_history;
 pub(crate) mod catalogue_refs;

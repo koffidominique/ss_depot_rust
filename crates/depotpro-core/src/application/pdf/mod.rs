@@ -71,6 +71,12 @@ pub struct DocumentPdfInput {
     pub party_title: Option<String>,
     pub party_name: Option<String>,
     pub party_details: Option<String>,
+    pub party_phone: Option<String>,
+    pub secondary_party_title: Option<String>,
+    pub secondary_party_name: Option<String>,
+    pub secondary_party_details: Option<String>,
+    pub delivery_date: Option<String>,
+    pub company_logo_jpeg: Option<String>,
     #[serde(default)]
     pub lines: Vec<DocumentPdfLine>,
     #[serde(default)]
@@ -84,8 +90,8 @@ pub async fn generate_document_pdf(
     input: DocumentPdfInput,
 ) -> CoreResult<(String, Vec<u8>)> {
     let needed_perm = match input.doc_type.as_str() {
-        "BON_COMMANDE" | "BON_RECEPTION" => Permission::PurchasesRead,
-        "CLOTURE_CAISSE" => Permission::CashRead,
+        "BON DE COMMANDE" | "BON DE RÉCEPTION" | "ÉTAT DES DETTES FOURNISSEURS" => Permission::PurchasesRead,
+        "RAPPORT DE CAISSE" => Permission::CashRead,
         _ => Permission::SalesRead,
     };
     require_current_actor_permission(needed_perm)?;
@@ -163,6 +169,12 @@ mod tests {
                     party_title: Some("Client".to_string()),
                     party_name: Some("Maquis Le Palmier".to_string()),
                     party_details: Some("CLI-0001 · +225 07000000".to_string()),
+                    party_phone: Some("+225 07000000".to_string()),
+                    secondary_party_title: Some("LIVRER À".to_string()),
+                    secondary_party_name: Some("Maquis Le Palmier".to_string()),
+                    secondary_party_details: Some("Abidjan".to_string()),
+                    delivery_date: None,
+                    company_logo_jpeg: None,
                     lines,
                     summary_rows: vec![DocumentPdfSummaryRow {
                         label: "Total TTC".to_string(),

@@ -14,9 +14,11 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
     require_current_actor_permission(Permission::PurchasesRead)?;
     let rows = sqlx::query_as::<_, PurchaseOrderRow>(
         "SELECT po.id, po.reference, po.supplier_id, s.name AS supplier_name, s.code AS supplier_code,
-                po.status, po.total_amount, po.received_amount, po.expected_date, po.notes, po.created_at
+                s.phone AS supplier_phone, s.address AS supplier_address, s.email AS supplier_email,
+                po.status, w.status AS approval_status, po.total_amount, po.received_amount, po.expected_date, po.notes, po.created_at
          FROM purchase_orders po
          JOIN suppliers s ON s.id = po.supplier_id
+         LEFT JOIN commercial_document_workflows w ON w.document_type = 'purchase_order' AND w.document_id = po.id
          ORDER BY po.id DESC",
     )
     .fetch_all(&db.pool)
@@ -66,7 +68,11 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
             supplier_id: po.supplier_id,
             supplier_name: po.supplier_name,
             supplier_code: po.supplier_code,
+            supplier_phone: po.supplier_phone,
+            supplier_address: po.supplier_address,
+            supplier_email: po.supplier_email,
             status: po.status,
+            approval_status: po.approval_status,
             total_amount: po.total_amount,
             received_amount: po.received_amount,
             expected_date: po.expected_date,

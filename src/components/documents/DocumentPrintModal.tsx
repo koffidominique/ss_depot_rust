@@ -28,6 +28,8 @@ export interface PrintableDocumentData {
   docType:
     | 'FACTURE'
     | 'REÇU DE VENTE'
+    | 'REÇU DE PAIEMENT'
+    | 'ANNULATION'
     | 'REÇU DE COMMANDE'
     | 'AVOIR CLIENT'
     | 'BON DE COMMANDE'
@@ -47,6 +49,10 @@ export interface PrintableDocumentData {
   partyName?: string;
   partyDetails?: string;
   partyPhone?: string | null;
+  secondaryPartyTitle?: string;
+  secondaryPartyName?: string;
+  secondaryPartyDetails?: string | null;
+  deliveryDate?: string | null;
   lines: PrintableDocumentLine[];
   summaryRows: PrintableDocumentSummaryRow[];
   payments?: Array<{ label: string; amount: number }>;
@@ -71,9 +77,35 @@ export function DocumentPrintModal({
 
   const company = settingsData?.settings;
 
+  const logoJpegDataUrl = async () => {
+    if (!company?.logo_path) return undefined;
+    try {
+      const image = new Image();
+      image.src = company.logo_path;
+      await image.decode();
+      const maxSide = 256;
+      const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
+      const context = canvas.getContext('2d');
+      if (!context) return undefined;
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.88);
+    } catch {
+      return undefined;
+    }
+  };
+
   const buildPdfBlobUrl = async (): Promise<{ url: string; fileName: string } | null> => {
     if (!doc) return null;
-    const bytes = await apiClient.generateDocumentPdf(doc as unknown as Record<string, unknown>);
+    const companyLogoJpeg = await logoJpegDataUrl();
+    const bytes = await apiClient.generateDocumentPdf({
+      ...(doc as unknown as Record<string, unknown>),
+      companyLogoJpeg,
+    });
     const blob = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const safeRef = doc.reference.replace(/[^a-zA-Z0-9_-]+/g, '_');
