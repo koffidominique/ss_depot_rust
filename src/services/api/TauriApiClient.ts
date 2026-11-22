@@ -134,6 +134,12 @@ export class TauriApiClient implements ApiClient {
   getCustomerDepositHistory = tauriOrdersApi.getCustomerDepositHistory;
   returnCustomerDeposits = tauriOrdersApi.returnCustomerDeposits;
 
+  /* --- Archives des reçus et bons de commande --- */
+  archiveSaleDocument = tauriDocumentsApi.archiveSaleDocument;
+  archiveOrderDocument = tauriDocumentsApi.archiveOrderDocument;
+  listDocumentArchive = tauriDocumentsApi.listDocumentArchive;
+  getDocumentArchive = tauriDocumentsApi.getDocumentArchive;
+
   /* --- Paramètres, Sauvegardes & PDF --- */
   getSettings = tauriSystemApi.getSettings;
   updateSettings = tauriSystemApi.updateSettings;
