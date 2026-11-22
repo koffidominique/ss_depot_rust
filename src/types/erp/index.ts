@@ -10,3 +10,4 @@ export * from "./purchases.ts";
 export * from "./finance.ts";
 export * from "./orders.ts";
 export * from "./reportsAndSystem.ts";
+export * from "./documents.ts";
