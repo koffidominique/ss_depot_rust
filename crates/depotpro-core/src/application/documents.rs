@@ -11,8 +11,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::FromRow;
 
-fn default_page() -> i64 { 1 }
-fn default_page_size() -> i64 { 25 }
+fn default_page() -> i64 {
+    1
+}
+fn default_page_size() -> i64 {
+    25
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -185,10 +189,13 @@ async fn customer_snapshot(
             "email": null
         }));
     };
-    let row: Option<(String, Option<String>, Option<String>, Option<String>, Option<String>)> =
-        sqlx::query_as(
-            "SELECT name, phone, address, city, email FROM clients WHERE id = ?",
-        )
+    let row: Option<(
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    )> = sqlx::query_as("SELECT name, phone, address, city, email FROM clients WHERE id = ?")
         .bind(id)
         .fetch_optional(&db.pool)
         .await?;
@@ -281,7 +288,13 @@ async fn persist_archive(
 }
 
 fn payment_status(paid: i64, balance: i64) -> &'static str {
-    if balance <= 0 { "paid" } else if paid > 0 { "partial" } else { "unpaid" }
+    if balance <= 0 {
+        "paid"
+    } else if paid > 0 {
+        "partial"
+    } else {
+        "unpaid"
+    }
 }
 
 pub async fn archive_sale_document(
@@ -291,15 +304,27 @@ pub async fn archive_sale_document(
     require_current_actor_permission(Permission::SalesWrite)?;
     let sale_detail = sales::get_sale_detail(db, sale_id).await?;
     let sale = &sale_detail.sale;
-    let document_type = if sale.sale_type == "credit" { "sales_invoice" } else { "sales_receipt" };
+    let document_type = if sale.sale_type == "credit" {
+        "sales_invoice"
+    } else {
+        "sales_receipt"
+    };
     let customer = customer_snapshot(
         db,
         sale.client_id,
         &sale.client_name,
         sale_detail.client_phone.as_deref(),
-    ).await?;
-    let customer_name = customer.get("name").and_then(Value::as_str).unwrap_or("Client Comptoir").to_string();
-    let customer_phone = customer.get("phone").and_then(Value::as_str).map(str::to_string);
+    )
+    .await?;
+    let customer_name = customer
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("Client Comptoir")
+        .to_string();
+    let customer_phone = customer
+        .get("phone")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     let snapshot = json!({
         "version": 1,
         "documentType": document_type,
@@ -308,12 +333,25 @@ pub async fn archive_sale_document(
         "customer": customer
     });
     persist_archive(
-        db, document_type, "sale", sale_id, &sale.reference,
-        sale.client_id, &customer_name, customer_phone.as_deref(),
-        &sale.status, payment_status(sale.paid_amount, sale.remaining_amount),
-        sale.subtotal_merchandise, sale.total_deposit, sale.total_amount,
-        sale.paid_amount, sale.remaining_amount, &sale.created_at, &snapshot,
-    ).await
+        db,
+        document_type,
+        "sale",
+        sale_id,
+        &sale.reference,
+        sale.client_id,
+        &customer_name,
+        customer_phone.as_deref(),
+        &sale.status,
+        payment_status(sale.paid_amount, sale.remaining_amount),
+        sale.subtotal_merchandise,
+        sale.total_deposit,
+        sale.total_amount,
+        sale.paid_amount,
+        sale.remaining_amount,
+        &sale.created_at,
+        &snapshot,
+    )
+    .await
 }
 
 pub async fn archive_order_document(
@@ -323,14 +361,17 @@ pub async fn archive_order_document(
     require_current_actor_permission(Permission::SalesWrite)?;
     let order_detail = orders::get_order(db, order_id).await?;
     let order = &order_detail.order;
-    let customer = customer_snapshot(
-        db,
-        Some(order.customer_id),
-        &order.customer_name,
-        None,
-    ).await?;
-    let customer_name = customer.get("name").and_then(Value::as_str).unwrap_or(&order.customer_name).to_string();
-    let customer_phone = customer.get("phone").and_then(Value::as_str).map(str::to_string);
+    let customer =
+        customer_snapshot(db, Some(order.customer_id), &order.customer_name, None).await?;
+    let customer_name = customer
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or(&order.customer_name)
+        .to_string();
+    let customer_phone = customer
+        .get("phone")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     let snapshot = json!({
         "version": 1,
         "documentType": "order_confirmation",
@@ -339,19 +380,28 @@ pub async fn archive_order_document(
         "customer": customer
     });
     persist_archive(
-        db, "order_confirmation", "order", order_id, &order.order_number,
-        Some(order.customer_id), &customer_name, customer_phone.as_deref(),
-        &order.status, &order.payment_status, order.subtotal_xof,
-        order.deposit_due_xof, order.total_to_collect_xof, order.paid_xof,
+        db,
+        "order_confirmation",
+        "order",
+        order_id,
+        &order.order_number,
+        Some(order.customer_id),
+        &customer_name,
+        customer_phone.as_deref(),
+        &order.status,
+        &order.payment_status,
+        order.subtotal_xof,
+        order.deposit_due_xof,
+        order.total_to_collect_xof,
+        order.paid_xof,
         (order.total_to_collect_xof - order.paid_xof).max(0),
-        &order.created_at, &snapshot,
-    ).await
+        &order.created_at,
+        &snapshot,
+    )
+    .await
 }
 
-pub async fn get_document_archive(
-    db: &DepotDb,
-    id: i64,
-) -> CoreResult<DocumentArchiveDetailDto> {
+pub async fn get_document_archive(db: &DepotDb, id: i64) -> CoreResult<DocumentArchiveDetailDto> {
     require_current_actor_permission(Permission::SalesRead)?;
     load_archive_row(db, id).await?.into_detail()
 }
@@ -366,9 +416,18 @@ pub async fn list_document_archive(
     let offset = (page - 1) * page_size;
     let search = filter.search.unwrap_or_default().trim().to_string();
     let pattern = format!("%{search}%");
-    let document_type = filter.document_type.filter(|v| v != "all").unwrap_or_default();
-    let source_status = filter.source_status.filter(|v| v != "all").unwrap_or_default();
-    let payment = filter.payment_status.filter(|v| v != "all").unwrap_or_default();
+    let document_type = filter
+        .document_type
+        .filter(|v| v != "all")
+        .unwrap_or_default();
+    let source_status = filter
+        .source_status
+        .filter(|v| v != "all")
+        .unwrap_or_default();
+    let payment = filter
+        .payment_status
+        .filter(|v| v != "all")
+        .unwrap_or_default();
     let customer_id = filter.customer_id.unwrap_or(0);
     let from = filter.from.unwrap_or_default();
     let to = filter.to.unwrap_or_default();
@@ -389,16 +448,30 @@ pub async fn list_document_archive(
            AND (? < 0 OR total_to_collect_xof <= ?)";
     let count_sql = format!("SELECT COUNT(*) FROM document_archive {where_sql}");
     let total: i64 = sqlx::query_scalar(&count_sql)
-        .bind(&document_type).bind(&document_type)
-        .bind(&source_status).bind(&source_status)
-        .bind(&payment).bind(&payment)
-        .bind(customer_id).bind(customer_id)
-        .bind(&search).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern)
-        .bind(&from).bind(&from)
-        .bind(&to).bind(&to)
-        .bind(min_total).bind(min_total)
-        .bind(max_total).bind(max_total)
-        .fetch_one(&db.pool).await?;
+        .bind(&document_type)
+        .bind(&document_type)
+        .bind(&source_status)
+        .bind(&source_status)
+        .bind(&payment)
+        .bind(&payment)
+        .bind(customer_id)
+        .bind(customer_id)
+        .bind(&search)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&from)
+        .bind(&from)
+        .bind(&to)
+        .bind(&to)
+        .bind(min_total)
+        .bind(min_total)
+        .bind(max_total)
+        .bind(max_total)
+        .fetch_one(&db.pool)
+        .await?;
 
     let list_sql = format!(
         "SELECT id, document_type, source_type, source_id, source_reference, document_reference,
@@ -409,17 +482,32 @@ pub async fn list_document_archive(
          ORDER BY document_date DESC, id DESC LIMIT ? OFFSET ?"
     );
     let items = sqlx::query_as::<_, DocumentArchiveSummaryDto>(&list_sql)
-        .bind(&document_type).bind(&document_type)
-        .bind(&source_status).bind(&source_status)
-        .bind(&payment).bind(&payment)
-        .bind(customer_id).bind(customer_id)
-        .bind(&search).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern)
-        .bind(&from).bind(&from)
-        .bind(&to).bind(&to)
-        .bind(min_total).bind(min_total)
-        .bind(max_total).bind(max_total)
-        .bind(page_size).bind(offset)
-        .fetch_all(&db.pool).await?;
+        .bind(&document_type)
+        .bind(&document_type)
+        .bind(&source_status)
+        .bind(&source_status)
+        .bind(&payment)
+        .bind(&payment)
+        .bind(customer_id)
+        .bind(customer_id)
+        .bind(&search)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&from)
+        .bind(&from)
+        .bind(&to)
+        .bind(&to)
+        .bind(min_total)
+        .bind(min_total)
+        .bind(max_total)
+        .bind(max_total)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(&db.pool)
+        .await?;
 
     let summary_sql = format!(
         "SELECT COUNT(*) AS document_count,
@@ -442,5 +530,12 @@ pub async fn list_document_archive(
         .fetch_one(&db.pool).await?;
 
     let total_pages = ((total + page_size - 1) / page_size).max(1);
-    Ok(DocumentArchivePageDto { items, total, page, page_size, total_pages, summary })
+    Ok(DocumentArchivePageDto {
+        items,
+        total,
+        page,
+        page_size,
+        total_pages,
+        summary,
+    })
 }
