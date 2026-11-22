@@ -15,7 +15,7 @@ export const httpDocumentsApi = {
     ),
   listDocumentArchive: (filter: DocumentArchiveFilter = {}) =>
     httpRequest<Awaited<ReturnType<ApiClient["listDocumentArchive"]>>>(
-      `/api/document-archive${buildQueryString(filter)}`,
+      `/api/document-archive${buildQueryString(filter as unknown as Record<string, unknown>)}`,
     ),
   getDocumentArchive: (id: number) =>
     httpRequest<Awaited<ReturnType<ApiClient["getDocumentArchive"]>>>(`/api/document-archive/${id}`),
