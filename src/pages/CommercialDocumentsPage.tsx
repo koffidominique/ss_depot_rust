@@ -106,6 +106,12 @@ export function CommercialDocumentsPage() {
     enabled: Boolean(printTarget),
   });
 
+  const customerReceiptSnapshotsQuery = useQuery({
+    queryKey: ['customer-order-receipts', printTarget?.documentId],
+    queryFn: () => apiClient.listCustomerOrderReceipts(printTarget!.documentId),
+    enabled: Boolean(printTarget && printTarget.documentType === 'customer_order'),
+  });
+
   const reviewDetailsQuery = useQuery({
     queryKey: ['commercial-document-review', reviewTarget?.documentType, reviewTarget?.documentId],
     enabled: Boolean(reviewTarget),
@@ -185,7 +191,17 @@ export function CommercialDocumentsPage() {
     payment_receipt: 'REÇU DE PAIEMENT', credit_note: 'AVOIR CLIENT', cancellation: 'ANNULATION',
   };
   const detail = documentDetailQuery.data as CommercialDocumentDetail | undefined;
-  const printableDocument: PrintableDocumentData | null = detail ? {
+  const latestReceiptSnapshot = customerReceiptSnapshotsQuery.data?.[0];
+  const snapshotPdfDocument = (() => {
+    if (!latestReceiptSnapshot) return null;
+    try {
+      const parsed = JSON.parse(latestReceiptSnapshot.snapshot_json) as { pdfDocument?: PrintableDocumentData };
+      return parsed.pdfDocument ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  const printableDocument: PrintableDocumentData | null = snapshotPdfDocument ?? (detail ? {
     docType: printableType[detail.documentType], reference: detail.documentNumber,
     date: detail.createdAt, statusLabel: statusLabel(detail.status),
     partyTitle: ['purchase_order', 'supplier_reception'].includes(detail.documentType) ? 'Fournisseur' : 'Client',
@@ -208,7 +224,7 @@ export function CommercialDocumentsPage() {
     summaryRows: [{ label: 'Total', value: formatFcfa(detail.amountXof), bold: true }],
     payments: detail.payments.map((payment) => ({ label: payment.label, amount: payment.amountXof })),
     notes: detail.notes,
-  } : null;
+  } : null);
 
   if (documentsQuery.isLoading) return <LoadingState rows={7} />;
   if (documentsQuery.error) return <ErrorState message={documentsQuery.error instanceof Error ? documentsQuery.error.message : 'Chargement impossible.'} onRetry={() => void documentsQuery.refetch()} />;
