@@ -1,4 +1,4 @@
-import { CheckCircle2, Pencil, RotateCcw, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, Pencil, Printer, RotateCcw, Truck, XCircle } from 'lucide-react';
 import type { CustomerOrderDetail } from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
 
@@ -13,6 +13,7 @@ interface OrderStepConfirmProps {
   onEditDraft: () => void;
   onReturnCrate: (assetId: number) => void;
   onResetWizard: () => void;
+  onPrintOrder: () => void;
 }
 
 export function OrderStepConfirm({
@@ -26,6 +27,7 @@ export function OrderStepConfirm({
   onEditDraft,
   onReturnCrate,
   onResetWizard,
+  onPrintOrder,
 }: OrderStepConfirmProps) {
   const { order, lines, allocations } = orderDetail;
   const remainingToPay = Math.max(0, order.total_to_collect_xof - order.paid_xof);
@@ -52,6 +54,15 @@ export function OrderStepConfirm({
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={onPrintOrder}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          Imprimer le bon de commande
+        </button>
         {order.status === 'draft' && (
           <>
             <button
