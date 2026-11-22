@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useQuery } from '@tanstack/react-query';
-import { Download, Printer, X } from 'lucide-react';
+import { Download, MessageCircle, Printer, X } from 'lucide-react';
 import { useState } from 'react';
 import { apiClient } from '../../services/api/createApiClient.ts';
 import { PrintableDocumentSheet } from './PrintableDocumentSheet.tsx';
@@ -28,8 +28,10 @@ export interface PrintableDocumentData {
   docType:
     | 'FACTURE'
     | 'REÇU DE VENTE'
+    | 'REÇU DE COMMANDE'
     | 'AVOIR CLIENT'
     | 'BON DE COMMANDE'
+    | 'BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION'
     | 'BON DE RÉCEPTION'
     | 'REÇU RETOUR EMBALLAGES'
     | 'RAPPORT DE CAISSE'
@@ -44,6 +46,7 @@ export interface PrintableDocumentData {
   partyTitle?: string;
   partyName?: string;
   partyDetails?: string;
+  partyPhone?: string | null;
   lines: PrintableDocumentLine[];
   summaryRows: PrintableDocumentSummaryRow[];
   payments?: Array<{ label: string; amount: number }>;
@@ -64,23 +67,69 @@ export function DocumentPrintModal({
   });
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<{ url: string; fileName: string } | null>(null);
 
   const company = settingsData?.settings;
+
+  const buildPdfBlobUrl = async (): Promise<{ url: string; fileName: string } | null> => {
+    if (!doc) return null;
+    const bytes = await apiClient.generateDocumentPdf(doc as unknown as Record<string, unknown>);
+    const blob = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const safeRef = doc.reference.replace(/[^a-zA-Z0-9_-]+/g, '_');
+    const fileName = `DEPOTPRO_${safeRef}.pdf`;
+    return { url, fileName };
+  };
 
   const handleDownloadPdf = async () => {
     if (!doc) return;
     setDownloadingPdf(true);
     setPdfError(null);
     try {
-      const bytes = await apiClient.generateDocumentPdf(doc as unknown as Record<string, unknown>);
-      const blob = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const safeRef = doc.reference.replace(/[^a-zA-Z0-9_-]+/g, '_');
+      const pdf = await buildPdfBlobUrl();
+      if (!pdf) return;
+      const { url, fileName } = pdf;
       const a = document.createElement('a');
       a.href = url;
-      a.download = `DEPOTPRO_${safeRef}.pdf`;
+      a.download = fileName;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : 'Erreur lors de la génération PDF.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  /* Envoi WhatsApp : génère le PDF puis ouvre la conversation du client.
+   * L'utilisateur joignez le PDF téléchargé dans la conversation ouverte. */
+  const handleSendWhatsApp = async () => {
+    if (!doc) return;
+    setDownloadingPdf(true);
+    setPdfError(null);
+    try {
+      const pdf = await buildPdfBlobUrl();
+      if (!pdf) return;
+      const { url, fileName } = pdf;
+      setPdfUrl({ url, fileName });
+      // Déclenche le téléchargement du PDF à joindre au message
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+
+      const rawPhone = (doc.partyPhone || '').replace(/[^0-9]/g, '');
+      // Normalisation Côte d'Ivoire : 10 chiffres locaux -> +225
+      const waPhone =
+        rawPhone.length === 10 ? `225${rawPhone}` : rawPhone;
+      const message =
+        `Bonjour ${doc.partyName || ''}, voici votre document ${doc.docType} ` +
+        `réf. ${doc.reference}. Le PDF (${fileName}) vient d'être téléchargé, ` +
+        'merci de le joindre à votre réponse ou de l\'ouvrir depuis vos téléchargements.';
+      const waUrl = waPhone
+        ? `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`
+        : `https://wa.me/?text=${encodeURIComponent(message)}`;
+      window.open(waUrl, '_blank');
     } catch (err) {
       setPdfError(err instanceof Error ? err.message : 'Erreur lors de la génération PDF.');
     } finally {
@@ -111,6 +160,15 @@ export function DocumentPrintModal({
                   </button>
                   <button
                     type="button"
+                    disabled={downloadingPdf}
+                    onClick={handleSendWhatsApp}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#1DA851] disabled:opacity-50"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    {downloadingPdf ? 'Génération...' : 'Envoyer par WhatsApp'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => window.print()}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
                   >
@@ -125,6 +183,20 @@ export function DocumentPrintModal({
               {pdfError && (
                 <div className="no-print bg-red-50 px-6 py-2 text-xs text-red-700 border-b border-red-200">
                   {pdfError}
+                </div>
+              )}
+              {pdfUrl && (
+                <div className="no-print bg-emerald-50 px-6 py-2 text-xs text-emerald-800 border-b border-emerald-200 flex items-center justify-between gap-3">
+                  <span>
+                    PDF prêt ({pdfUrl.fileName}) — joint-le dans la conversation WhatsApp ouverte.
+                  </span>
+                  <a
+                    href={pdfUrl.url}
+                    download={pdfUrl.fileName}
+                    className="font-semibold underline whitespace-nowrap"
+                  >
+                    Re-télécharger
+                  </a>
                 </div>
               )}
 

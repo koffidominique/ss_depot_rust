@@ -42,8 +42,8 @@ export function usePurchasesQueries(detailOpen: boolean) {
 }
 
 interface UsePurchasesMutationsOptions {
-  onCreatedPo: () => void;
-  onReceivedPo: () => void;
+  onCreatedPo: (created: PurchaseOrder) => void;
+  onReceivedPo: (updated: PurchaseOrder) => void;
   onCancelledPo: () => void;
   onError: (msg: string) => void;
 }
@@ -84,9 +84,9 @@ export function usePurchasesMutations({
         lines: input.lines,
       });
     },
-    onSuccess: () => {
+    onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: ['purchases'] });
-      onCreatedPo();
+      onCreatedPo(created);
     },
     onError: (err) => onError(err instanceof Error ? err.message : 'Erreur commande.'),
   });
@@ -130,14 +130,14 @@ export function usePurchasesMutations({
         lines,
       });
     },
-    onSuccess: () => {
+    onSuccess: (received) => {
       qc.invalidateQueries({ queryKey: ['purchases'] });
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['products-all'] });
       qc.invalidateQueries({ queryKey: ['stock'] });
       qc.invalidateQueries({ queryKey: ['supplier-debts'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
-      onReceivedPo();
+      onReceivedPo(received as PurchaseOrder);
     },
     onError: (err) => onError(err instanceof Error ? err.message : 'Erreur réception.'),
   });

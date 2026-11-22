@@ -1,6 +1,9 @@
-import { CheckCircle2, Pencil, RotateCcw, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, Pencil, Printer, RotateCcw, Truck, XCircle } from 'lucide-react';
+import type { PrintableDocumentData } from '../../../components/documents/DocumentPrintModal.tsx';
 import type { CustomerOrderDetail } from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
+import { buildOrderReceiptDocument } from '../utils/orderPrintDocument.ts';
+import type { Client } from '../../../types/erp.ts';
 
 interface OrderStepConfirmProps {
   orderDetail: CustomerOrderDetail;
@@ -13,6 +16,9 @@ interface OrderStepConfirmProps {
   onEditDraft: () => void;
   onReturnCrate: (assetId: number) => void;
   onResetWizard: () => void;
+  onPrintReceipt: (doc: PrintableDocumentData) => void;
+  client: Client | null;
+  agentName: string | null;
 }
 
 export function OrderStepConfirm({
@@ -26,6 +32,9 @@ export function OrderStepConfirm({
   onEditDraft,
   onReturnCrate,
   onResetWizard,
+  onPrintReceipt,
+  client,
+  agentName,
 }: OrderStepConfirmProps) {
   const { order, lines, allocations } = orderDetail;
   const remainingToPay = Math.max(0, order.total_to_collect_xof - order.paid_xof);
@@ -130,6 +139,14 @@ export function OrderStepConfirm({
                 Retourner 1 {a.packaging_name}
               </button>
             ))}
+        <button
+          type="button"
+          onClick={() => onPrintReceipt(buildOrderReceiptDocument(orderDetail, client, agentName))}
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          Reçu commande
+        </button>
         <button
           type="button"
           onClick={onResetWizard}

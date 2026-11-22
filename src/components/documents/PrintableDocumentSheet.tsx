@@ -139,8 +139,8 @@ export function PrintableDocumentSheet({
             </div>
           )}
           {doc.notes && (
-            <div className="rounded-lg border border-slate-200 p-3 text-[#667085]">
-              <span className="font-semibold text-[#182230]">Observation : </span>
+            <div className="rounded-lg border border-slate-200 p-3 text-[#667085] whitespace-pre-line">
+              <span className="font-semibold text-[#182230]">Observations &amp; conditions : </span>
               {doc.notes}
             </div>
           )}
@@ -168,6 +168,28 @@ export function PrintableDocumentSheet({
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Bloc de validation (signatures) */}
+      <div className="grid grid-cols-2 gap-6 pt-2 text-xs">
+        <div className="rounded-lg border border-slate-300 p-3">
+          <div className="font-semibold text-[#101B33] mb-2">Le client</div>
+          <div className="space-y-3 text-[#667085]">
+            <div>Nom : ______________________</div>
+            <div>Date : ______________________</div>
+            <div>Signature : ______________________</div>
+          </div>
+        </div>
+        <div className="rounded-lg border border-slate-300 p-3">
+          <div className="font-semibold text-[#101B33] mb-2">
+            Le responsable du sous-dépôt
+          </div>
+          <div className="space-y-3 text-[#667085]">
+            <div>Nom : ______________________</div>
+            <div>Date : ______________________</div>
+            <div>Signature / Cachet : ______________________</div>
+          </div>
         </div>
       </div>
 

@@ -20,8 +20,10 @@ pub use renderer::render_document_pdf;
 pub(crate) const VALID_DOC_TYPES: &[&str] = &[
     "FACTURE",
     "REÇU DE VENTE",
+    "REÇU DE COMMANDE",
     "AVOIR CLIENT",
     "BON DE COMMANDE",
+    "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION",
     "BON DE RÉCEPTION",
     "REÇU RETOUR EMBALLAGES",
     "RAPPORT DE CAISSE",

@@ -1,3 +1,8 @@
+import { useState } from 'react';
+import {
+  DocumentPrintModal,
+  type PrintableDocumentData,
+} from '../components/documents/DocumentPrintModal.tsx';
 import { InlineAlert } from '../components/common/InlineAlert.tsx';
 import { apiClient } from '../services/api/createApiClient.ts';
 import type { PreviewAllocation } from '../types/erp.ts';
@@ -27,6 +32,8 @@ export function OrdersPage() {
     setEditingOrderId,
     activeOrder,
     setActiveOrder,
+    receiptDoc,
+    closeReceiptDoc,
     error,
     setError,
     clients,
@@ -41,6 +48,7 @@ export function OrdersPage() {
     startEditingDraft,
   } = useOrdersWizard();
 
+  const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
   const activeClient = clients.find((c) => c.id === draft.customer_id) ?? null;
 
   return (
@@ -170,6 +178,9 @@ export function OrdersPage() {
                 setActiveOrder(null);
                 setStep(1);
               }}
+              onPrintReceipt={setPrintDoc}
+              client={activeClient}
+              agentName={null}
             />
           )}
         </div>
@@ -221,6 +232,9 @@ export function OrdersPage() {
           }
         />
       </div>
+
+      <DocumentPrintModal doc={printDoc} onClose={() => setPrintDoc(null)} />
+      <DocumentPrintModal doc={receiptDoc} onClose={closeReceiptDoc} />
     </div>
   );
 }
