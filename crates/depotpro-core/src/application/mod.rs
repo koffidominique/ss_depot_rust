@@ -2,6 +2,7 @@ pub mod auth;
 pub mod cash;
 pub mod catalogue;
 pub mod consignments;
+pub mod documents;
 pub mod inventory;
 pub mod orders;
 pub mod packaging_components;
