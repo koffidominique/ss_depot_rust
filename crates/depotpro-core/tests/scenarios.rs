@@ -579,6 +579,7 @@ async fn rust_core_scenarios_a_through_l() {
                 tone: Some("success".to_string()),
             }],
             payments: None,
+            packaging_rows: vec![],
             notes: None,
         },
     )
