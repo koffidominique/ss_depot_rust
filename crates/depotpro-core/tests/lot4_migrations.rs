@@ -321,7 +321,9 @@ async fn lot4_document_archive_schema_is_indexed_and_empty_on_fresh_install() {
     let db = DepotDb::connect(&db_path).await.unwrap();
 
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM document_archive")
-        .fetch_one(&db.pool).await.unwrap();
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(count, 0, "L'archive documentaire doit démarrer vide");
 
     let version: i64 = sqlx::query_scalar("SELECT MAX(version) FROM schema_version")
@@ -339,7 +341,10 @@ async fn lot4_document_archive_schema_is_indexed_and_empty_on_fresh_install() {
         "idx_document_archive_status",
         "idx_document_archive_reference",
     ] {
-        assert!(indexes.iter().any(|name| name == expected), "Index manquant : {expected}");
+        assert!(
+            indexes.iter().any(|name| name == expected),
+            "Index manquant : {expected}"
+        );
     }
 
     let invalid_type = sqlx::query(
@@ -348,7 +353,10 @@ async fn lot4_document_archive_schema_is_indexed_and_empty_on_fresh_install() {
             customer_name, source_status, payment_status, document_date, snapshot_json
          ) VALUES ('unknown', 'sale', 1, 'V-1', 'V-1', 'Client Test', 'validated', 'paid', datetime('now'), '{}')"
     ).execute(&db.pool).await;
-    assert!(invalid_type.is_err(), "Le CHECK doit refuser un type de document inconnu");
+    assert!(
+        invalid_type.is_err(),
+        "Le CHECK doit refuser un type de document inconnu"
+    );
 
     db.pool.close().await;
     let _ = std::fs::remove_file(&db_path);
