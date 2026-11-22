@@ -24,6 +24,7 @@ import { usePosShortcuts } from '../features/sales/hooks/usePosShortcuts.ts';
 import { PosCatalogPanel } from '../features/sales/components/PosCatalogPanel.tsx';
 import { PosCartPanel } from '../features/sales/components/PosCartPanel.tsx';
 import { ValidatedSaleBanner } from '../features/sales/components/ValidatedSaleBanner.tsx';
+import { buildArchivedDocumentPrintable } from '../features/documents/utils/buildArchivedDocumentPrintable.ts';
 import { HeldSalesModal } from '../features/sales/components/HeldSalesModal.tsx';
 import { QuickClientModal } from '../features/sales/components/QuickClientModal.tsx';
 import type {
@@ -101,6 +102,16 @@ export function SalesPage() {
     },
     onQuickClientError: setQuickClientError,
   });
+
+  const handleArchiveAndPrintSale = async (sale: SaleDetail) => {
+    setErrorMsg(null);
+    try {
+      const archived = await apiClient.archiveSaleDocument(sale.id);
+      setPrintDoc(buildArchivedDocumentPrintable(archived));
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Impossible d'archiver le reçu.");
+    }
+  };
 
   const handleEscape = useCallback(() => {
     if (quickClientOpen) setQuickClientOpen(false);
@@ -236,7 +247,7 @@ export function SalesPage() {
         />
       </div>
 
-      {validatedSale && <ValidatedSaleBanner sale={validatedSale} onPrint={setPrintDoc} onClose={() => setValidatedSale(null)} />}
+      {validatedSale && <ValidatedSaleBanner sale={validatedSale} onPrint={() => void handleArchiveAndPrintSale(validatedSale)} onClose={() => setValidatedSale(null)} />}
       <HeldSalesModal
         open={heldModalOpen}
         onOpenChange={setHeldModalOpen}
