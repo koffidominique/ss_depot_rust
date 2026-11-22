@@ -129,7 +129,6 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         draw_line(cmds, MARGIN, y, RIGHT, y, (0.91, 0.933, 0.957), 0.6);
     }
 
-
     if !doc.packaging_rows.is_empty() {
         if y - 30.0 < 64.0 {
             start_page(&mut pages, &mut y);
