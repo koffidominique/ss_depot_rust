@@ -518,16 +518,30 @@ pub async fn list_document_archive(
          FROM document_archive {where_sql}"
     );
     let summary: DocumentArchiveTotalsDto = sqlx::query_as(&summary_sql)
-        .bind(&document_type).bind(&document_type)
-        .bind(&source_status).bind(&source_status)
-        .bind(&payment).bind(&payment)
-        .bind(customer_id).bind(customer_id)
-        .bind(&search).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern).bind(&pattern)
-        .bind(&from).bind(&from)
-        .bind(&to).bind(&to)
-        .bind(min_total).bind(min_total)
-        .bind(max_total).bind(max_total)
-        .fetch_one(&db.pool).await?;
+        .bind(&document_type)
+        .bind(&document_type)
+        .bind(&source_status)
+        .bind(&source_status)
+        .bind(&payment)
+        .bind(&payment)
+        .bind(customer_id)
+        .bind(customer_id)
+        .bind(&search)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&from)
+        .bind(&from)
+        .bind(&to)
+        .bind(&to)
+        .bind(min_total)
+        .bind(min_total)
+        .bind(max_total)
+        .bind(max_total)
+        .fetch_one(&db.pool)
+        .await?;
 
     let total_pages = ((total + page_size - 1) / page_size).max(1);
     Ok(DocumentArchivePageDto {
