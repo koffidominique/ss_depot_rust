@@ -5,8 +5,8 @@ use depotpro_core::infrastructure::db::{
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::path::PathBuf;
 
-const EXPECTED_SCHEMA_V19_JSON: &str =
-    include_str!("../../../migrations/sqlite/expected_schema_v19.json");
+const EXPECTED_SCHEMA_V20_JSON: &str =
+    include_str!("../../../migrations/sqlite/expected_schema_v20.json");
 
 fn temp_db_path(tag: &str) -> PathBuf {
     std::env::temp_dir().join(format!("depotpro_lot4_{tag}_{}.db", uuid::Uuid::new_v4()))
@@ -46,7 +46,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
         .await
         .expect("extract schema");
     let expected: SchemaSnapshot =
-        serde_json::from_str(EXPECTED_SCHEMA_V19_JSON).expect("parse expected_schema_v19.json");
+        serde_json::from_str(EXPECTED_SCHEMA_V20_JSON).expect("parse expected_schema_v20.json");
     assert_eq!(
         normalize_snapshot(snapshot),
         normalize_snapshot(expected),
@@ -118,7 +118,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
     // 5. Rejeu idempotent
     let replay = DepotDb::apply_migrations(&db.pool).await.unwrap();
     assert!(replay.applied_versions.is_empty());
-    assert_eq!(replay.latest_version, 19);
+    assert_eq!(replay.latest_version, 20);
 
     let _ = std::fs::remove_file(&db_path);
     let _ = std::fs::remove_file(format!("{}-wal", db_path.display()));
@@ -214,7 +214,7 @@ async fn lot4_existing_columns_and_missing_columns_upgrade_cleanly() {
     assert_eq!(settings_b.setup_completed, 0);
 
     let snap_b = DepotDb::extract_schema_snapshot(&db_b.pool).await.unwrap();
-    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V19_JSON).unwrap();
+    let expected: SchemaSnapshot = serde_json::from_str(EXPECTED_SCHEMA_V20_JSON).unwrap();
     assert_eq!(normalize_snapshot(snap_b), normalize_snapshot(expected));
 
     let _ = std::fs::remove_file(&existing_cols_path);
@@ -289,7 +289,7 @@ async fn lot4_interrupted_migration_rolls_back_and_partial_migration_recovers() 
     let report = DepotDb::apply_migrations(&pool_p).await.unwrap();
     assert_eq!(
         report.applied_versions,
-        vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+        vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
     );
     assert_eq!(report.skipped_legacy_columns_for, vec![2]);
     pool_p.close().await;
@@ -313,4 +313,53 @@ async fn extract_schema_for_expected_file() {
     std::fs::remove_file(&db_path).ok();
     std::fs::remove_file(format!("{}-wal", db_path.display())).ok();
     std::fs::remove_file(format!("{}-shm", db_path.display())).ok();
+}
+
+#[tokio::test]
+async fn lot4_document_archive_schema_is_indexed_and_empty_on_fresh_install() {
+    let db_path = temp_db_path("document_archive");
+    let db = DepotDb::connect(&db_path).await.unwrap();
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM document_archive")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 0, "L'archive documentaire doit démarrer vide");
+
+    let version: i64 = sqlx::query_scalar("SELECT MAX(version) FROM schema_version")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(version, 20);
+
+    let indexes: Vec<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'document_archive' ORDER BY name"
+    ).fetch_all(&db.pool).await.unwrap();
+    for expected in [
+        "idx_document_archive_date",
+        "idx_document_archive_type_date",
+        "idx_document_archive_customer",
+        "idx_document_archive_source",
+        "idx_document_archive_status",
+        "idx_document_archive_reference",
+    ] {
+        assert!(
+            indexes.iter().any(|name| name == expected),
+            "Index manquant : {expected}"
+        );
+    }
+
+    let invalid_type = sqlx::query(
+        "INSERT INTO document_archive (
+            document_type, source_type, source_id, source_reference, document_reference,
+            customer_name, source_status, payment_status, document_date, snapshot_json
+         ) VALUES ('unknown', 'sale', 1, 'V-1', 'V-1', 'Client Test', 'validated', 'paid', datetime('now'), '{}')"
+    ).execute(&db.pool).await;
+    assert!(
+        invalid_type.is_err(),
+        "Le CHECK doit refuser un type de document inconnu"
+    );
+
+    db.pool.close().await;
+    let _ = std::fs::remove_file(&db_path);
 }

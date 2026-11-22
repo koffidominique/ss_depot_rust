@@ -10,6 +10,7 @@ import {
   tauriSalesApi,
 } from "./tauri/tauriCommerceCommands.ts";
 import { tauriOrdersApi } from "./tauri/tauriOrdersCommands.ts";
+import { tauriDocumentsApi } from "./tauri/tauriDocumentsCommands.ts";
 import {
   tauriConsignmentsApi,
   tauriFinanceApi,
@@ -133,6 +134,12 @@ export class TauriApiClient implements ApiClient {
   getCustomerDeposits = tauriOrdersApi.getCustomerDeposits;
   getCustomerDepositHistory = tauriOrdersApi.getCustomerDepositHistory;
   returnCustomerDeposits = tauriOrdersApi.returnCustomerDeposits;
+
+  /* --- Archives des reçus et bons de commande --- */
+  archiveSaleDocument = tauriDocumentsApi.archiveSaleDocument;
+  archiveOrderDocument = tauriDocumentsApi.archiveOrderDocument;
+  listDocumentArchive = tauriDocumentsApi.listDocumentArchive;
+  getDocumentArchive = tauriDocumentsApi.getDocumentArchive;
 
   /* --- Paramètres, Sauvegardes & PDF --- */
   getSettings = tauriSystemApi.getSettings;

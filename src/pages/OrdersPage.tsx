@@ -13,6 +13,7 @@ import { OrderStepReview } from '../features/orders/components/OrderStepReview.t
 import { OrderStepConfirm } from '../features/orders/components/OrderStepConfirm.tsx';
 import { OrdersListTable } from '../features/orders/components/OrdersListTable.tsx';
 import { useOrdersWizard } from '../features/orders/hooks/useOrdersWizard.ts';
+import { buildArchivedDocumentPrintable } from '../features/documents/utils/buildArchivedDocumentPrintable.ts';
 
 const STEPS = [
   { id: 1, label: '1. Client' },
@@ -50,6 +51,17 @@ export function OrdersPage() {
 
   const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
   const activeClient = clients.find((c) => c.id === draft.customer_id) ?? null;
+
+  const handleArchiveAndPrintOrder = async () => {
+    if (!activeOrder) return;
+    setError(null);
+    try {
+      const archived = await apiClient.archiveOrderDocument(activeOrder.order.id);
+      setPrintDoc(buildArchivedDocumentPrintable(archived));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible d'archiver le bon de commande.");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -178,7 +190,7 @@ export function OrdersPage() {
                 setActiveOrder(null);
                 setStep(1);
               }}
-              onPrintReceipt={setPrintDoc}
+              onPrintReceipt={() => void handleArchiveAndPrintOrder()}
               client={activeClient}
               agentName={null}
             />

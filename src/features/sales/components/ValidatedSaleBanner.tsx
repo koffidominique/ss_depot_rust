@@ -61,7 +61,7 @@ export function buildSalePrintableDoc(sale: SaleDetail): PrintableDocumentData {
 
 interface ValidatedSaleBannerProps {
   sale: SaleDetail;
-  onPrint: (doc: PrintableDocumentData) => void;
+  onPrint: () => void;
   onClose: () => void;
 }
 
@@ -92,7 +92,7 @@ export function ValidatedSaleBanner({ sale, onPrint, onClose }: ValidatedSaleBan
             whileHover={DP_BUTTON_HOVER}
             whileTap={DP_BUTTON_TAP}
             transition={DP_SPRING_SNAPPY}
-            onClick={() => onPrint(buildSalePrintableDoc(sale))}
+            onClick={onPrint}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 hover:shadow-xs transition-colors"
           >
             <Printer className="h-3.5 w-3.5" />

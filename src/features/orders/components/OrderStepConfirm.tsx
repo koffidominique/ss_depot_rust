@@ -141,11 +141,12 @@ export function OrderStepConfirm({
             ))}
         <button
           type="button"
+          disabled={isBusy}
           onClick={() => onPrintReceipt(buildOrderReceiptDocument(orderDetail, client, agentName))}
           className="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium"
         >
           <Printer className="h-3.5 w-3.5" />
-          Reçu commande
+          Imprimer le bon de commande
         </button>
         <button
           type="button"

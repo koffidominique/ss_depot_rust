@@ -120,6 +120,47 @@ export function PrintableDocumentSheet({
         </tbody>
       </table>
 
+
+      {/* Allocations physiques : casiers, consignes et retours */}
+      {doc.packagingRows && doc.packagingRows.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-[#101B33]">
+            Emballages et casiers affectés
+          </div>
+          <table className="w-full border-collapse text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-300 text-[#667085]">
+                <th className="py-2 pr-2 font-semibold">Emballage</th>
+                <th className="py-2 px-2 text-right font-semibold">Capacité</th>
+                <th className="py-2 px-2 text-right font-semibold">Quantité</th>
+                <th className="py-2 px-2 text-right font-semibold">Consigné</th>
+                <th className="py-2 px-2 text-right font-semibold">Consigne</th>
+                <th className="py-2 pl-2 text-right font-semibold">Retournés</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {doc.packagingRows.map((row, index) => (
+                <tr key={index}>
+                  <td className="py-2 pr-2">
+                    <div className="font-medium">{row.label}</div>
+                    {row.providedBy && (
+                      <div className="text-[10px] text-[#667085]">Fourni par : {row.providedBy}</div>
+                    )}
+                  </td>
+                  <td className="py-2 px-2 text-right font-mono-num">{row.capacity}</td>
+                  <td className="py-2 px-2 text-right font-mono-num">{row.quantity}</td>
+                  <td className="py-2 px-2 text-right">{row.isConsigned ? "Oui" : "Non"}</td>
+                  <td className="py-2 px-2 text-right font-mono-num">
+                    {row.depositTotal > 0 ? formatFcfa(row.depositTotal) : "—"}
+                  </td>
+                  <td className="py-2 pl-2 text-right font-mono-num">{row.returnedQuantity}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Totaux & Paiements */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
         <div className="space-y-2 text-xs">

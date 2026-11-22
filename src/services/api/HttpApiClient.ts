@@ -10,6 +10,7 @@ import {
   httpSalesApi,
 } from './http/httpCommerceRoutes.ts';
 import { httpOrdersApi } from './http/httpOrdersRoutes.ts';
+import { httpDocumentsApi } from './http/httpDocumentsRoutes.ts';
 import {
   httpConsignmentsApi,
   httpFinanceApi,
@@ -132,6 +133,12 @@ export class HttpApiClient implements ApiClient {
   getCustomerDeposits = httpOrdersApi.getCustomerDeposits;
   getCustomerDepositHistory = httpOrdersApi.getCustomerDepositHistory;
   returnCustomerDeposits = httpOrdersApi.returnCustomerDeposits;
+
+  /* --- Archives des reçus et bons de commande --- */
+  archiveSaleDocument = httpDocumentsApi.archiveSaleDocument;
+  archiveOrderDocument = httpDocumentsApi.archiveOrderDocument;
+  listDocumentArchive = httpDocumentsApi.listDocumentArchive;
+  getDocumentArchive = httpDocumentsApi.getDocumentArchive;
 
   /* --- Paramètres, Sauvegardes & PDF --- */
   getSettings = httpSystemApi.getSettings;
