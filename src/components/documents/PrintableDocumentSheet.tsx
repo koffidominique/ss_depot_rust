@@ -100,7 +100,7 @@ export function PrintableDocumentSheet({
         </section>
         {operationalNotes.length > 0 && <p className="order-receipt-notes">{operationalNotes.join(' · ')}</p>}
         <section className="order-receipt-signatures"><div><b>Signature & cachet du sous-dépôt</b></div><div><b>Signature du client (bon pour accord & réception)</b></div></section>
-        <footer>Merci pour votre confiance ! Veuillez vérifier vos quantités et emballages avant de quitter le dépôt.</footer>
+        <footer className="order-receipt-thank-you-page" style={{ breakBefore: "page", pageBreakBefore: "always", minHeight: "270mm", display: "grid", placeItems: "center", textAlign: "center", fontSize: "1.1rem", fontWeight: 700 }}>Merci pour votre confiance ! Veuillez vérifier vos quantités et emballages avant de quitter le dépôt.</footer>
       </article>
     );
   }
