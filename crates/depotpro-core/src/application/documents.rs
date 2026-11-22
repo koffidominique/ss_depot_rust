@@ -80,7 +80,7 @@ pub struct DocumentArchiveDetailDto {
     pub snapshot: Value,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentArchiveTotalsDto {
     pub document_count: i64,
