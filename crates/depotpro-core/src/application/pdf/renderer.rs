@@ -160,7 +160,11 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         }
 
         for packaging in &doc.packaging_rows {
-            let deposit_status = if packaging.is_consigned { "Consigné" } else { "Non consigné" };
+            let deposit_status = if packaging.is_consigned {
+                "Consigné"
+            } else {
+                "Non consigné"
+            };
             let mut details = format!(
                 "{} · capacité {} · quantité {} · {} · consigne {} · retournés {}",
                 packaging.label,
@@ -194,7 +198,15 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
             let cmds = pages.last_mut().unwrap();
             let mut text_y = y - 10.0;
             for line in &text_lines {
-                draw_text(cmds, MARGIN + 6.0, text_y, line, 7.5, false, (0.094, 0.133, 0.188));
+                draw_text(
+                    cmds,
+                    MARGIN + 6.0,
+                    text_y,
+                    line,
+                    7.5,
+                    false,
+                    (0.094, 0.133, 0.188),
+                );
                 text_y -= 9.0;
             }
             y -= row_h;
