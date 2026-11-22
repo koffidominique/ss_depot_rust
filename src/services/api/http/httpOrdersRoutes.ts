@@ -7,6 +7,7 @@ import type {
   CreateCustomerOrderInput,
   CustomerDepositBalance,
   CustomerOrderDetail,
+  CustomerOrderReceiptSnapshot,
   CustomerOrderSummary,
   OrderLineInput,
   PackagingAsset,
@@ -38,6 +39,18 @@ export const httpOrdersApi = {
   },
   getCustomerOrder(id: number): Promise<CustomerOrderDetail> {
     return httpRequest<CustomerOrderDetail>(`/api/orders/${id}`);
+  },
+  issueCustomerOrderReceipt(id: number): Promise<CustomerOrderReceiptSnapshot> {
+    return httpRequest<CustomerOrderReceiptSnapshot>(`/api/orders/${id}/receipt`, { method: 'POST' });
+  },
+  listCustomerOrderReceipts(id: number): Promise<CustomerOrderReceiptSnapshot[]> {
+    return httpRequest<CustomerOrderReceiptSnapshot[]>(`/api/orders/${id}/receipts`);
+  },
+  reviseCustomerOrderReceipt(id: number, reason: string): Promise<CustomerOrderReceiptSnapshot> {
+    return httpRequest<CustomerOrderReceiptSnapshot>(`/api/orders/${id}/receipts`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
   },
   createCustomerOrder(payload: CreateCustomerOrderInput): Promise<CustomerOrderDetail> {
     return httpRequest<CustomerOrderDetail>("/api/orders", {

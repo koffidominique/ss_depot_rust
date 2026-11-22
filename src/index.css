@@ -144,7 +144,45 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
+.order-receipt-sheet { width: 100%; max-width: 760px; margin: 0 auto; font: 10px/1.35 Arial, sans-serif; }
+.order-receipt-header { display: grid; grid-template-columns: 1.55fr 0.8fr; gap: 14px; align-items: start; border-bottom: 2px solid #d97706; padding-bottom: 10px; }
+.order-receipt-brand { display: grid; grid-template-columns: 88px 1fr; gap: 12px; align-items: center; }
+.order-receipt-brand img,.order-receipt-logo-placeholder { width: 88px; height: 88px; object-fit: contain; border: 1px dashed #94a3b8; }
+.order-receipt-logo-placeholder { display: grid; place-items: center; color: #64748b; font-weight: 700; }
+.order-receipt-brand h1 { margin: 0 0 4px; color: #b45309; font-size: 16px; line-height: 1.05; text-transform: uppercase; }
+.order-receipt-brand p { margin: 2px 0; }
+.order-receipt-number { display: grid; gap: 4px; padding: 9px; border: 2px solid #059669; border-radius: 6px; text-align: right; }
+.order-receipt-number strong { color: #047857; font-size: 14px; }
+.order-receipt-number small { color: #475569; font-size: 8px; font-weight: 700; }
+.order-receipt-party-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+.order-receipt-party-grid section { min-height: 82px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 5px; }
+.order-receipt-party-grid h2,.order-receipt-products h2,.order-receipt-packaging h2,.order-receipt-finance h2 { margin: 0 0 6px; color: #b45309; font-size: 10px; }
+.order-receipt-party-grid p { margin: 3px 0; }
+.order-receipt-products table,.order-receipt-packaging table { width: 100%; border-collapse: collapse; font-size: 8px; }
+.order-receipt-products th,.order-receipt-packaging th { padding: 5px 3px; background: #1f2937; color: white; text-align: center; }
+.order-receipt-products td,.order-receipt-packaging td { padding: 4px; border: 1px solid #cbd5e1; vertical-align: top; }
+.order-receipt-products tbody tr:nth-child(even),.order-receipt-packaging tbody tr:nth-child(even) { background: #f8fafc; }
+.order-receipt-products td:first-child { text-align: center; }
+.order-receipt-packaging { margin-top: 10px; }
+.order-receipt-packaging th { background: #fef3c7; color: #92400e; }
+.order-receipt-packaging small { display: block; margin-top: 2px; color: #64748b; }
+.order-receipt-finance { width: 52%; margin: 10px 0 0 auto; }
+.order-receipt-summary { border: 1px solid #cbd5e1; }
+.order-receipt-summary div { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 4px 7px; border-bottom: 1px solid #e2e8f0; }
+.order-receipt-summary div:last-child { border-bottom: 0; }
+.order-receipt-summary .is-total { background: #047857; color: white; }
+.order-receipt-summary .is-due { background: #fef2f2; color: #b91c1c; }
+.order-receipt-payment { margin-top: 9px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 5px; }
+.order-receipt-notes { margin: 8px 0; font-size: 8px; color: #475569; }
+.order-receipt-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.order-receipt-signatures div { min-height: 60px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 5px; }
+.order-receipt-sheet footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid #cbd5e1; text-align: center; color: #64748b; font-size: 8px; }
+
 @media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  .order-receipt-sheet { max-width: none; padding: 0 !important; font-size: 9px; }
+  .order-receipt-products tr,.order-receipt-packaging tr,.order-receipt-signatures { break-inside: avoid; page-break-inside: avoid; }
+  .order-receipt-header,.order-receipt-party-grid,.order-receipt-finance,.order-receipt-payment { break-inside: avoid; page-break-inside: avoid; }
   .no-print {
     display: none !important;
   }

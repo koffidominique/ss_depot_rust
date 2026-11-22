@@ -7,6 +7,7 @@ import type {
   CreateCustomerOrderInput,
   CustomerDepositBalance,
   CustomerOrderDetail,
+  CustomerOrderReceiptSnapshot,
   CustomerOrderSummary,
   OrderLineInput,
   PackagingAsset,
@@ -25,6 +26,9 @@ export interface OrdersApiClient {
     customer_id?: number;
   }): Promise<CustomerOrderSummary[]>;
   getCustomerOrder(id: number): Promise<CustomerOrderDetail>;
+  issueCustomerOrderReceipt(id: number): Promise<CustomerOrderReceiptSnapshot>;
+  listCustomerOrderReceipts(id: number): Promise<CustomerOrderReceiptSnapshot[]>;
+  reviseCustomerOrderReceipt(id: number, reason: string): Promise<CustomerOrderReceiptSnapshot>;
   createCustomerOrder(payload: CreateCustomerOrderInput): Promise<CustomerOrderDetail>;
   updateCustomerOrder(
     id: number,

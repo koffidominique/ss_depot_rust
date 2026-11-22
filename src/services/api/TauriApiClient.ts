@@ -129,6 +129,9 @@ export class TauriApiClient implements ApiClient {
   composeOrderPreview = tauriOrdersApi.composeOrderPreview;
   listCustomerOrders = tauriOrdersApi.listCustomerOrders;
   getCustomerOrder = tauriOrdersApi.getCustomerOrder;
+  issueCustomerOrderReceipt = tauriOrdersApi.issueCustomerOrderReceipt;
+  listCustomerOrderReceipts = tauriOrdersApi.listCustomerOrderReceipts;
+  reviseCustomerOrderReceipt = tauriOrdersApi.reviseCustomerOrderReceipt;
   createCustomerOrder = tauriOrdersApi.createCustomerOrder;
   updateCustomerOrder = tauriOrdersApi.updateCustomerOrder;
   confirmCustomerOrder = tauriOrdersApi.confirmCustomerOrder;

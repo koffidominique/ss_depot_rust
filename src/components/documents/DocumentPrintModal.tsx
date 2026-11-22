@@ -4,6 +4,7 @@ import { Download, MessageCircle, Printer, X } from 'lucide-react';
 import { useState } from 'react';
 import { apiClient } from '../../services/api/createApiClient.ts';
 import { PrintableDocumentSheet } from './PrintableDocumentSheet.tsx';
+import type { AppSettings } from '../../types/erp.ts';
 
 /* ============================================================================
  * Modale d'aperçu, impression & export PDF des documents commerciaux
@@ -14,6 +15,7 @@ export interface PrintableDocumentLine {
   sublabel?: string;
   quantity: string;
   unitPrice?: number | null;
+  discount?: number | null;
   total?: number | null;
 }
 
@@ -23,6 +25,7 @@ export interface PrintablePackagingLine {
   expectedQuantity: number;
   issuedQuantity?: number;
   returnedQuantity?: number;
+  unitDepositXof?: number | null;
   statusLabel: string;
   detail?: string;
   amount?: number;
@@ -36,6 +39,7 @@ export interface PrintableDocumentSummaryRow {
 }
 
 export interface PrintableDocumentData {
+  companySnapshot?: AppSettings;
   docType:
     | 'FACTURE'
     | 'REÇU DE VENTE'
@@ -54,6 +58,7 @@ export interface PrintableDocumentData {
     | 'ÉTAT DES DETTES FOURNISSEURS'
     | 'ÉTAT DES CONSIGNATIONS';
   reference: string;
+  orderReference?: string;
   date: string;
   statusLabel?: string;
   partyTitle?: string;
@@ -87,7 +92,7 @@ export function DocumentPrintModal({
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<{ url: string; fileName: string } | null>(null);
 
-  const company = settingsData?.settings;
+  const company = doc?.companySnapshot || settingsData?.settings;
 
   const logoJpegDataUrl = async () => {
     if (!company?.logo_path) return undefined;

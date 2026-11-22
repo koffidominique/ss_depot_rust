@@ -1,6 +1,6 @@
 import type { PrintableDocumentData } from "../../../components/documents/DocumentPrintModal.tsx";
-import type { Client, CustomerOrderDetail } from "../../../types/erp.ts";
-import { formatFcfa, formatQty, packagingContentsLabel } from "../../../utils/format.ts";
+import type { AppSettings, Client, CustomerOrderDetail } from "../../../types/erp.ts";
+import { formatDateTime, formatFcfa, formatQty, packagingContentsLabel } from "../../../utils/format.ts";
 
 /* ============================================================================
  * BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION (conforme au modèle Recu.md)
@@ -33,6 +33,13 @@ export function buildOrderReceiptDocument(
   order: CustomerOrderDetail,
   client: Client | null,
   agentName: string | null,
+  receiptSnapshot?: {
+    receiptNumber: string;
+    issuedAt: string;
+    company: AppSettings;
+    payments?: Array<{ reference: string; paidAt: string; methodLabel: string; amountXof: number }>;
+    revisionReason?: string;
+  },
 ): PrintableDocumentData {
   const { order: o, lines, allocations, links } = order;
   const remainingToPay = Math.max(0, o.total_to_collect_xof - o.paid_xof);
@@ -59,25 +66,24 @@ export function buildOrderReceiptDocument(
       ].join(' · '),
       quantity: `${formatQty(line.requested_quantity)} ${unitLabel}`,
       unitPrice: line.unit_price_xof,
+      discount: line.discount_xof,
       total: line.line_total_xof,
     };
   });
 
-  // Tableau emballages & casiers
-  const packagingLines = allocations.map((a) => {
-    const remaining = Math.max(0, a.quantity - a.returned_quantity);
-    return {
-      label: `Emballage : ${a.packaging_name} · capacité ${formatQty(a.capacity)} unité(s) de base`,
-      sublabel:
-        `Fourni par : ${a.provided_by || "SOUS-DÉPÔT"}` +
-        ` · Consigné : ${a.is_consigned ? "Oui" : "Non"}` +
-        ` · Déjà retournés : ${formatQty(a.returned_quantity)}` +
-        ` · Restant à restituer : ${formatQty(remaining)}`,
-      quantity: `${formatQty(a.quantity)} ${a.packaging_name}`,
-      unitPrice: a.is_consigned ? a.deposit_amount_xof : 0,
-      total: a.is_consigned ? a.quantity * a.deposit_amount_xof : 0,
-    };
-  });
+  // Allocation planifiée distincte de la remise physique. La quantité remise
+  // n'est affichée que lorsque le cycle de commande a effectivement livré.
+  const packagingLines = allocations.map((a) => ({
+    label: `${a.packaging_name} · capacité ${formatQty(a.capacity)} unité(s) de base`,
+    kind: 'other' as const,
+    expectedQuantity: a.quantity,
+    issuedQuantity: ['delivered', 'invoiced', 'paid'].includes(o.status) ? a.quantity : undefined,
+    returnedQuantity: a.returned_quantity,
+    unitDepositXof: a.is_consigned ? a.deposit_amount_xof : null,
+    statusLabel: a.is_consigned ? 'Consigné — suivi séparé des boissons' : 'Emballage non consigné',
+    detail: `Fourni par : ${a.provided_by || 'SOUS-DÉPÔT'} · Composition mixte liée aux lignes de commande`,
+    amount: a.is_consigned ? a.quantity * a.deposit_amount_xof : 0,
+  }));
 
   // Composition des casiers mixtes (lien ligne produit ↔ casier)
   const mixedCompositionRows: string[] = [];
@@ -106,8 +112,10 @@ export function buildOrderReceiptDocument(
 
   return {
     docType: "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION",
-    reference: o.order_number,
-    date: o.created_at,
+    reference: receiptSnapshot?.receiptNumber || o.order_number,
+    orderReference: o.order_number,
+    date: receiptSnapshot?.issuedAt || o.created_at,
+    companySnapshot: receiptSnapshot?.company,
     statusLabel: STATUS_LABELS[o.status] ?? o.status.toUpperCase(),
     partyTitle: "FACTURER À · CLIENT",
     partyName: client?.name || o.customer_name,
@@ -115,9 +123,14 @@ export function buildOrderReceiptDocument(
     partyPhone: client?.phone ?? null,
     secondaryPartyTitle: "LIVRER À",
     secondaryPartyName: client?.name || o.customer_name,
-    secondaryPartyDetails: o.delivery_address || client?.address || "À retirer au sous-dépôt",
+    secondaryPartyDetails: o.delivery_address || "À retirer au sous-dépôt",
     deliveryDate: o.delivery_date,
-    lines: [...productLines, ...packagingLines],
+    lines: productLines,
+    packagingLines,
+    payments: receiptSnapshot?.payments?.map((payment) => ({
+      label: `${payment.methodLabel} · Réf. interne ${payment.reference} · ${formatDateTime(payment.paidAt)}`,
+      amount: payment.amountXof,
+    })),
     summaryRows: [
       { label: "SOUS-TOTAL DES LIGNES", value: formatFcfa(o.subtotal_xof) },
       { label: "REMISE COMMERCIALE", value: `- ${formatFcfa(o.discount_xof)}` },
@@ -150,13 +163,15 @@ export function buildOrderReceiptDocument(
     ],
     notes:
       [
-        o.order_type ? `Type : ${o.order_type.toUpperCase()}` : null,
+        `Commande : ${o.order_number}`,
+        `Type : ${o.order_type.toUpperCase()}`,
         o.payment_method
-          ? `Mode de règlement : ${PAYMENT_METHOD_LABELS[o.payment_method] ?? o.payment_method.toUpperCase()}`
+          ? `Mode de règlement prévu : ${PAYMENT_METHOD_LABELS[o.payment_method] ?? o.payment_method.toUpperCase()}`
           : null,
         `Statut du paiement : ${paymentStatus}`,
+        receiptSnapshot?.revisionReason ? `VERSION CORRIGÉE — Motif : ${receiptSnapshot.revisionReason}` : null,
         o.delivery_address ? `Livraison : ${o.delivery_address}` : null,
-        agentName ? `Commercial / Agent : ${agentName}` : null,
+        agentName ? `Émis par : ${agentName}` : null,
         mixedCompositionRows.length > 0
           ? `Casiers mixtes — ${mixedCompositionRows.join(" ; ")}`
           : null,

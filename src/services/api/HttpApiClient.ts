@@ -128,6 +128,9 @@ export class HttpApiClient implements ApiClient {
   composeOrderPreview = httpOrdersApi.composeOrderPreview;
   listCustomerOrders = httpOrdersApi.listCustomerOrders;
   getCustomerOrder = httpOrdersApi.getCustomerOrder;
+  issueCustomerOrderReceipt = httpOrdersApi.issueCustomerOrderReceipt;
+  listCustomerOrderReceipts = httpOrdersApi.listCustomerOrderReceipts;
+  reviseCustomerOrderReceipt = httpOrdersApi.reviseCustomerOrderReceipt;
   createCustomerOrder = httpOrdersApi.createCustomerOrder;
   updateCustomerOrder = httpOrdersApi.updateCustomerOrder;
   confirmCustomerOrder = httpOrdersApi.confirmCustomerOrder;

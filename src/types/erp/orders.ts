@@ -199,6 +199,18 @@ export interface PackagingMovementRecord {
 
 export type UpdateCustomerOrderInput = Partial<CreateCustomerOrderInput>;
 
+export interface CustomerOrderReceiptSnapshot {
+  id: number;
+  order_id: number;
+  version: number;
+  receipt_number: string;
+  snapshot_json: string;
+  issued_at: string;
+  issued_by_user_id: string | null;
+  issued_by_name: string;
+  issued_by_role: string;
+}
+
 export interface CustomerOrderDetail {
   order: CustomerOrderSummary;
   lines: CustomerOrderLine[];

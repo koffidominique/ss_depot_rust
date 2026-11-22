@@ -14,6 +14,9 @@ use super::summary_section::draw_summary_section;
 use super::{DocumentPdfInput, DocumentPdfLine};
 
 pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> Vec<u8> {
+    if doc.doc_type == "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION" {
+        return super::receipt_renderer::render_order_receipt_pdf(company, doc);
+    }
     let mut pages: Vec<Vec<String>> = Vec::new();
     let mut y: f64 = PAGE_H - MARGIN;
 
@@ -35,6 +38,7 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         label: "Aucune ligne".to_string(),
         sublabel: None,
         quantity: "—".to_string(),
+        discount: None,
         unit_price: None,
         total: None,
     }];

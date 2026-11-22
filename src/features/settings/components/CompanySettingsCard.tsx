@@ -6,6 +6,7 @@ import { compressLocalImage } from '../../../utils/image.ts';
 
 interface CompanySettingsCardProps {
   form: Partial<AppSettings>;
+  canManageLogo: boolean;
   theme: 'light' | 'dark';
   isSaving: boolean;
   onUpdateForm: (updater: (prev: Partial<AppSettings>) => Partial<AppSettings>) => void;
@@ -17,6 +18,7 @@ interface CompanySettingsCardProps {
 
 export function CompanySettingsCard({
   form,
+  canManageLogo,
   theme,
   isSaving,
   onUpdateForm,
@@ -61,32 +63,39 @@ export function CompanySettingsCard({
           )}
           <div className="flex-1 min-w-0">
             <div className="font-medium text-[#182230] dark:text-slate-100">
-              Logo du dépôt (documents imprimés)
+              Logo de l’application et des documents commerciaux
             </div>
             <div className="text-[11px] text-[#667085] dark:text-slate-400">
-              PNG, JPEG ou WebP · redimensionné automatiquement (max 256×256)
+              Le même logo apparaît dans DEPOTPRO, les reçus de commande et les bons de commande. PNG, JPEG ou WebP · max 256×256.
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <label className="cursor-pointer rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-[11px] font-medium hover:bg-slate-100 dark:hover:bg-slate-800">
-                Choisir un logo
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="sr-only"
-                  onChange={(e) => handleLogoChange(e.target.files?.[0])}
-                />
-              </label>
-              {form.logo_path && (
-                <button
-                  type="button"
-                  onClick={() => onUpdateForm((p) => ({ ...p, logo_path: null }))}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-[#DC4545] hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  Retirer
-                </button>
-              )}
-            </div>
+            {canManageLogo ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <label className="cursor-pointer rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-[11px] font-medium hover:bg-slate-100 dark:hover:bg-slate-800">
+                  Charger / remplacer le logo
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    onChange={(e) => {
+                      void handleLogoChange(e.currentTarget.files?.[0]);
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+                {form.logo_path && (
+                  <button
+                    type="button"
+                    onClick={() => onUpdateForm((p) => ({ ...p, logo_path: null }))}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-[#DC4545] hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Retirer
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="mt-2 text-[11px] font-medium text-slate-500">Modification réservée au propriétaire.</div>
+            )}
           </div>
         </div>
         <div className="col-span-2">

@@ -41,12 +41,32 @@ function supplierRequirementSnapshot(json?: string | null): string | undefined {
   } catch { return 'Détail emballage non disponible sur ce CMD historique'; }
 }
 
+function purchaseOrderStatusLabel(order: PurchaseOrder): string {
+  if (order.approval_status === 'pending_owner_approval') {
+    return 'En attente de validation propriétaire';
+  }
+  switch (order.status) {
+    case 'draft':
+      return 'Brouillon';
+    case 'confirmed':
+      return 'Confirmée';
+    case 'partial':
+      return 'Réception partielle';
+    case 'received':
+      return 'Réceptionnée';
+    case 'cancelled':
+      return 'Annulée';
+    default:
+      return order.status;
+  }
+}
+
 export function buildPurchaseOrderDoc(order: PurchaseOrder): PrintableDocumentData {
   return {
     docType: 'BON DE COMMANDE',
     reference: order.reference,
     date: order.created_at,
-    statusLabel: order.approval_status === 'pending_owner_approval' ? 'EN ATTENTE DE VALIDATION OWNER' : order.status,
+    statusLabel: purchaseOrderStatusLabel(order),
     partyTitle: 'FOURNISSEUR',
     partyName: order.supplier_name,
     partyDetails: [
@@ -93,6 +113,9 @@ export function buildPurchaseOrderDoc(order: PurchaseOrder): PrintableDocumentDa
     }),
     summaryRows: [
       { label: 'Total commandé au fournisseur', value: formatFcfa(order.total_amount), bold: true },
+      ...(order.received_amount > 0
+        ? [{ label: 'Total réceptionné', value: formatFcfa(order.received_amount), tone: 'success' as const }]
+        : []),
     ],
     notes: order.notes,
   };

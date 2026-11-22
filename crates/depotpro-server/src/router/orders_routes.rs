@@ -37,6 +37,11 @@ pub(crate) fn orders_and_variants_router() -> Router<AppState> {
             "/api/orders/:id",
             get(orders::get_order).patch(orders::update_order),
         )
+        .route("/api/orders/:id/receipt", post(orders::issue_order_receipt))
+        .route(
+            "/api/orders/:id/receipts",
+            get(orders::list_order_receipts).post(orders::revise_order_receipt),
+        )
         .route("/api/orders/:id/confirm", post(orders::confirm_order))
         .route("/api/orders/:id/deliver", post(orders::deliver_order))
         .route("/api/orders/:id/invoice", post(orders::invoice_order))

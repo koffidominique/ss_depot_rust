@@ -4,6 +4,7 @@ import { Ban, Eye, PackageCheck, Pencil, Printer } from 'lucide-react';
 import { DataTable } from '../../../components/tables/DataTable.tsx';
 import { StatusBadge } from '../../../components/common/StatusBadge.tsx';
 import type { PrintableDocumentData } from '../../../components/documents/DocumentPrintModal.tsx';
+import { buildPurchaseOrderDoc } from '../../../pages/PurchasesPage.tsx';
 import type { PurchaseOrder } from '../../../types/erp.ts';
 import { formatDateTime, formatFcfa, formatQty } from '../../../utils/format.ts';
 
@@ -81,33 +82,36 @@ export function PurchasesTable({
             <button
               type="button"
               onClick={() =>
-                onPrint({
-                  docType:
-                    row.original.receipts.length > 0 ? 'BON DE RÉCEPTION' : 'BON DE COMMANDE',
-                  reference: row.original.receipts[0]?.reference || row.original.reference,
-                  date: row.original.receipts[0]?.created_at || row.original.created_at,
-                  statusLabel: row.original.status,
-                  partyTitle: 'Fournisseur',
-                  partyName: row.original.supplier_name,
-                  partyDetails: `Code ${row.original.supplier_code} · Commande ${row.original.reference}`,
-                  lines: row.original.lines.map((l) => ({
-                    label: l.product_name,
-                    sublabel: `${l.packaging_name} (×${formatQty(l.coefficient_milli, l.base_unit)}) · Reçu : ${formatQty(l.received_quantity_milli)} / ${formatQty(l.ordered_quantity_milli)}`,
-                    quantity: formatQty(l.ordered_quantity_milli),
-                    unitPrice: l.unit_price,
-                    total: l.line_total,
-                  })),
-                  summaryRows: [
-                    { label: 'Total commandé', value: formatFcfa(row.original.total_amount) },
-                    {
-                      label: 'Total réceptionné',
-                      value: formatFcfa(row.original.received_amount),
-                      tone: 'success',
-                      bold: true,
-                    },
-                  ],
-                  notes: row.original.notes,
-                })
+                onPrint(
+                  row.original.receipts.length > 0
+                    ? {
+                        docType: 'BON DE RÉCEPTION',
+                        reference: row.original.receipts[0]?.reference || row.original.reference,
+                        date: row.original.receipts[0]?.created_at || row.original.created_at,
+                        statusLabel: `Réception du CMD ${row.original.reference}`,
+                        partyTitle: 'Fournisseur',
+                        partyName: row.original.supplier_name,
+                        partyDetails: `Code ${row.original.supplier_code} · Commande ${row.original.reference}`,
+                        lines: row.original.lines.map((l) => ({
+                          label: l.product_name,
+                          sublabel: `${l.packaging_name} (×${formatQty(l.coefficient_milli, l.base_unit)}) · Reçu : ${formatQty(l.received_quantity_milli)} / ${formatQty(l.ordered_quantity_milli)}`,
+                          quantity: formatQty(l.ordered_quantity_milli),
+                          unitPrice: l.unit_price,
+                          total: l.line_total,
+                        })),
+                        summaryRows: [
+                          { label: 'Total commandé', value: formatFcfa(row.original.total_amount) },
+                          {
+                            label: 'Total réceptionné',
+                            value: formatFcfa(row.original.received_amount),
+                            tone: 'success',
+                            bold: true,
+                          },
+                        ],
+                        notes: row.original.notes,
+                      }
+                    : buildPurchaseOrderDoc(row.original),
+                )
               }
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
             >

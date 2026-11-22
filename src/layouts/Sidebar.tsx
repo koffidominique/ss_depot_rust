@@ -84,9 +84,13 @@ const NAV_GROUPS: NavGroup[] = [
 export function Sidebar({
   mobileOpen = false,
   onCloseMobile,
+  logoPath,
+  companyName,
 }: {
   mobileOpen?: boolean;
   onCloseMobile?: () => void;
+  logoPath?: string | null;
+  companyName?: string;
 }) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
@@ -94,7 +98,7 @@ export function Sidebar({
   const navContent = (isDrawer: boolean) => (
     <>
       <div className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4">
-        <Logo collapsed={!isDrawer && collapsed} />
+        <Logo collapsed={!isDrawer && collapsed} src={logoPath} alt={companyName || 'Logo DEPOTPRO'} />
         {isDrawer ? (
           <button
             type="button"

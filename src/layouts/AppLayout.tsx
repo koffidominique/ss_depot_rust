@@ -57,7 +57,12 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#F5F7FB] dark:bg-[#0B1220] text-[#182230] dark:text-slate-100">
-      <Sidebar mobileOpen={mobileMenuOpen} onCloseMobile={() => setMobileMenuOpen(false)} />
+      <Sidebar
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+        logoPath={settingsQuery.data?.settings.logo_path}
+        companyName={settingsQuery.data?.settings.company_name}
+      />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header onOpenMobileMenu={() => setMobileMenuOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">

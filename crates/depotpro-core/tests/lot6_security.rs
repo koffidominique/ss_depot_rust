@@ -280,6 +280,35 @@ async fn lot6_rbac_six_roles_permissions_and_audit_identity() {
     .await;
     assert!(matches!(denied_settings, Err(CoreError::Forbidden(_))));
 
+    // Le logo partagé de l'application et des documents est réservé au propriétaire,
+    // même si un administrateur dispose de SettingsWrite pour les autres paramètres.
+    let test_logo = "data:image/png;base64,AAAA".to_string();
+    let denied_logo_admin = auth::with_actor(
+        admin.clone(),
+        reports::update_settings(
+            &db,
+            reports::UpdateSettingsInput {
+                logo_path: Some(Some(test_logo.clone())),
+                ..Default::default()
+            },
+        ),
+    )
+    .await;
+    assert!(matches!(denied_logo_admin, Err(CoreError::Forbidden(_))));
+    let owner_logo = auth::with_actor(
+        owner.clone(),
+        reports::update_settings(
+            &db,
+            reports::UpdateSettingsInput {
+                logo_path: Some(Some(test_logo)),
+                ..Default::default()
+            },
+        ),
+    )
+    .await
+    .unwrap();
+    assert!(owner_logo.settings.logo_path.is_some());
+
     let denied_sale_for_stock = auth::with_actor(
         stock_mgr.clone(),
         sales::create_client(

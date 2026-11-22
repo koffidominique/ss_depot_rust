@@ -1,9 +1,6 @@
 import { CheckCircle2, Pencil, Printer, RotateCcw, Truck, XCircle } from 'lucide-react';
-import type { PrintableDocumentData } from '../../../components/documents/DocumentPrintModal.tsx';
 import type { CustomerOrderDetail } from '../../../types/erp.ts';
 import { formatFcfa } from '../../../utils/format.ts';
-import { buildOrderReceiptDocument } from '../utils/orderPrintDocument.ts';
-import type { Client } from '../../../types/erp.ts';
 
 interface OrderStepConfirmProps {
   orderDetail: CustomerOrderDetail;
@@ -18,9 +15,8 @@ interface OrderStepConfirmProps {
   onEditDraft: () => void;
   onReturnCrate: (assetId: number) => void;
   onResetWizard: () => void;
-  onPrintReceipt: (doc: PrintableDocumentData) => void;
-  client: Client | null;
-  agentName: string | null;
+  onPrintReceipt: () => void;
+  onViewReceiptHistory: () => void;
 }
 
 export function OrderStepConfirm({
@@ -37,8 +33,7 @@ export function OrderStepConfirm({
   onReturnCrate,
   onResetWizard,
   onPrintReceipt,
-  client,
-  agentName,
+  onViewReceiptHistory,
 }: OrderStepConfirmProps) {
   const { order, lines, allocations } = orderDetail;
   const remainingToPay = Math.max(0, order.total_to_collect_xof - order.paid_xof);
@@ -155,11 +150,21 @@ export function OrderStepConfirm({
             ))}
         <button
           type="button"
-          onClick={() => onPrintReceipt(buildOrderReceiptDocument(orderDetail, client, agentName))}
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium"
+          disabled={isBusy || order.status === 'draft' || order.status === 'cancelled' || order.approval_status === 'pending_owner_approval'}
+          onClick={onPrintReceipt}
+          title={order.status === 'draft' || order.approval_status === 'pending_owner_approval' ? 'Disponible après confirmation de la commande.' : order.status === 'cancelled' ? 'Une commande annulée ne peut pas émettre un reçu.' : undefined}
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium disabled:opacity-40"
         >
           <Printer className="h-3.5 w-3.5" />
           Accusé de commande client
+        </button>
+        <button
+          type="button"
+          disabled={order.status === 'draft'}
+          onClick={onViewReceiptHistory}
+          className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium disabled:opacity-40"
+        >
+          Historique / corrections du reçu
         </button>
         <button
           type="button"
