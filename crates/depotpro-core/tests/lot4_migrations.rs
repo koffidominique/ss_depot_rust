@@ -327,7 +327,9 @@ async fn lot4_document_archive_schema_is_indexed_and_empty_on_fresh_install() {
     assert_eq!(count, 0, "L'archive documentaire doit démarrer vide");
 
     let version: i64 = sqlx::query_scalar("SELECT MAX(version) FROM schema_version")
-        .fetch_one(&db.pool).await.unwrap();
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     assert_eq!(version, 20);
 
     let indexes: Vec<String> = sqlx::query_scalar(
