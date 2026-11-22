@@ -12,8 +12,8 @@ use crate::security::security_middleware;
 use crate::state::AppState;
 
 mod catalogue_routes;
-mod documents_routes;
 mod commerce_routes;
+mod documents_routes;
 mod orders_routes;
 
 pub(crate) fn build_router(state: AppState) -> Router {
