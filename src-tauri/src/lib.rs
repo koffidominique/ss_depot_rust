@@ -248,6 +248,10 @@ pub fn run() {
             commands::orders::get_customer_deposits_v4,
             commands::orders::get_customer_deposit_history_v4,
             commands::orders::return_customer_deposits_v4,
+            commands::documents::list_document_archive_v1,
+            commands::documents::get_document_archive_v1,
+            commands::documents::archive_sale_document_v1,
+            commands::documents::archive_order_document_v1,
         ])
         .build(tauri::generate_context!())
         .expect("Erreur fatale au démarrage de DEPOTPRO Desktop");
