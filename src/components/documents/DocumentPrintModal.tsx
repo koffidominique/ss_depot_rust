@@ -17,6 +17,17 @@ export interface PrintableDocumentLine {
   total?: number | null;
 }
 
+export interface PrintablePackagingLine {
+  label: string;
+  kind: 'bottle' | 'crate' | 'other';
+  expectedQuantity: number;
+  issuedQuantity?: number;
+  returnedQuantity?: number;
+  statusLabel: string;
+  detail?: string;
+  amount?: number;
+}
+
 export interface PrintableDocumentSummaryRow {
   label: string;
   value: string;
@@ -54,6 +65,7 @@ export interface PrintableDocumentData {
   secondaryPartyDetails?: string | null;
   deliveryDate?: string | null;
   lines: PrintableDocumentLine[];
+  packagingLines?: PrintablePackagingLine[];
   summaryRows: PrintableDocumentSummaryRow[];
   payments?: Array<{ label: string; amount: number }>;
   notes?: string | null;

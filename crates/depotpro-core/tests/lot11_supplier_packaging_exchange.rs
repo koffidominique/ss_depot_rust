@@ -183,33 +183,79 @@ async fn test7_reappro_fournisseur_echange_emballages_par_type_exact() {
         .find(|l| l.product_id == bock50.id)
         .unwrap()
         .id;
+    let line33_dto = po.lines.iter().find(|line| line.id == line33).unwrap();
+    let product_snapshot: serde_json::Value = serde_json::from_str(&line33_dto.product_snapshot_json).unwrap();
+    let packaging_snapshot: serde_json::Value = serde_json::from_str(&line33_dto.packaging_snapshot_json).unwrap();
+    assert_eq!(product_snapshot["brand"], "Bock");
+    assert_eq!(packaging_snapshot["depositRegime"], "deposit");
+    assert_eq!(packaging_snapshot["components"][0]["requiredPieces"], 20);
 
-    // Stock d'emballages vides insuffisant pour les 50 cl (12 < requis pour 20+10=attends 10)
-    // Cas : on tente de réceptionner 20 x 33 et 10 x 50 → il faut 20 casiers 33 et 10 casiers 50.
-    // Le stock 33 = 25 (ok), 50 = 12 (ok).
+    // Modifier le catalogue après le CMD ne doit pas changer son exigence figée.
+    sqlx::query("UPDATE deposit_packaging_components SET pieces_per_pack = 9 WHERE packaging_id = ? AND returnable_id = ?")
+        .bind(pkg33.id).bind(cas33.id).execute(&db.pool).await.unwrap();
+
+    let balance_before: i64 = sqlx::query_scalar("SELECT quantity FROM returnable_stock_balances WHERE packaging_id = ?")
+        .bind(cas33.id).fetch_one(&db.pool).await.unwrap();
+    let reserved_before: i64 = sqlx::query_scalar(
+        "SELECT SUM(reserved_pieces) FROM purchase_order_packaging_requirements r
+         JOIN purchase_order_lines l ON l.id = r.purchase_order_line_id WHERE l.purchase_order_id = ? AND r.returnable_id = ?",
+    ).bind(po.id).bind(cas33.id).fetch_one(&db.pool).await.unwrap();
+    assert_eq!(balance_before, 25, "Le CMD ne décrémente pas le stock physique");
+    assert_eq!(reserved_before, 20, "Le CMD réserve le besoin figé en emballages");
+    let beverage_stock_at_cmd: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
+        .bind(bock33.id).fetch_one(&db.pool).await.unwrap();
+    let exchange_movements_at_cmd: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM returnable_stock_movements WHERE movement_type = 'supplier_exchange'",
+    ).fetch_one(&db.pool).await.unwrap();
+    assert_eq!(beverage_stock_at_cmd, 0, "Le CMD ne réceptionne pas les boissons");
+    assert_eq!(exchange_movements_at_cmd, 0, "Le CMD ne remet pas physiquement les emballages");
+    let debts_at_cmd: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM supplier_debts")
+        .fetch_one(&db.pool).await.unwrap();
+    assert_eq!(debts_at_cmd, 0, "Le CMD ne crée pas de dette fournisseur");
+
+    // Les stocks physiques couvrent le CMD (25 casiers 33 cl disponibles, 12 casiers 50 cl).
+    // Cette réception partielle porte sur 10 casiers 33 cl et 5 casiers 50 cl.
+    let rec_partial = purchases::receive_purchase_order(
+        &db,
+        po.id,
+        purchases::ReceivePurchaseOrderInput {
+            request_key: "t7-rec-partial".to_string(),
+            notes: None,
+            lines: vec![
+                purchases::ReceiveLineInput { purchase_order_line_id: line33, received_quantity: "10".to_string(), discrepancy_reason: None },
+                purchases::ReceiveLineInput { purchase_order_line_id: line50, received_quantity: "5".to_string(), discrepancy_reason: None },
+            ],
+        },
+    ).await.unwrap();
+    assert_eq!(rec_partial.receipt.lines.len(), 2);
+    assert_eq!(rec_partial.receipt.packaging_exchanges.iter().map(|e| e.pieces_issued).sum::<i64>(), 15);
+    let partial_reserved: i64 = sqlx::query_scalar(
+        "SELECT SUM(reserved_pieces) FROM purchase_order_packaging_requirements r
+         JOIN purchase_order_lines l ON l.id = r.purchase_order_line_id WHERE l.purchase_order_id = ?",
+    ).bind(po.id).fetch_one(&db.pool).await.unwrap();
+    assert_eq!(partial_reserved, 15, "Le reliquat reste réservé après réception partielle");
+
     let rec = purchases::receive_purchase_order(
         &db,
         po.id,
         purchases::ReceivePurchaseOrderInput {
-            request_key: "t7-rec-1".to_string(),
+            request_key: "t7-rec-final".to_string(),
             notes: None,
             lines: vec![
-                purchases::ReceiveLineInput {
-                    purchase_order_line_id: line33,
-                    received_quantity: "20".to_string(),
-                    discrepancy_reason: None,
-                },
-                purchases::ReceiveLineInput {
-                    purchase_order_line_id: line50,
-                    received_quantity: "10".to_string(),
-                    discrepancy_reason: None,
-                },
+                purchases::ReceiveLineInput { purchase_order_line_id: line33, received_quantity: "10".to_string(), discrepancy_reason: None },
+                purchases::ReceiveLineInput { purchase_order_line_id: line50, received_quantity: "5".to_string(), discrepancy_reason: None },
             ],
         },
-    )
-    .await
-    .unwrap();
-    assert_eq!(rec.total_amount, 20 * 9000 + 10 * 11000);
+    ).await.unwrap();
+    assert_eq!(rec.total_amount, 10 * 9000 + 5 * 11000);
+    assert_eq!(rec.order.id, po.id);
+    assert_eq!(rec.receipt.lines.len(), 2, "Le REC ne contient que les lignes réellement reçues");
+    assert_eq!(rec.receipt.packaging_exchanges.iter().map(|e| e.pieces_issued).sum::<i64>(), 15);
+    let reservation_left: i64 = sqlx::query_scalar(
+        "SELECT SUM(reserved_pieces) FROM purchase_order_packaging_requirements r
+         JOIN purchase_order_lines l ON l.id = r.purchase_order_line_id WHERE l.purchase_order_id = ?",
+    ).bind(po.id).fetch_one(&db.pool).await.unwrap();
+    assert_eq!(reservation_left, 0);
 
     // 1. Stocks boissons pleines ajoutés.
     let stock33: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
@@ -278,11 +324,102 @@ async fn test7_reappro_fournisseur_echange_emballages_par_type_exact() {
         .await
         .unwrap();
     assert_eq!(conversions, 0);
+
+    // Restaurer le catalogue après le test du snapshot figé avant les nouvelles commandes.
+    sqlx::query("UPDATE deposit_packaging_components SET pieces_per_pack = 1 WHERE packaging_id = ? AND returnable_id = ?")
+        .bind(pkg33.id).bind(cas33.id).execute(&db.pool).await.unwrap();
+
+    // Deux CMD concurrents ne peuvent pas réserver les mêmes casiers; le perdant ne persiste rien.
+    let make_concurrent_order = |request_key: &'static str| purchases::create_purchase_order(
+        &db,
+        purchases::CreatePurchaseOrderInput {
+            request_key: request_key.to_string(), supplier_id: sup.id,
+            expected_date: None, notes: None,
+            lines: vec![purchases::PurchaseOrderLineInput {
+                product_id: bock33.id, packaging_id: pkg33.id, quantity: "3".to_string(), unit_price: 9000,
+            }],
+        },
+    );
+    let (first, second) = tokio::join!(make_concurrent_order("t7-concurrent-a"), make_concurrent_order("t7-concurrent-b"));
+    let (concurrent_order, concurrent_error) = match (first, second) {
+        (Ok(order), Err(error)) | (Err(error), Ok(order)) => (order, error),
+        _ => panic!("Un seul CMD concurrent doit pouvoir réserver les trois casiers disponibles."),
+    };
+    assert!(matches!(concurrent_error, depotpro_core::error::CoreError::InsufficientStock(_)));
+    let concurrent_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM purchase_orders WHERE request_key IN ('t7-concurrent-a', 't7-concurrent-b')",
+    ).fetch_one(&db.pool).await.unwrap();
+    assert_eq!(concurrent_count, 1, "Le CMD concurrent perdant est rollbacké");
+    purchases::cancel_purchase_order(
+        &db, concurrent_order.id,
+        purchases::CancelPurchaseOrderInput { reason: "Libération réservation concurrente".to_string() },
+    ).await.unwrap();
+
+    // Vérifier ensuite l'annulation d'un nouveau CMD sans mouvement physique.
+    let physical_before_cancel: i64 = sqlx::query_scalar(
+        "SELECT quantity FROM returnable_stock_balances WHERE packaging_id = ?",
+    ).bind(cas33.id).fetch_one(&db.pool).await.unwrap();
+    let cancel_order = purchases::create_purchase_order(
+        &db,
+        purchases::CreatePurchaseOrderInput {
+            request_key: "t7-po-cancel".to_string(), supplier_id: sup.id,
+            expected_date: None, notes: None,
+            lines: vec![purchases::PurchaseOrderLineInput {
+                product_id: bock33.id, packaging_id: pkg33.id, quantity: "1".to_string(), unit_price: 9000,
+            }],
+        },
+    ).await.unwrap();
+    let cancel_line_id = cancel_order.lines[0].id;
+    purchases::cancel_purchase_order(
+        &db, cancel_order.id,
+        purchases::CancelPurchaseOrderInput { reason: "Test libération réservation".to_string() },
+    ).await.unwrap();
+    let (reserved, status): (i64, String) = sqlx::query_as(
+        "SELECT reserved_pieces, reservation_status FROM purchase_order_packaging_requirements WHERE purchase_order_line_id = ?",
+    ).bind(cancel_line_id).fetch_one(&db.pool).await.unwrap();
+    let physical_after_cancel: i64 = sqlx::query_scalar(
+        "SELECT quantity FROM returnable_stock_balances WHERE packaging_id = ?",
+    ).bind(cas33.id).fetch_one(&db.pool).await.unwrap();
+    assert_eq!((reserved, status.as_str()), (0, "released"));
+    assert_eq!(physical_after_cancel, physical_before_cancel);
+
+    // Un profil explicitement non consigné ne réserve et n'émet aucun emballage fournisseur.
+    sqlx::query("UPDATE deposit_packaging_profiles SET mode = 'none' WHERE packaging_id = ?")
+        .bind(pkg33.id).execute(&db.pool).await.unwrap();
+    let no_deposit_order = purchases::create_purchase_order(
+        &db,
+        purchases::CreatePurchaseOrderInput {
+            request_key: "t7-po-no-deposit".to_string(), supplier_id: sup.id,
+            expected_date: None, notes: None,
+            lines: vec![purchases::PurchaseOrderLineInput {
+                product_id: bock33.id, packaging_id: pkg33.id, quantity: "1".to_string(), unit_price: 9000,
+            }],
+        },
+    ).await.unwrap();
+    assert!(no_deposit_order.packaging_requirements.is_empty());
+    let movement_count_before: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM returnable_stock_movements WHERE movement_type = 'supplier_exchange'",
+    ).fetch_one(&db.pool).await.unwrap();
+    let no_deposit_receipt = purchases::receive_purchase_order(
+        &db, no_deposit_order.id,
+        purchases::ReceivePurchaseOrderInput {
+            request_key: "t7-rec-no-deposit".to_string(), notes: None,
+            lines: vec![purchases::ReceiveLineInput {
+                purchase_order_line_id: no_deposit_order.lines[0].id,
+                received_quantity: "1".to_string(), discrepancy_reason: None,
+            }],
+        },
+    ).await.unwrap();
+    assert!(no_deposit_receipt.receipt.packaging_exchanges.is_empty());
+    let movement_count_after: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM returnable_stock_movements WHERE movement_type = 'supplier_exchange'",
+    ).fetch_one(&db.pool).await.unwrap();
+    assert_eq!(movement_count_after, movement_count_before);
 }
 
 #[tokio::test]
-async fn test7b_stock_emballages_insuffisant_bloque_la_reception() {
-    // Règle 9.4 : le système doit signaler une quantité insuffisante avant validation.
+async fn test7b_stock_emballages_insuffisant_bloque_le_cmd() {
+    // Règle 9.4 : le système signale un stock insuffisant et annule le CMD avant toute réception.
     let db = fresh_db("t7b").await;
 
     let cat = products::create_category(&db, "Bières T7b", None)
@@ -356,7 +493,19 @@ async fn test7b_stock_emballages_insuffisant_bloque_la_reception() {
     .await
     .unwrap();
     let pkg = &prod.packagings[0];
-    let po = purchases::create_purchase_order(
+    let fractional = purchases::create_purchase_order(
+        &db,
+        purchases::CreatePurchaseOrderInput {
+            request_key: "t7b-fraction".to_string(), supplier_id: sup.id,
+            expected_date: None, notes: None,
+            lines: vec![purchases::PurchaseOrderLineInput {
+                product_id: prod.id, packaging_id: pkg.id, quantity: "0.5".to_string(), unit_price: 9000,
+            }],
+        },
+    ).await.unwrap_err();
+    assert!(matches!(fractional, depotpro_core::error::CoreError::Validation(_)));
+
+    let err = purchases::create_purchase_order(
         &db,
         purchases::CreatePurchaseOrderInput {
             request_key: "t7b-po-1".to_string(),
@@ -372,29 +521,12 @@ async fn test7b_stock_emballages_insuffisant_bloque_la_reception() {
         },
     )
     .await
-    .unwrap();
-    let line_id = po.lines[0].id;
-
-    // Réception de 10 casiers alors que seuls 5 casiers vides sont disponibles → refus.
-    let err = purchases::receive_purchase_order(
-        &db,
-        po.id,
-        purchases::ReceivePurchaseOrderInput {
-            request_key: "t7b-rec-1".to_string(),
-            notes: None,
-            lines: vec![purchases::ReceiveLineInput {
-                purchase_order_line_id: line_id,
-                received_quantity: "10".to_string(),
-                discrepancy_reason: None,
-            }],
-        },
-    )
-    .await
     .unwrap_err();
-    assert!(
-        matches!(err, depotpro_core::error::CoreError::InsufficientStock(_)),
-        "Signal InsufficientStock attendu, obtenu : {err:?}"
-    );
+    assert!(matches!(err, depotpro_core::error::CoreError::InsufficientStock(_)),
+        "Signal InsufficientStock attendu dès la création du CMD : {err:?}");
+    let order_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM purchase_orders WHERE request_key = 't7b-po-1'")
+        .fetch_one(&db.pool).await.unwrap();
+    assert_eq!(order_count, 0, "CMD non réservable annulé intégralement");
 
     // Rien n'a bougé (transaction annulée).
     let stock: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
@@ -402,7 +534,7 @@ async fn test7b_stock_emballages_insuffisant_bloque_la_reception() {
         .fetch_one(&db.pool)
         .await
         .unwrap();
-    assert_eq!(stock, 0, "Aucune réception partielle");
+    assert_eq!(stock, 0, "Aucune réception physique");
     let bal: i64 = sqlx::query_scalar(
         "SELECT COALESCE(quantity, 0) FROM returnable_stock_balances WHERE packaging_id = ?",
     )
@@ -411,4 +543,22 @@ async fn test7b_stock_emballages_insuffisant_bloque_la_reception() {
     .await
     .unwrap();
     assert_eq!(bal, 5, "Stock d'emballages intacts");
+
+    sqlx::query("DELETE FROM deposit_packaging_components WHERE packaging_id = ?")
+        .bind(pkg.id).execute(&db.pool).await.unwrap();
+    let config_error = purchases::create_purchase_order(
+        &db,
+        purchases::CreatePurchaseOrderInput {
+            request_key: "t7b-no-components".to_string(), supplier_id: sup.id,
+            expected_date: None, notes: None,
+            lines: vec![purchases::PurchaseOrderLineInput {
+                product_id: prod.id, packaging_id: pkg.id, quantity: "1".to_string(), unit_price: 9000,
+            }],
+        },
+    ).await.unwrap_err();
+    assert!(matches!(config_error, depotpro_core::error::CoreError::Validation(_)));
+    let missing_components_order: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM purchase_orders WHERE request_key = 't7b-no-components'",
+    ).fetch_one(&db.pool).await.unwrap();
+    assert_eq!(missing_components_order, 0);
 }

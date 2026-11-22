@@ -3,7 +3,7 @@ import { Archive, Edit3, Image as ImageIcon, Layers, Power, Trash2 } from 'lucid
 import { DataTable } from '../../../components/tables/DataTable.tsx';
 import { StatusBadge } from '../../../components/common/StatusBadge.tsx';
 import type { Product, ProductPackaging } from '../../../types/erp.ts';
-import { formatFcfa, formatQty } from '../../../utils/format.ts';
+import { formatFcfa, formatQty, packagingContentsLabel } from '../../../utils/format.ts';
 
 interface ProductsTableProps {
   items: Product[];
@@ -126,8 +126,8 @@ export function ProductsTable({
               }`}
             >
               <span className="font-medium capitalize">{pk.name}</span>
-              <span className="text-[#667085] dark:text-slate-400 tabular-nums">
-                ×{pk.coefficient_milli / 1000}
+              <span className="rounded bg-blue-50 px-1.5 py-0.5 font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 tabular-nums">
+                {packagingContentsLabel(pk.name, row.original.base_unit, pk.coefficient_milli)}
               </span>
               <span className="font-mono-num text-[#2563EB] dark:text-[#60A5FA]">
                 {formatFcfa(pk.retail_price)}

@@ -11,14 +11,18 @@ use crate::domain::quantity::Quantity;
 use crate::error::{CoreError, CoreResult};
 use crate::infrastructure::db::DepotDb;
 
-use super::receipt_helpers::{apply_receipt_stock_and_cost_tx, exchange_supplier_packaging_tx};
-use super::{PurchaseReceiptDto, ReceivePurchaseOrderInput};
+use super::packaging_exchange::issue_reserved_packaging_tx;
+use super::receipt_helpers::apply_receipt_stock_and_cost_tx;
+use super::{
+    list_purchase_orders, PurchaseReceiptDetailDto, PurchaseReceiptDto, PurchaseReceiptLineDto,
+    PurchaseReceiptResultDto, ReceivePurchaseOrderInput, SupplierPackagingExchangeLineDto,
+};
 
 pub async fn receive_purchase_order(
     db: &DepotDb,
     purchase_order_id: i64,
     input: ReceivePurchaseOrderInput,
-) -> CoreResult<PurchaseReceiptDto> {
+) -> CoreResult<PurchaseReceiptResultDto> {
     require_current_actor_permission(Permission::PurchasesWrite)?;
     if purchase_order_id <= 0 {
         return Err(CoreError::Validation(
@@ -82,7 +86,7 @@ pub async fn receive_purchase_order(
                     .to_string(),
             ));
         }
-        return Ok(existing);
+        return build_receipt_result(db, existing.id, existing.purchase_order_id).await;
     }
 
     let po: Option<(i64, String, i64, String)> = sqlx::query_as(
@@ -117,20 +121,20 @@ pub async fn receive_purchase_order(
             .fetch_one(&mut *tx)
             .await?;
 
-    type PreparedReceiptLine = (i64, i64, i64, i64, i64, i64, i64, Option<String>);
+    type PreparedReceiptLine = (i64, i64, i64, i64, i64, i64, Option<String>);
     let mut receipt_total = Money::ZERO;
     let mut prepared: Vec<PreparedReceiptLine> = Vec::with_capacity(normalized_lines.len());
 
     for (po_line_id, qty, disc_reason) in &normalized_lines {
-        let pol: Option<(i64, i64, i64, i64, i64, i64, i64)> = sqlx::query_as(
-            "SELECT id, product_id, packaging_id, coefficient_milli, ordered_quantity_milli, received_quantity_milli, unit_price
+        let pol: Option<(i64, i64, i64, i64, i64, i64)> = sqlx::query_as(
+            "SELECT id, product_id, coefficient_milli, ordered_quantity_milli, received_quantity_milli, unit_price
              FROM purchase_order_lines WHERE id = ? AND purchase_order_id = ?",
         )
         .bind(po_line_id)
         .bind(purchase_order_id)
         .fetch_optional(&mut *tx)
         .await?;
-        let (pol_id, pid, pkg_id, coeff_milli, ordered_milli, received_milli, unit_price) =
+        let (pol_id, pid, coeff_milli, ordered_milli, received_milli, unit_price) =
             pol.ok_or_else(|| CoreError::Validation("Ligne de commande introuvable.".to_string()))?;
 
         if received_milli >= ordered_milli {
@@ -152,7 +156,6 @@ pub async fn receive_purchase_order(
         prepared.push((
             pol_id,
             pid,
-            pkg_id,
             qty.milli_units,
             base_qty.milli_units,
             unit_price,
@@ -161,7 +164,10 @@ pub async fn receive_purchase_order(
         ));
     }
 
-    let rec_ref = DepotDb::next_sequence(&mut tx, "REC").await?;
+    let receipt_prefix: String = sqlx::query_scalar("SELECT receipt_prefix FROM app_settings WHERE id = 1")
+        .fetch_one(&mut *tx)
+        .await?;
+    let rec_ref = DepotDb::next_sequence(&mut tx, &receipt_prefix).await?;
     let receipt_id = sqlx::query(
         "INSERT INTO purchase_receipts (reference, request_key, purchase_order_id, total_amount, notes)
          VALUES (?, ?, ?, ?, ?)",
@@ -175,7 +181,7 @@ pub async fn receive_purchase_order(
     .await?
     .last_insert_rowid();
 
-    for (pol_id, pid, pkg_id, qty_milli, base_qty_milli, unit_price, amount, disc_reason) in
+    for (pol_id, pid, qty_milli, base_qty_milli, unit_price, amount, disc_reason) in
         &prepared
     {
         let updated = sqlx::query(
@@ -209,16 +215,13 @@ pub async fn receive_purchase_order(
         .execute(&mut *tx)
         .await?;
 
-        exchange_supplier_packaging_tx(
-            &mut tx,
-            *pkg_id,
-            *qty_milli,
-            *pol_id,
-            &request_key,
-            &rec_ref,
-            &po_ref,
-        )
-        .await?;
+        let (ordered_milli, cumulative_received_milli): (i64, i64) = sqlx::query_as(
+            "SELECT ordered_quantity_milli, received_quantity_milli FROM purchase_order_lines WHERE id = ?",
+        ).bind(pol_id).fetch_one(&mut *tx).await?;
+        issue_reserved_packaging_tx(
+            &mut tx, *pol_id, cumulative_received_milli, ordered_milli, receipt_id,
+            &request_key, &rec_ref, &po_ref,
+        ).await?;
         apply_receipt_stock_and_cost_tx(&mut tx, *pid, *base_qty_milli, *amount, &rec_ref, &po_ref)
             .await?;
     }
@@ -274,11 +277,39 @@ pub async fn receive_purchase_order(
     .await?;
     tx.commit().await?;
 
-    let rec = sqlx::query_as::<_, PurchaseReceiptDto>(
+    build_receipt_result(db, receipt_id, purchase_order_id).await
+}
+
+async fn build_receipt_result(
+    db: &DepotDb,
+    receipt_id: i64,
+    order_id: i64,
+) -> CoreResult<PurchaseReceiptResultDto> {
+    let order = list_purchase_orders(db).await?.into_iter().find(|o| o.id == order_id)
+        .ok_or_else(|| CoreError::Internal("Commande parente du reçu introuvable.".into()))?;
+    let mut receipt = sqlx::query_as::<_, PurchaseReceiptDto>(
         "SELECT id, reference, purchase_order_id, total_amount, notes, created_at FROM purchase_receipts WHERE id = ?",
-    )
-    .bind(receipt_id)
-    .fetch_one(&db.pool)
-    .await?;
-    Ok(rec)
+    ).bind(receipt_id).fetch_one(&db.pool).await?;
+    let lines = sqlx::query_as::<_, PurchaseReceiptLineDto>(
+        "SELECT prl.purchase_order_line_id, pol.product_name, pol.packaging_name, pol.base_unit,
+                pol.coefficient_milli, prl.quantity_milli AS received_quantity_milli,
+                prl.base_quantity_milli, prl.unit_price, prl.amount, prl.discrepancy_reason
+         FROM purchase_receipt_lines prl JOIN purchase_order_lines pol ON pol.id = prl.purchase_order_line_id
+         WHERE prl.receipt_id = ? ORDER BY prl.id",
+    ).bind(receipt_id).fetch_all(&db.pool).await?;
+    let packaging_exchanges = sqlx::query_as::<_, SupplierPackagingExchangeLineDto>(
+        "SELECT purchase_order_line_id, returnable_id, code_snapshot, name_snapshot, kind_snapshot, pieces_issued
+         FROM supplier_packaging_exchange_lines WHERE receipt_id = ? ORDER BY id",
+    ).bind(receipt_id).fetch_all(&db.pool).await?;
+    let order_reference = order.reference.clone();
+    let supplier_name = order.supplier_name.clone();
+    Ok(PurchaseReceiptResultDto {
+        order,
+        receipt: PurchaseReceiptDetailDto {
+            id: receipt.id, reference: receipt.reference, purchase_order_id: receipt.purchase_order_id,
+            order_reference, supplier_name,
+            total_amount: receipt.total_amount, notes: receipt.notes.take(), created_at: receipt.created_at,
+            lines, packaging_exchanges,
+        },
+    })
 }

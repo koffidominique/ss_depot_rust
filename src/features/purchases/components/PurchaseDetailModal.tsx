@@ -1,7 +1,7 @@
 import { ModalDialog } from '../../../components/dialogs/ModalDialog.tsx';
 import { StatusBadge } from '../../../components/common/StatusBadge.tsx';
 import type { PurchaseOrder, SupplierDebt } from '../../../types/erp.ts';
-import { formatDate, formatDateTime, formatFcfa, formatQty } from '../../../utils/format.ts';
+import { formatDate, formatDateTime, formatFcfa, formatQty, packagingContentsLabel } from '../../../utils/format.ts';
 
 interface PurchaseDetailModalProps {
   target: PurchaseOrder | null;
@@ -41,10 +41,10 @@ export function PurchaseDetailModal({
                   <div key={l.id} className="flex items-center justify-between px-3 py-2">
                     <div>
                       <div className="font-medium">
-                        {l.product_name} ({l.packaging_name})
+                        {l.product_name} · Conditionnement : {l.packaging_name}
                       </div>
                       <div className="font-mono-num text-[11px] text-[#667085]">
-                        Commandé : {formatQty(l.ordered_quantity_milli)} · Reçu :{' '}
+                        {packagingContentsLabel(l.packaging_name, l.base_unit, l.coefficient_milli)} · Commandé : {formatQty(l.ordered_quantity_milli)} ({formatQty(l.ordered_quantity_milli * l.coefficient_milli / 1000)} {l.base_unit}) · Reçu :{' '}
                         {formatQty(l.received_quantity_milli)}
                       </div>
                     </div>
@@ -59,6 +59,37 @@ export function PurchaseDetailModal({
                 );
               })}
             </div>
+          </div>
+
+          <div>
+            <h4 className="font-display font-semibold mb-2">Emballages fournisseur réservés</h4>
+            {target.packaging_requirements.length === 0 ? (
+              <p className="text-[#667085]">Aucun emballage fournisseur consigné pour cette commande.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-lg border border-slate-200 dark:border-slate-800">
+                {target.packaging_requirements.map((requirement) => {
+                  const status = requirement.reservation_status === 'released'
+                    ? 'Libérée'
+                    : requirement.reservation_status === 'issued'
+                      ? 'Émise au(x) REC'
+                      : requirement.reservation_status === 'partially_issued'
+                        ? 'Partiellement émise'
+                        : 'Réservée — à remettre au REC';
+                  return (
+                    <div key={`${requirement.purchase_order_line_id}-${requirement.returnable_id}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                      <div>
+                        <div className="font-medium">{requirement.name} ({requirement.code})</div>
+                        <div className="text-[11px] text-[#667085]">Conditionnement : {requirement.pieces_per_pack} pièce(s) · Besoin initial : {requirement.required_pieces}</div>
+                      </div>
+                      <div className="text-right font-mono-num">
+                        <div>Réservé : {requirement.reserved_pieces} · Émis : {requirement.issued_pieces}</div>
+                        <div className="text-[11px] text-[#667085]">{status}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div>

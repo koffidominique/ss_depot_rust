@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../services/api/createApiClient.ts';
-import type { PurchaseOrder } from '../../../types/erp.ts';
+import type { PurchaseOrder, PurchaseReceiptResult } from '../../../types/erp.ts';
 import { newRequestKey } from '../../../utils/format.ts';
 import {
   computeExactLineGrossFcfa,
@@ -44,7 +44,7 @@ export function usePurchasesQueries(detailOpen: boolean) {
 interface UsePurchasesMutationsOptions {
   onCreatedPo: (created: PurchaseOrder) => void;
   onUpdatedPo: (updated: PurchaseOrder) => void;
-  onReceivedPo: (updated: PurchaseOrder) => void;
+  onReceivedPo: (result: PurchaseReceiptResult) => void;
   onCancelledPo: () => void;
   onError: (msg: string) => void;
 }
@@ -168,7 +168,7 @@ export function usePurchasesMutations({
       qc.invalidateQueries({ queryKey: ['stock'] });
       qc.invalidateQueries({ queryKey: ['supplier-debts'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
-      onReceivedPo(received as PurchaseOrder);
+      onReceivedPo(received);
     },
     onError: (err) => onError(err instanceof Error ? err.message : 'Erreur réception.'),
   });

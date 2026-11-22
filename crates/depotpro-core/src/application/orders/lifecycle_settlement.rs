@@ -61,7 +61,14 @@ pub async fn invoice_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
             }
         }
     }
-    let receipt = DepotDb::next_sequence(&mut tx, "REC").await?;
+    // This document represents a customer sale/invoice, never a supplier reception.
+    let (sale_prefix, invoice_prefix): (String, String) = sqlx::query_as(
+        "SELECT sale_prefix, invoice_prefix FROM app_settings WHERE id = 1",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    let document_prefix = if paid == total { &sale_prefix } else { &invoice_prefix };
+    let receipt = DepotDb::next_sequence(&mut tx, document_prefix).await?;
     let request_key = format!("order-invoice:{id}");
     let sale_id = sqlx::query(
         "INSERT INTO sales (reference, request_key, order_id, client_id, sale_type, price_tier,
@@ -168,7 +175,7 @@ pub async fn pay_order(db: &DepotDb, id: i64, input: PayOrderInput) -> CoreResul
         return Err(CoreError::InvalidPayment("Le paiement dépasse le solde de la créance.".into()));
     }
     let payment_kind = if receivable.is_some() { "receivable" } else { "sale" };
-    let payment_reference = DepotDb::next_sequence(&mut tx, "REC").await?;
+    let payment_reference = DepotDb::next_sequence(&mut tx, "PAY").await?;
     let payment_id = sqlx::query(
         "INSERT INTO payments (reference, request_key, sale_id, order_id, client_id, payment_kind, total_amount, note)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

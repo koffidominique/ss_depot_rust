@@ -61,7 +61,7 @@ pub async fn get_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> {
     .await?;
     let order = order.ok_or_else(|| CoreError::NotFound("Commande introuvable.".into()))?;
     let lines: Vec<OrderLineDto> = sqlx::query_as(
-        "SELECT ol.id, ol.order_id, ol.product_id, p.name AS product_name, ol.variant_id,
+        "SELECT ol.id, ol.order_id, ol.product_id, p.name AS product_name, p.base_unit, ol.variant_id,
                 pv.name AS variant_name, pv.compatibility_class, ol.requested_unit,
                 ol.requested_quantity, ol.base_quantity, ol.unit_price_xof, ol.line_total_xof,
                 ol.discount_xof, ol.notes

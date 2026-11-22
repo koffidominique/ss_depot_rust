@@ -174,7 +174,7 @@ export const tauriPurchasesApi = {
       { token: getStoredTauriToken(), purchaseOrderId: orderId, payload: input },
     ),
   receivePurchaseOrder: (orderId: number, input: ReceivePurchaseOrderPayload) =>
-    tauriInvoke("receive_purchase_order", {
+    tauriInvoke<Awaited<ReturnType<ApiClient['receivePurchaseOrder']>>>("receive_purchase_order", {
       token: getStoredTauriToken(),
       purchaseOrderId: orderId,
       payload: input,

@@ -28,9 +28,38 @@ pub(crate) async fn persist_sale_lines_and_deposits_tx(
     lines: &[PreparedSaleLine],
 ) -> CoreResult<()> {
     for line in lines {
+        let (brand, brewery_name, variant_name, volume_ml): (Option<String>, Option<String>, Option<String>, Option<i64>) = sqlx::query_as(
+            "SELECT COALESCE(p.brand, br.name), b.name, pv.name, pv.volume_ml FROM products p
+             LEFT JOIN brands br ON br.id = p.brand_id
+             LEFT JOIN breweries b ON b.id = COALESCE(p.brewery_id, br.brewery_id)
+             LEFT JOIN product_variants pv ON pv.id = ? WHERE p.id = ?",
+        ).bind(line.variant_id).bind(line.product_id).fetch_one(&mut **tx).await?;
+        let mut deposit_component_snapshots = Vec::with_capacity(line.deposit_items.len());
+        for (returnable_id, pieces, unit_value, amount) in &line.deposit_items {
+            let (code, name, kind): (String, String, String) = sqlx::query_as(
+                "SELECT code, name, kind FROM returnable_packaging_types WHERE id = ?",
+            ).bind(returnable_id).fetch_one(&mut **tx).await?;
+            deposit_component_snapshots.push(serde_json::json!({
+                "returnableId": returnable_id, "code": code, "name": name, "kind": kind,
+                "pieces": pieces, "unitValueXof": unit_value, "amountXof": amount
+            }));
+        }
+        let product_snapshot_json = serde_json::json!({
+            "id": line.product_id, "name": line.product_name, "brand": brand,
+            "brewery": brewery_name, "variantId": line.variant_id, "variant": variant_name,
+            "volumeMl": volume_ml, "baseUnit": line.base_unit
+        }).to_string();
+        let packaging_snapshot_json = serde_json::json!({
+            "id": line.packaging_id, "name": line.packaging_name,
+            "salesUnit": line.sales_unit_label, "coefficientMilli": line.coeff_milli,
+            "quantityMilli": line.qty_milli, "baseQuantityMilli": line.base_qty_milli,
+            "unitPriceXof": line.unit_price, "discountXof": line.line_discount,
+            "lineTotalXof": line.line_total, "depositRegime": line.deposit_mode,
+            "depositItems": deposit_component_snapshots
+        }).to_string();
         let line_id = sqlx::query(
-            "INSERT INTO sale_lines (sale_id, product_id, packaging_id, variant_id, sales_unit_id, sales_unit_label, product_name, packaging_name, base_unit, coefficient_milli, quantity_milli, base_quantity_milli, unit_price, discount_amount, line_total, cost_num, cost_den)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO sale_lines (sale_id, product_id, packaging_id, variant_id, sales_unit_id, sales_unit_label, product_name, packaging_name, base_unit, coefficient_milli, quantity_milli, base_quantity_milli, unit_price, discount_amount, line_total, cost_num, cost_den, product_snapshot_json, packaging_snapshot_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(ctx.sale_id)
         .bind(line.product_id)
@@ -49,6 +78,8 @@ pub(crate) async fn persist_sale_lines_and_deposits_tx(
         .bind(line.line_total)
         .bind(&line.cost_num)
         .bind(&line.cost_den)
+        .bind(&product_snapshot_json)
+        .bind(&packaging_snapshot_json)
         .execute(&mut **tx)
         .await?
         .last_insert_rowid();
@@ -154,7 +185,7 @@ pub(crate) async fn persist_sale_payments_and_receivable_tx(
     normalized_payments: &[(String, i64)],
 ) -> CoreResult<()> {
     if ctx.paid_amount.value() > 0 {
-        let pay_ref = DepotDb::next_sequence(tx, "REC").await?;
+        let pay_ref = DepotDb::next_sequence(tx, "PAY").await?;
         let payment_id = sqlx::query(
             "INSERT INTO payments (reference, request_key, sale_id, client_id, payment_kind, total_amount, note)
              VALUES (?, ?, ?, ?, 'sale', ?, ?)",

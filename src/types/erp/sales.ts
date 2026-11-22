@@ -46,6 +46,8 @@ export interface SaleDetail extends SaleSummary {
     discount_amount: number;
     line_total: number;
     returned_base_milli: number;
+    product_snapshot_json?: string;
+    packaging_snapshot_json?: string;
   }>;
   payments: Array<{
     id: number;
@@ -57,7 +59,9 @@ export interface SaleDetail extends SaleSummary {
   }>;
   deposits: Array<{
     id: number;
+    sale_line_id: number | null;
     returnable_id: number;
+    kind: 'bottle' | 'crate' | 'other';
     packaging_name: string;
     packaging_code: string;
     pieces: number;

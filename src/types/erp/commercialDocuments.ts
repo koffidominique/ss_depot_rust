@@ -63,6 +63,16 @@ export interface CommercialDocumentDetail {
     unitPriceXof: number;
     amountXof: number;
   }>;
+  packagingLines: Array<{
+    label: string;
+    kind: string;
+    expectedQuantity: number;
+    issuedQuantity: number | null;
+    returnedQuantity: number | null;
+    statusLabel: string;
+    detail: string | null;
+    amount: number | null;
+  }>;
   payments: Array<{ label: string; amountXof: number }>;
 }
 

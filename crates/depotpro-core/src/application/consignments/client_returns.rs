@@ -200,7 +200,7 @@ pub async fn return_client_empties(
     )
     .await?;
 
-    let reference = DepotDb::next_sequence(&mut tx, "REC").await?;
+    let reference = DepotDb::next_sequence(&mut tx, "RVE").await?;
     if refund_amount.value() > 0 {
         sqlx::query(
             "INSERT INTO cash_movements (session_id, request_key, kind, method_code, direction, amount, description, reference_document)

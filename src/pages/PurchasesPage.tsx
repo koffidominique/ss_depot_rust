@@ -5,8 +5,8 @@ import {
   type PrintableDocumentData,
 } from '../components/documents/DocumentPrintModal.tsx';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
-import type { PurchaseOrder } from '../types/erp.ts';
-import { formatFcfa, formatQty } from '../utils/format.ts';
+import type { PurchaseOrder, PurchaseReceipt, PurchaseReceiptResult } from '../types/erp.ts';
+import { formatFcfa, formatQty, packagingContentsLabel } from '../utils/format.ts';
 import { exportPurchasesCsv } from '../utils/csv.ts';
 import {
   usePurchasesMutations,
@@ -18,10 +18,32 @@ import { PurchaseReceiveModal } from '../features/purchases/components/PurchaseR
 import { PurchaseDetailModal } from '../features/purchases/components/PurchaseDetailModal.tsx';
 import { PurchaseCancelModal } from '../features/purchases/components/PurchaseCancelModal.tsx';
 
-/* Construit le bon de commande / bon de réception fournisseur imprimable. */
-function buildPurchaseOrderDoc(order: PurchaseOrder): PrintableDocumentData {
+/* Un CMD reste le CMD même après réception; le REC a son propre constructeur dédié. */
+function purchaseProductSnapshot(json?: string | null): string {
+  if (!json || json === '{}') return 'Caractéristiques complémentaires non disponibles sur ce CMD historique';
+  try {
+    const snapshot = JSON.parse(json) as { brand?: string | null; brewery?: string | null; variant?: string | null; volumeMl?: number | null };
+    const volume = snapshot.volumeMl
+      ? snapshot.volumeMl % 10 === 0 ? `${snapshot.volumeMl / 10} cl` : `${snapshot.volumeMl} ml`
+      : null;
+    return [snapshot.brewery, snapshot.brand, snapshot.variant, volume]
+      .filter(Boolean).join(' · ') || 'Caractéristiques complémentaires non disponibles sur ce CMD historique';
+  } catch { return 'Caractéristiques complémentaires non disponibles sur ce CMD historique'; }
+}
+
+function supplierRequirementSnapshot(json?: string | null): string | undefined {
+  if (!json || json === '{}') return 'Détail emballage non disponible sur ce CMD historique';
+  try {
+    const snapshot = JSON.parse(json) as { components?: Array<{ code: string; requiredPieces: number }> ; depositRegime?: string };
+    if (snapshot.depositRegime === 'none') return 'Aucune obligation d’emballage fournisseur';
+    const items = snapshot.components || [];
+    return items.length ? `Besoin initial d’emballages : ${items.map((item) => `${item.requiredPieces} ${item.code}`).join(', ')}` : 'Détail emballage non disponible sur ce CMD historique';
+  } catch { return 'Détail emballage non disponible sur ce CMD historique'; }
+}
+
+export function buildPurchaseOrderDoc(order: PurchaseOrder): PrintableDocumentData {
   return {
-    docType: order.receipts.length > 0 ? 'BON DE RÉCEPTION' : 'BON DE COMMANDE',
+    docType: 'BON DE COMMANDE',
     reference: order.reference,
     date: order.created_at,
     statusLabel: order.approval_status === 'pending_owner_approval' ? 'EN ATTENTE DE VALIDATION OWNER' : order.status,
@@ -38,25 +60,82 @@ function buildPurchaseOrderDoc(order: PurchaseOrder): PrintableDocumentData {
     deliveryDate: order.expected_date,
     lines: order.lines.map((l) => ({
       label: l.product_name,
-      sublabel:
-        `${l.packaging_name} (×${formatQty(l.coefficient_milli, l.base_unit)})` +
-        (order.receipts.length > 0
-          ? ` · Reçu : ${formatQty(l.received_quantity_milli)} / ${formatQty(l.ordered_quantity_milli)}`
-          : ''),
+      sublabel: [
+        purchaseProductSnapshot(l.product_snapshot_json),
+        `Conditionnement : ${packagingContentsLabel(l.packaging_name, l.base_unit, l.coefficient_milli)} · commande ${formatQty(l.ordered_quantity_milli)} ${l.packaging_name} = ${formatQty(l.ordered_quantity_milli * l.coefficient_milli / 1000)} ${l.base_unit}`,
+        supplierRequirementSnapshot(l.packaging_snapshot_json),
+      ].filter(Boolean).join(' · '),
       quantity: formatQty(l.ordered_quantity_milli),
       unitPrice: l.unit_price,
       total: l.line_total,
     })),
+    packagingLines: order.lines.flatMap((line) => {
+      try {
+        const snapshot = JSON.parse(line.packaging_snapshot_json) as { components?: Array<{ code: string; name: string; kind: 'bottle' | 'crate'; requiredPieces: number }> };
+        return (snapshot.components || []).map((component) => {
+          const requirement = order.packaging_requirements.find((item) =>
+            item.purchase_order_line_id === line.id && item.code === component.code,
+          );
+          const statusLabel = order.status === 'cancelled' || requirement?.reservation_status === 'released'
+            ? 'Réservation libérée — aucun emballage à préparer'
+            : requirement
+              ? requirement.reserved_pieces > 0
+                ? `${requirement.reserved_pieces} réservé(s) à remettre au fournisseur`
+                : 'Réservation consommée — consulter les REC liés pour les remises physiques'
+              : 'Détail de réservation non disponible sur ce CMD historique';
+          return {
+            label: `${component.name} (${component.code})`, kind: component.kind,
+            expectedQuantity: component.requiredPieces, statusLabel,
+            detail: 'Le CMD ne décrémente pas le stock physique; les remises effectives sont détaillées sur les REC.',
+          };
+        });
+      } catch { return []; }
+    }),
     summaryRows: [
-      { label: 'Total commandé', value: formatFcfa(order.total_amount) },
-      {
-        label: 'Total réceptionné',
-        value: formatFcfa(order.received_amount),
-        tone: 'success',
-        bold: true,
-      },
+      { label: 'Total commandé au fournisseur', value: formatFcfa(order.total_amount), bold: true },
     ],
     notes: order.notes,
+  };
+}
+
+export function buildPurchaseReceiptDoc(order: PurchaseOrder, receipt: PurchaseReceipt): PrintableDocumentData {
+  return {
+    docType: 'BON DE RÉCEPTION',
+    reference: receipt.reference,
+    date: receipt.created_at,
+    statusLabel: `Réception du CMD ${order.reference}`,
+    partyTitle: 'FOURNISSEUR',
+    partyName: order.supplier_name,
+    partyDetails: [order.supplier_code, order.supplier_phone, order.supplier_email, order.supplier_address]
+      .filter(Boolean).join(' · '),
+    partyPhone: order.supplier_phone,
+    secondaryPartyTitle: 'COMMANDE PARENTE',
+    secondaryPartyName: order.reference,
+    lines: [
+      ...receipt.lines.map((line) => ({
+        label: line.product_name,
+        sublabel: [
+          `Conditionnement : ${packagingContentsLabel(line.packaging_name, line.base_unit, line.coefficient_milli)} · reçu ${formatQty(line.received_quantity_milli)} ${line.packaging_name} = ${formatQty(line.base_quantity_milli)} ${line.base_unit}`,
+          line.discrepancy_reason ? `Écart : ${line.discrepancy_reason}` : null,
+        ].filter(Boolean).join(' · '),
+        quantity: `${formatQty(line.received_quantity_milli)} ${line.packaging_name}`,
+        unitPrice: line.unit_price,
+        total: line.amount,
+      })),
+    ],
+    packagingLines: receipt.packaging_exchanges.map((exchange) => ({
+      label: `${exchange.name_snapshot} (${exchange.code_snapshot})`,
+      kind: exchange.kind_snapshot,
+      expectedQuantity: exchange.pieces_issued,
+      issuedQuantity: exchange.pieces_issued,
+      statusLabel: 'Remis physiquement au fournisseur',
+      detail: 'Échange matériel uniquement; aucune consigne client ni ligne financière.',
+    })),
+    summaryRows: [
+      { label: 'Montant des marchandises reçues', value: formatFcfa(receipt.total_amount), bold: true },
+      { label: 'Dette fournisseur créée à la réception', value: formatFcfa(receipt.total_amount) },
+    ],
+    notes: receipt.notes,
   };
 }
 
@@ -85,10 +164,10 @@ export function PurchasesPage() {
       setErrorMsg(null);
       setPrintDoc(buildPurchaseOrderDoc(updated));
     },
-    onReceivedPo: (updated: PurchaseOrder) => {
+    onReceivedPo: (result: PurchaseReceiptResult) => {
       setReceiveTarget(null);
       setErrorMsg(null);
-      setPrintDoc(buildPurchaseOrderDoc(updated));
+      setPrintDoc(buildPurchaseReceiptDoc(result.order, result.receipt));
     },
     onCancelledPo: () => {
       setCancelTarget(null);

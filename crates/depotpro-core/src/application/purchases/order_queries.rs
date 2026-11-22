@@ -28,7 +28,8 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
     for po in rows {
         let lines = sqlx::query_as::<_, PurchaseOrderLineDto>(
             "SELECT id, product_id, packaging_id, product_name, packaging_name, base_unit,
-                    coefficient_milli, ordered_quantity_milli, received_quantity_milli, unit_price, line_total
+                    coefficient_milli, ordered_quantity_milli, received_quantity_milli, unit_price, line_total,
+                    product_snapshot_json, packaging_snapshot_json
              FROM purchase_order_lines
              WHERE purchase_order_id = ?
              ORDER BY id ASC",
@@ -36,6 +37,13 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
         .bind(po.id)
         .fetch_all(&db.pool)
         .await?;
+
+        let packaging_requirements = sqlx::query_as::<_, super::PurchasePackagingRequirementDto>(
+            "SELECT purchase_order_line_id, returnable_id, code_snapshot AS code, name_snapshot AS name,
+                    kind_snapshot AS kind, pieces_per_pack, required_pieces, reserved_pieces, issued_pieces, reservation_status
+             FROM purchase_order_packaging_requirements WHERE purchase_order_line_id IN
+               (SELECT id FROM purchase_order_lines WHERE purchase_order_id = ?) ORDER BY id ASC",
+        ).bind(po.id).fetch_all(&db.pool).await?;
 
         let receipts = sqlx::query_as::<_, PurchaseReceiptDto>(
             "SELECT id, reference, purchase_order_id, total_amount, notes, created_at
@@ -79,6 +87,7 @@ pub async fn list_purchase_orders(db: &DepotDb) -> CoreResult<Vec<PurchaseOrderD
             notes: po.notes,
             created_at: po.created_at,
             lines,
+            packaging_requirements,
             receipts,
             debts,
         });

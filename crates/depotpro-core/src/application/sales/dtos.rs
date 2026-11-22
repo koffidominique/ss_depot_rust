@@ -166,6 +166,8 @@ pub struct SaleLineDto {
     pub discount_amount: i64,
     pub line_total: i64,
     pub returned_base_milli: i64,
+    pub product_snapshot_json: String,
+    pub packaging_snapshot_json: String,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -202,7 +204,9 @@ pub struct SalePaymentDto {
 #[derive(Debug, Serialize, FromRow)]
 pub struct SaleDepositDto {
     pub id: i64,
+    pub sale_line_id: Option<i64>,
     pub returnable_id: i64,
+    pub kind: String,
     pub packaging_name: String,
     pub packaging_code: String,
     pub pieces: i64,

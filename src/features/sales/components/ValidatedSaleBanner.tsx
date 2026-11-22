@@ -3,7 +3,30 @@ import { CheckCircle2, Printer } from 'lucide-react';
 import type { PrintableDocumentData } from '../../../components/documents/DocumentPrintModal.tsx';
 import { DP_BUTTON_HOVER, DP_BUTTON_TAP, DP_SPRING_SNAPPY } from '../../../components/motion/MotionPrimitives.tsx';
 import type { SaleDetail } from '../../../types/erp.ts';
-import { formatFcfa, formatQty } from '../../../utils/format.ts';
+import { formatFcfa, formatQty, packagingContentsLabel } from '../../../utils/format.ts';
+
+function saleLineSnapshotDescription(line: SaleDetail['lines'][number]): string {
+  let product = { brand: '', brewery: '', variant: '', volumeMl: 0 };
+  let regime: string | undefined;
+  try {
+    const snapshot = JSON.parse(line.product_snapshot_json || '{}') as typeof product;
+    product = { ...product, ...snapshot };
+  } catch { /* Ancien snapshot inconnu, ne jamais consulter le catalogue courant. */ }
+  try {
+    const snapshot = JSON.parse(line.packaging_snapshot_json || '{}') as { depositRegime?: string };
+    regime = snapshot.depositRegime === 'deposit'
+      ? 'Régime emballage : retournable / consigné'
+      : snapshot.depositRegime === 'none'
+        ? 'Non retournable — aucun emballage consigné'
+        : undefined;
+  } catch { /* Ancien snapshot inconnu. */ }
+  const complement = product.brand || product.brewery || product.variant || product.volumeMl
+    ? [product.brewery, product.brand, product.variant, product.volumeMl ? product.volumeMl % 10 === 0 ? `${product.volumeMl / 10} cl` : `${product.volumeMl} ml` : ''].filter(Boolean).join(' · ')
+    : 'Caractéristiques complémentaires non disponibles sur cette opération historique';
+  const unit = line.sales_unit_label || line.packaging_name;
+  const conversion = `Conditionnement : ${unit} · ${packagingContentsLabel(unit, line.base_unit, line.coefficient_milli)} · conversion ${formatQty(line.quantity_milli)} ${unit} = ${formatQty(line.base_quantity_milli)} ${line.base_unit}`;
+  return [complement, conversion, regime].filter(Boolean).join(' · ');
+}
 
 export function buildSalePrintableDoc(sale: SaleDetail): PrintableDocumentData {
   return {
@@ -24,7 +47,7 @@ export function buildSalePrintableDoc(sale: SaleDetail): PrintableDocumentData {
     lines: [
       ...sale.lines.map((l) => ({
         label: l.product_name,
-        sublabel: `${l.packaging_name} (×${formatQty(l.coefficient_milli, l.base_unit)})`,
+        sublabel: saleLineSnapshotDescription(l),
         quantity: formatQty(l.quantity_milli),
         unitPrice: l.unit_price,
         total: l.line_total,
@@ -39,6 +62,18 @@ export function buildSalePrintableDoc(sale: SaleDetail): PrintableDocumentData {
         total: d.amount,
       })),
     ],
+    packagingLines: sale.deposits.map((deposit) => ({
+      label: `${deposit.packaging_name} (${deposit.packaging_code})`,
+      kind: deposit.kind,
+      expectedQuantity: deposit.pieces,
+      issuedQuantity: deposit.pieces,
+      returnedQuantity: deposit.returned_pieces,
+      statusLabel: deposit.pieces - deposit.returned_pieces > 0
+        ? `${deposit.pieces - deposit.returned_pieces} à restituer`
+        : 'Restitution complète',
+      detail: deposit.expected_products || undefined,
+      amount: deposit.amount,
+    })),
     summaryRows: [
       { label: 'Total marchandises', value: formatFcfa(sale.total_merchandise) },
       { label: 'Remise', value: formatFcfa(sale.discount_amount) },

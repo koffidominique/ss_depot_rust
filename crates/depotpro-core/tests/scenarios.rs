@@ -89,9 +89,10 @@ async fn rust_core_scenarios_a_through_l() {
     .await
     .unwrap();
 
-    // Tous les conditionnements boissons (bouteille, canette, pack, carton) sont autorisés ; un type inconnu est rejeté
+    // Tous les conditionnements boissons (bouteille, canette, pack, carton) sont autorisés ; un type inconnu est rejeté.
+    let mut nonreturnable_bottle = None;
     for allowed_pkg in ["bouteille", "canette", "pack", "carton"] {
-        assert!(products::upsert_packaging(
+        let result = products::upsert_packaging(
             &db,
             prod.id,
             products::PackagingInput {
@@ -108,10 +109,13 @@ async fn rust_core_scenarios_a_through_l() {
                 deposit_mode: Some("none".to_string()),
                 components: None,
             },
-        )
-        .await
-        .is_ok());
+        ).await;
+        assert!(result.is_ok());
+        if allowed_pkg == "bouteille" {
+            nonreturnable_bottle = result.ok();
+        }
     }
+    let nonreturnable_bottle = nonreturnable_bottle.expect("conditionnement bouteille non consigné créé");
     assert!(products::upsert_packaging(
         &db,
         prod.id,
@@ -262,12 +266,54 @@ async fn rust_core_scenarios_a_through_l() {
     .await
     .unwrap();
     assert_eq!(sale_c.sale.total_deposit, 2_500);
+    assert_ne!(sale_c.lines[0].product_snapshot_json, "{}", "Snapshot produit vente enregistré");
+    let packaging_snapshot: serde_json::Value = serde_json::from_str(&sale_c.lines[0].packaging_snapshot_json).unwrap();
+    assert_eq!(packaging_snapshot["depositRegime"], "deposit");
+    assert!(!packaging_snapshot["depositItems"].as_array().unwrap().is_empty());
+    let historic_product_snapshot = sale_c.lines[0].product_snapshot_json.clone();
+    sqlx::query("UPDATE products SET brand = 'Marque modifiée après vente' WHERE id = ?")
+        .bind(prod.id).execute(&db.pool).await.unwrap();
+    let historic_sale = sales::get_sale_detail(&db, sale_c.sale.id).await.unwrap();
+    assert_eq!(historic_sale.lines[0].product_snapshot_json, historic_product_snapshot);
+    sqlx::query("UPDATE products SET brand = 'SOLIBRA' WHERE id = ?")
+        .bind(prod.id).execute(&db.pool).await.unwrap();
     let stock_after_c: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
         .bind(prod.id)
         .fetch_one(&db.pool)
         .await
         .unwrap();
     assert_eq!(stock_after_c, 216_000); // 240 - 24
+
+    // Scénario C2 — Vente d'un conditionnement non retournable : aucun issue ni obligation de restitution.
+    let nonreturnable_sale = sales::create_sale(
+        &db,
+        sales::CreateSaleInput {
+            request_key: "rust-sale-nonreturnable".to_string(),
+            client_id: Some(client.id),
+            sale_type: "cash".to_string(),
+            price_tier: "retail".to_string(),
+            discount_amount: Some(0),
+            notes: None,
+            lines: vec![sales::CreateSaleLineInput {
+                product_id: prod.id,
+                packaging_id: nonreturnable_bottle.id,
+                quantity: "1".to_string(),
+                discount_amount: Some(0),
+            }],
+            payments: vec![sales::PaymentPartInput { method_code: "cash".to_string(), amount: 500 }],
+            due_date: None,
+        },
+    ).await.unwrap();
+    assert!(nonreturnable_sale.deposits.is_empty());
+    let nonreturnable_snapshot: serde_json::Value = serde_json::from_str(
+        &nonreturnable_sale.lines[0].packaging_snapshot_json,
+    ).unwrap();
+    assert_eq!(nonreturnable_snapshot["depositRegime"], "none");
+    assert!(nonreturnable_snapshot["depositItems"].as_array().unwrap().is_empty());
+    let nonreturnable_issue_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM deposit_issues WHERE sale_id = ?",
+    ).bind(nonreturnable_sale.sale.id).fetch_one(&db.pool).await.unwrap();
+    assert_eq!(nonreturnable_issue_count, 0);
 
     // Scénario K — Retour emballage consigné (bon état + endommagé -> solde client soldé)
     let ov = consignments::get_overview(&db).await.unwrap();
@@ -578,6 +624,16 @@ async fn rust_core_scenarios_a_through_l() {
                 unit_price: Some(15_600),
                 total: Some(15_600),
             }],
+            packaging_lines: vec![pdf::DocumentPdfPackagingLine {
+                label: "Casier 24 Test (EMB-TEST-CAS24)".to_string(),
+                kind: "crate".to_string(),
+                expected_quantity: 1,
+                issued_quantity: Some(1),
+                returned_quantity: Some(0),
+                status_label: "1 à restituer".to_string(),
+                detail: Some("Échange physique séparé des montants marchandises".to_string()),
+                amount: None,
+            }],
             summary_rows: vec![pdf::DocumentPdfSummaryRow {
                 label: "Total TTC".to_string(),
                 value: "18 100 FCFA".to_string(),
@@ -592,6 +648,7 @@ async fn rust_core_scenarios_a_through_l() {
     .unwrap();
     assert!(pdf_name.ends_with(".pdf"));
     assert!(pdf_bytes.starts_with(b"%PDF-1.4"));
+    assert!(String::from_utf8_lossy(&pdf_bytes).contains("Casier 24 Test"));
 
     let bundle = reports::get_settings_bundle(&db).await.unwrap();
     assert!(!bundle.payment_methods.is_empty());
@@ -742,6 +799,7 @@ async fn rust_core_scenarios_a_through_l() {
                 delivery_date: None,
                 company_logo_jpeg: None,
                 lines: vec![],
+                packaging_lines: vec![],
                 summary_rows: vec![],
                 payments: None,
                 notes: None,

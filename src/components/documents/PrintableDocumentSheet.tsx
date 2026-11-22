@@ -18,8 +18,9 @@ export function PrintableDocumentSheet({
   doc: PrintableDocumentData;
   company: AppSettings | undefined;
 }) {
-  const isCustomerReceipt = doc.docType === 'REÇU DE COMMANDE';
+  const isCustomerReceipt = ['REÇU DE VENTE', 'REÇU DE COMMANDE', 'BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION'].includes(doc.docType);
   const isPurchaseOrder = doc.docType === 'BON DE COMMANDE';
+  const isPurchaseReceipt = doc.docType === 'BON DE RÉCEPTION';
   const secondaryName = doc.secondaryPartyName || company?.company_name || 'Sous-dépôt';
   const secondaryDetails = doc.secondaryPartyDetails || companyDetails(company);
   const senderTitle = isPurchaseOrder ? 'FOURNISSEUR' : (doc.partyTitle || 'CLIENT');
@@ -31,11 +32,11 @@ export function PrintableDocumentSheet({
       <header className="flex items-start justify-between gap-5">
         <div className="min-w-0">
           <h1 className="font-display text-3xl font-black uppercase leading-none tracking-tight sm:text-4xl">
-            {isCustomerReceipt ? 'REÇU DE COMMANDE' : isPurchaseOrder ? 'BON DE COMMANDE' : doc.docType}
+            {isCustomerReceipt ? doc.docType : isPurchaseOrder ? 'BON DE COMMANDE' : doc.docType}
           </h1>
           <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
             {isCustomerReceipt
-              ? 'Accusé de réception · Document commercial, non justificatif de paiement'
+              ? doc.docType === 'REÇU DE VENTE' ? 'Reçu client · Détail de la vente et des emballages remis' : 'Document client · Ne constitue ni un reçu de vente ni une preuve de paiement'
               : isPurchaseOrder
                 ? 'Demande d’approvisionnement fournisseur'
                 : 'Document commercial'}
@@ -114,6 +115,29 @@ export function PrintableDocumentSheet({
         </table>
       </div>
 
+      {doc.packagingLines && doc.packagingLines.length > 0 && (
+        <section className="border border-slate-400 p-3 text-xs">
+          <h2 className="mb-2 font-bold uppercase">{isPurchaseOrder ? 'Emballages vides à préparer' : isPurchaseReceipt ? 'Emballages vides remis au fournisseur' : isCustomerReceipt ? 'Emballages consignés remis au client' : 'Emballages physiques / consignes'}</h2>
+          <div className="divide-y divide-slate-200">
+            {doc.packagingLines.map((line, index) => (
+              <div key={`${line.label}-${index}`} className="grid grid-cols-[1fr_auto] gap-2 py-2">
+                <div>
+                  <div className="font-semibold">{line.label} · {line.kind === 'bottle' ? 'bouteilles' : line.kind === 'crate' ? 'casiers' : 'autre'}</div>
+                  {line.detail && <div className="text-[10px] text-slate-600">{line.detail}</div>}
+                  <div className="text-[10px] font-medium text-slate-700">{line.statusLabel}</div>
+                </div>
+                <div className="text-right font-mono-num">
+                  <div>Attendu : {line.expectedQuantity}</div>
+                  {line.issuedQuantity != null && <div>Remis : {line.issuedQuantity}</div>}
+                  {line.returnedQuantity != null && <div>Retourné : {line.returnedQuantity} · Solde : {Math.max(0, line.expectedQuantity - line.returnedQuantity)}</div>}
+                  {line.amount != null && <div>{formatFcfa(line.amount)}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_0.8fr]">
         <div className="border border-black">
           <h2 className="bg-black px-3 py-2 text-xs font-bold text-white">Observations et conditions</h2>
@@ -144,21 +168,25 @@ export function PrintableDocumentSheet({
 
       <section className="grid grid-cols-2 gap-5 pt-1 text-xs">
         <div className="min-h-24 border border-slate-400 px-3 py-2">
-          <div className="font-bold">{clientSignatures ? 'Reçu par le client' : isPurchaseOrder ? 'Visa du fournisseur' : 'Le tiers'}</div>
+          <div className="font-bold">{clientSignatures ? 'Reçu par le client' : (isPurchaseOrder || isPurchaseReceipt) ? 'Visa du fournisseur' : 'Le tiers'}</div>
           <div className="mt-2 space-y-3 text-slate-600"><div>Nom : __________________________</div><div>Date et signature : __________________________</div></div>
         </div>
         <div className="min-h-24 border border-slate-400 px-3 py-2">
-          <div className="font-bold">{isPurchaseOrder ? 'Émis par le sous-dépôt' : 'Responsable du sous-dépôt'}</div>
+          <div className="font-bold">{isPurchaseOrder ? 'Émis par le sous-dépôt' : isPurchaseReceipt ? 'Réceptionné par le sous-dépôt' : 'Responsable du sous-dépôt'}</div>
           <div className="mt-2 space-y-3 text-slate-600"><div>Nom : __________________________</div><div>Date et cachet : __________________________</div></div>
         </div>
       </section>
 
       <footer className="border-t border-slate-300 pt-3 text-center text-[10px] italic text-slate-500">
-        {isCustomerReceipt
-          ? 'Merci pour votre confiance. Ce reçu confirme la commande et ne remplace pas une facture ou un reçu de paiement.'
-          : isPurchaseOrder
+        {doc.docType === 'REÇU DE VENTE'
+          ? 'Reçu de vente détaillé; les marchandises, emballages remis, règlements et solde sont indiqués séparément.'
+          : isCustomerReceipt
+            ? 'Merci pour votre confiance. Cet accusé confirme la commande client; il ne remplace ni le reçu de vente ni une preuve de paiement.'
+            : isPurchaseOrder
             ? 'Bon de commande émis sous réserve de validation et de contrôle à la réception physique.'
-            : `${company?.company_name || 'DEPOTPRO'} · Document généré à partir des données commerciales enregistrées.`}
+            : isPurchaseReceipt
+              ? 'Bon de réception physique lié au CMD indiqué; les emballages remis sont un échange matériel sans dette client ni ligne financière.'
+              : `${company?.company_name || 'DEPOTPRO'} · Document généré à partir des données commerciales enregistrées.`}
         <div className="mt-1 not-italic">Réf. {doc.reference} · {company?.company_name || 'DEPOTPRO'}</div>
       </footer>
     </article>

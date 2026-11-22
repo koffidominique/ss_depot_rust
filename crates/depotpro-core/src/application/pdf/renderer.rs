@@ -135,6 +135,73 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         draw_line(cmds, MARGIN, y, RIGHT, y, (0.72, 0.72, 0.72), 0.6);
     }
 
+    if !doc.packaging_lines.is_empty() {
+        let title = match doc.doc_type.as_str() {
+            "BON DE COMMANDE" => "Emballages vides à préparer",
+            "BON DE RÉCEPTION" => "Emballages vides remis au fournisseur",
+            "REÇU DE VENTE" => "Emballages consignés remis au client",
+            _ => "Emballages consignés / échange d'emballages",
+        };
+        let draw_packaging_header = |cmds: &mut Vec<String>, y: &mut f64, continued: bool| {
+            let page_title = if continued {
+                format!("{company_name} · {} ({}) — Suite emballages", doc.doc_type, doc.reference)
+            } else {
+                title.to_string()
+            };
+            draw_text(cmds, MARGIN, *y - 10.0, &page_title, 9.0, true, (0.063, 0.106, 0.2));
+            *y -= 18.0;
+            draw_text(cmds, MARGIN + 5.0, *y - 8.0, "Composant / statut", 7.0, true, (0.094, 0.133, 0.188));
+            draw_text_right(cmds, MARGIN + 345.0, *y - 8.0, "Attendu", 7.0, true, (0.094, 0.133, 0.188));
+            draw_text_right(cmds, MARGIN + 425.0, *y - 8.0, "Remis", 7.0, true, (0.094, 0.133, 0.188));
+            draw_text_right(cmds, RIGHT - 5.0, *y - 8.0, "Retourné", 7.0, true, (0.094, 0.133, 0.188));
+            *y -= 15.0;
+            draw_line(cmds, MARGIN, *y, RIGHT, *y, (0.55, 0.6, 0.68), 0.7);
+        };
+        if y - 54.0 < 70.0 { start_page(&mut pages, &mut y); }
+        draw_packaging_header(pages.last_mut().unwrap(), &mut y, false);
+        for item in &doc.packaging_lines {
+            let kind_label = match item.kind.as_str() {
+                "bottle" => "bouteilles",
+                "crate" => "casiers / plastiques",
+                _ => "autres emballages",
+            };
+            let component = format!("{} · {}", item.label, kind_label);
+            let component_lines = wrap_text(&component, 235.0, 7.5, false);
+            let status = if doc.doc_type == "BON DE COMMANDE" && item.issued_quantity.is_none() {
+                "À remettre au fournisseur".to_string()
+            } else {
+                item.status_label.clone()
+            };
+            let status_lines = wrap_text(&status, 235.0, 7.0, false);
+            let detail_lines = item.detail.as_deref()
+                .map(|detail| wrap_text(detail, 235.0, 6.8, false)).unwrap_or_default();
+            let row_height = (6.0 + component_lines.len() as f64 * 9.0
+                + status_lines.len() as f64 * 8.0 + detail_lines.len() as f64 * 7.5).max(22.0);
+            if y - row_height < 64.0 {
+                start_page(&mut pages, &mut y);
+                draw_packaging_header(pages.last_mut().unwrap(), &mut y, true);
+            }
+            let cmds = pages.last_mut().unwrap();
+            let mut text_y = y - 9.0;
+            for text in &component_lines {
+                draw_text(cmds, MARGIN + 5.0, text_y, text, 7.5, true, (0.094, 0.133, 0.188));
+                text_y -= 9.0;
+            }
+            for text in status_lines.iter().chain(detail_lines.iter()) {
+                draw_text(cmds, MARGIN + 9.0, text_y, text, 7.0, false, (0.4, 0.439, 0.522));
+                text_y -= 8.0;
+            }
+            draw_text_right(cmds, MARGIN + 345.0, y - 9.0, &item.expected_quantity.to_string(), 7.5, false, (0.094, 0.133, 0.188));
+            draw_text_right(cmds, MARGIN + 425.0, y - 9.0,
+                &item.issued_quantity.map(|value| value.to_string()).unwrap_or_else(|| if doc.doc_type == "BON DE COMMANDE" { "À remettre".to_string() } else { "—".to_string() }),
+                7.5, false, (0.094, 0.133, 0.188));
+            draw_text_right(cmds, RIGHT - 5.0, y - 9.0,
+                &item.returned_quantity.map(|value| value.to_string()).unwrap_or_else(|| "—".to_string()),
+                7.5, false, (0.094, 0.133, 0.188));
+            y -= row_height;
+            draw_line(cmds, MARGIN, y, RIGHT, y, (0.886, 0.91, 0.941), 0.5);
+        }
+    }
     y -= 14.0;
 
     let note_lines = doc
