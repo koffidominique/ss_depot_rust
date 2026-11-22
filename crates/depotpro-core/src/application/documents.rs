@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::FromRow;
 
+type CustomerSnapshotRow = (String, Option<String>, Option<String>, Option<String>, Option<String>);
+
 fn default_page() -> i64 {
     1
 }
@@ -189,13 +191,8 @@ async fn customer_snapshot(
             "email": null
         }));
     };
-    let row: Option<(
-        String,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-    )> = sqlx::query_as("SELECT name, phone, address, city, email FROM clients WHERE id = ?")
+    let row: Option<CustomerSnapshotRow> =
+        sqlx::query_as("SELECT name, phone, address, city, email FROM clients WHERE id = ?")
         .bind(id)
         .fetch_optional(&db.pool)
         .await?;
@@ -217,26 +214,30 @@ async fn customer_snapshot(
     }
 }
 
-async fn persist_archive(
-    db: &DepotDb,
-    document_type: &str,
-    source_type: &str,
+struct ArchiveRecord<'a> {
+    document_type: &'a str,
+    source_type: &'a str,
     source_id: i64,
-    source_reference: &str,
+    source_reference: &'a str,
     customer_id: Option<i64>,
-    customer_name: &str,
-    customer_phone: Option<&str>,
-    source_status: &str,
-    payment_status: &str,
+    customer_name: &'a str,
+    customer_phone: Option<&'a str>,
+    source_status: &'a str,
+    payment_status: &'a str,
     subtotal_xof: i64,
     deposit_xof: i64,
     total_to_collect_xof: i64,
     paid_xof: i64,
     balance_xof: i64,
-    document_date: &str,
-    snapshot: &Value,
+    document_date: &'a str,
+    snapshot: &'a Value,
+}
+
+async fn persist_archive(
+    db: &DepotDb,
+    record: ArchiveRecord<'_>,
 ) -> CoreResult<DocumentArchiveDetailDto> {
-    let snapshot_json = serde_json::to_string(snapshot)
+    let snapshot_json = serde_json::to_string(record.snapshot)
         .map_err(|e| CoreError::Database(format!("Sérialisation document impossible : {e}")))?;
     let actor_id = current_actor().and_then(|a| a.user_id.parse::<i64>().ok());
 
@@ -245,9 +246,9 @@ async fn persist_archive(
         "SELECT id FROM document_archive
          WHERE document_type = ? AND source_type = ? AND source_id = ?",
     )
-    .bind(document_type)
-    .bind(source_type)
-    .bind(source_id)
+    .bind(record.document_type)
+    .bind(record.source_type)
+    .bind(record.source_id)
     .fetch_optional(&mut *tx)
     .await?;
     let id = if let Some(id) = existing_id {
@@ -264,19 +265,19 @@ async fn persist_archive(
         .bind(document_type)
         .bind(source_type)
         .bind(source_id)
+        .bind(record.source_reference)
         .bind(source_reference)
-        .bind(source_reference)
-        .bind(customer_id)
-        .bind(customer_name)
-        .bind(customer_phone)
-        .bind(source_status)
-        .bind(payment_status)
+        .bind(record.customer_id)
+        .bind(record.customer_name)
+        .bind(record.customer_phone)
+        .bind(record.source_status)
+        .bind(record.payment_status)
         .bind(subtotal_xof.max(0))
         .bind(deposit_xof.max(0))
         .bind(total_to_collect_xof.max(0))
         .bind(paid_xof.max(0))
         .bind(balance_xof.max(0))
-        .bind(document_date)
+        .bind(record.document_date)
         .bind(snapshot_json)
         .bind(actor_id)
         .execute(&mut *tx)
@@ -334,22 +335,24 @@ pub async fn archive_sale_document(
     });
     persist_archive(
         db,
-        document_type,
-        "sale",
-        sale_id,
-        &sale.reference,
-        sale.client_id,
-        &customer_name,
-        customer_phone.as_deref(),
-        &sale.status,
-        payment_status(sale.paid_amount, sale.remaining_amount),
-        sale.subtotal_merchandise,
-        sale.total_deposit,
-        sale.total_amount,
-        sale.paid_amount,
-        sale.remaining_amount,
-        &sale.created_at,
-        &snapshot,
+        ArchiveRecord {
+            document_type,
+            source_type: "sale",
+            source_id: sale_id,
+            source_reference: &sale.reference,
+            customer_id: sale.client_id,
+            customer_name: &customer_name,
+            customer_phone: customer_phone.as_deref(),
+            source_status: &sale.status,
+            payment_status: payment_status(sale.paid_amount, sale.remaining_amount),
+            subtotal_xof: sale.subtotal_merchandise,
+            deposit_xof: sale.total_deposit,
+            total_to_collect_xof: sale.total_amount,
+            paid_xof: sale.paid_amount,
+            balance_xof: sale.remaining_amount,
+            document_date: &sale.created_at,
+            snapshot: &snapshot,
+        },
     )
     .await
 }
@@ -381,22 +384,24 @@ pub async fn archive_order_document(
     });
     persist_archive(
         db,
-        "order_confirmation",
-        "order",
-        order_id,
-        &order.order_number,
-        Some(order.customer_id),
-        &customer_name,
-        customer_phone.as_deref(),
-        &order.status,
-        &order.payment_status,
-        order.subtotal_xof,
-        order.deposit_due_xof,
-        order.total_to_collect_xof,
-        order.paid_xof,
-        (order.total_to_collect_xof - order.paid_xof).max(0),
-        &order.created_at,
-        &snapshot,
+        ArchiveRecord {
+            document_type: "order_confirmation",
+            source_type: "order",
+            source_id: order_id,
+            source_reference: &order.order_number,
+            customer_id: Some(order.customer_id),
+            customer_name: &customer_name,
+            customer_phone: customer_phone.as_deref(),
+            source_status: &order.status,
+            payment_status: &order.payment_status,
+            subtotal_xof: order.subtotal_xof,
+            deposit_xof: order.deposit_due_xof,
+            total_to_collect_xof: order.total_to_collect_xof,
+            paid_xof: order.paid_xof,
+            balance_xof: (order.total_to_collect_xof - order.paid_xof).max(0),
+            document_date: &order.created_at,
+            snapshot: &snapshot,
+        },
     )
     .await
 }
