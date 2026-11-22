@@ -24,6 +24,17 @@ export interface PrintableDocumentSummaryRow {
   tone?: 'default' | 'success' | 'warning' | 'danger';
 }
 
+export interface PrintableDocumentPackagingRow {
+  label: string;
+  capacity: number;
+  quantity: number;
+  isConsigned: boolean;
+  depositUnit: number;
+  depositTotal: number;
+  providedBy?: string | null;
+  returnedQuantity: number;
+}
+
 export interface PrintableDocumentData {
   docType:
     | 'FACTURE'
@@ -47,6 +58,7 @@ export interface PrintableDocumentData {
   lines: PrintableDocumentLine[];
   summaryRows: PrintableDocumentSummaryRow[];
   payments?: Array<{ label: string; amount: number }>;
+  packagingRows?: PrintableDocumentPackagingRow[];
   notes?: string | null;
 }
 
