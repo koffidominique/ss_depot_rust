@@ -1,4 +1,10 @@
+import { useState } from 'react';
 import { InlineAlert } from '../components/common/InlineAlert.tsx';
+import {
+  DocumentPrintModal,
+  type PrintableDocumentData,
+} from '../components/documents/DocumentPrintModal.tsx';
+import { buildArchivedDocumentPrintable } from '../features/documents/utils/buildArchivedDocumentPrintable.ts';
 import { apiClient } from '../services/api/createApiClient.ts';
 import type { PreviewAllocation } from '../types/erp.ts';
 import { OrderStepClient } from '../features/orders/components/OrderStepClient.tsx';
@@ -18,6 +24,7 @@ const STEPS = [
 ] as const;
 
 export function OrdersPage() {
+  const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
   const {
     step,
     setStep,
@@ -42,6 +49,17 @@ export function OrdersPage() {
   } = useOrdersWizard();
 
   const activeClient = clients.find((c) => c.id === draft.customer_id) ?? null;
+
+  const handleArchiveAndPrintOrder = async () => {
+    if (!activeOrder) return;
+    setError(null);
+    try {
+      const archived = await apiClient.archiveOrderDocument(activeOrder.order.id);
+      setPrintDoc(buildArchivedDocumentPrintable(archived));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible d'archiver le bon de commande.");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -170,6 +188,7 @@ export function OrdersPage() {
                 setActiveOrder(null);
                 setStep(1);
               }}
+              onPrintOrder={() => void handleArchiveAndPrintOrder()}
             />
           )}
         </div>
@@ -221,6 +240,7 @@ export function OrdersPage() {
           }
         />
       </div>
+      <DocumentPrintModal doc={printDoc} onClose={() => setPrintDoc(null)} />
     </div>
   );
 }
