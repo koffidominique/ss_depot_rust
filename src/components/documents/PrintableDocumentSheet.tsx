@@ -48,8 +48,8 @@ export function PrintableDocumentSheet({
             </div>
           </div>
           <div className="order-receipt-number">
-            <strong>BON DE COMMANDE CLIENT</strong>
-            <small>ACCUSÉ DE RÉCEPTION DE COMMANDE</small>
+            <strong>REÇU DE COMMANDE</strong>
+            <small>CONFIRMATION DE COMMANDE CLIENT</small>
             <span>N° reçu : {doc.reference}</span>
             {doc.orderReference && <span>Réf. commande : {doc.orderReference}</span>}
             <span>Date : {formatDateTime(doc.date)}</span>
@@ -73,9 +73,9 @@ export function PrintableDocumentSheet({
 
         <section className="order-receipt-products">
           <h2>LIGNES DE COMMANDE</h2>
-          <table><thead><tr><th>N°</th><th>DÉSIGNATION / FORMAT</th><th>CONDITIONNEMENT / COMPOSITION</th><th>QTÉ</th><th>PRIX UNITAIRE</th><th>REMISE</th><th>MONTANT TOTAL</th></tr></thead>
+          <table><thead><tr><th>N°</th><th>DÉSIGNATION DE LA BOISSON & FORMAT (CL)</th><th>CONDITIONNEMENT (CASIER / PACK)</th><th>QTÉ</th><th>PRIX UNITAIRE (FCFA)</th><th>MONTANT TOTAL (FCFA)</th></tr></thead>
             <tbody>{doc.lines.filter((line) => !line.label.startsWith('Emballage :')).map((line, index) => <tr key={`${line.label}-${index}`}>
-              <td>{index + 1}</td><td>{line.label}</td><td>{line.sublabel || '—'}</td><td>{line.quantity}</td><td>{line.unitPrice == null ? '—' : formatFcfa(line.unitPrice)}</td><td>{line.discount == null || line.discount === 0 ? '—' : formatFcfa(line.discount)}</td><td>{line.total == null ? '—' : formatFcfa(line.total)}</td>
+              <td>{index + 1}</td><td>{line.label}</td><td>{line.sublabel || '—'}</td><td>{line.quantity}</td><td>{line.unitPrice == null ? '—' : formatFcfa(line.unitPrice)}</td><td>{line.total == null ? '—' : formatFcfa(line.total)}</td>
             </tr>)}</tbody>
           </table>
         </section>
