@@ -733,6 +733,7 @@ async fn rust_core_scenarios_a_through_l() {
                 lines: vec![],
                 summary_rows: vec![],
                 payments: None,
+                packaging_rows: vec![],
                 notes: None,
             },
         )
