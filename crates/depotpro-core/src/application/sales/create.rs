@@ -81,10 +81,11 @@ pub async fn create_sale_v4(db: &DepotDb, input: CreateSaleV4Input) -> CoreResul
     }
 
     let (session_id, _session_ref, _opening_cash) = require_open_session_tx(&mut tx).await?;
-    let (allow_neg, sale_prefix): (i64, String) =
-        sqlx::query_as("SELECT allow_negative_stock, sale_prefix FROM app_settings WHERE id = 1")
-            .fetch_one(&mut *tx)
-            .await?;
+    let (allow_neg, sale_prefix, invoice_prefix): (i64, String, String) = sqlx::query_as(
+        "SELECT allow_negative_stock, sale_prefix, invoice_prefix FROM app_settings WHERE id = 1",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
 
     let mut client_name = String::new();
     let mut credit_policy: Option<String> = None;
@@ -206,7 +207,12 @@ pub async fn create_sale_v4(db: &DepotDb, input: CreateSaleV4Input) -> CoreResul
         }
     }
 
-    let sale_ref = DepotDb::next_sequence(&mut tx, &sale_prefix).await?;
+    let document_prefix = if input.sale_type == "credit" {
+        &invoice_prefix
+    } else {
+        &sale_prefix
+    };
+    let sale_ref = DepotDb::next_sequence(&mut tx, document_prefix).await?;
     let sale_id = sqlx::query(
         "INSERT INTO sales (reference, request_key, client_id, sale_type, price_tier, subtotal_merchandise, discount_amount, total_merchandise, total_deposit, total_amount, paid_amount, status, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'validated', ?)",

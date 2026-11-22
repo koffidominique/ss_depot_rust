@@ -1,6 +1,6 @@
 import type { PrintableDocumentData } from "../../../components/documents/DocumentPrintModal.tsx";
 import type { Client, CustomerOrderDetail } from "../../../types/erp.ts";
-import { formatFcfa, formatQty } from "../../../utils/format.ts";
+import { formatFcfa, formatQty, packagingContentsLabel } from "../../../utils/format.ts";
 
 /* ============================================================================
  * BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION (conforme au modèle Recu.md)
@@ -24,6 +24,11 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   mixed: "MIXTE",
 };
 
+const REQUESTED_UNIT_LABELS: Record<string, string> = {
+  unit: 'unité', bottle: 'bouteille', can: 'canette', half_crate: 'demi-casier',
+  crate: 'casier', pack: 'pack', carton: 'carton', pallet: 'palette', custom: 'conditionnement personnalisé',
+};
+
 export function buildOrderReceiptDocument(
   order: CustomerOrderDetail,
   client: Client | null,
@@ -34,28 +39,41 @@ export function buildOrderReceiptDocument(
   const paymentStatus =
     o.paid_xof <= 0 ? "NON PAYÉ" : remainingToPay <= 0 ? "SOLDÉ" : "PARTIEL";
 
-  // Lignes produits : quantité commerciale + équivalent bouteilles (base)
-  const productLines = lines.map((l) => ({
-    label: `${l.product_name} · ${l.variant_name}`,
-    sublabel:
-      `Qté commandée : ${formatQty(l.requested_quantity)} ${l.requested_unit}` +
-      ` · Équivalent : ${formatQty(l.base_quantity)} ${"btl"}`,
-    quantity: `${formatQty(l.requested_quantity)} ${l.requested_unit}`,
-    unitPrice: l.unit_price_xof,
-    total: l.line_total_xof,
-  }));
+  // Afficher le type de conditionnement commandé et sa conversion physique.
+  const productLines = lines.map((line) => {
+    const unitLabel = REQUESTED_UNIT_LABELS[line.requested_unit] || line.requested_unit;
+    const assignedPackagings = links
+      .filter((link) => link.order_line_id === line.id)
+      .map((link) => {
+        const allocation = allocations.find((item) => item.id === link.order_packaging_allocation_id);
+        return allocation
+          ? `${allocation.packaging_name} · ${formatQty(link.units_in_packaging)} ${unitLabel} par emballage`
+          : null;
+      })
+      .filter(Boolean);
+    return {
+      label: `${line.product_name} · ${line.variant_name}`,
+      sublabel: [
+        `Conditionnement commandé : ${packagingContentsLabel(unitLabel, line.base_unit, Math.round(line.base_quantity * 1000 / line.requested_quantity))} · ${formatQty(line.requested_quantity)} ${unitLabel} = ${formatQty(line.base_quantity)} ${line.base_unit}`,
+        ...assignedPackagings,
+      ].join(' · '),
+      quantity: `${formatQty(line.requested_quantity)} ${unitLabel}`,
+      unitPrice: line.unit_price_xof,
+      total: line.line_total_xof,
+    };
+  });
 
   // Tableau emballages & casiers
   const packagingLines = allocations.map((a) => {
     const remaining = Math.max(0, a.quantity - a.returned_quantity);
     return {
-      label: `${a.packaging_name} (capacité ${formatQty(a.capacity)})`,
+      label: `Emballage : ${a.packaging_name} · capacité ${formatQty(a.capacity)} unité(s) de base`,
       sublabel:
         `Fourni par : ${a.provided_by || "SOUS-DÉPÔT"}` +
         ` · Consigné : ${a.is_consigned ? "Oui" : "Non"}` +
         ` · Déjà retournés : ${formatQty(a.returned_quantity)}` +
         ` · Restant à restituer : ${formatQty(remaining)}`,
-      quantity: `${formatQty(a.quantity)} u.`,
+      quantity: `${formatQty(a.quantity)} ${a.packaging_name}`,
       unitPrice: a.is_consigned ? a.deposit_amount_xof : 0,
       total: a.is_consigned ? a.quantity * a.deposit_amount_xof : 0,
     };
@@ -87,7 +105,7 @@ export function buildOrderReceiptDocument(
     : undefined;
 
   return {
-    docType: "REÇU DE COMMANDE",
+    docType: "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION",
     reference: o.order_number,
     date: o.created_at,
     statusLabel: STATUS_LABELS[o.status] ?? o.status.toUpperCase(),

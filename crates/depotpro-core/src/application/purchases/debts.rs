@@ -103,7 +103,7 @@ pub async fn pay_supplier_debt(
         }
     }
 
-    let pay_ref = DepotDb::next_sequence(&mut tx, "REC").await?;
+    let pay_ref = DepotDb::next_sequence(&mut tx, "PAY").await?;
     let payment_id = sqlx::query(
         "INSERT INTO payments (reference, request_key, payment_kind, total_amount, note)
          VALUES (?, ?, 'supplier_debt', ?, ?)",

@@ -16,6 +16,7 @@ struct VariantResolveRow {
     id: i64,
     product_id: i64,
     product_name: String,
+    base_unit: String,
     variant_name: String,
     volume_ml: Option<i64>,
     container_type: Option<String>,
@@ -37,7 +38,7 @@ pub(crate) async fn resolve_preview_lines_tx(
             ));
         }
         let v: VariantResolveRow = sqlx::query_as(
-            "SELECT pv.id, pv.product_id, p.name AS product_name, pv.name AS variant_name,
+            "SELECT pv.id, pv.product_id, p.name AS product_name, p.base_unit, pv.name AS variant_name,
                     pv.volume_ml, pv.container_type, pv.native_crate_capacity, pv.compatibility_class
              FROM product_variants pv
              JOIN products p ON p.id = pv.product_id
@@ -81,6 +82,7 @@ pub(crate) async fn resolve_preview_lines_tx(
             product_name: v.product_name,
             variant_name: v.variant_name,
             compatibility_class: compat,
+            base_unit: v.base_unit,
             requested_unit: unit_norm,
             requested_quantity: item.requested_quantity,
             units_per_requested_unit: factor,

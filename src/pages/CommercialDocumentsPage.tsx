@@ -7,15 +7,15 @@ import { useUiStore } from '../stores/uiStore.ts';
 import type { CommercialApprovalEvent, CommercialDocument, CommercialDocumentDetail, CommercialDocumentType } from '../types/erp.ts';
 import { ErrorState, LoadingState } from '../components/common/States.tsx';
 import { DocumentPrintModal, type PrintableDocumentData } from '../components/documents/DocumentPrintModal.tsx';
-import { formatFcfa, formatQty } from '../utils/format.ts';
+import { formatFcfa, formatQty, packagingContentsLabel } from '../utils/format.ts';
 
 const PAGE_SIZE = 20;
 const DOC_TYPES: Array<{ value: 'all' | CommercialDocumentType; label: string }> = [
   { value: 'all', label: 'Tous les documents' },
   { value: 'customer_order', label: 'Commandes clients' },
   { value: 'sales_receipt', label: 'Reçus de vente' },
-  { value: 'purchase_order', label: 'Bons fournisseurs' },
-  { value: 'supplier_reception', label: 'Réceptions fournisseurs' },
+  { value: 'purchase_order', label: 'Bons de commande fournisseurs' },
+  { value: 'supplier_reception', label: 'Bons de réception fournisseurs' },
   { value: 'payment_receipt', label: 'Paiements' },
   { value: 'credit_note', label: 'Retours & avoirs' },
   { value: 'cancellation', label: 'Annulations' },
@@ -23,6 +23,14 @@ const DOC_TYPES: Array<{ value: 'all' | CommercialDocumentType; label: string }>
 
 function typeLabel(type: CommercialDocumentType) {
   return DOC_TYPES.find((item) => item.value === type)?.label.replace(/s$/, '') ?? type;
+}
+
+function orderUnitLabel(unit: string) {
+  const labels: Record<string, string> = {
+    unit: 'unité', bottle: 'bouteille', can: 'canette', half_crate: 'demi-casier',
+    crate: 'casier', pack: 'pack', carton: 'carton', pallet: 'palette',
+  };
+  return labels[unit] ?? unit;
 }
 
 function statusLabel(status: string | null) {
@@ -172,7 +180,7 @@ export function CommercialDocumentsPage() {
 
   const reviewData = reviewDetailsQuery.data;
   const printableType: Record<CommercialDocumentType, PrintableDocumentData['docType']> = {
-    customer_order: 'REÇU DE COMMANDE', sales_receipt: 'REÇU DE VENTE',
+    customer_order: 'BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION', sales_receipt: 'REÇU DE VENTE',
     purchase_order: 'BON DE COMMANDE', supplier_reception: 'BON DE RÉCEPTION',
     payment_receipt: 'REÇU DE PAIEMENT', credit_note: 'AVOIR CLIENT', cancellation: 'ANNULATION',
   };
@@ -187,6 +195,16 @@ export function CommercialDocumentsPage() {
       quantity: `${formatQty(line.quantityMilli)} ${line.unit}`,
       unitPrice: line.unitPriceXof, total: line.amountXof,
     })),
+    packagingLines: detail.packagingLines.map((line) => ({
+      label: line.label,
+      kind: line.kind === 'bottle' || line.kind === 'crate' ? line.kind : 'other',
+      expectedQuantity: line.expectedQuantity,
+      issuedQuantity: line.issuedQuantity ?? undefined,
+      returnedQuantity: line.returnedQuantity ?? undefined,
+      statusLabel: line.statusLabel,
+      detail: line.detail ?? undefined,
+      amount: line.amount ?? undefined,
+    })),
     summaryRows: [{ label: 'Total', value: formatFcfa(detail.amountXof), bold: true }],
     payments: detail.payments.map((payment) => ({ label: payment.label, amount: payment.amountXof })),
     notes: detail.notes,
@@ -199,8 +217,8 @@ export function CommercialDocumentsPage() {
     <header className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Commerce · Traçabilité</p>
-        <h1 className="mt-1 font-display text-xl font-semibold">Reçus &amp; Bons de commandes</h1>
-        <p className="mt-1 text-xs text-slate-500">Registre unifié des documents existants et file d’approbation propriétaire.</p>
+        <h1 className="mt-1 font-display text-xl font-semibold">Registre des documents commerciaux</h1>
+        <p className="mt-1 text-xs text-slate-500">Ventes clients et achats fournisseurs restent des flux distincts. Valider une vente n’émet jamais de bon fournisseur; les achats sont créés depuis le module Achats.</p>
       </div>
       <div className="flex gap-2">
         <button type="button" onClick={() => void documentsQuery.refetch()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium"><RefreshCw className="h-3.5 w-3.5" /> Actualiser</button>
@@ -258,10 +276,10 @@ export function CommercialDocumentsPage() {
     {reviewTarget && <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setReviewTarget(null); }}><section role="dialog" aria-modal="true" aria-labelledby="review-document-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-[#111A2E]"><div className="flex items-start justify-between gap-3"><div><h2 id="review-document-title" className="font-display text-base font-semibold">Examen Owner · {reviewTarget.documentNumber}</h2><p className="mt-1 text-xs text-slate-500">{typeLabel(reviewTarget.documentType)} · {reviewTarget.counterparty}</p></div><button type="button" onClick={() => setReviewTarget(null)} className="rounded-lg px-2 py-1 text-xs text-slate-500">Fermer</button></div>
       {reviewDetailsQuery.isLoading ? <div className="py-5"><LoadingState rows={4} /></div> : reviewDetailsQuery.error ? <p className="py-5 text-sm text-rose-600">{reviewDetailsQuery.error instanceof Error ? reviewDetailsQuery.error.message : 'Impossible de charger les détails.'}</p> : reviewData?.kind === 'customer_order' ? <>
         <div className="mt-4 grid gap-2 sm:grid-cols-3"><div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900"><span className="text-[11px] text-slate-500">Total à percevoir</span><strong className="mt-1 block">{formatFcfa(reviewData.detail.order.total_to_collect_xof)}</strong></div><div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900"><span className="text-[11px] text-slate-500">Acompte enregistré</span><strong className="mt-1 block">{formatFcfa(reviewData.detail.order.paid_xof)}</strong></div><div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900"><span className="text-[11px] text-slate-500">Créances client actuelles</span><strong className="mt-1 block">{formatFcfa(reviewData.customerBalance)}</strong></div></div>
-        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"><table className="w-full min-w-[600px] text-left text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="px-3 py-2">Produit</th><th className="px-3 py-2">Quantité</th><th className="px-3 py-2">Prix unitaire</th><th className="px-3 py-2">Remise</th><th className="px-3 py-2">Stock actuel</th><th className="px-3 py-2 text-right">Total ligne</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{reviewData.detail.lines.map((line) => <tr key={line.id}><td className="px-3 py-2">{line.product_name} · {line.variant_name}</td><td className="px-3 py-2">{line.requested_quantity} {line.requested_unit}</td><td className="px-3 py-2">{formatFcfa(line.unit_price_xof)}</td><td className="px-3 py-2">{formatFcfa(line.discount_xof)}</td><td className="px-3 py-2">{formatQty(reviewData.stocks[line.product_id] ?? 0)} {reviewData.stocks[line.product_id] === undefined ? '(indisponible)' : ''}</td><td className="px-3 py-2 text-right font-semibold">{formatFcfa(line.line_total_xof)}</td></tr>)}</tbody></table></div>
+        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"><table className="w-full min-w-[600px] text-left text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="px-3 py-2">Produit</th><th className="px-3 py-2">Quantité</th><th className="px-3 py-2">Prix unitaire</th><th className="px-3 py-2">Remise</th><th className="px-3 py-2">Stock actuel</th><th className="px-3 py-2 text-right">Total ligne</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{reviewData.detail.lines.map((line) => <tr key={line.id}><td className="px-3 py-2">{line.product_name} · {line.variant_name}<div className="text-[10px] text-slate-500">Conditionnement : 1 {orderUnitLabel(line.requested_unit)} = {formatQty(Math.round(line.base_quantity * 1000 / line.requested_quantity))} {line.base_unit}</div></td><td className="px-3 py-2">{formatQty(line.requested_quantity)} {line.requested_unit}<div className="text-[10px] text-slate-500">= {formatQty(line.base_quantity)} unité(s) de base</div></td><td className="px-3 py-2">{formatFcfa(line.unit_price_xof)}</td><td className="px-3 py-2">{formatFcfa(line.discount_xof)}</td><td className="px-3 py-2">{formatQty(reviewData.stocks[line.product_id] ?? 0)} {reviewData.stocks[line.product_id] === undefined ? '(indisponible)' : ''}</td><td className="px-3 py-2 text-right font-semibold">{formatFcfa(line.line_total_xof)}</td></tr>)}</tbody></table></div>
       </> : reviewData?.kind === 'purchase_order' ? <>
         <div className="mt-4 grid gap-2 sm:grid-cols-2"><div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900"><span className="text-[11px] text-slate-500">Montant du bon</span><strong className="mt-1 block">{formatFcfa(reviewData.purchase.total_amount)}</strong></div><div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900"><span className="text-[11px] text-slate-500">Dette fournisseur actuelle</span><strong className="mt-1 block">{formatFcfa(reviewData.supplierBalance)}</strong></div></div>
-        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"><table className="w-full min-w-[560px] text-left text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="px-3 py-2">Produit</th><th className="px-3 py-2">Conditionnement</th><th className="px-3 py-2">Commandé</th><th className="px-3 py-2">Prix unitaire</th><th className="px-3 py-2">Stock actuel</th><th className="px-3 py-2 text-right">Total ligne</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{reviewData.purchase.lines.map((line) => <tr key={line.id}><td className="px-3 py-2">{line.product_name}</td><td className="px-3 py-2">{line.packaging_name}</td><td className="px-3 py-2">{formatQty(line.ordered_quantity_milli)}</td><td className="px-3 py-2">{formatFcfa(line.unit_price)}</td><td className="px-3 py-2">{formatQty(reviewData.stocks[line.product_id] ?? 0)} {reviewData.stocks[line.product_id] === undefined ? '(indisponible)' : ''}</td><td className="px-3 py-2 text-right font-semibold">{formatFcfa(line.line_total)}</td></tr>)}</tbody></table></div>
+        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"><table className="w-full min-w-[560px] text-left text-xs"><thead className="bg-slate-50 dark:bg-slate-900"><tr><th className="px-3 py-2">Produit</th><th className="px-3 py-2">Conditionnement</th><th className="px-3 py-2">Commandé</th><th className="px-3 py-2">Prix unitaire</th><th className="px-3 py-2">Stock actuel</th><th className="px-3 py-2 text-right">Total ligne</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{reviewData.purchase.lines.map((line) => <tr key={line.id}><td className="px-3 py-2">{line.product_name}</td><td className="px-3 py-2">Conditionnement : {line.packaging_name}<div className="text-[10px] text-slate-500">{packagingContentsLabel(line.packaging_name, line.base_unit, line.coefficient_milli)}</div></td><td className="px-3 py-2">{formatQty(line.ordered_quantity_milli)} {line.packaging_name}<div className="text-[10px] text-slate-500">= {formatQty(line.ordered_quantity_milli * line.coefficient_milli / 1000)} {line.base_unit}</div></td><td className="px-3 py-2">{formatFcfa(line.unit_price)}</td><td className="px-3 py-2">{formatQty(reviewData.stocks[line.product_id] ?? 0)} {reviewData.stocks[line.product_id] === undefined ? '(indisponible)' : ''}</td><td className="px-3 py-2 text-right font-semibold">{formatFcfa(line.line_total)}</td></tr>)}</tbody></table></div>
       </> : null}
       <p className="mt-3 text-[11px] text-slate-500">La validation métier revérifie les permissions, les montants et le stock côté serveur. Une commande client approuvée ne prélève le stock qu’à sa confirmation; un bon fournisseur ne modifie le stock qu’à la réception physique.</p>
       {isOwner && reviewTarget.approvalStatus === 'pending_owner_approval' && <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-800"><button type="button" onClick={() => { setReasonTarget({ doc: reviewTarget, action: 'changes_requested' }); setReason(''); }} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300">Demander modification</button><button type="button" onClick={() => { setReasonTarget({ doc: reviewTarget, action: 'rejected' }); setReason(''); }} className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 dark:text-rose-300">Rejeter</button><button type="button" disabled={reviewMutation.isPending || reviewDetailsQuery.isLoading || Boolean(reviewDetailsQuery.error)} onClick={() => reviewMutation.mutate({ doc: reviewTarget, action: 'approved' })} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Approuver</button></div>}

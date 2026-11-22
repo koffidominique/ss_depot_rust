@@ -1,0 +1,7301 @@
+{
+  "tables": [
+    {
+      "name": "app_settings",
+      "columns": [
+        {
+          "name": "address",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "allow_negative_stock",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "city",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "company_legal_name",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "company_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "country",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "credit_note_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "email",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "inactivity_timeout_minutes",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "invoice_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "logo_path",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "order_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "phone",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "purchase_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "receipt_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "setup_completed",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "theme",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "audit_logs",
+      "columns": [
+        {
+          "name": "action",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "actor_name",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "actor_role",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "actor_user_id",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "details",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "entity_id",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "entity_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        }
+      ]
+    },
+    {
+      "name": "bottle_profiles",
+      "columns": [
+        {
+          "name": "base_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "capacity_ml",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "diameter_mm",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "height_mm",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "material",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "neck_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "producer",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "weight_g",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "brands",
+      "columns": [
+        {
+          "name": "brewery_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "country_of_origin",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "logo_path",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "breweries",
+      "columns": [
+        {
+          "name": "address",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "country_code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "email",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "phone",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "short_name",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "website",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "cash_movements",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "direction",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "kind",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "method_code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "payment_part_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reference_document",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "cash_sessions",
+      "columns": [
+        {
+          "name": "closed_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "closing_key",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "closing_notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "difference",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "opened_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "opening_cash",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "opening_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "physical_cash",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "theoretical_cash",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "catalogue_products",
+      "columns": [
+        {
+          "name": "barcode",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "bottle_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "brand_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_per_unit",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "family_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_sellable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "catalogue_reference_price_history",
+      "columns": [
+        {
+          "name": "catalogue_product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "changed_by_name",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "previous_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reference_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "categories",
+      "columns": [
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "parent_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "slug",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "client_credit_settings",
+      "columns": [
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "credit_limit",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "payment_terms_days",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "policy",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "clients",
+      "columns": [
+        {
+          "name": "address",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "city",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "client_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "contact_person",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "email",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "phone",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "commercial_document_workflows",
+      "columns": [
+        {
+          "name": "document_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 2
+        },
+        {
+          "name": "document_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 1
+        },
+        {
+          "name": "review_reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reviewed_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reviewed_by",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "submitted_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "submitted_by",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "container_types",
+      "columns": [
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "default_deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "default_volume_ml",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_recyclable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_returnable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "material",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "crate_assembly_records",
+      "columns": [
+        {
+          "name": "actor_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "assembled_quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "bottle_quantity_used",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "support_quantity_used",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "crate_compatibility_criteria",
+      "columns": [
+        {
+          "name": "crate_compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "criterion_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "criterion_value",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_required",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "crate_compatibility_groups",
+      "columns": [
+        {
+          "name": "allows_mixed_brands",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "allows_mixed_volumes",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "crate_components",
+      "columns": [
+        {
+          "name": "component_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "component_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_required",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity_per_crate",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "crate_disassembly_records",
+      "columns": [
+        {
+          "name": "actor_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "bottle_quantity_recovered",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "disassembled_quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "support_quantity_recovered",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "crate_types",
+      "columns": [
+        {
+          "name": "bottle_capacity_ml",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "bottle_profile_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "capacity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "dimensions",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "material",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "producer",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "weight_g",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_deposit_balances",
+      "columns": [
+        {
+          "name": "amount_held_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "customer_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "last_movement_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "packaging_asset_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity_held",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_packaging_accounts",
+      "columns": [
+        {
+          "name": "balance_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 1
+        },
+        {
+          "name": "deposit_held_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 2
+        }
+      ]
+    },
+    {
+      "name": "customer_packaging_component_balances",
+      "columns": [
+        {
+          "name": "balance_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "component_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "component_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_held_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "last_transaction_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_packaging_financial_ledger",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "balance_after",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "conversion_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_by_user_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "direction",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "entry_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "note",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "related_return_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "related_sale_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_price_list_items",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "packaging_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "price_list_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "price_tier",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_price_lists",
+      "columns": [
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_default",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "customer_receivables",
+      "columns": [
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "due_date",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "initial_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "remaining_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "deposit_issues",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "converted_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "converted_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "destroyed_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "due_date",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "lost_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "policy_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returned_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_line_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "deposit_packaging_components",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "pieces_per_pack",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "deposit_packaging_profiles",
+      "columns": [
+        {
+          "name": "mode",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        }
+      ]
+    },
+    {
+      "name": "deposit_returns",
+      "columns": [
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "condition_state",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "credit_reduction",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "issue_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "method_code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "refund_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_movement_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "deposit_rules",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_kind",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "effective_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "effective_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "disposable_packaging_types",
+      "columns": [
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_returnable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "material",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_volume_ml",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "units_per_pack",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "document_approval_events",
+      "columns": [
+        {
+          "name": "action",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "actor_role",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "actor_user_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "document_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "document_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "snapshot_json",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "document_sequences",
+      "columns": [
+        {
+          "name": "last_number",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "prefix",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 1
+        },
+        {
+          "name": "year",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 2
+        }
+      ]
+    },
+    {
+      "name": "expense_categories",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "expenses",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "beneficiary",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "category",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "expense_date",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "method_code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "receipt_path",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "inventories",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "validated_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "inventory_lines",
+      "columns": [
+        {
+          "name": "counted_milli",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "inventory_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "theoretical_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "order_line_packaging_links",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "order_line_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "order_packaging_allocation_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "units_in_packaging",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "order_lines",
+      "columns": [
+        {
+          "name": "base_quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "discount_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "line_total_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "order_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "requested_quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "requested_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_price_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "order_packaging_allocations",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_amount_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_consigned",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "order_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_asset_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "provided_by",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returned_quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "orders",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_by",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "customer_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "delivery_address",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "delivery_date",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "deposit_due_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_total_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "discount_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "order_number",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "order_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "paid_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "payment_method",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "payment_status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "subtotal_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "tax_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_to_collect_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "owner_security",
+      "columns": [
+        {
+          "name": "failed_attempts",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "locked_until",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "pin_hash",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_assets",
+      "columns": [
+        {
+          "name": "capacity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_class",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "returnable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "stock_empty",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_full",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_component_movements",
+      "columns": [
+        {
+          "name": "actor_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "component_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "component_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "movement_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference_document",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reference_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "stock_after",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_before",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_component_stock",
+      "columns": [
+        {
+          "name": "component_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "component_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "last_counted_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reserved_quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_conversions",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_issue_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "note",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reversal_of_conversion_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reversed",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "source_sale_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "unit_value_snapshot",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "validated_by_user_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_loss_declarations",
+      "columns": [
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "conversion_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "declared_by_user_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "deposit_issue_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "validated_by_user_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_materials",
+      "columns": [
+        {
+          "name": "category",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_recyclable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_movements",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "customer_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "movement_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "order_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "order_packaging_allocation_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "packaging_asset_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_deposit_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_deposit_xof",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_policies",
+      "columns": [
+        {
+          "name": "allow_late_return",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "auto_convert_on_due",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "return_delay_days",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_policy_audit_logs",
+      "columns": [
+        {
+          "name": "action",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "details",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "entity",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "entity_id",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "user_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_types",
+      "columns": [
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "default_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_returnable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_reusable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_valuations",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_by_user_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "effective_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "effective_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "packaging_values",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "value_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "partial_return_items",
+      "columns": [
+        {
+          "name": "component_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "component_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "condition_state",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "line_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "line_item_index",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "pieces_returned",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "return_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "payment_allocations",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "payment_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "receivable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "payment_methods",
+      "columns": [
+        {
+          "name": "active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_cash",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "label",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "payment_parts",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "method_code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "payment_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "payments",
+      "columns": [
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "note",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "order_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "payment_kind",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "pending_partial_returns",
+      "columns": [
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "expected_components",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "last_updated_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "received_components",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "remaining_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_expected_deposit",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_expected_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_refunded_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_returned_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "pos_validation_config",
+      "columns": [
+        {
+          "name": "auto_assemble_crates",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_validation_level",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "partial_return_enabled",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "require_condition_for_returns",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "terminal_id",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "price_history",
+      "columns": [
+        {
+          "name": "changed_by",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "effective_from",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "effective_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "entity_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "entity_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "new_packaging_value",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "new_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "old_packaging_value",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "old_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "price_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "sales_unit_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "product_compatibility_rules",
+      "columns": [
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "error_message",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "required_quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "rule_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "validation_level",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "product_crate_compatibility",
+      "columns": [
+        {
+          "name": "crate_compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_allowed",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "verification_note",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "product_families",
+      "columns": [
+        {
+          "name": "category",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "parent_family_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "sort_order",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "product_packagings",
+      "columns": [
+        {
+          "name": "allow_fraction",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "barcode",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "base_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "bottle_deposit_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "bottle_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "coefficient_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "display_label",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "disposable_packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_default_purchase",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_default_sale",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_returnable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_reusable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "min_selling_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "package_cost",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "package_deposit_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "package_sku",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "packaging_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "retail_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "semi_wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "product_suppliers",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "last_purchase_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "preferred_supplier",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "supplier_product_code",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "units_per_purchase_package",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "product_variants",
+      "columns": [
+        {
+          "name": "barcode",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "bottle_profile_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_class",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "compatibility_group_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "container_deposit_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "container_material",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "container_recyclable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "container_returnable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "container_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "container_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "crate_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "disposable_packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "native_crate_capacity",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "net_weight_g",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sku",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "volume_ml",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "products",
+      "columns": [
+        {
+          "name": "alcohol_degree_milli",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "allow_credit_sale",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "allow_mixed_sale",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "allow_unit_sale",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "average_cost_den",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "average_cost_num",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "barcode",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "base_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "beverage_color",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "brand",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "brand_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "brewery_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "category_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "default_location_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "image_path",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "ingredients",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_alcoholic",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_perishable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "max_stock_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "min_stock_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "retail_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "semi_wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "shelf_life_days",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "storage_temp",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "subcategory_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "track_batches",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "track_expiry",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "variant_label",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "purchase_order_lines",
+      "columns": [
+        {
+          "name": "base_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "coefficient_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "line_total",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "ordered_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_snapshot_json",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_snapshot_json",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_order_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "received_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "purchase_order_packaging_requirements",
+      "columns": [
+        {
+          "name": "code_snapshot",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "issued_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "kind_snapshot",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name_snapshot",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "pieces_per_pack",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_order_line_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "required_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reservation_status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reserved_pieces",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "purchase_orders",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "expected_date",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "received_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "purchase_receipt_lines",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "discrepancy_reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "purchase_order_line_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "receipt_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "purchase_receipts",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "purchase_order_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "returnable_packaging_types",
+      "columns": [
+        {
+          "name": "capacity",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "component_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "currency",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "description",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_reusable",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "kind",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "owner_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "owner_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_type_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "producer",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "returnable_stock_balances",
+      "columns": [
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "returnable_stock_movements",
+      "columns": [
+        {
+          "name": "customer_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "date",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "location_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "movement_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference_document",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_after",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_before",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "total_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_deposit_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "user_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sale_lines",
+      "columns": [
+        {
+          "name": "base_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_unit",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "coefficient_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "cost_den",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "cost_num",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "discount_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "line_total",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_snapshot_json",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_snapshot_json",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sales_unit_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "sales_unit_label",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "support_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sales",
+      "columns": [
+        {
+          "name": "client_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "discount_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "notes",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "order_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "paid_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "price_tier",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "subtotal_merchandise",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_deposit",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_merchandise",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sales_cancellations",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "refund_method_code",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "refunded_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sales_return_lines",
+      "columns": [
+        {
+          "name": "amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "base_quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "return_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_line_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sales_returns",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "credit_note_ref",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "credit_reduction",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reference",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "refund_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "refund_method_code",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "request_key",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "restock_approved",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "sale_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "total_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "sales_units",
+      "columns": [
+        {
+          "name": "allow_fraction",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "barcode",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "bottle_deposit_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "conversion_factor",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "crate_deposit_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_default_purchase",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_default_sale",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_virtual",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "label",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "min_selling_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "retail_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "semi_wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "unit_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "wholesale_price",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "schema_version",
+      "columns": [
+        {
+          "name": "applied_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "version",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        }
+      ]
+    },
+    {
+      "name": "stock_balances",
+      "columns": [
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "location_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "stock_locations",
+      "columns": [
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "is_default",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "location_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "stock_movements",
+      "columns": [
+        {
+          "name": "batch_number",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "expiry_date",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "location_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "movement_type",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "order_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "order_line_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "quantity_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "reference_document",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "stock_after_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "stock_before_milli",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_cost",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "variant_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "supplier_debts",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "due_date",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "initial_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "receipt_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "remaining_amount",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "supplier_packaging_exchange_lines",
+      "columns": [
+        {
+          "name": "code_snapshot",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "kind_snapshot",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name_snapshot",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "pieces_issued",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_order_line_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "receipt_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "returnable_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "supplier_product_prices",
+      "columns": [
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "fees",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "packaging_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "packaging_value",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "product_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "purchase_price",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "source",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "supplier_id",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_from",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "valid_to",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "suppliers",
+      "columns": [
+        {
+          "name": "address",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "company_name",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "contact_person",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "email",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "payment_terms_days",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "phone",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "units_of_measure",
+      "columns": [
+        {
+          "name": "base_unit_id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "code",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "conversion_factor",
+          "colType": "REAL",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "conversion_factor_den",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "conversion_factor_num",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "is_active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "symbol",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "unit_type",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "columns": [
+        {
+          "name": "active",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "display_name",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "failed_attempts",
+          "colType": "INTEGER",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "id",
+          "colType": "INTEGER",
+          "notnull": 0,
+          "pk": 1
+        },
+        {
+          "name": "locked_until",
+          "colType": "TEXT",
+          "notnull": 0,
+          "pk": 0
+        },
+        {
+          "name": "pin_hash",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "role",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        },
+        {
+          "name": "username",
+          "colType": "TEXT",
+          "notnull": 1,
+          "pk": 0
+        }
+      ]
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_audit_logs_created",
+      "tableName": "audit_logs"
+    },
+    {
+      "name": "idx_bottle_profiles_active",
+      "tableName": "bottle_profiles"
+    },
+    {
+      "name": "idx_bottle_profiles_code",
+      "tableName": "bottle_profiles"
+    },
+    {
+      "name": "idx_brands_active",
+      "tableName": "brands"
+    },
+    {
+      "name": "idx_brands_brewery",
+      "tableName": "brands"
+    },
+    {
+      "name": "idx_brands_code",
+      "tableName": "brands"
+    },
+    {
+      "name": "idx_brands_name",
+      "tableName": "brands"
+    },
+    {
+      "name": "idx_breweries_active",
+      "tableName": "breweries"
+    },
+    {
+      "name": "idx_breweries_name",
+      "tableName": "breweries"
+    },
+    {
+      "name": "idx_cash_movements_session",
+      "tableName": "cash_movements"
+    },
+    {
+      "name": "idx_catalog_price_history_product",
+      "tableName": "catalogue_reference_price_history"
+    },
+    {
+      "name": "idx_catalogue_products_active",
+      "tableName": "catalogue_products"
+    },
+    {
+      "name": "idx_catalogue_products_brand",
+      "tableName": "catalogue_products"
+    },
+    {
+      "name": "idx_catalogue_products_code",
+      "tableName": "catalogue_products"
+    },
+    {
+      "name": "idx_catalogue_products_family",
+      "tableName": "catalogue_products"
+    },
+    {
+      "name": "idx_categories_parent",
+      "tableName": "categories"
+    },
+    {
+      "name": "idx_categories_slug",
+      "tableName": "categories"
+    },
+    {
+      "name": "idx_cdb_customer",
+      "tableName": "customer_deposit_balances"
+    },
+    {
+      "name": "idx_clients_name",
+      "tableName": "clients"
+    },
+    {
+      "name": "idx_commercial_workflows_status",
+      "tableName": "commercial_document_workflows"
+    },
+    {
+      "name": "idx_compat_groups_active",
+      "tableName": "crate_compatibility_groups"
+    },
+    {
+      "name": "idx_compat_groups_code",
+      "tableName": "crate_compatibility_groups"
+    },
+    {
+      "name": "idx_compatibility_rules_crate",
+      "tableName": "product_compatibility_rules"
+    },
+    {
+      "name": "idx_compatibility_rules_product",
+      "tableName": "product_compatibility_rules"
+    },
+    {
+      "name": "idx_compatibility_rules_type",
+      "tableName": "product_compatibility_rules"
+    },
+    {
+      "name": "idx_component_movements_date",
+      "tableName": "packaging_component_movements"
+    },
+    {
+      "name": "idx_component_movements_type",
+      "tableName": "packaging_component_movements"
+    },
+    {
+      "name": "idx_component_stock_crate",
+      "tableName": "packaging_component_stock"
+    },
+    {
+      "name": "idx_component_stock_profile",
+      "tableName": "packaging_component_stock"
+    },
+    {
+      "name": "idx_component_stock_type",
+      "tableName": "packaging_component_stock"
+    },
+    {
+      "name": "idx_crate_assembly_crate",
+      "tableName": "crate_assembly_records"
+    },
+    {
+      "name": "idx_crate_assembly_date",
+      "tableName": "crate_assembly_records"
+    },
+    {
+      "name": "idx_crate_components_crate",
+      "tableName": "crate_components"
+    },
+    {
+      "name": "idx_crate_components_type",
+      "tableName": "crate_components"
+    },
+    {
+      "name": "idx_crate_criteria_group",
+      "tableName": "crate_compatibility_criteria"
+    },
+    {
+      "name": "idx_crate_criteria_name",
+      "tableName": "crate_compatibility_criteria"
+    },
+    {
+      "name": "idx_crate_disassembly_crate",
+      "tableName": "crate_disassembly_records"
+    },
+    {
+      "name": "idx_crate_disassembly_date",
+      "tableName": "crate_disassembly_records"
+    },
+    {
+      "name": "idx_crate_groups_active",
+      "tableName": "crate_compatibility_groups"
+    },
+    {
+      "name": "idx_crate_groups_code",
+      "tableName": "crate_compatibility_groups"
+    },
+    {
+      "name": "idx_crate_types_active",
+      "tableName": "crate_types"
+    },
+    {
+      "name": "idx_crate_types_code",
+      "tableName": "crate_types"
+    },
+    {
+      "name": "idx_customer_component_balances_client",
+      "tableName": "customer_packaging_component_balances"
+    },
+    {
+      "name": "idx_customer_component_balances_type",
+      "tableName": "customer_packaging_component_balances"
+    },
+    {
+      "name": "idx_deposit_issues_client_due",
+      "tableName": "deposit_issues"
+    },
+    {
+      "name": "idx_deposit_issues_status",
+      "tableName": "deposit_issues"
+    },
+    {
+      "name": "idx_deposit_rules_product",
+      "tableName": "deposit_rules"
+    },
+    {
+      "name": "idx_deposit_rules_returnable",
+      "tableName": "deposit_rules"
+    },
+    {
+      "name": "idx_deposit_rules_supplier",
+      "tableName": "deposit_rules"
+    },
+    {
+      "name": "idx_deposit_rules_variant",
+      "tableName": "deposit_rules"
+    },
+    {
+      "name": "idx_disposable_active",
+      "tableName": "disposable_packaging_types"
+    },
+    {
+      "name": "idx_disposable_code",
+      "tableName": "disposable_packaging_types"
+    },
+    {
+      "name": "idx_document_approval_events_document",
+      "tableName": "document_approval_events"
+    },
+    {
+      "name": "idx_families_active",
+      "tableName": "product_families"
+    },
+    {
+      "name": "idx_families_code",
+      "tableName": "product_families"
+    },
+    {
+      "name": "idx_families_parent",
+      "tableName": "product_families"
+    },
+    {
+      "name": "idx_movements_date",
+      "tableName": "returnable_stock_movements"
+    },
+    {
+      "name": "idx_movements_packaging",
+      "tableName": "returnable_stock_movements"
+    },
+    {
+      "name": "idx_movements_type",
+      "tableName": "returnable_stock_movements"
+    },
+    {
+      "name": "idx_olpl_allocation",
+      "tableName": "order_line_packaging_links"
+    },
+    {
+      "name": "idx_olpl_line",
+      "tableName": "order_line_packaging_links"
+    },
+    {
+      "name": "idx_opa_asset",
+      "tableName": "order_packaging_allocations"
+    },
+    {
+      "name": "idx_opa_order",
+      "tableName": "order_packaging_allocations"
+    },
+    {
+      "name": "idx_order_lines_order",
+      "tableName": "order_lines"
+    },
+    {
+      "name": "idx_order_lines_variant",
+      "tableName": "order_lines"
+    },
+    {
+      "name": "idx_orders_customer",
+      "tableName": "orders"
+    },
+    {
+      "name": "idx_orders_date",
+      "tableName": "orders"
+    },
+    {
+      "name": "idx_orders_status",
+      "tableName": "orders"
+    },
+    {
+      "name": "idx_pa_active",
+      "tableName": "packaging_assets"
+    },
+    {
+      "name": "idx_pa_compat",
+      "tableName": "packaging_assets"
+    },
+    {
+      "name": "idx_packaging_conversions_client",
+      "tableName": "packaging_conversions"
+    },
+    {
+      "name": "idx_packaging_conversions_issue",
+      "tableName": "packaging_conversions"
+    },
+    {
+      "name": "idx_packaging_policies_client",
+      "tableName": "packaging_policies"
+    },
+    {
+      "name": "idx_packaging_policies_returnable",
+      "tableName": "packaging_policies"
+    },
+    {
+      "name": "idx_packaging_valuations_returnable",
+      "tableName": "packaging_valuations"
+    },
+    {
+      "name": "idx_packaging_values_returnable",
+      "tableName": "packaging_values"
+    },
+    {
+      "name": "idx_packaging_values_type",
+      "tableName": "packaging_values"
+    },
+    {
+      "name": "idx_packagings_bottle_profile",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_packagings_compat_group",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_packagings_crate_type",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_packagings_disposable",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_packagings_product",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_packagings_type",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_packagings_variant",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "idx_partial_return_items_return",
+      "tableName": "partial_return_items"
+    },
+    {
+      "name": "idx_partial_return_items_type",
+      "tableName": "partial_return_items"
+    },
+    {
+      "name": "idx_payment_parts_payment",
+      "tableName": "payment_parts"
+    },
+    {
+      "name": "idx_payments_order",
+      "tableName": "payments"
+    },
+    {
+      "name": "idx_pending_returns_client",
+      "tableName": "pending_partial_returns"
+    },
+    {
+      "name": "idx_pending_returns_status",
+      "tableName": "pending_partial_returns"
+    },
+    {
+      "name": "idx_pending_returns_status_pending",
+      "tableName": "pending_partial_returns"
+    },
+    {
+      "name": "idx_pkg_fin_ledger_client",
+      "tableName": "customer_packaging_financial_ledger"
+    },
+    {
+      "name": "idx_pkg_loss_declarations_issue",
+      "tableName": "packaging_loss_declarations"
+    },
+    {
+      "name": "idx_pm_asset",
+      "tableName": "packaging_movements"
+    },
+    {
+      "name": "idx_pm_customer",
+      "tableName": "packaging_movements"
+    },
+    {
+      "name": "idx_pm_order",
+      "tableName": "packaging_movements"
+    },
+    {
+      "name": "idx_po_packaging_req_line",
+      "tableName": "purchase_order_packaging_requirements"
+    },
+    {
+      "name": "idx_po_packaging_req_returnable",
+      "tableName": "purchase_order_packaging_requirements"
+    },
+    {
+      "name": "idx_pos_config_terminal",
+      "tableName": "pos_validation_config"
+    },
+    {
+      "name": "idx_price_history_created",
+      "tableName": "price_history"
+    },
+    {
+      "name": "idx_price_history_entity",
+      "tableName": "price_history"
+    },
+    {
+      "name": "idx_price_history_supplier",
+      "tableName": "price_history"
+    },
+    {
+      "name": "idx_price_history_variant",
+      "tableName": "price_history"
+    },
+    {
+      "name": "idx_price_items_list",
+      "tableName": "customer_price_list_items"
+    },
+    {
+      "name": "idx_price_items_product",
+      "tableName": "customer_price_list_items"
+    },
+    {
+      "name": "idx_price_items_valid",
+      "tableName": "customer_price_list_items"
+    },
+    {
+      "name": "idx_price_lists_active",
+      "tableName": "customer_price_lists"
+    },
+    {
+      "name": "idx_price_lists_code",
+      "tableName": "customer_price_lists"
+    },
+    {
+      "name": "idx_product_compatibility_allowed",
+      "tableName": "product_crate_compatibility"
+    },
+    {
+      "name": "idx_product_compatibility_group",
+      "tableName": "product_crate_compatibility"
+    },
+    {
+      "name": "idx_product_compatibility_product",
+      "tableName": "product_crate_compatibility"
+    },
+    {
+      "name": "idx_product_suppliers_product",
+      "tableName": "product_suppliers"
+    },
+    {
+      "name": "idx_product_suppliers_supplier",
+      "tableName": "product_suppliers"
+    },
+    {
+      "name": "idx_products_active",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_brand",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_brewery",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_category",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_location",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_name",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_status",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_subcategory",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_supplier",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_products_variant",
+      "tableName": "products"
+    },
+    {
+      "name": "idx_pv_compat",
+      "tableName": "product_variants"
+    },
+    {
+      "name": "idx_receivables_client",
+      "tableName": "customer_receivables"
+    },
+    {
+      "name": "idx_returnable_mvt_customer",
+      "tableName": "returnable_stock_movements"
+    },
+    {
+      "name": "idx_returnable_mvt_supplier",
+      "tableName": "returnable_stock_movements"
+    },
+    {
+      "name": "idx_sale_lines_sale",
+      "tableName": "sale_lines"
+    },
+    {
+      "name": "idx_sale_lines_sales_unit",
+      "tableName": "sale_lines"
+    },
+    {
+      "name": "idx_sale_lines_support",
+      "tableName": "sale_lines"
+    },
+    {
+      "name": "idx_sale_lines_variant",
+      "tableName": "sale_lines"
+    },
+    {
+      "name": "idx_sales_client",
+      "tableName": "sales"
+    },
+    {
+      "name": "idx_sales_created",
+      "tableName": "sales"
+    },
+    {
+      "name": "idx_sales_status",
+      "tableName": "sales"
+    },
+    {
+      "name": "idx_sales_units_packaging",
+      "tableName": "sales_units"
+    },
+    {
+      "name": "idx_sales_units_product",
+      "tableName": "sales_units"
+    },
+    {
+      "name": "idx_sales_units_variant",
+      "tableName": "sales_units"
+    },
+    {
+      "name": "idx_stock_balances_location",
+      "tableName": "stock_balances"
+    },
+    {
+      "name": "idx_stock_balances_product",
+      "tableName": "stock_balances"
+    },
+    {
+      "name": "idx_stock_movements_created",
+      "tableName": "stock_movements"
+    },
+    {
+      "name": "idx_stock_movements_location",
+      "tableName": "stock_movements"
+    },
+    {
+      "name": "idx_stock_movements_order",
+      "tableName": "stock_movements"
+    },
+    {
+      "name": "idx_stock_movements_product",
+      "tableName": "stock_movements"
+    },
+    {
+      "name": "idx_stock_movements_variant",
+      "tableName": "stock_movements"
+    },
+    {
+      "name": "idx_supplier_exchange_receipt",
+      "tableName": "supplier_packaging_exchange_lines"
+    },
+    {
+      "name": "idx_supplier_prices_product",
+      "tableName": "supplier_product_prices"
+    },
+    {
+      "name": "idx_supplier_prices_supplier",
+      "tableName": "supplier_product_prices"
+    },
+    {
+      "name": "idx_supplier_prices_valid",
+      "tableName": "supplier_product_prices"
+    },
+    {
+      "name": "idx_users_role_active",
+      "tableName": "users"
+    },
+    {
+      "name": "idx_variants_active",
+      "tableName": "product_variants"
+    },
+    {
+      "name": "idx_variants_container_type",
+      "tableName": "product_variants"
+    },
+    {
+      "name": "idx_variants_product",
+      "tableName": "product_variants"
+    },
+    {
+      "name": "uq_cash_session_single_open",
+      "tableName": "cash_sessions"
+    },
+    {
+      "name": "uq_packagings_package_sku",
+      "tableName": "product_packagings"
+    },
+    {
+      "name": "uq_product_variants_sku",
+      "tableName": "product_variants"
+    },
+    {
+      "name": "uq_sales_order_id",
+      "tableName": "sales"
+    },
+    {
+      "name": "uq_sales_units_barcode",
+      "tableName": "sales_units"
+    }
+  ],
+  "schemaVersions": [
+    {
+      "version": 1,
+      "name": "0001_initial_v3"
+    },
+    {
+      "version": 2,
+      "name": "0002_app_settings_logo_path"
+    },
+    {
+      "version": 3,
+      "name": "0003_expense_receipt_path"
+    },
+    {
+      "version": 4,
+      "name": "0004_onboarding_setup_state"
+    },
+    {
+      "version": 5,
+      "name": "0005_security_roles_users"
+    },
+    {
+      "version": 6,
+      "name": "0006_catalogue_v3"
+    },
+    {
+      "version": 7,
+      "name": "0007_inactivity_timeout"
+    },
+    {
+      "version": 8,
+      "name": "0008_compatibility_validation_partial_returns_catalogue"
+    },
+    {
+      "version": 9,
+      "name": "0009_support_tracking"
+    },
+    {
+      "version": 10,
+      "name": "0010_crate_compatibility"
+    },
+    {
+      "version": 11,
+      "name": "0011_packaging_components"
+    },
+    {
+      "version": 12,
+      "name": "0012_catalogue_products"
+    },
+    {
+      "version": 13,
+      "name": "0013_pending_returns_pieces"
+    },
+    {
+      "version": 14,
+      "name": "0014_supplier_packaging_exchange"
+    },
+    {
+      "version": 15,
+      "name": "0015_packaging_obligations_conversions"
+    },
+    {
+      "version": 16,
+      "name": "0016_solibra_reference_catalogue"
+    },
+    {
+      "version": 17,
+      "name": "0017_catalogue_reference_price_history"
+    },
+    {
+      "version": 18,
+      "name": "0018_bdboisson_catalog_v4"
+    },
+    {
+      "version": 19,
+      "name": "0019_orders_and_packaging"
+    },
+    {
+      "version": 20,
+      "name": "0020_commercial_document_approvals"
+    },
+    {
+      "version": 21,
+      "name": "0021_order_sales_receipts"
+    },
+    {
+      "version": 22,
+      "name": "0022_document_snapshots_supplier_packaging_reservations"
+    }
+  ]
+}

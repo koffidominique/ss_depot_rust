@@ -21,6 +21,13 @@ const UNIT_OPTIONS: Array<{ value: OrderRequestedUnit; label: string }> = [
   { value: 'pack', label: 'Pack' },
 ];
 
+function pluralBaseUnit(baseUnit: string): string {
+  const unit = baseUnit.toLocaleLowerCase('fr');
+  if (unit.includes('can')) return 'canettes';
+  if (unit.includes('bouteille')) return 'bouteilles';
+  return `${baseUnit}(s)`;
+}
+
 export function OrderStepLines({ lines, options, onChangeLines }: OrderStepLinesProps) {
   const optMap = new Map(options.map((o) => [o.variant_id, o]));
 
@@ -148,10 +155,13 @@ export function OrderStepLines({ lines, options, onChangeLines }: OrderStepLines
                       </option>
                     ))}
                   </select>
+                  <p className="mt-1 rounded bg-blue-50 px-1.5 py-1 text-[10px] font-bold text-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                    1 {UNIT_OPTIONS.find((unit) => unit.value === ln.requested_unit)?.label.toLowerCase()} = {factor} {pluralBaseUnit(opt?.base_unit ?? 'bouteille')}
+                  </p>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-[11px] font-medium text-[#667085]">
-                    Qté ({baseQty} btl)
+                    Qté ({baseQty} {pluralBaseUnit(opt?.base_unit ?? 'bouteille')})
                   </label>
                   <input
                     type="number"

@@ -5,13 +5,40 @@ import { ModalDialog } from '../../../components/dialogs/ModalDialog.tsx';
 import { MoneyInput } from '../../../components/common/MoneyInput.tsx';
 import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
 import type { Product, PurchaseOrder, Supplier } from '../../../types/erp.ts';
-import { formatQty } from '../../../utils/format.ts';
+import { packagingContentsLabel } from '../../../utils/format.ts';
 
 interface PoLineInput {
   product_id: number;
   packaging_id: number;
   quantity: string;
   unit_price: number;
+}
+
+interface PackagingPreview {
+  items: Array<{ name: string; code: string; kind: 'bottle' | 'crate'; pieces: number }>;
+  error?: string;
+}
+
+function calculatePackagingPreview(line: PoLineInput, product: Product | undefined): PackagingPreview {
+  const packaging = product?.packagings.find((item) => item.id === line.packaging_id);
+  if (!product || !packaging) return { items: [], error: 'Sélectionnez un conditionnement valide.' };
+  const quantity = Number(line.quantity);
+  const quantityMilli = quantity * 1000;
+  if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(quantityMilli)) {
+    return { items: [], error: 'La quantité doit être positive et limitée à trois décimales.' };
+  }
+  if (packaging.deposit_mode == null) return { items: [], error: 'Profil d’emballage non configuré.' };
+  if (packaging.deposit_mode === 'none') return { items: [] };
+  if (packaging.components.length === 0) return { items: [], error: 'Conditionnement consigné sans composant configuré.' };
+  const items: PackagingPreview['items'] = [];
+  for (const component of packaging.components) {
+    const numerator = quantityMilli * component.pieces_per_pack;
+    if (!Number.isSafeInteger(numerator) || numerator % 1000 !== 0) {
+      return { items: [], error: `Quantité physique fractionnaire pour ${component.code}.` };
+    }
+    items.push({ name: component.name, code: component.code, kind: component.kind, pieces: numerator / 1000 });
+  }
+  return { items };
 }
 
 interface PurchaseOrderModalProps {
@@ -42,9 +69,15 @@ function PurchaseOrderFormBody({
   const [poLines, setPoLines] = useState<PoLineInput[]>(() => correctionTarget?.lines.map((line) => ({
     product_id: line.product_id,
     packaging_id: line.packaging_id,
-    quantity: (line.ordered_quantity_milli / 1000).toFixed(3).replace(/\\.?0+$/, ''),
+    quantity: (line.ordered_quantity_milli / 1000).toFixed(3).replace(/\.?0+$/, ''),
     unit_price: line.unit_price,
   })) ?? []);
+
+  const packagingPreviews = poLines.map((line) => calculatePackagingPreview(
+    line,
+    products.find((product) => product.id === line.product_id),
+  ));
+  const hasPackagingErrors = packagingPreviews.some((preview) => Boolean(preview.error));
 
   const addLine = () => {
     const firstProd = products[0];
@@ -93,6 +126,8 @@ function PurchaseOrderFormBody({
 
         {poLines.map((line, idx) => {
           const prod = products.find((p) => p.id === line.product_id);
+          const selectedPackaging = prod?.packagings.find((pk) => pk.id === line.packaging_id);
+          const packagingPreview = packagingPreviews[idx];
           return (
             <div
               key={idx}
@@ -151,10 +186,15 @@ function PurchaseOrderFormBody({
                 >
                   {(prod?.packagings || []).map((pk) => (
                     <option key={pk.id} value={pk.id}>
-                      {pk.name} (×{formatQty(pk.coefficient_milli)})
+                      {packagingContentsLabel(pk.name, prod?.base_unit ?? pk.base_unit, pk.coefficient_milli)}
                     </option>
                   ))}
                 </select>
+                {prod && selectedPackaging && (
+                  <p className="mt-1 rounded bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                    {packagingContentsLabel(selectedPackaging.name, prod.base_unit, selectedPackaging.coefficient_milli)}
+                  </p>
+                )}
               </div>
               <div className="col-span-2">
                 <QuantityInput
@@ -187,6 +227,15 @@ function PurchaseOrderFormBody({
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
+              <div className={`col-span-12 rounded-md px-3 py-2 text-[11px] ${packagingPreview.error ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300' : 'bg-slate-50 text-slate-600 dark:bg-slate-900/70 dark:text-slate-300'}`}>
+                {packagingPreview.error ? (
+                  <span role="alert">{packagingPreview.error}</span>
+                ) : packagingPreview.items.length > 0 ? (
+                  <span>À préparer : {packagingPreview.items.map((item) => `${item.pieces} ${item.kind === 'bottle' ? 'bouteilles vides' : 'casiers/plastiques vides'} (${item.code})`).join(' · ')} · Total : {packagingPreview.items.reduce((sum, item) => sum + item.pieces, 0)} emballage(s)</span>
+                ) : (
+                  <span>Conditionnement non consigné : aucun emballage fournisseur requis.</span>
+                )}
+              </div>
             </div>
           );
         })}
@@ -203,7 +252,7 @@ function PurchaseOrderFormBody({
         </Dialog.Close>
         <button
           type="button"
-          disabled={poLines.length === 0 || isPending}
+          disabled={poLines.length === 0 || isPending || hasPackagingErrors}
           onClick={() => onSubmit({ supplierId, lines: poLines, purchaseOrderId: correctionTarget?.id })}
           className="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white disabled:opacity-40"
         >

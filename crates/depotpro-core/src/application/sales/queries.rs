@@ -54,7 +54,8 @@ pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetai
                 sl.product_name, sl.packaging_name,
                 sl.base_unit, sl.coefficient_milli, sl.quantity_milli, sl.base_quantity_milli,
                 sl.unit_price, sl.discount_amount, sl.line_total,
-                COALESCE((SELECT SUM(srl.base_quantity_milli) FROM sales_return_lines srl WHERE srl.sale_line_id = sl.id), 0) AS returned_base_milli
+                COALESCE((SELECT SUM(srl.base_quantity_milli) FROM sales_return_lines srl WHERE srl.sale_line_id = sl.id), 0) AS returned_base_milli,
+                sl.product_snapshot_json, sl.packaging_snapshot_json
          FROM sale_lines sl
          WHERE sl.sale_id = ?",
     )
@@ -75,34 +76,20 @@ pub async fn get_sale_detail(db: &DepotDb, sale_id: i64) -> CoreResult<SaleDetai
     .await?;
 
     let deposits = sqlx::query_as::<_, SaleDepositDto>(
-        "SELECT di.id, di.returnable_id, rpt.name AS packaging_name, rpt.code AS packaging_code,
+        "SELECT di.id, di.sale_line_id, di.returnable_id,
+                COALESCE(json_extract(component.value, '$.kind'), 'other') AS kind,
+                COALESCE(json_extract(component.value, '$.name'), 'Détail non disponible sur cette opération historique') AS packaging_name,
+                COALESCE(json_extract(component.value, '$.code'), 'INCONNU') AS packaging_code,
                 di.pieces, di.returned_pieces, di.unit_value, di.amount,
-                CASE
-                    WHEN rpt.kind = 'bottle' THEN (
-                        SELECT sl.product_name || ' (' ||
-                            CASE WHEN sl.base_quantity_milli % 1000 = 0
-                                 THEN CAST(sl.base_quantity_milli / 1000 AS TEXT)
-                                 ELSE rtrim(rtrim(printf('%.3f', sl.base_quantity_milli / 1000.0), '0'), '.')
-                            END || ' ' || sl.base_unit || ')'
-                        FROM sale_lines sl
-                        WHERE sl.id = di.sale_line_id
-                    )
-                    ELSE (
-                        SELECT GROUP_CONCAT(
-                            sl.product_name || ' (' ||
-                            CASE WHEN sl.base_quantity_milli % 1000 = 0
-                                 THEN CAST(sl.base_quantity_milli / 1000 AS TEXT)
-                                 ELSE rtrim(rtrim(printf('%.3f', sl.base_quantity_milli / 1000.0), '0'), '.')
-                            END || ' ' || sl.base_unit || ')',
-                            ' + '
-                        )
-                        FROM sale_lines sl
-                        JOIN deposit_packaging_components dpc ON dpc.packaging_id = sl.packaging_id
-                        WHERE sl.sale_id = di.sale_id AND dpc.returnable_id = di.returnable_id
-                    )
-                END AS expected_products
+                (sl.product_name || ' (' ||
+                    CASE WHEN sl.base_quantity_milli % 1000 = 0
+                         THEN CAST(sl.base_quantity_milli / 1000 AS TEXT)
+                         ELSE rtrim(rtrim(printf('%.3f', sl.base_quantity_milli / 1000.0), '0'), '.')
+                    END || ' ' || sl.base_unit || ')') AS expected_products
          FROM deposit_issues di
-         JOIN returnable_packaging_types rpt ON rpt.id = di.returnable_id
+         LEFT JOIN sale_lines sl ON sl.id = di.sale_line_id
+         LEFT JOIN json_each(sl.packaging_snapshot_json, '$.depositItems') component
+              ON CAST(json_extract(component.value, '$.returnableId') AS INTEGER) = di.returnable_id
          WHERE di.sale_id = ?",
     )
     .bind(sale_id)

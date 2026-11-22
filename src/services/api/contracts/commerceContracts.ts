@@ -17,6 +17,7 @@ import type {
   ProductSalesUnit,
   ProductSupplierLink,
   PurchaseOrder,
+  PurchaseReceiptResult,
   Receivable,
   SaleDetail,
   SaleSummary,
@@ -184,7 +185,7 @@ export interface PurchasesApiClient {
   receivePurchaseOrder(
     orderId: number,
     input: ReceivePurchaseOrderPayload,
-  ): Promise<unknown>;
+  ): Promise<PurchaseReceiptResult>;
   cancelPurchaseOrder(
     orderId: number,
     input: { reason: string },

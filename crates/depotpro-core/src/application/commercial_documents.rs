@@ -55,7 +55,21 @@ pub struct CommercialDocumentDetail {
     pub created_at: String,
     pub notes: Option<String>,
     pub lines: Vec<CommercialDocumentDetailLine>,
+    pub packaging_lines: Vec<CommercialDocumentPackagingLine>,
     pub payments: Vec<CommercialDocumentDetailPayment>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommercialDocumentPackagingLine {
+    pub label: String,
+    pub kind: String,
+    pub expected_quantity: i64,
+    pub issued_quantity: Option<i64>,
+    pub returned_quantity: Option<i64>,
+    pub status_label: String,
+    pub detail: Option<String>,
+    pub amount: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -74,6 +88,62 @@ pub struct CommercialDocumentDetailLine {
 pub struct CommercialDocumentDetailPayment {
     pub label: String,
     pub amount_xof: i64,
+}
+
+fn product_snapshot_description(snapshot_json: &str) -> String {
+    let snapshot: serde_json::Value = match serde_json::from_str(snapshot_json) {
+        Ok(value) => value,
+        Err(_) => return "Caractéristiques complémentaires non disponibles sur cette opération historique".to_string(),
+    };
+    let mut details = Vec::new();
+    for key in ["brewery", "brand", "variant"] {
+        if let Some(value) = snapshot.get(key).and_then(serde_json::Value::as_str).filter(|s| !s.is_empty()) {
+            details.push(value.to_string());
+        }
+    }
+    if let Some(volume) = snapshot.get("volumeMl").and_then(serde_json::Value::as_i64) {
+        details.push(if volume % 10 == 0 { format!("{} cl", volume / 10) } else { format!("{volume} ml") });
+    }
+    if details.is_empty() {
+        "Caractéristiques complémentaires non disponibles sur cette opération historique".to_string()
+    } else {
+        details.join(" · ")
+    }
+}
+
+fn format_milli_quantity(value: i64) -> String {
+    let whole = value / 1000;
+    let fraction = value % 1000;
+    if fraction == 0 {
+        whole.to_string()
+    } else {
+        format!("{whole}.{fraction:03}").trim_end_matches('0').to_string()
+    }
+}
+
+fn packaging_contents_description(packaging: &str, base_unit: &str, coefficient_milli: i64) -> String {
+    let unit = base_unit.to_lowercase();
+    let package = packaging.to_lowercase();
+    let contents = if unit.contains("canette") || unit.contains("can") {
+        "canettes".to_string()
+    } else if unit.contains("bouteille") {
+        if package == "pack" { "bouteilles en plastique".to_string() } else { "bouteilles".to_string() }
+    } else {
+        format!("{}(s)", base_unit)
+    };
+    format!("1 {packaging} = {} {contents}", format_milli_quantity(coefficient_milli))
+}
+
+fn packaging_regime_description(snapshot_json: &str) -> &'static str {
+    let snapshot = match serde_json::from_str::<serde_json::Value>(snapshot_json) {
+        Ok(value) => value,
+        Err(_) => return "Régime d’emballage non disponible sur cette opération historique",
+    };
+    match snapshot.get("depositRegime").and_then(serde_json::Value::as_str) {
+        Some("deposit") => "Emballage consigné",
+        Some("none") => "Non retournable — aucun emballage consigné",
+        _ => "Régime d’emballage non disponible sur cette opération historique",
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -306,6 +376,7 @@ pub async fn get_document_detail(
     .await?
     .ok_or_else(|| CoreError::NotFound("Document introuvable.".into()))?;
     let mut lines = Vec::new();
+    let mut packaging_lines = Vec::new();
     let mut payments = Vec::new();
     let mut notes = None;
 
@@ -328,14 +399,39 @@ pub async fn get_document_detail(
         "sales_receipt" => {
             notes = sqlx::query_scalar("SELECT notes FROM sales WHERE id = ?")
                 .bind(document_id).fetch_one(&db.pool).await?;
-            lines = sqlx::query_as::<_, (String, String, i64, String, i64, i64)>(
+            lines = sqlx::query_as::<_, (String, String, i64, String, i64, i64, String, i64, i64, String, String)>(
                 "SELECT product_name, packaging_name, quantity_milli,
-                        COALESCE(sales_unit_label, base_unit), unit_price, line_total
+                        COALESCE(sales_unit_label, packaging_name), coefficient_milli, base_quantity_milli,
+                        base_unit, unit_price, line_total, product_snapshot_json, packaging_snapshot_json
                  FROM sale_lines WHERE sale_id = ? ORDER BY id",
             )
             .bind(document_id).fetch_all(&db.pool).await?
-            .into_iter().map(|(label, detail, quantity, unit, price, amount)| CommercialDocumentDetailLine {
-                label, detail: Some(detail), quantity_milli: quantity, unit, unit_price_xof: price, amount_xof: amount,
+            .into_iter().map(|(label, packaging, quantity, unit, coefficient, base_quantity, base_unit, price, amount, product_snapshot, packaging_snapshot)| {
+                let detail = format!("Conditionnement : {} · conversion {} {unit} = {} {base_unit} · {} · {}",
+                    packaging_contents_description(&packaging, &base_unit, coefficient), format_milli_quantity(quantity), format_milli_quantity(base_quantity),
+                    product_snapshot_description(&product_snapshot),
+                    packaging_regime_description(&packaging_snapshot));
+                CommercialDocumentDetailLine {
+                    label, detail: Some(detail), quantity_milli: quantity, unit, unit_price_xof: price, amount_xof: amount,
+                }
+            }).collect();
+            let deposits: Vec<(String, String, i64, i64, String, i64)> = sqlx::query_as(
+                "SELECT COALESCE(json_extract(component.value, '$.kind'), 'other'),
+                        COALESCE(json_extract(component.value, '$.name'), 'Détail non disponible sur cette opération historique'),
+                        di.pieces, di.returned_pieces, COALESCE(sl.product_name, ''), di.amount
+                 FROM deposit_issues di LEFT JOIN sale_lines sl ON sl.id = di.sale_line_id
+                 LEFT JOIN json_each(sl.packaging_snapshot_json, '$.depositItems') component
+                      ON CAST(json_extract(component.value, '$.returnableId') AS INTEGER) = di.returnable_id
+                 WHERE di.sale_id = ? ORDER BY di.id",
+            ).bind(document_id).fetch_all(&db.pool).await?;
+            packaging_lines = deposits.into_iter().map(|(kind, name, expected, returned, detail, amount)| {
+                let remaining = (expected - returned).max(0);
+                CommercialDocumentPackagingLine {
+                    label: name, kind, expected_quantity: expected, issued_quantity: Some(expected),
+                    returned_quantity: Some(returned),
+                    status_label: if remaining > 0 { format!("{remaining} à restituer") } else { "Restitution complète".to_string() },
+                    detail: if detail.is_empty() { None } else { Some(detail) }, amount: Some(amount),
+                }
             }).collect();
             payments = sqlx::query_as::<_, (String, i64)>(
                 "SELECT pm.label || ' · ' || p.reference, pp.amount
@@ -349,29 +445,82 @@ pub async fn get_document_detail(
         "purchase_order" => {
             notes = sqlx::query_scalar("SELECT notes FROM purchase_orders WHERE id = ?")
                 .bind(document_id).fetch_one(&db.pool).await?;
-            lines = sqlx::query_as::<_, (String, String, i64, String, i64, i64)>(
-                "SELECT product_name, packaging_name, ordered_quantity_milli, base_unit, unit_price, line_total
+            lines = sqlx::query_as::<_, (String, String, i64, String, i64, i64, i64, String, String)>(
+                "SELECT product_name, packaging_name, ordered_quantity_milli, base_unit, coefficient_milli,
+                        unit_price, line_total, product_snapshot_json, packaging_snapshot_json
                  FROM purchase_order_lines WHERE purchase_order_id = ? ORDER BY id",
             )
             .bind(document_id).fetch_all(&db.pool).await?
-            .into_iter().map(|(label, detail, quantity, unit, price, amount)| CommercialDocumentDetailLine {
-                label, detail: Some(detail), quantity_milli: quantity, unit, unit_price_xof: price, amount_xof: amount,
+            .into_iter().map(|(label, packaging, quantity, base_unit, coefficient, price, amount, product_snapshot, packaging_snapshot)| {
+                let base_quantity = (quantity as i128 * coefficient as i128 / 1000) as i64;
+                let detail = format!("Conditionnement : {} · conversion {} {packaging} = {} {base_unit} · {} · {}",
+                    packaging_contents_description(&packaging, &base_unit, coefficient), format_milli_quantity(quantity), format_milli_quantity(base_quantity),
+                    product_snapshot_description(&product_snapshot),
+                    packaging_regime_description(&packaging_snapshot));
+                CommercialDocumentDetailLine {
+                    label, detail: Some(detail), quantity_milli: quantity, unit: packaging, unit_price_xof: price, amount_xof: amount,
+                }
+            }).collect();
+            let reservations: Vec<(String, String, i64, String)> = sqlx::query_as(
+                "SELECT COALESCE(json_extract(component.value, '$.kind'), 'other'),
+                        COALESCE(json_extract(component.value, '$.name'), 'Détail emballage non disponible sur ce CMD historique'),
+                        COALESCE(CAST(json_extract(component.value, '$.requiredPieces') AS INTEGER), 0),
+                        CASE
+                          WHEN req.reservation_status = 'released' THEN 'Réservation libérée — aucun emballage à préparer'
+                          WHEN req.reserved_pieces > 0 THEN 'Réservation active — à remettre au fournisseur au REC'
+                          WHEN req.reservation_status = 'issued' THEN 'Réservation consommée — consulter les REC liés'
+                          WHEN json_extract(pol.packaging_snapshot_json, '$.depositRegime') = 'none' THEN 'Aucun emballage fournisseur requis'
+                          WHEN json_extract(component.value, '$.returnableId') IS NULL THEN 'Détail non disponible sur ce CMD historique'
+                          ELSE 'État de réservation non disponible sur ce CMD historique' END
+                 FROM purchase_order_lines pol
+                 LEFT JOIN json_each(pol.packaging_snapshot_json, '$.components') component ON 1 = 1
+                 LEFT JOIN purchase_order_packaging_requirements req
+                   ON req.purchase_order_line_id = pol.id
+                  AND req.returnable_id = CAST(json_extract(component.value, '$.returnableId') AS INTEGER)
+                 WHERE pol.purchase_order_id = ?
+                   AND (json_extract(component.value, '$.returnableId') IS NOT NULL
+                        OR json_extract(pol.packaging_snapshot_json, '$.depositRegime') = 'deposit')
+                 ORDER BY pol.id",
+            ).bind(document_id).fetch_all(&db.pool).await?;
+            packaging_lines = reservations.into_iter().map(|(kind, label, quantity, status_label)| CommercialDocumentPackagingLine {
+                label, kind, expected_quantity: quantity, issued_quantity: None, returned_quantity: None,
+                status_label, detail: None, amount: None,
             }).collect();
         }
         "supplier_reception" => {
             let receipt_notes: Option<String> = sqlx::query_scalar("SELECT notes FROM purchase_receipts WHERE id = ?")
                 .bind(document_id).fetch_one(&db.pool).await?;
             notes = receipt_notes;
-            lines = sqlx::query_as::<_, (String, String, i64, String, i64, i64, Option<String>)>(
-                "SELECT pol.product_name, pol.packaging_name, prl.base_quantity_milli, pol.base_unit,
-                        prl.unit_price, prl.amount, prl.discrepancy_reason
+            lines = sqlx::query_as::<_, (String, String, i64, i64, String, i64, i64, i64, Option<String>, String, String)>(
+                "SELECT pol.product_name, pol.packaging_name, prl.quantity_milli, prl.base_quantity_milli,
+                        pol.base_unit, pol.coefficient_milli, prl.unit_price, prl.amount, prl.discrepancy_reason,
+                        pol.product_snapshot_json, pol.packaging_snapshot_json
                  FROM purchase_receipt_lines prl
                  JOIN purchase_order_lines pol ON pol.id = prl.purchase_order_line_id
                  WHERE prl.receipt_id = ? ORDER BY prl.id",
             )
             .bind(document_id).fetch_all(&db.pool).await?
-            .into_iter().map(|(label, packaging, quantity, unit, price, amount, discrepancy)| CommercialDocumentDetailLine {
-                label, detail: discrepancy.or(Some(packaging)), quantity_milli: quantity, unit, unit_price_xof: price, amount_xof: amount,
+            .into_iter().map(|(label, packaging, received_quantity, base_quantity, base_unit, coefficient, price, amount, discrepancy, product_snapshot, packaging_snapshot)| {
+                let detail = [
+                    Some(format!("Conditionnement : {} · reçu {} {packaging} = {} {base_unit}",
+                        packaging_contents_description(&packaging, &base_unit, coefficient), format_milli_quantity(received_quantity), format_milli_quantity(base_quantity))),
+                    Some(product_snapshot_description(&product_snapshot)),
+                    Some(packaging_regime_description(&packaging_snapshot).to_string()),
+                    discrepancy.map(|reason| format!("Écart : {reason}")),
+                ].into_iter().flatten().filter(|part| !part.is_empty()).collect::<Vec<_>>().join(" · ");
+                CommercialDocumentDetailLine {
+                    label, detail: Some(detail), quantity_milli: base_quantity, unit: base_unit, unit_price_xof: price, amount_xof: amount,
+                }
+            }).collect();
+            let exchanges: Vec<(String, String, String, i64)> = sqlx::query_as(
+                "SELECT name_snapshot, code_snapshot, kind_snapshot, pieces_issued
+                 FROM supplier_packaging_exchange_lines WHERE receipt_id = ? ORDER BY id",
+            ).bind(document_id).fetch_all(&db.pool).await?;
+            packaging_lines = exchanges.into_iter().map(|(name, code, kind, pieces)| CommercialDocumentPackagingLine {
+                label: format!("{name} ({code})"), kind, expected_quantity: pieces,
+                issued_quantity: Some(pieces), returned_quantity: None,
+                status_label: "Remis physiquement au fournisseur — échange sans ligne financière".to_string(),
+                detail: None, amount: None,
             }).collect();
         }
         "payment_receipt" => {
@@ -431,6 +580,7 @@ pub async fn get_document_detail(
         created_at: header.created_at,
         notes,
         lines,
+        packaging_lines,
         payments,
     })
 }

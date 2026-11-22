@@ -42,7 +42,7 @@ export function OrderStepReview({
             <tr>
               <th className="px-3 py-2 font-medium">Ligne</th>
               <th className="px-3 py-2 font-medium">Contenu</th>
-              <th className="px-3 py-2 font-medium text-right">Qté base</th>
+              <th className="px-3 py-2 font-medium text-right">Quantité en unités</th>
               <th className="px-3 py-2 font-medium text-right">PU (FCFA)</th>
               <th className="px-3 py-2 font-medium text-right">Total (FCFA)</th>
             </tr>
@@ -52,7 +52,7 @@ export function OrderStepReview({
               <tr key={`${l.variant_id}-${i}`}>
                 <td className="px-3 py-2 font-mono-num">{i + 1}</td>
                 <td className="px-3 py-2 font-medium">{l.variant_name}</td>
-                <td className="px-3 py-2 text-right font-mono-num">{l.base_quantity}</td>
+                <td className="px-3 py-2 text-right font-mono-num font-semibold">{l.base_quantity} {l.base_unit}</td>
                 <td className="px-3 py-2 text-right font-mono-num">{formatFcfa(l.unit_price_xof)}</td>
                 <td className="px-3 py-2 text-right font-mono-num font-semibold">
                   {formatFcfa(l.line_total_xof)}

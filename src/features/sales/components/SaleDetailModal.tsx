@@ -4,7 +4,8 @@ import { StatusBadge } from '../../../components/common/StatusBadge.tsx';
 import { InlineAlert } from '../../../components/common/InlineAlert.tsx';
 import type { PrintableDocumentData } from '../../../components/documents/DocumentPrintModal.tsx';
 import type { SaleDetail } from '../../../types/erp.ts';
-import { formatDateTime, formatFcfa, formatQty } from '../../../utils/format.ts';
+import { formatDateTime, formatFcfa, formatQty, packagingContentsLabel } from '../../../utils/format.ts';
+import { buildSalePrintableDoc } from './ValidatedSaleBanner.tsx';
 
 interface SaleDetailModalProps {
   sale: SaleDetail | null;
@@ -45,72 +46,7 @@ export function SaleDetailModal({
                 <div className="flex items-center gap-2 no-print">
                   <button
                     type="button"
-                    onClick={() =>
-                      onPrint({
-                        docType: sale.sale_type === 'credit' ? 'FACTURE' : 'REÇU DE VENTE',
-                        reference: sale.reference,
-                        date: sale.created_at,
-                        statusLabel: sale.status,
-                        partyTitle: 'Client',
-                        partyName: sale.client_name,
-                        partyDetails: [sale.client_code, sale.client_phone]
-                          .filter(Boolean)
-                          .join(' · '),
-                        lines: [
-                          ...sale.lines.map((l) => ({
-                            label: l.product_name,
-                            sublabel: `${l.packaging_name} (×${l.coefficient_milli / 1000} ${l.base_unit})`,
-                            quantity: formatQty(l.quantity_milli),
-                            unitPrice: l.unit_price,
-                            total: l.line_total,
-                          })),
-                          ...sale.deposits.map((d) => ({
-                            label: `Retour emballage : ${d.packaging_name}`,
-                            sublabel: d.expected_products
-                              ? `Code ${d.packaging_code} · Bouteilles attendues : ${d.expected_products}`
-                              : `Code ${d.packaging_code}`,
-                            quantity: `${d.pieces} pcs`,
-                            unitPrice: d.unit_value,
-                            total: d.amount,
-                          })),
-                        ],
-                        payments: sale.payments.map((p) => ({
-                          label: `${p.method_label} (${p.reference})`,
-                          amount: p.part_amount,
-                        })),
-                        summaryRows: [
-                          {
-                            label: 'Total Marchandises',
-                            value: formatFcfa(sale.total_merchandise),
-                          },
-                          {
-                            label: 'Retour emballages',
-                            value: formatFcfa(sale.total_deposit),
-                          },
-                          {
-                            label: 'Total TTC',
-                            value: formatFcfa(sale.total_amount),
-                            bold: true,
-                          },
-                          {
-                            label: 'Encaissé',
-                            value: formatFcfa(sale.paid_amount),
-                            tone: 'success',
-                          },
-                          ...(sale.remaining_amount > 0
-                            ? [
-                                {
-                                  label: 'Reste à payer',
-                                  value: formatFcfa(sale.remaining_amount),
-                                  tone: 'warning' as const,
-                                  bold: true,
-                                },
-                              ]
-                            : []),
-                        ],
-                        notes: sale.notes,
-                      })
-                    }
+                    onClick={() => onPrint(buildSalePrintableDoc(sale))}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
                     <Printer className="h-3.5 w-3.5" />
@@ -138,8 +74,8 @@ export function SaleDetailModal({
                     <tr key={l.id}>
                       <td className="py-2">
                         <div className="font-medium">{l.product_name}</div>
-                        <div className="text-[11px] text-[#667085] capitalize">
-                          {l.packaging_name} (×{l.coefficient_milli / 1000} {l.base_unit})
+                        <div className="text-[11px] text-[#667085]">
+                          Conditionnement : {l.sales_unit_label || l.packaging_name} · {packagingContentsLabel(l.sales_unit_label || l.packaging_name, l.base_unit, l.coefficient_milli)} · total {formatQty(l.base_quantity_milli)} {l.base_unit}
                         </div>
                       </td>
                       <td className="py-2 font-mono-num">{formatQty(l.quantity_milli)}</td>

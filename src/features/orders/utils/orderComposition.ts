@@ -67,7 +67,9 @@ export interface VariantOption {
   compatibility_class: string;
   native_crate_capacity: number | null;
   default_unit_price_xof: number;
+  base_unit: string;
   crate_coeff: number;
+  pack_coeff: number;
 }
 
 export function extractVariantOptions(products: Product[] | undefined): VariantOption[] {
@@ -78,6 +80,14 @@ export function extractVariantOptions(products: Product[] | undefined): VariantO
     const firstPkg = p.packagings[0];
     const cratePkg = p.packagings.find((pk) => pk.name === "casier" || pk.name === "carton");
     const crateCoeff = cratePkg ? Math.max(1, Math.round(cratePkg.coefficient_milli / 1000)) : 24;
+    const packCoefficient = (variantId: number) => {
+      const salesUnit = p.sales_units
+        ?.filter((unit) => unit.unit_type === 'pack' && (unit.variant_id === variantId || unit.variant_id == null) && unit.is_active === 1)
+        .sort((a, b) => Number(b.variant_id === variantId) - Number(a.variant_id === variantId))[0];
+      if (salesUnit) return Math.max(1, salesUnit.conversion_factor);
+      const packaging = p.packagings.find((pk) => pk.name === 'pack' && (pk.variant_id === variantId || pk.variant_id == null));
+      return packaging ? Math.max(1, Math.round(packaging.coefficient_milli / 1000)) : 6;
+    };
     const unitSales = p.sales_units?.find(
       (u) => (u.unit_type === "bottle" || u.unit_type === "can") && u.retail_price != null,
     );
@@ -97,7 +107,9 @@ export function extractVariantOptions(products: Product[] | undefined): VariantO
           compatibility_class: v.compatibility_class ?? "other",
           native_crate_capacity: v.native_crate_capacity ?? crateCoeff,
           default_unit_price_xof: unitPrice,
+          base_unit: p.base_unit,
           crate_coeff: v.native_crate_capacity ?? crateCoeff,
+          pack_coeff: packCoefficient(v.id),
         });
       }
     }
@@ -109,7 +121,7 @@ export function resolveLocalFactor(unit: OrderRequestedUnit, opt: VariantOption)
   if (unit === "unit" || unit === "bottle" || unit === "can") return 1;
   if (unit === "half_crate") return Math.max(1, Math.floor((opt.native_crate_capacity ?? opt.crate_coeff) / 2));
   if (unit === "crate" || unit === "carton") return opt.native_crate_capacity ?? opt.crate_coeff;
-  if (unit === "pack") return 6;
+  if (unit === "pack") return opt.pack_coeff;
   if (unit === "pallet") return (opt.native_crate_capacity ?? opt.crate_coeff) * 20;
   return 1;
 }
@@ -138,6 +150,7 @@ export function computeLocalComposition(
       product_name: opt.label,
       variant_name: opt.label,
       compatibility_class: opt.compatibility_class,
+      base_unit: opt.base_unit,
       requested_unit: dl.requested_unit,
       requested_quantity: dl.requested_quantity,
       units_per_requested_unit: factor,

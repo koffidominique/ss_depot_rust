@@ -63,6 +63,20 @@ pub struct DocumentPdfPayment {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DocumentPdfPackagingLine {
+    pub label: String,
+    #[serde(default)]
+    pub kind: String,
+    pub expected_quantity: i64,
+    pub issued_quantity: Option<i64>,
+    pub returned_quantity: Option<i64>,
+    pub status_label: String,
+    pub detail: Option<String>,
+    pub amount: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DocumentPdfInput {
     pub doc_type: String,
     pub reference: String,
@@ -79,6 +93,8 @@ pub struct DocumentPdfInput {
     pub company_logo_jpeg: Option<String>,
     #[serde(default)]
     pub lines: Vec<DocumentPdfLine>,
+    #[serde(default)]
+    pub packaging_lines: Vec<DocumentPdfPackagingLine>,
     #[serde(default)]
     pub summary_rows: Vec<DocumentPdfSummaryRow>,
     pub payments: Option<Vec<DocumentPdfPayment>>,
@@ -176,6 +192,7 @@ mod tests {
                     delivery_date: None,
                     company_logo_jpeg: None,
                     lines,
+                    packaging_lines: Vec::new(),
                     summary_rows: vec![DocumentPdfSummaryRow {
                         label: "Total TTC".to_string(),
                         value: "1 350 000 FCFA".to_string(),

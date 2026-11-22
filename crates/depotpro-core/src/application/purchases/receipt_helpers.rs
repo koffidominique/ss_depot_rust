@@ -1,86 +1,10 @@
 // ============================================================================
-// Helpers transactionnels de réception : échange emballages & CUMP stock
+// Helpers transactionnels de réception : émission des réservations figées & CUMP
 // ============================================================================
 
 use sqlx::{Sqlite, Transaction};
 
 use crate::error::{CoreError, CoreResult};
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn exchange_supplier_packaging_tx(
-    tx: &mut Transaction<'_, Sqlite>,
-    pkg_id: i64,
-    qty_milli: i64,
-    pol_id: i64,
-    request_key: &str,
-    rec_ref: &str,
-    po_ref: &str,
-) -> CoreResult<()> {
-    let packaging_components: Vec<(i64, i64)> = sqlx::query_as(
-        "SELECT returnable_id, pieces_per_pack FROM deposit_packaging_components WHERE packaging_id = ?",
-    )
-    .bind(pkg_id)
-    .fetch_all(&mut **tx)
-    .await?;
-
-    for (returnable_id, pieces_per_pack) in &packaging_components {
-        let total_pieces_to_exchange = (qty_milli as i128 * *pieces_per_pack as i128) / 1000;
-        if total_pieces_to_exchange > 0 {
-            let pieces_to_exchange = i64::try_from(total_pieces_to_exchange).map_err(|_| {
-                CoreError::Validation("Débordement quantité échange fournisseur".to_string())
-            })?;
-
-            let bal: Option<(i64,)> = sqlx::query_as(
-                "SELECT quantity FROM returnable_stock_balances WHERE packaging_id = ?",
-            )
-            .bind(returnable_id)
-            .fetch_optional(&mut **tx)
-            .await?;
-            let before = bal.map(|b| b.0).unwrap_or(0);
-            if before < pieces_to_exchange {
-                return Err(CoreError::InsufficientStock(format!(
-                    "Stock d'emballages vides insuffisant pour l'échange fournisseur (disponible: {}, requis: {})",
-                    before, pieces_to_exchange
-                )));
-            }
-            let after = before - pieces_to_exchange;
-
-            if bal.is_some() {
-                sqlx::query(
-                    "UPDATE returnable_stock_balances SET quantity = ? WHERE packaging_id = ?",
-                )
-                .bind(after)
-                .bind(returnable_id)
-                .execute(&mut **tx)
-                .await?;
-            } else {
-                sqlx::query(
-                    "INSERT INTO returnable_stock_balances (packaging_id, quantity) VALUES (?, ?)",
-                )
-                .bind(returnable_id)
-                .bind(after)
-                .execute(&mut **tx)
-                .await?;
-            }
-
-            let mov_key = format!("sup-exch:{request_key}:{returnable_id}:{pol_id}");
-            sqlx::query(
-                "INSERT INTO returnable_stock_movements (request_key, packaging_id, movement_type, quantity, stock_before, stock_after, reason, reference_document)
-                 VALUES (?, ?, 'supplier_exchange', ?, ?, ?, ?, ?)",
-            )
-            .bind(&mov_key)
-            .bind(returnable_id)
-            .bind(pieces_to_exchange)
-            .bind(before)
-            .bind(after)
-            .bind(format!("Échange fournisseur réception {rec_ref} (CMD {po_ref})"))
-            .bind(rec_ref)
-            .execute(&mut **tx)
-            .await?;
-        }
-    }
-    Ok(())
-}
 
 pub(crate) async fn apply_receipt_stock_and_cost_tx(
     tx: &mut Transaction<'_, Sqlite>,

@@ -77,6 +77,7 @@ export interface PreviewLine {
   product_name: string;
   variant_name: string;
   compatibility_class: string;
+  base_unit: string;
   requested_unit: string;
   requested_quantity: number;
   units_per_requested_unit: number;
@@ -134,6 +135,7 @@ export interface CustomerOrderLine {
   order_id: number;
   product_id: number;
   product_name: string;
+  base_unit: string;
   variant_id: number;
   variant_name: string;
   compatibility_class: string | null;

@@ -10,6 +10,7 @@ use crate::application::products::{deserialize_nullable_opt, deserialize_qty_str
 mod debts;
 mod order_queries;
 mod orders;
+mod packaging_exchange;
 mod receipt_helpers;
 mod receipts;
 mod suppliers;
@@ -49,6 +50,22 @@ pub struct PurchaseOrderLineDto {
     pub received_quantity_milli: i64,
     pub unit_price: i64,
     pub line_total: i64,
+    pub product_snapshot_json: String,
+    pub packaging_snapshot_json: String,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct PurchasePackagingRequirementDto {
+    pub purchase_order_line_id: i64,
+    pub returnable_id: i64,
+    pub code: String,
+    pub name: String,
+    pub kind: String,
+    pub pieces_per_pack: i64,
+    pub required_pieces: i64,
+    pub reserved_pieces: i64,
+    pub issued_pieces: i64,
+    pub reservation_status: String,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -88,6 +105,7 @@ pub struct PurchaseOrderDto {
     pub notes: Option<String>,
     pub created_at: String,
     pub lines: Vec<PurchaseOrderLineDto>,
+    pub packaging_requirements: Vec<PurchasePackagingRequirementDto>,
     pub receipts: Vec<PurchaseReceiptDto>,
     pub debts: Vec<SupplierDebtDto>,
 }
@@ -100,6 +118,55 @@ pub struct PurchaseReceiptDto {
     pub total_amount: i64,
     pub notes: Option<String>,
     pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PurchaseReceiptResultDto {
+    pub order: PurchaseOrderDto,
+    pub receipt: PurchaseReceiptDetailDto,
+}
+
+impl std::ops::Deref for PurchaseReceiptResultDto {
+    type Target = PurchaseReceiptDetailDto;
+    fn deref(&self) -> &Self::Target { &self.receipt }
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct PurchaseReceiptLineDto {
+    pub purchase_order_line_id: i64,
+    pub product_name: String,
+    pub packaging_name: String,
+    pub base_unit: String,
+    pub coefficient_milli: i64,
+    pub received_quantity_milli: i64,
+    pub base_quantity_milli: i64,
+    pub unit_price: i64,
+    pub amount: i64,
+    pub discrepancy_reason: Option<String>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct SupplierPackagingExchangeLineDto {
+    pub purchase_order_line_id: i64,
+    pub returnable_id: i64,
+    pub code_snapshot: String,
+    pub name_snapshot: String,
+    pub kind_snapshot: String,
+    pub pieces_issued: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PurchaseReceiptDetailDto {
+    pub id: i64,
+    pub reference: String,
+    pub purchase_order_id: i64,
+    pub order_reference: String,
+    pub supplier_name: String,
+    pub total_amount: i64,
+    pub notes: Option<String>,
+    pub created_at: String,
+    pub lines: Vec<PurchaseReceiptLineDto>,
+    pub packaging_exchanges: Vec<SupplierPackagingExchangeLineDto>,
 }
 
 #[derive(Debug, Serialize, FromRow)]

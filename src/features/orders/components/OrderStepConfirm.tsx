@@ -52,7 +52,7 @@ export function OrderStepConfirm({
         </div>
         <p className="text-emerald-900 dark:text-emerald-200">
           Stock à prélever :{' '}
-          {lines.map((l) => `${l.product_name} ${l.base_quantity} btl`).join(', ')}
+          {lines.map((l) => `${l.product_name} ${l.base_quantity} ${l.base_unit}`).join(', ')}
           {allocations.length > 0
             ? ` — Emballages : ${allocations.map((a) => `${a.quantity} × ${a.packaging_name}`).join(', ')}.`
             : '.'}
@@ -159,7 +159,7 @@ export function OrderStepConfirm({
           className="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium"
         >
           <Printer className="h-3.5 w-3.5" />
-          Reçu commande
+          Accusé de commande client
         </button>
         <button
           type="button"

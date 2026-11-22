@@ -4,10 +4,9 @@ import { ModalDialog } from '../../../components/dialogs/ModalDialog.tsx';
 import { MoneyInput } from '../../../components/common/MoneyInput.tsx';
 import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
 import type { PackagingName, Product, ProductPackaging } from '../../../types/erp.ts';
-import { formatFcfa } from '../../../utils/format.ts';
+import { formatFcfa, packagingContentsLabel } from '../../../utils/format.ts';
 import {
   PACKAGING_OPTIONS,
-  formatCoeffDot,
   type PackagingFormState,
 } from '../utils/productSchemas.ts';
 
@@ -91,7 +90,7 @@ export function PackagingModal({
                 }`}
               >
                 <span>
-                  {pk.name} ×{formatCoeffDot(pk.coefficient_milli)}
+                  {packagingContentsLabel(pk.name, product.base_unit, pk.coefficient_milli)}
                 </span>
                 {!pk.is_active && <span className="text-[10px] opacity-80">(Inactif)</span>}
               </button>

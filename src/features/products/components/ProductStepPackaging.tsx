@@ -2,6 +2,7 @@ import { Controller, type UseFormReturn } from 'react-hook-form';
 import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
 import { MoneyInput } from '../../../components/common/MoneyInput.tsx';
 import type { PackagingTypeRef } from '../../../types/erp.ts';
+import { packagingContentsLabel } from '../../../utils/format.ts';
 import { PACKAGING_OPTIONS, type ProductFormValues } from '../utils/productSchemas.ts';
 
 interface ProductStepPackagingProps {
@@ -150,6 +151,11 @@ export function ProductStepPackaging({
                 </button>
               ))}
             </div>
+            {coeffNum > 0 && (
+              <p className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2 text-xs font-bold text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+                Contenu du conditionnement : {packagingContentsLabel(pkgName, baseUnit, Math.round(coeffNum * 1000))}
+              </p>
+            )}
           </div>
         </>
       )}

@@ -389,9 +389,14 @@ async fn orders_mixed_cases_1_to_7_and_lifecycle() {
     let deps_draft = orders::get_customer_deposits(&db, client.id).await.unwrap();
     assert!(deps_draft.is_empty());
 
-    // Confirm : décrémente le stock en unités de base (200 -> 188)
+    // Confirm : décrémente le stock en unités de base (200 -> 188), sans créer d'achat fournisseur.
     let confirmed = orders::confirm_order(&db, created.order.id).await.unwrap();
     assert_eq!(confirmed.order.status, "confirmed");
+    let supplier_orders: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM purchase_orders")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(supplier_orders, 0, "confirmer une commande client ne doit pas créer de bon fournisseur");
     let bock_stock: i64 = sqlx::query_scalar("SELECT stock_milli FROM products WHERE id = ?")
         .bind(bock_id)
         .fetch_one(&db.pool)
@@ -437,4 +442,56 @@ async fn orders_mixed_cases_1_to_7_and_lifecycle() {
             .await
             .unwrap();
     assert_eq!(stock_empty, 1);
+
+    // Facturer une commande client crée une vente client, jamais un bon fournisseur.
+    let invoice_order = orders::create_order(
+        &db,
+        orders::CreateOrderInput {
+            customer_id: client.id,
+            order_type: Some("vente".into()),
+            payment_method: Some("cash".into()),
+            discount_xof: None,
+            tax_xof: None,
+            delivery_date: None,
+            delivery_address: None,
+            notes: Some("Commande client test de séparation".into()),
+            allow_price_override: None,
+            lines: vec![orders::OrderLineInput {
+                variant_id: bock_var,
+                requested_unit: "unit".into(),
+                requested_quantity: 1,
+                unit_price_xof: Some(400),
+                discount_xof: None,
+                notes: None,
+            }],
+            allocations: Some(vec![]),
+        },
+    )
+    .await
+    .unwrap();
+    orders::confirm_order(&db, invoice_order.order.id).await.unwrap();
+    sqlx::query("UPDATE orders SET paid_xof = total_to_collect_xof, payment_status = 'paid' WHERE id = ?")
+        .bind(invoice_order.order.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let invoiced = orders::invoice_order(&db, invoice_order.order.id)
+        .await
+        .unwrap();
+    assert_eq!(invoiced.order.status, "paid");
+    let (sales_count, supplier_order_count): (i64, i64) = sqlx::query_as(
+        "SELECT (SELECT COUNT(*) FROM sales WHERE order_id = ?), (SELECT COUNT(*) FROM purchase_orders)",
+    )
+    .bind(invoice_order.order.id)
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(sales_count, 1);
+    assert_eq!(supplier_order_count, 0);
+    let sale_reference: String = sqlx::query_scalar("SELECT reference FROM sales WHERE order_id = ?")
+        .bind(invoice_order.order.id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert!(sale_reference.starts_with("VTE-"));
 }

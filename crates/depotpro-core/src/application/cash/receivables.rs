@@ -112,7 +112,7 @@ pub async fn pay_receivable(
         )));
     }
 
-    let pay_ref = DepotDb::next_sequence(&mut tx, "REC").await?;
+    let pay_ref = DepotDb::next_sequence(&mut tx, "PAY").await?;
     let payment_id = sqlx::query(
         "INSERT INTO payments (reference, request_key, sale_id, client_id, payment_kind, total_amount, note)
          VALUES (?, ?, ?, ?, 'receivable', ?, ?)",

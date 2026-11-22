@@ -33,6 +33,18 @@ export function formatQty(milli: number, unit?: string): string {
   return unit ? `${numStr} ${unit}` : numStr;
 }
 
+/** Rend visible le nombre de boissons réellement contenu dans un conditionnement. */
+export function packagingContentsLabel(packagingName: string, baseUnit: string, coefficientMilli: number): string {
+  const unit = baseUnit.trim().toLocaleLowerCase('fr');
+  const packaging = packagingName.trim().toLocaleLowerCase('fr');
+  const contents = unit.includes('can')
+    ? 'canettes'
+    : unit.includes('bouteille')
+      ? packaging === 'pack' ? 'bouteilles en plastique' : 'bouteilles'
+      : `${baseUnit}(s)`;
+  return `1 ${packagingName} = ${formatQty(coefficientMilli)} ${contents}`;
+}
+
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const normalized = iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z';
