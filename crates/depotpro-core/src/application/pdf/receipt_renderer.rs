@@ -465,7 +465,6 @@ fn draw_payment_and_signatures(cmds: &mut Vec<String>, top: f64, doc: &DocumentP
     draw_text(cmds, MARGIN + sig_w + 17.0, sig_top - 12.0, "Signature du client (bon pour accord & réception) :", 6.2, true, NAVY);
     let footer_y = sig_top - sig_h - 17.0;
     draw_line(cmds, MARGIN, footer_y + 8.0, RIGHT, footer_y + 8.0, BORDER, 0.45);
-    draw_text(cmds, MARGIN + 50.0, footer_y - 1.0, "Merci pour votre confiance ! Veuillez vérifier vos quantités et emballages avant de quitter le dépôt.", 6.2, false, GRAY);
 }
 
 fn draw_continuation_table_header(cmds: &mut Vec<String>, top: f64) {
@@ -530,5 +529,16 @@ pub fn render_order_receipt_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput
             }
         }
     }
+    // La maquette fournie réserve une deuxième page au message de clôture.
+    start_page(&mut pages, &mut y);
+    draw_text(
+        pages.last_mut().expect("page de clôture créée"),
+        MARGIN + 72.0,
+        PAGE_H / 2.0,
+        "Merci pour votre confiance ! Veuillez vérifier vos quantités et emballages avant de quitter le dépôt.",
+        11.0,
+        true,
+        GREEN,
+    );
     assemble_pdf_bytes(&pages, logo.as_ref())
 }
