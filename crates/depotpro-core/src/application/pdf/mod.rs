@@ -63,9 +63,6 @@ pub struct DocumentPdfPayment {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DocumentPdfPackagingRow {
     pub label: String,
     pub capacity: i64,
@@ -77,6 +74,8 @@ pub struct DocumentPdfPackagingRow {
     pub returned_quantity: i64,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DocumentPdfInput {
     pub doc_type: String,
     pub reference: String,
