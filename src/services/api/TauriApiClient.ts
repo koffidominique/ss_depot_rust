@@ -10,6 +10,7 @@ import {
   tauriSalesApi,
 } from "./tauri/tauriCommerceCommands.ts";
 import { tauriOrdersApi } from "./tauri/tauriOrdersCommands.ts";
+import { tauriDocumentsApi } from "./tauri/tauriDocumentsCommands.ts";
 import {
   tauriConsignmentsApi,
   tauriFinanceApi,
