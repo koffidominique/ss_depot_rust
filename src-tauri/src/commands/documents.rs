@@ -18,7 +18,8 @@ pub async fn list_document_archive_v1(
     let actor = verify_desktop_perm(&state, &token, Permission::SalesRead).await?;
     let db = state.db().await;
     let result = auth::with_actor(actor, documents::list_document_archive(&db, filter))
-        .await.map_err(|e| e.to_string())?;
+        .await
+        .map_err(|e| e.to_string())?;
     serde_json::to_value(result).map_err(|e| e.to_string())
 }
 
@@ -31,7 +32,8 @@ pub async fn get_document_archive_v1(
     let actor = verify_desktop_perm(&state, &token, Permission::SalesRead).await?;
     let db = state.db().await;
     let result = auth::with_actor(actor, documents::get_document_archive(&db, id))
-        .await.map_err(|e| e.to_string())?;
+        .await
+        .map_err(|e| e.to_string())?;
     serde_json::to_value(result).map_err(|e| e.to_string())
 }
 
@@ -44,7 +46,8 @@ pub async fn archive_sale_document_v1(
     let actor = verify_desktop_perm(&state, &token, Permission::SalesWrite).await?;
     let db = state.db().await;
     let result = auth::with_actor(actor, documents::archive_sale_document(&db, id))
-        .await.map_err(|e| e.to_string())?;
+        .await
+        .map_err(|e| e.to_string())?;
     serde_json::to_value(result).map_err(|e| e.to_string())
 }
 
@@ -57,6 +60,7 @@ pub async fn archive_order_document_v1(
     let actor = verify_desktop_perm(&state, &token, Permission::SalesWrite).await?;
     let db = state.db().await;
     let result = auth::with_actor(actor, documents::archive_order_document(&db, id))
-        .await.map_err(|e| e.to_string())?;
+        .await
+        .map_err(|e| e.to_string())?;
     serde_json::to_value(result).map_err(|e| e.to_string())
 }
