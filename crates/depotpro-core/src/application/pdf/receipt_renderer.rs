@@ -100,8 +100,8 @@ fn draw_brand_header(
 
         let bx = 408.0;
         draw_rect_fill_stroke(cmds, bx, 710.0, 147.0, 94.0, (0.95, 1.0, 0.98), GREEN, 1.4);
-        draw_text(cmds, bx + 12.0, 790.0, "BON DE COMMANDE CLIENT", 9.1, true, GREEN);
-        draw_text(cmds, bx + 12.0, 780.0, "ACCUSÉ DE RÉCEPTION DE COMMANDE", 6.2, true, GREEN);
+        draw_text(cmds, bx + 12.0, 790.0, "REÇU DE COMMANDE", 10.0, true, GREEN);
+        draw_text(cmds, bx + 12.0, 780.0, "CONFIRMATION DE COMMANDE CLIENT", 6.2, true, GREEN);
         draw_text(cmds, bx + 11.0, 767.0, &format!("N° reçu : {}", doc.reference), 7.1, true, NAVY);
         draw_text(cmds, bx + 11.0, 757.0, &format!("Réf. commande : {}", doc.order_reference.as_deref().unwrap_or("—")), 6.7, true, NAVY);
         draw_text(cmds, bx + 11.0, 747.0, &format!("Date : {}", format_date_french(&doc.date)), 7.1, true, NAVY);
@@ -179,26 +179,24 @@ fn draw_products_header(cmds: &mut Vec<String>, top: f64) {
     let cols = [
         MARGIN,
         MARGIN + 25.0,
-        MARGIN + 170.0,
-        MARGIN + 265.0,
-        MARGIN + 305.0,
-        MARGIN + 370.0,
-        MARGIN + 430.0,
+        MARGIN + 200.0,
+        MARGIN + 295.0,
+        MARGIN + 335.0,
+        MARGIN + 410.0,
         RIGHT,
     ];
-    for x in cols.iter().skip(1).take(6) {
+    for x in cols.iter().skip(1).take(5) {
         draw_line(cmds, *x, y, *x, top, (0.65, 0.68, 0.73), 0.5);
     }
     draw_text(cmds, MARGIN + 7.0, top - 18.0, "N°", 7.0, true, (1.0, 1.0, 1.0));
     draw_text(cmds, MARGIN + 29.0, top - 12.0, "DÉSIGNATION / FORMAT", 6.1, true, (1.0, 1.0, 1.0));
-    draw_text(cmds, MARGIN + 175.0, top - 12.0, "CONDITIONNEMENT", 5.9, true, (1.0, 1.0, 1.0));
-    draw_text(cmds, MARGIN + 190.0, top - 22.0, "(CASIER / PACK)", 5.4, false, (1.0, 1.0, 1.0));
-    draw_text(cmds, MARGIN + 273.0, top - 18.0, "QTÉ", 6.5, true, (1.0, 1.0, 1.0));
-    draw_text(cmds, MARGIN + 307.0, top - 12.0, "PRIX UNIT.", 5.7, true, (1.0, 1.0, 1.0));
-    draw_text(cmds, MARGIN + 316.0, top - 22.0, "(FCFA)", 5.7, true, (1.0, 1.0, 1.0));
-    draw_text(cmds, MARGIN + 373.0, top - 18.0, "REMISE", 5.8, true, (1.0, 1.0, 1.0));
-    draw_text(cmds, MARGIN + 435.0, top - 12.0, "MONTANT TOTAL", 5.3, true, (1.0, 1.0, 1.0));
-    draw_text(cmds, MARGIN + 454.0, top - 22.0, "(FCFA)", 5.6, true, (1.0, 1.0, 1.0));
+    draw_text(cmds, MARGIN + 205.0, top - 12.0, "CONDITIONNEMENT", 5.9, true, (1.0, 1.0, 1.0));
+    draw_text(cmds, MARGIN + 220.0, top - 22.0, "(CASIER / PACK)", 5.4, false, (1.0, 1.0, 1.0));
+    draw_text(cmds, MARGIN + 300.0, top - 18.0, "QTÉ", 6.5, true, (1.0, 1.0, 1.0));
+    draw_text(cmds, MARGIN + 340.0, top - 12.0, "PRIX UNITAIRE", 5.7, true, (1.0, 1.0, 1.0));
+    draw_text(cmds, MARGIN + 358.0, top - 22.0, "(FCFA)", 5.7, true, (1.0, 1.0, 1.0));
+    draw_text(cmds, MARGIN + 415.0, top - 12.0, "MONTANT TOTAL", 5.3, true, (1.0, 1.0, 1.0));
+    draw_text(cmds, MARGIN + 435.0, top - 22.0, "(FCFA)", 5.6, true, (1.0, 1.0, 1.0));
 }
 
 fn draw_product_row(cmds: &mut Vec<String>, row_top: f64, index: usize, line: Option<&DocumentPdfLine>) {
@@ -208,11 +206,10 @@ fn draw_product_row(cmds: &mut Vec<String>, row_top: f64, index: usize, line: Op
     let cols = [
         MARGIN,
         MARGIN + 25.0,
-        MARGIN + 170.0,
-        MARGIN + 265.0,
-        MARGIN + 305.0,
-        MARGIN + 370.0,
-        MARGIN + 430.0,
+        MARGIN + 200.0,
+        MARGIN + 295.0,
+        MARGIN + 335.0,
+        MARGIN + 410.0,
         RIGHT,
     ];
     for x in cols.iter().skip(1).take(6) {
@@ -221,18 +218,17 @@ fn draw_product_row(cmds: &mut Vec<String>, row_top: f64, index: usize, line: Op
     draw_line(cmds, MARGIN, bottom, RIGHT, bottom, BORDER, 0.45);
     draw_text(cmds, MARGIN + 8.0, row_top - 13.5, &format!("{}", index + 1), 7.0, false, NAVY);
     if let Some(line) = line {
-        let label = wrap_text(&line.label, 137.0, 6.4, false);
+        let label = wrap_text(&line.label, 165.0, 6.4, false);
         if let Some(text) = label.first() {
             draw_text(cmds, MARGIN + 29.0, row_top - 8.0, text, 6.4, true, NAVY);
         }
         let detail = line.sublabel.as_deref().unwrap_or("");
-        let details = wrap_text(detail, 87.0, 5.4, false);
+        let details = wrap_text(detail, 91.0, 5.4, false);
         if let Some(text) = details.first() {
-            draw_text(cmds, MARGIN + 174.0, row_top - 12.5, text, 5.4, false, GRAY);
+            draw_text(cmds, MARGIN + 204.0, row_top - 12.5, text, 5.4, false, GRAY);
         }
-        draw_text_right(cmds, MARGIN + 302.0, row_top - 13.5, &line.quantity, 6.0, false, NAVY);
-        draw_text_right(cmds, MARGIN + 366.0, row_top - 13.5, &line.unit_price.map(amount).unwrap_or_else(|| "—".to_string()), 5.8, false, NAVY);
-        draw_text_right(cmds, MARGIN + 426.0, row_top - 13.5, &line.discount.filter(|value| *value != 0).map(amount).unwrap_or_else(|| "—".to_string()), 5.8, false, NAVY);
+        draw_text_right(cmds, MARGIN + 332.0, row_top - 13.5, &line.quantity, 6.0, false, NAVY);
+        draw_text_right(cmds, MARGIN + 407.0, row_top - 13.5, &line.unit_price.map(amount).unwrap_or_else(|| "—".to_string()), 5.8, false, NAVY);
         draw_text_right(cmds, RIGHT - 4.0, row_top - 13.5, &line.total.map(amount).unwrap_or_else(|| "—".to_string()), 5.8, true, NAVY);
     }
 }
