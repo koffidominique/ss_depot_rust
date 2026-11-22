@@ -4,7 +4,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { ModalDialog } from '../../../components/dialogs/ModalDialog.tsx';
 import { MoneyInput } from '../../../components/common/MoneyInput.tsx';
 import { QuantityInput } from '../../../components/common/QuantityInput.tsx';
-import type { Product, Supplier } from '../../../types/erp.ts';
+import type { Product, PurchaseOrder, Supplier } from '../../../types/erp.ts';
 import { formatQty } from '../../../utils/format.ts';
 
 interface PoLineInput {
@@ -17,11 +17,12 @@ interface PoLineInput {
 interface PurchaseOrderModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  correctionTarget?: PurchaseOrder | null;
   suppliers?: Supplier[];
   products: Product[];
   error: string | null;
   isPending: boolean;
-  onSubmit: (values: { supplierId: number; lines: PoLineInput[] }) => void;
+  onSubmit: (values: { supplierId: number; lines: PoLineInput[]; purchaseOrderId?: number }) => void;
 }
 
 function PurchaseOrderFormBody({
@@ -29,14 +30,21 @@ function PurchaseOrderFormBody({
   products,
   isPending,
   onSubmit,
+  correctionTarget,
 }: {
   suppliers?: Supplier[];
   products: Product[];
   isPending: boolean;
   onSubmit: PurchaseOrderModalProps['onSubmit'];
+  correctionTarget?: PurchaseOrder | null;
 }) {
-  const [supplierId, setSupplierId] = useState<number>(suppliers?.[0]?.id ?? 0);
-  const [poLines, setPoLines] = useState<PoLineInput[]>([]);
+  const [supplierId, setSupplierId] = useState<number>(correctionTarget?.supplier_id ?? suppliers?.[0]?.id ?? 0);
+  const [poLines, setPoLines] = useState<PoLineInput[]>(() => correctionTarget?.lines.map((line) => ({
+    product_id: line.product_id,
+    packaging_id: line.packaging_id,
+    quantity: (line.ordered_quantity_milli / 1000).toFixed(3).replace(/\\.?0+$/, ''),
+    unit_price: line.unit_price,
+  })) ?? []);
 
   const addLine = () => {
     const firstProd = products[0];
@@ -196,10 +204,10 @@ function PurchaseOrderFormBody({
         <button
           type="button"
           disabled={poLines.length === 0 || isPending}
-          onClick={() => onSubmit({ supplierId, lines: poLines })}
+          onClick={() => onSubmit({ supplierId, lines: poLines, purchaseOrderId: correctionTarget?.id })}
           className="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white disabled:opacity-40"
         >
-          Valider la commande
+          {correctionTarget ? 'Corriger et resoumettre à l’Owner' : 'Valider la commande'}
         </button>
       </div>
     </>
@@ -214,12 +222,13 @@ export function PurchaseOrderModal({
   error,
   isPending,
   onSubmit,
+  correctionTarget,
 }: PurchaseOrderModalProps) {
   return (
     <ModalDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Nouveau bon de commande fournisseur"
+      title={correctionTarget ? `Corriger ${correctionTarget.reference}` : 'Nouveau bon de commande fournisseur'}
       tipsTopicId="purchases"
       tipsLabel="Aide commande"
       maxWidthClass="max-w-2xl"
@@ -228,11 +237,12 @@ export function PurchaseOrderModal({
     >
       {open && (
         <PurchaseOrderFormBody
-          key={String(suppliers?.[0]?.id ?? 0)}
+          key={`${correctionTarget?.id ?? 'new'}-${suppliers?.[0]?.id ?? 0}`}
           suppliers={suppliers}
           products={products}
           isPending={isPending}
           onSubmit={onSubmit}
+          correctionTarget={correctionTarget}
         />
       )}
     </ModalDialog>

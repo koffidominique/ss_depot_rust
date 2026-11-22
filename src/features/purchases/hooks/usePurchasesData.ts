@@ -43,6 +43,7 @@ export function usePurchasesQueries(detailOpen: boolean) {
 
 interface UsePurchasesMutationsOptions {
   onCreatedPo: (created: PurchaseOrder) => void;
+  onUpdatedPo: (updated: PurchaseOrder) => void;
   onReceivedPo: (updated: PurchaseOrder) => void;
   onCancelledPo: () => void;
   onError: (msg: string) => void;
@@ -50,6 +51,7 @@ interface UsePurchasesMutationsOptions {
 
 export function usePurchasesMutations({
   onCreatedPo,
+  onUpdatedPo,
   onReceivedPo,
   onCancelledPo,
   onError,
@@ -89,6 +91,35 @@ export function usePurchasesMutations({
       onCreatedPo(created);
     },
     onError: (err) => onError(err instanceof Error ? err.message : 'Erreur commande.'),
+  });
+
+  const updatePoMutation = useMutation({
+    mutationFn: (input: {
+      purchaseOrderId: number;
+      supplierId: number;
+      lines: Array<{ product_id: number; packaging_id: number; quantity: string; unit_price: number }>;
+    }) => {
+      for (const line of input.lines) {
+        const parsedQty = parseQtyInputToMilliBigInt(line.quantity, 'Quantité commandée');
+        if (!parsedQty.ok) throw new Error(parsedQty.error);
+        const parsedPrice = toNonNegativeIntFcfaBigInt(line.unit_price, 'Prix unitaire achat');
+        if (!parsedPrice.ok) throw new Error(parsedPrice.error);
+        const lineExact = computeExactLineGrossFcfa(parsedQty.milli, parsedPrice.fcfa, 'Ligne commande');
+        if (!lineExact.ok) throw new Error(lineExact.error);
+      }
+      return apiClient.updatePurchaseOrder(input.purchaseOrderId, {
+        supplier_id: input.supplierId,
+        lines: input.lines.map(({ product_id, packaging_id, quantity, unit_price }) => ({
+          product_id, packaging_id, quantity, unit_price,
+        })),
+      });
+    },
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['purchases'] });
+      qc.invalidateQueries({ queryKey: ['commercial-documents'] });
+      onUpdatedPo(updated);
+    },
+    onError: (err) => onError(err instanceof Error ? err.message : 'Erreur correction bon fournisseur.'),
   });
 
   const receiveMutation = useMutation({
@@ -153,5 +184,5 @@ export function usePurchasesMutations({
       onError(err instanceof Error ? err.message : 'Erreur annulation commande.'),
   });
 
-  return { createPoMutation, receiveMutation, cancelPoMutation };
+  return { createPoMutation, updatePoMutation, receiveMutation, cancelPoMutation };
 }

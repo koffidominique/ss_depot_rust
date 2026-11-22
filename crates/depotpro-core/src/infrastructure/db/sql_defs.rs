@@ -41,6 +41,10 @@ pub const V3_MIGRATION_0018_SQL: &str =
     include_str!("../../../../../migrations/sqlite/0018_bdboisson_catalog_v4.sql");
 pub const V3_MIGRATION_0019_SQL: &str =
     include_str!("../../../../../migrations/sqlite/0019_orders_and_packaging.sql");
+pub const V3_MIGRATION_0020_SQL: &str =
+    include_str!("../../../../../migrations/sqlite/0020_commercial_document_approvals.sql");
+pub const V3_MIGRATION_0021_SQL: &str =
+    include_str!("../../../../../migrations/sqlite/0021_order_sales_receipts.sql");
 
 #[derive(Debug, Clone, Copy)]
 pub struct MigrationDef {
@@ -145,10 +149,20 @@ pub const MIGRATIONS: &[MigrationDef] = &[
         name: "0019_orders_and_packaging",
         sql: V3_MIGRATION_0019_SQL,
     },
+    MigrationDef {
+        version: 20,
+        name: "0020_commercial_document_approvals",
+        sql: V3_MIGRATION_0020_SQL,
+    },
+    MigrationDef {
+        version: 21,
+        name: "0021_order_sales_receipts",
+        sql: V3_MIGRATION_0021_SQL,
+    },
 ];
 
 pub const MIN_SUPPORTED_SCHEMA_VERSION: i64 = 1;
-pub const CURRENT_SCHEMA_VERSION: i64 = 19;
+pub const CURRENT_SCHEMA_VERSION: i64 = 21;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MigrationRunReport {

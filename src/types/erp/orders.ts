@@ -111,6 +111,7 @@ export interface CustomerOrderSummary {
   customer_name: string;
   order_type: string;
   status: string;
+  approval_status?: string | null;
   subtotal_xof: number;
   deposit_total_xof: number;
   discount_xof: number;

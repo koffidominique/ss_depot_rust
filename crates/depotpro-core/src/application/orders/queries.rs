@@ -19,11 +19,12 @@ pub async fn list_orders(
     require_current_actor_permission(Permission::SalesRead)?;
     let rows: Vec<OrderSummaryDto> = sqlx::query_as(
         "SELECT o.id, o.order_number, o.customer_id, c.name AS customer_name, o.order_type, o.status,
-                o.subtotal_xof, o.deposit_total_xof, o.discount_xof, o.tax_xof, o.total_xof,
+                w.status AS approval_status, o.subtotal_xof, o.deposit_total_xof, o.discount_xof, o.tax_xof, o.total_xof,
                 o.deposit_due_xof, o.total_to_collect_xof, o.paid_xof, o.payment_status,
                 o.payment_method, o.delivery_date, o.delivery_address, o.notes, o.created_at, o.updated_at
          FROM orders o
          JOIN clients c ON c.id = o.customer_id
+         LEFT JOIN commercial_document_workflows w ON w.document_type = 'customer_order' AND w.document_id = o.id
          WHERE (? IS NULL OR o.status = ?)
            AND (? IS NULL OR o.customer_id = ?)
            AND (? IS NULL OR date(o.created_at) >= date(?))
@@ -47,11 +48,12 @@ pub async fn get_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> {
     require_current_actor_permission(Permission::SalesRead)?;
     let order: Option<OrderSummaryDto> = sqlx::query_as(
         "SELECT o.id, o.order_number, o.customer_id, c.name AS customer_name, o.order_type, o.status,
-                o.subtotal_xof, o.deposit_total_xof, o.discount_xof, o.tax_xof, o.total_xof,
+                w.status AS approval_status, o.subtotal_xof, o.deposit_total_xof, o.discount_xof, o.tax_xof, o.total_xof,
                 o.deposit_due_xof, o.total_to_collect_xof, o.paid_xof, o.payment_status,
                 o.payment_method, o.delivery_date, o.delivery_address, o.notes, o.created_at, o.updated_at
          FROM orders o
          JOIN clients c ON c.id = o.customer_id
+         LEFT JOIN commercial_document_workflows w ON w.document_type = 'customer_order' AND w.document_id = o.id
          WHERE o.id = ?",
     )
     .bind(id)

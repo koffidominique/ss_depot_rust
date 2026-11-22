@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useUiStore } from '../stores/uiStore.ts';
 import {
   DocumentPrintModal,
   type PrintableDocumentData,
@@ -23,6 +24,8 @@ const STEPS = [
 ] as const;
 
 export function OrdersPage() {
+  const currentUser = useUiStore((store) => store.currentUser);
+  const isOwner = currentUser?.role === 'owner';
   const {
     step,
     setStep,
@@ -140,6 +143,13 @@ export function OrdersPage() {
             <OrderStepConfirm
               orderDetail={activeOrder}
               isBusy={actionMutation.isPending}
+              isOwner={isOwner}
+              onSubmitForApproval={() =>
+                actionMutation.mutate(async () => {
+                  await apiClient.submitCommercialDocument('customer_order', activeOrder.order.id);
+                  return apiClient.getCustomerOrder(activeOrder.order.id);
+                })
+              }
               onConfirm={() =>
                 actionMutation.mutate(() => apiClient.confirmCustomerOrder(activeOrder.order.id))
               }

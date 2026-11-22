@@ -21,14 +21,21 @@ import { PurchaseCancelModal } from '../features/purchases/components/PurchaseCa
 /* Construit le bon de commande / bon de réception fournisseur imprimable. */
 function buildPurchaseOrderDoc(order: PurchaseOrder): PrintableDocumentData {
   return {
-    docType:
-      order.receipts.length > 0 ? 'BON DE RÉCEPTION' : 'BON DE COMMANDE',
+    docType: order.receipts.length > 0 ? 'BON DE RÉCEPTION' : 'BON DE COMMANDE',
     reference: order.reference,
     date: order.created_at,
-    statusLabel: order.status,
-    partyTitle: 'Fournisseur',
+    statusLabel: order.approval_status === 'pending_owner_approval' ? 'EN ATTENTE DE VALIDATION OWNER' : order.status,
+    partyTitle: 'FOURNISSEUR',
     partyName: order.supplier_name,
-    partyDetails: `Code ${order.supplier_code} · Commande ${order.reference}`,
+    partyDetails: [
+      `Code fournisseur : ${order.supplier_code}`,
+      order.supplier_phone ? `Tél. : ${order.supplier_phone}` : null,
+      order.supplier_email,
+      order.supplier_address,
+    ].filter(Boolean).join(' · '),
+    partyPhone: order.supplier_phone,
+    secondaryPartyTitle: 'LIVRER À',
+    deliveryDate: order.expected_date,
     lines: order.lines.map((l) => ({
       label: l.product_name,
       sublabel:
@@ -55,6 +62,7 @@ function buildPurchaseOrderDoc(order: PurchaseOrder): PrintableDocumentData {
 
 export function PurchasesPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [correctionTarget, setCorrectionTarget] = useState<PurchaseOrder | null>(null);
   const [detailTarget, setDetailTarget] = useState<PurchaseOrder | null>(null);
   const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<PurchaseOrder | null>(null);
@@ -65,11 +73,17 @@ export function PurchasesPage() {
     Boolean(detailTarget)
   );
 
-  const { createPoMutation, receiveMutation, cancelPoMutation } = usePurchasesMutations({
+  const { createPoMutation, updatePoMutation, receiveMutation, cancelPoMutation } = usePurchasesMutations({
     onCreatedPo: (created: PurchaseOrder) => {
       setCreateOpen(false);
       setErrorMsg(null);
       setPrintDoc(buildPurchaseOrderDoc(created));
+    },
+    onUpdatedPo: (updated: PurchaseOrder) => {
+      setCreateOpen(false);
+      setCorrectionTarget(null);
+      setErrorMsg(null);
+      setPrintDoc(buildPurchaseOrderDoc(updated));
     },
     onReceivedPo: (updated: PurchaseOrder) => {
       setReceiveTarget(null);
@@ -129,6 +143,7 @@ export function PurchasesPage() {
           orders={orders}
           onInspect={setDetailTarget}
           onPrint={setPrintDoc}
+          onCorrect={(order) => { setCorrectionTarget(order); setErrorMsg(null); }}
           onReceive={(order) => {
             setReceiveTarget(order);
             setErrorMsg(null);
@@ -141,13 +156,17 @@ export function PurchasesPage() {
       )}
 
       <PurchaseOrderModal
-        open={createOpen}
-        onOpenChange={setCreateOpen}
+        open={createOpen || Boolean(correctionTarget)}
+        onOpenChange={(open) => { if (!open) { setCreateOpen(false); setCorrectionTarget(null); } }}
+        correctionTarget={correctionTarget}
         suppliers={suppliersQuery.data}
         products={products}
         error={errorMsg}
-        isPending={createPoMutation.isPending}
-        onSubmit={(values) => createPoMutation.mutate(values)}
+        isPending={createPoMutation.isPending || updatePoMutation.isPending}
+        onSubmit={(values) => {
+          if (values.purchaseOrderId) updatePoMutation.mutate({ ...values, purchaseOrderId: values.purchaseOrderId });
+          else createPoMutation.mutate(values);
+        }}
       />
 
       <PurchaseReceiveModal

@@ -10,6 +10,7 @@ use crate::state::DesktopState;
 pub mod auth;
 pub mod backups;
 pub mod cash_and_reports;
+pub mod commercial_documents;
 pub mod catalogue_v3;
 pub mod catalogue_v4;
 pub mod consignments_and_obligations;

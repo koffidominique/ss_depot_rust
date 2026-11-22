@@ -10,6 +10,7 @@ import {
   httpSalesApi,
 } from './http/httpCommerceRoutes.ts';
 import { httpOrdersApi } from './http/httpOrdersRoutes.ts';
+import { httpCommercialDocumentsApi } from './http/httpCommercialDocuments.ts';
 import {
   httpConsignmentsApi,
   httpFinanceApi,
@@ -22,6 +23,12 @@ import {
  * ============================================================================ */
 
 export class HttpApiClient implements ApiClient {
+  listCommercialDocuments = httpCommercialDocumentsApi.listCommercialDocuments;
+  getCommercialDocumentDetail = httpCommercialDocumentsApi.getCommercialDocumentDetail;
+  submitCommercialDocument = httpCommercialDocumentsApi.submitCommercialDocument;
+  reviewCommercialDocument = httpCommercialDocumentsApi.reviewCommercialDocument;
+  getCommercialDocumentEvents = httpCommercialDocumentsApi.getCommercialDocumentEvents;
+
   /* --- Authentification & Tableau de bord --- */
   getAuthStatus = httpAuthApi.getAuthStatus;
   setupPin = httpAuthApi.setupPin;
@@ -82,6 +89,7 @@ export class HttpApiClient implements ApiClient {
   updateSupplier = httpPurchasesApi.updateSupplier;
   listPurchases = httpPurchasesApi.listPurchases;
   createPurchaseOrder = httpPurchasesApi.createPurchaseOrder;
+  updatePurchaseOrder = httpPurchasesApi.updatePurchaseOrder;
   receivePurchaseOrder = (orderId: number, input: ReceivePurchaseOrderPayload) =>
     httpPurchasesApi.receivePurchaseOrder(orderId, input);
   cancelPurchaseOrder = httpPurchasesApi.cancelPurchaseOrder;

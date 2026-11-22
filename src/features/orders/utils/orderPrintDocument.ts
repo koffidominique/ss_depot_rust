@@ -87,24 +87,26 @@ export function buildOrderReceiptDocument(
     : undefined;
 
   return {
-    docType: "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION",
+    docType: "REÇU DE COMMANDE",
     reference: o.order_number,
     date: o.created_at,
     statusLabel: STATUS_LABELS[o.status] ?? o.status.toUpperCase(),
-    partyTitle: "Client",
+    partyTitle: "FACTURER À · CLIENT",
     partyName: client?.name || o.customer_name,
     partyDetails: clientDetails,
     partyPhone: client?.phone ?? null,
+    secondaryPartyTitle: "LIVRER À",
+    secondaryPartyName: client?.name || o.customer_name,
+    secondaryPartyDetails: o.delivery_address || client?.address || "À retirer au sous-dépôt",
+    deliveryDate: o.delivery_date,
     lines: [...productLines, ...packagingLines],
     summaryRows: [
-      { label: "Sous-total des marchandises", value: formatFcfa(o.total_xof) },
+      { label: "SOUS-TOTAL DES LIGNES", value: formatFcfa(o.subtotal_xof) },
+      { label: "REMISE COMMERCIALE", value: `- ${formatFcfa(o.discount_xof)}` },
+      { label: "Taxes", value: formatFcfa(o.tax_xof) },
       {
-        label: "Remises commerciales",
-        value: `- ${formatFcfa(o.discount_xof)}`,
-      },
-      {
-        label: "Total des marchandises",
-        value: formatFcfa(o.total_xof - o.discount_xof),
+        label: "TOTAL MARCHANDISES",
+        value: formatFcfa(o.total_xof),
       },
       {
         label: "Consignes des emballages",
@@ -128,17 +130,6 @@ export function buildOrderReceiptDocument(
         tone: remainingToPay > 0 ? "danger" : "default",
       },
     ],
-    payments:
-      allocations.filter((a) => a.is_consigned).length > 0
-        ? [
-            {
-              label: "Emballages consignés (dépôt récupérable)",
-              amount: allocations
-                .filter((a) => a.is_consigned)
-                .reduce((acc, a) => acc + a.quantity * a.deposit_amount_xof, 0),
-            },
-          ]
-        : undefined,
     notes:
       [
         o.order_type ? `Type : ${o.order_type.toUpperCase()}` : null,

@@ -28,6 +28,18 @@ pub async fn confirm_order(db: &DepotDb, id: i64) -> CoreResult<OrderDetailDto> 
             "Impossible de confirmer une commande au statut {status}."
         )));
     }
+    crate::application::commercial_documents::require_approval_or_owner(
+        "customer_order",
+        id,
+        &mut tx,
+    )
+    .await?;
+    crate::application::commercial_documents::record_owner_direct_approval(
+        "customer_order",
+        id,
+        &mut tx,
+    )
+    .await?;
 
     if payment_method.as_deref() == Some("credit") {
         let credit_row: Option<(String, Option<i64>)> = sqlx::query_as(

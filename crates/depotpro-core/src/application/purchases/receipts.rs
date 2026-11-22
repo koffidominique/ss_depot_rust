@@ -98,6 +98,18 @@ pub async fn receive_purchase_order(
             "Ce bon de commande est déjà clôturé ou annulé.".to_string(),
         ));
     }
+    crate::application::commercial_documents::require_approval_or_owner(
+        "purchase_order",
+        purchase_order_id,
+        &mut tx,
+    )
+    .await?;
+    crate::application::commercial_documents::record_owner_direct_approval(
+        "purchase_order",
+        purchase_order_id,
+        &mut tx,
+    )
+    .await?;
 
     let payment_terms_days: i64 =
         sqlx::query_scalar("SELECT payment_terms_days FROM suppliers WHERE id = ?")

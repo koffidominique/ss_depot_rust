@@ -180,6 +180,7 @@ export interface PurchasesApiClient {
   ): Promise<Supplier>;
   listPurchases(): Promise<PurchaseOrder[]>;
   createPurchaseOrder(input: Record<string, unknown>): Promise<PurchaseOrder>;
+  updatePurchaseOrder(orderId: number, input: Record<string, unknown>): Promise<PurchaseOrder>;
   receivePurchaseOrder(
     orderId: number,
     input: ReceivePurchaseOrderPayload,

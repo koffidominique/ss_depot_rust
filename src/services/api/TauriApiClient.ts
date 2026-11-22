@@ -10,6 +10,7 @@ import {
   tauriSalesApi,
 } from "./tauri/tauriCommerceCommands.ts";
 import { tauriOrdersApi } from "./tauri/tauriOrdersCommands.ts";
+import { tauriCommercialDocumentsApi } from "./tauri/tauriCommercialDocuments.ts";
 import {
   tauriConsignmentsApi,
   tauriFinanceApi,
@@ -22,6 +23,12 @@ import {
  * ============================================================================ */
 
 export class TauriApiClient implements ApiClient {
+  listCommercialDocuments = tauriCommercialDocumentsApi.listCommercialDocuments;
+  getCommercialDocumentDetail = tauriCommercialDocumentsApi.getCommercialDocumentDetail;
+  submitCommercialDocument = tauriCommercialDocumentsApi.submitCommercialDocument;
+  reviewCommercialDocument = tauriCommercialDocumentsApi.reviewCommercialDocument;
+  getCommercialDocumentEvents = tauriCommercialDocumentsApi.getCommercialDocumentEvents;
+
   /* --- Authentification & Tableau de bord --- */
   getAuthStatus = tauriAuthApi.getAuthStatus;
   setupPin = tauriAuthApi.setupPin;
@@ -82,6 +89,7 @@ export class TauriApiClient implements ApiClient {
   updateSupplier = tauriPurchasesApi.updateSupplier;
   listPurchases = tauriPurchasesApi.listPurchases;
   createPurchaseOrder = tauriPurchasesApi.createPurchaseOrder;
+  updatePurchaseOrder = tauriPurchasesApi.updatePurchaseOrder;
   receivePurchaseOrder = (orderId: number, input: ReceivePurchaseOrderPayload) =>
     tauriPurchasesApi.receivePurchaseOrder(orderId, input);
   cancelPurchaseOrder = tauriPurchasesApi.cancelPurchaseOrder;

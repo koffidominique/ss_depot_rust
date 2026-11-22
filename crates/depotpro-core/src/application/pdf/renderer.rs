@@ -7,8 +7,8 @@ use crate::application::reports::AppSettingsDto;
 use super::encoding_and_layout::{format_fcfa_ascii, wrap_text};
 use super::header_section::draw_header_and_party;
 use super::primitives::{
-    assemble_pdf_bytes, draw_line, draw_table_header, draw_text, draw_text_right, start_page,
-    MARGIN, PAGE_H, RIGHT,
+    assemble_pdf_bytes, decode_logo_jpeg, draw_line, draw_table_header, draw_text, draw_text_right,
+    start_page, MARGIN, PAGE_H, RIGHT,
 };
 use super::summary_section::draw_summary_section;
 use super::{DocumentPdfInput, DocumentPdfLine};
@@ -16,6 +16,8 @@ use super::{DocumentPdfInput, DocumentPdfLine};
 pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> Vec<u8> {
     let mut pages: Vec<Vec<String>> = Vec::new();
     let mut y: f64 = PAGE_H - MARGIN;
+
+    let logo = doc.company_logo_jpeg.as_deref().and_then(decode_logo_jpeg);
 
     let company_name = if company.company_name.trim().is_empty() {
         "DEPOTPRO"
@@ -26,7 +28,7 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
     start_page(&mut pages, &mut y);
     {
         let cmds = pages.last_mut().unwrap();
-        draw_header_and_party(cmds, &mut y, company, company_name, doc);
+        draw_header_and_party(cmds, &mut y, company, company_name, doc, logo.as_ref());
     }
 
     let fallback_lines = vec![DocumentPdfLine {
@@ -76,11 +78,11 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         let cmds = pages.last_mut().unwrap();
         let mut ly = y - 11.0;
         for ll in &label_lines {
-            draw_text(cmds, MARGIN + 6.0, ly, ll, 8.5, true, (0.094, 0.133, 0.188));
+            draw_text(cmds, MARGIN + 82.0, ly, ll, 8.5, true, (0.094, 0.133, 0.188));
             ly -= 10.5;
         }
         for sl in &sub_lines {
-            draw_text(cmds, MARGIN + 6.0, ly, sl, 7.5, false, (0.4, 0.439, 0.522));
+            draw_text(cmds, MARGIN + 82.0, ly, sl, 7.5, false, (0.4, 0.439, 0.522));
             ly -= 9.5;
         }
 
@@ -91,7 +93,7 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         };
         draw_text_right(
             cmds,
-            MARGIN + 345.0,
+            MARGIN + 68.0,
             y - 11.0,
             qty_txt,
             8.5,
@@ -125,8 +127,12 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
             (0.094, 0.133, 0.188),
         );
 
-        y -= row_h;
-        draw_line(cmds, MARGIN, y, RIGHT, y, (0.91, 0.933, 0.957), 0.6);
+        let row_bottom = y - row_h;
+        for x in [MARGIN + 75.0, MARGIN + 350.0, MARGIN + 435.0] {
+            draw_line(cmds, x, y, x, row_bottom, (0.72, 0.72, 0.72), 0.55);
+        }
+        y = row_bottom;
+        draw_line(cmds, MARGIN, y, RIGHT, y, (0.72, 0.72, 0.72), 0.6);
     }
 
     y -= 14.0;
@@ -197,5 +203,5 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
         );
     }
 
-    assemble_pdf_bytes(&pages)
+    assemble_pdf_bytes(&pages, logo.as_ref())
 }

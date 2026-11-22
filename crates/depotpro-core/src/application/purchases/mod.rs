@@ -16,7 +16,7 @@ mod suppliers;
 
 pub use debts::{list_supplier_debts, pay_supplier_debt};
 pub use order_queries::list_purchase_orders;
-pub use orders::{cancel_purchase_order, create_purchase_order};
+pub use orders::{cancel_purchase_order, create_purchase_order, update_purchase_order};
 pub use receipts::receive_purchase_order;
 pub use suppliers::{create_supplier, list_suppliers, update_supplier};
 
@@ -58,7 +58,11 @@ pub(crate) struct PurchaseOrderRow {
     pub supplier_id: i64,
     pub supplier_name: String,
     pub supplier_code: String,
+    pub supplier_phone: String,
+    pub supplier_address: Option<String>,
+    pub supplier_email: Option<String>,
     pub status: String,
+    pub approval_status: Option<String>,
     pub total_amount: i64,
     pub received_amount: i64,
     pub expected_date: Option<String>,
@@ -73,7 +77,11 @@ pub struct PurchaseOrderDto {
     pub supplier_id: i64,
     pub supplier_name: String,
     pub supplier_code: String,
+    pub supplier_phone: String,
+    pub supplier_address: Option<String>,
+    pub supplier_email: Option<String>,
     pub status: String,
+    pub approval_status: Option<String>,
     pub total_amount: i64,
     pub received_amount: i64,
     pub expected_date: Option<String>,
@@ -152,6 +160,12 @@ pub struct CreatePurchaseOrderInput {
     pub supplier_id: i64,
     pub expected_date: Option<String>,
     pub notes: Option<String>,
+    pub lines: Vec<PurchaseOrderLineInput>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdatePurchaseOrderInput {
+    pub supplier_id: i64,
     pub lines: Vec<PurchaseOrderLineInput>,
 }
 
