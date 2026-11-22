@@ -5,7 +5,8 @@
 
 use std::path::PathBuf;
 
-use depotpro_core::application::{orders, products, sales};
+use depotpro_core::application::auth::{self, Role, SessionIdentity};
+use depotpro_core::application::{orders, pdf, products, sales};
 use depotpro_core::infrastructure::db::DepotDb;
 
 fn temp_db_path(tag: &str) -> PathBuf {
@@ -376,6 +377,18 @@ async fn orders_mixed_cases_1_to_7_and_lifecycle() {
     .await
     .unwrap();
     assert_eq!(created.order.status, "draft");
+    let draft_receipt_actor = SessionIdentity::from_role(
+        "draft-receipt-user",
+        "draft-receipt",
+        "Test propriétaire",
+        Role::Owner,
+    );
+    let draft_receipt = auth::with_actor(
+        draft_receipt_actor,
+        orders::issue_or_get_customer_order_receipt(&db, created.order.id),
+    )
+    .await;
+    assert!(draft_receipt.is_err(), "un brouillon ne doit pas émettre de reçu");
     assert_eq!(created.lines.len(), 2);
     assert_eq!(created.allocations.len(), 1);
     assert_eq!(created.links.len(), 2);
@@ -494,4 +507,94 @@ async fn orders_mixed_cases_1_to_7_and_lifecycle() {
         .await
         .unwrap();
     assert!(sale_reference.starts_with("VTE-"));
+
+    // Le reçu est émis depuis la commande livrée, figé en base et idempotent à la réimpression.
+    let actor = SessionIdentity::from_role("receipt-test-user", "receipt-test", "Test propriétaire", Role::Owner);
+    let payments_before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE order_id = ?")
+        .bind(created.order.id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    let first_receipt = auth::with_actor(
+        actor.clone(),
+        orders::issue_or_get_customer_order_receipt(&db, created.order.id),
+    )
+    .await
+    .unwrap();
+    assert_eq!(first_receipt.version, 1);
+    assert_eq!(first_receipt.receipt_number, format!("REC-{}", created.order.order_number));
+    assert!(first_receipt.snapshot_json.contains("Test propriétaire"));
+
+    // Une modification métier ultérieure ne remplace pas silencieusement le reçu émis.
+    sqlx::query("UPDATE clients SET name = 'Nom client modifié après émission' WHERE id = ?")
+        .bind(client.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let second_receipt = auth::with_actor(
+        actor,
+        orders::issue_or_get_customer_order_receipt(&db, created.order.id),
+    )
+    .await
+    .unwrap();
+    assert_eq!(first_receipt.id, second_receipt.id);
+    assert_eq!(first_receipt.snapshot_json, second_receipt.snapshot_json);
+    assert!(second_receipt.snapshot_json.contains(&client.name));
+    let payments_after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE order_id = ?")
+        .bind(created.order.id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(payments_before, payments_after, "l'émission ne crée aucun paiement");
+
+    // Les données poussées par le navigateur ne peuvent pas falsifier le PDF du reçu.
+    let pdf_actor = SessionIdentity::from_role("pdf-test-user", "pdf-test", "Test propriétaire", Role::Owner);
+    let (_pdf_name, receipt_pdf) = auth::with_actor(
+        pdf_actor,
+        pdf::generate_document_pdf(
+            &db,
+            pdf::DocumentPdfInput {
+                doc_type: "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION".into(),
+                reference: first_receipt.receipt_number.clone(),
+                order_reference: None,
+                date: "2000-01-01".into(),
+                status_label: None,
+                party_title: None,
+                party_name: Some("CLIENT FORGE".into()),
+                party_details: None,
+                party_phone: None,
+                secondary_party_title: None,
+                secondary_party_name: None,
+                secondary_party_details: None,
+                delivery_date: None,
+                cashier_name: Some("CAISSIER FORGÉ".into()),
+                planned_payment_method: None,
+                company_logo_jpeg: None,
+                lines: vec![pdf::DocumentPdfLine {
+                    label: "PRODUIT FORGE".into(),
+                    sublabel: None,
+                    quantity: "999".into(),
+                    discount: None,
+                    unit_price: Some(1),
+                    total: Some(1),
+                }],
+                packaging_lines: vec![],
+                summary_rows: vec![pdf::DocumentPdfSummaryRow {
+                    label: "TOTAL FORGÉ".into(),
+                    value: "1 FCFA".into(),
+                    bold: true,
+                    tone: None,
+                }],
+                payments: None,
+                notes: None,
+            },
+        ),
+    )
+    .await
+    .unwrap();
+    let receipt_pdf_text = String::from_utf8_lossy(&receipt_pdf);
+    assert!(receipt_pdf_text.contains("Bock"));
+    assert!(receipt_pdf_text.contains("Maquis Abidjan"));
+    assert!(!receipt_pdf_text.contains("PRODUIT FORGE"));
+    assert!(!receipt_pdf_text.contains("CLIENT FORGE"));
 }

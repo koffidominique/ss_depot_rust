@@ -11,6 +11,8 @@ pub mod lifecycle;
 pub mod lifecycle_settlement;
 pub mod packaging_and_returns;
 pub mod queries;
+mod receipt_pdf_input;
+pub mod receipts;
 
 pub use composition::{
     compose_order_allocations, compose_preview, compute_compatibility_class,
@@ -26,3 +28,8 @@ pub use packaging_and_returns::{
     return_order_packaging,
 };
 pub use queries::{get_order, list_orders};
+pub use receipts::{
+    create_customer_order_receipt_revision, issue_or_get_customer_order_receipt,
+    list_customer_order_receipt_snapshots, CreateCustomerOrderReceiptRevisionInput,
+    CustomerOrderReceiptSnapshotDto,
+};

@@ -6,7 +6,7 @@ import {
 } from '../components/documents/DocumentPrintModal.tsx';
 import { InlineAlert } from '../components/common/InlineAlert.tsx';
 import { apiClient } from '../services/api/createApiClient.ts';
-import type { PreviewAllocation } from '../types/erp.ts';
+import type { AppSettings, Client, CustomerOrderDetail, CustomerOrderReceiptSnapshot, PreviewAllocation } from '../types/erp.ts';
 import { OrderStepClient } from '../features/orders/components/OrderStepClient.tsx';
 import { OrderStepLines } from '../features/orders/components/OrderStepLines.tsx';
 import { OrderStepPackaging } from '../features/orders/components/OrderStepPackaging.tsx';
@@ -14,6 +14,7 @@ import { OrderStepReview } from '../features/orders/components/OrderStepReview.t
 import { OrderStepConfirm } from '../features/orders/components/OrderStepConfirm.tsx';
 import { OrdersListTable } from '../features/orders/components/OrdersListTable.tsx';
 import { useOrdersWizard } from '../features/orders/hooks/useOrdersWizard.ts';
+import { buildOrderReceiptDocument } from '../features/orders/utils/orderPrintDocument.ts';
 
 const STEPS = [
   { id: 1, label: '1. Client' },
@@ -52,7 +53,95 @@ export function OrdersPage() {
   } = useOrdersWizard();
 
   const [printDoc, setPrintDoc] = useState<PrintableDocumentData | null>(null);
+  const [receiptHistory, setReceiptHistory] = useState<CustomerOrderReceiptSnapshot[] | null>(null);
+  const [revisionReason, setRevisionReason] = useState('');
+  const [isRevisingReceipt, setIsRevisingReceipt] = useState(false);
   const activeClient = clients.find((c) => c.id === draft.customer_id) ?? null;
+
+  const printReceiptSnapshot = (receipt: CustomerOrderReceiptSnapshot) => {
+    const snapshot = JSON.parse(receipt.snapshot_json) as {
+      issuedAt: string;
+      issuer: { name: string };
+      company: AppSettings;
+      customer: Partial<Client>;
+      orderDetail: CustomerOrderDetail;
+      payments: Array<{ reference: string; paidAt: string; methodLabel: string; amountXof: number }>;
+      revisionReason?: string;
+    };
+    setPrintDoc(buildOrderReceiptDocument(
+      snapshot.orderDetail,
+      snapshot.customer ? ({ ...snapshot.customer } as Client) : null,
+      snapshot.issuer?.name || receipt.issued_by_name,
+      {
+        receiptNumber: receipt.receipt_number,
+        issuedAt: snapshot.issuedAt || receipt.issued_at,
+        company: snapshot.company,
+        payments: snapshot.payments,
+        revisionReason: snapshot.revisionReason,
+      },
+    ));
+  };
+
+  const openReceiptHistory = async () => {
+    if (!activeOrder) return;
+    setError(null);
+    try {
+      const receipts = await apiClient.listCustomerOrderReceipts(activeOrder.order.id);
+      setReceiptHistory(receipts);
+      setRevisionReason('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de charger l’historique des reçus.');
+    }
+  };
+
+  const reviseReceipt = async () => {
+    if (!activeOrder) return;
+    setError(null);
+    setIsRevisingReceipt(true);
+    try {
+      const receipt = await apiClient.reviseCustomerOrderReceipt(activeOrder.order.id, revisionReason);
+      const receipts = await apiClient.listCustomerOrderReceipts(activeOrder.order.id);
+      setReceiptHistory(receipts);
+      setRevisionReason('');
+      printReceiptSnapshot(receipt);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible d’émettre la version corrigée du reçu.');
+    } finally {
+      setIsRevisingReceipt(false);
+    }
+  };
+
+  const issueReceiptForActiveOrder = async () => {
+    if (!activeOrder) return;
+    setError(null);
+    try {
+      const receipt = await apiClient.issueCustomerOrderReceipt(activeOrder.order.id);
+      const snapshot = JSON.parse(receipt.snapshot_json) as {
+        issuedAt: string;
+        issuer: { name: string };
+        company: AppSettings;
+        customer: Partial<Client>;
+        orderDetail: CustomerOrderDetail;
+        payments: Array<{ reference: string; paidAt: string; methodLabel: string; amountXof: number }>;
+      };
+      const frozenClient = snapshot.customer
+        ? ({ ...snapshot.customer } as Client)
+        : null;
+      setPrintDoc(buildOrderReceiptDocument(
+        snapshot.orderDetail,
+        frozenClient,
+        snapshot.issuer?.name || receipt.issued_by_name,
+        {
+          receiptNumber: receipt.receipt_number,
+          issuedAt: snapshot.issuedAt || receipt.issued_at,
+          company: snapshot.company,
+          payments: snapshot.payments,
+        },
+      ));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible d’émettre le reçu de commande.');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -188,9 +277,8 @@ export function OrdersPage() {
                 setActiveOrder(null);
                 setStep(1);
               }}
-              onPrintReceipt={setPrintDoc}
-              client={activeClient}
-              agentName={null}
+              onPrintReceipt={() => void issueReceiptForActiveOrder()}
+              onViewReceiptHistory={() => void openReceiptHistory()}
             />
           )}
         </div>
@@ -243,6 +331,60 @@ export function OrdersPage() {
         />
       </div>
 
+      {receiptHistory !== null && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 p-4" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="receipt-history-title"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl dark:bg-[#111A2E]"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="receipt-history-title" className="font-display text-base font-semibold">Historique des accusés de commande</h2>
+                <p className="mt-1 text-xs text-slate-500">Chaque version est un snapshot immuable. Une correction crée un nouveau numéro et ne remplace jamais les versions précédentes.</p>
+              </div>
+              <button type="button" onClick={() => setReceiptHistory(null)} className="rounded-lg border px-3 py-1.5 text-xs">Fermer</button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {receiptHistory.length === 0 ? (
+                <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-900">Aucun reçu n’a encore été émis pour cette commande.</p>
+              ) : receiptHistory.map((receipt) => (
+                <div key={receipt.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                  <div>
+                    <p className="text-sm font-semibold">{receipt.receipt_number} · version {receipt.version}</p>
+                    <p className="text-xs text-slate-500">Émis le {receipt.issued_at} par {receipt.issued_by_name} ({receipt.issued_by_role})</p>
+                  </div>
+                  <button type="button" onClick={() => printReceiptSnapshot(receipt)} className="rounded-lg border px-3 py-2 text-xs font-medium">Réimprimer ce snapshot</button>
+                </div>
+              ))}
+            </div>
+            {isOwner && receiptHistory.length > 0 && activeOrder && !['draft', 'cancelled'].includes(activeOrder.order.status) && (
+              <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+                <label htmlFor="receipt-revision-reason" className="block text-xs font-semibold">Émettre une version corrigée (propriétaire)</label>
+                <textarea
+                  id="receipt-revision-reason"
+                  value={revisionReason}
+                  onChange={(event) => setRevisionReason(event.target.value)}
+                  minLength={8}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="Motif de correction (8 à 500 caractères)"
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm dark:border-slate-700"
+                />
+                <button
+                  type="button"
+                  disabled={isRevisingReceipt || revisionReason.trim().length < 8}
+                  onClick={() => void reviseReceipt()}
+                  className="mt-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                >
+                  {isRevisingReceipt ? 'Émission…' : 'Créer et imprimer la nouvelle version'}
+                </button>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
       <DocumentPrintModal doc={printDoc} onClose={() => setPrintDoc(null)} />
       <DocumentPrintModal doc={receiptDoc} onClose={closeReceiptDoc} />
     </div>

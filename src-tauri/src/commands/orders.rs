@@ -52,6 +52,52 @@ pub async fn get_order_v4(
 }
 
 #[tauri::command]
+pub async fn issue_order_receipt_v4(
+    state: State<'_, DesktopState>,
+    token: String,
+    id: i64,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::SalesRead).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(actor, orders::issue_or_get_customer_order_receipt(&db, id))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_order_receipts_v4(
+    state: State<'_, DesktopState>,
+    token: String,
+    id: i64,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::SalesRead).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(actor, orders::list_customer_order_receipt_snapshots(&db, id))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn revise_order_receipt_v4(
+    state: State<'_, DesktopState>,
+    token: String,
+    id: i64,
+    payload: orders::CreateCustomerOrderReceiptRevisionInput,
+) -> Result<serde_json::Value, String> {
+    let actor = verify_desktop_perm(&state, &token, Permission::SalesWrite).await?;
+    let db = state.db().await;
+    let res = auth::with_actor(
+        actor,
+        orders::create_customer_order_receipt_revision(&db, id, payload.reason),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    serde_json::to_value(res).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn create_order_v4(
     state: State<'_, DesktopState>,
     token: String,

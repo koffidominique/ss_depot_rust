@@ -15,6 +15,7 @@ import {
 } from '../features/settings/components/SecurityAndUsersCards.tsx';
 
 export function SettingsPage() {
+  const currentUser = useUiStore((s) => s.currentUser);
   const theme = useUiStore((s) => s.theme);
   const setTheme = useUiStore((s) => s.setTheme);
 
@@ -86,6 +87,7 @@ export function SettingsPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <CompanySettingsCard
           form={form}
+          canManageLogo={currentUser?.role === 'owner'}
           theme={theme}
           isSaving={saveMut.isPending}
           onUpdateForm={setForm}

@@ -1,9 +1,16 @@
 import { cn } from '../../utils/format.ts';
 
-export function Logo({ collapsed = false, className }: { collapsed?: boolean; className?: string }) {
+export function Logo({
+  collapsed = false,
+  className,
+  src,
+  alt = 'Logo DEPOTPRO',
+}: { collapsed?: boolean; className?: string; src?: string | null; alt?: string }) {
   return (
     <div className={cn('flex items-center gap-2.5 select-none', className)}>
-      <svg
+      {src ? (
+        <img src={src} alt={alt} className="h-8 w-8 shrink-0 rounded-md bg-white object-contain p-0.5" />
+      ) : <svg
         width="32"
         height="32"
         viewBox="0 0 32 32"
@@ -20,7 +27,7 @@ export function Logo({ collapsed = false, className }: { collapsed?: boolean; cl
         <circle cx="9.25" cy="10" r="1.25" fill="#60A5FA" />
         <circle cx="16" cy="10" r="1.25" fill="#60A5FA" />
         <circle cx="22.75" cy="10" r="1.25" fill="#60A5FA" />
-      </svg>
+      </svg>}
       {!collapsed && (
         <span className="font-display text-lg font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0">
           DEPOT<span className="text-[#2563EB] dark:text-[#60A5FA]">PRO</span>

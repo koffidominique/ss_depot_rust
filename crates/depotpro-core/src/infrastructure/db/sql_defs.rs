@@ -1,5 +1,5 @@
 // ============================================================================
-// Catalogue SQL des migrations embarquées (0001..0017)
+// Catalogue SQL des migrations embarquées (0001..0023)
 // ============================================================================
 
 pub const V3_SCHEMA_SQL: &str =
@@ -47,6 +47,9 @@ pub const V3_MIGRATION_0021_SQL: &str =
     include_str!("../../../../../migrations/sqlite/0021_order_sales_receipts.sql");
 pub const V3_MIGRATION_0022_SQL: &str = include_str!(
     "../../../../../migrations/sqlite/0022_document_snapshots_supplier_packaging_reservations.sql"
+);
+pub const V3_MIGRATION_0023_SQL: &str = include_str!(
+    "../../../../../migrations/sqlite/0023_customer_order_receipt_snapshots.sql"
 );
 
 #[derive(Debug, Clone, Copy)]
@@ -167,10 +170,15 @@ pub const MIGRATIONS: &[MigrationDef] = &[
         name: "0022_document_snapshots_supplier_packaging_reservations",
         sql: V3_MIGRATION_0022_SQL,
     },
+    MigrationDef {
+        version: 23,
+        name: "0023_customer_order_receipt_snapshots",
+        sql: V3_MIGRATION_0023_SQL,
+    },
 ];
 
 pub const MIN_SUPPORTED_SCHEMA_VERSION: i64 = 1;
-pub const CURRENT_SCHEMA_VERSION: i64 = 22;
+pub const CURRENT_SCHEMA_VERSION: i64 = 23;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MigrationRunReport {

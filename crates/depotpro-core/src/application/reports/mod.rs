@@ -146,7 +146,7 @@ pub struct ReportsOverviewDto {
     pub daily_sales: Vec<DailySalePointDto>,
 }
 
-#[derive(Debug, Serialize, FromRow)]
+#[derive(Debug, Deserialize, Serialize, FromRow)]
 pub struct AppSettingsDto {
     pub company_name: String,
     pub company_legal_name: Option<String>,

@@ -2,7 +2,7 @@
 // Paramètres applicatifs et moyens de paiement
 // ============================================================================
 
-use crate::application::auth::{require_current_actor_permission, Permission};
+use crate::application::auth::{current_actor, require_current_actor_permission, Permission, Role};
 use crate::application::products::sanitize_image_path;
 use crate::application::sales::audit_log_tx;
 use crate::error::{CoreError, CoreResult};
@@ -95,10 +95,18 @@ pub async fn update_settings(
         None => cur.setup_completed,
     };
 
+    let current_logo_path = cur.logo_path.clone();
     let next_logo_path = match input.logo_path {
         Some(opt) => sanitize_image_path(opt.as_deref())?,
-        None => cur.logo_path,
+        None => cur.logo_path.clone(),
     };
+    if next_logo_path != current_logo_path
+        && current_actor().is_some_and(|actor| actor.role != Role::Owner)
+    {
+        return Err(crate::error::CoreError::Forbidden(
+            "Seul le propriétaire peut remplacer ou retirer le logo commun de l'application et des documents.".into(),
+        ));
+    }
 
     sqlx::query(
         "UPDATE app_settings

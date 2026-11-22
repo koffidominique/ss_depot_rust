@@ -7,6 +7,7 @@ import type {
   CreateCustomerOrderInput,
   CustomerDepositBalance,
   CustomerOrderDetail,
+  CustomerOrderReceiptSnapshot,
   CustomerOrderSummary,
   OrderLineInput,
   PackagingAsset,
@@ -40,6 +41,18 @@ export const tauriOrdersApi = {
   },
   getCustomerOrder(id: number): Promise<CustomerOrderDetail> {
     return tauriInvokeWithToken<CustomerOrderDetail>("get_order_v4", { id });
+  },
+  issueCustomerOrderReceipt(id: number): Promise<CustomerOrderReceiptSnapshot> {
+    return tauriInvokeWithToken<CustomerOrderReceiptSnapshot>('issue_order_receipt_v4', { id });
+  },
+  listCustomerOrderReceipts(id: number): Promise<CustomerOrderReceiptSnapshot[]> {
+    return tauriInvokeWithToken<CustomerOrderReceiptSnapshot[]>('list_order_receipts_v4', { id });
+  },
+  reviseCustomerOrderReceipt(id: number, reason: string): Promise<CustomerOrderReceiptSnapshot> {
+    return tauriInvokeWithToken<CustomerOrderReceiptSnapshot>('revise_order_receipt_v4', {
+      id,
+      payload: { reason },
+    });
   },
   createCustomerOrder(payload: CreateCustomerOrderInput): Promise<CustomerOrderDetail> {
     return tauriInvokeWithToken<CustomerOrderDetail>("create_order_v4", { payload });

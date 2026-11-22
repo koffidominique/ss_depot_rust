@@ -26,6 +26,84 @@ export function PrintableDocumentSheet({
   const senderTitle = isPurchaseOrder ? 'FOURNISSEUR' : (doc.partyTitle || 'CLIENT');
   const receiverTitle = doc.secondaryPartyTitle || (isPurchaseOrder ? 'LIVRER À' : 'DESTINATAIRE');
   const clientSignatures = isCustomerReceipt || doc.partyTitle?.toLowerCase().includes('client');
+  const isOrderAcknowledgement = doc.docType === 'BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION';
+
+  if (isOrderAcknowledgement) {
+    const notes = (doc.notes || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const cashier = notes.find((line) => line.startsWith('Émis par :'))?.replace('Émis par :', '').trim();
+    const orderPayment = notes.find((line) => line.startsWith('Mode de règlement prévu :'))?.replace('Mode de règlement prévu :', '').trim();
+    const operationalNotes = notes.filter((line) => !/^(Émis par :|Mode de règlement prévu :|Statut du paiement :|Livraison :|Casiers mixtes —)/.test(line));
+    const valueFor = (label: string) => doc.summaryRows.find((row) => row.label === label)?.value || '—';
+    return (
+      <article className="order-receipt-sheet bg-white px-6 py-6 text-slate-800 sm:px-8">
+        <header className="order-receipt-header">
+          <div className="order-receipt-brand">
+            {company?.logo_path ? <img src={company.logo_path} alt="Logo du sous-dépôt" /> : <div className="order-receipt-logo-placeholder">LOGO</div>}
+            <div className="min-w-0">
+              <h1>{company?.company_name || 'DEPOTPRO'}</h1>
+              {company?.address && <p>Adresse : {company.address}</p>}
+              <p>{[company?.city, company?.country].filter(Boolean).join(' · ')}</p>
+              {company?.phone && <p>Tél / WhatsApp : {company.phone}</p>}
+              {company?.email && <p>{company.email}</p>}
+            </div>
+          </div>
+          <div className="order-receipt-number">
+            <strong>BON DE COMMANDE CLIENT</strong>
+            <small>ACCUSÉ DE RÉCEPTION DE COMMANDE</small>
+            <span>N° reçu : {doc.reference}</span>
+            {doc.orderReference && <span>Réf. commande : {doc.orderReference}</span>}
+            <span>Date : {formatDateTime(doc.date)}</span>
+            {doc.statusLabel && <span>Statut : {doc.statusLabel}</span>}
+            {cashier && <span>Émis par : {cashier}</span>}
+          </div>
+        </header>
+
+        <div className="order-receipt-party-grid">
+          <section><h2>INFORMATIONS DU CLIENT</h2><b>{doc.partyName || '—'}</b>
+            {doc.partyDetails && <p>{doc.partyDetails}</p>}
+            {doc.partyPhone && !doc.partyDetails?.includes(doc.partyPhone) && <p>Contact : {doc.partyPhone}</p>}
+          </section>
+          <section><h2>MODE DE RETRAIT / LIVRAISON</h2>
+            <p>{doc.deliveryDate || (doc.secondaryPartyDetails && doc.secondaryPartyDetails !== 'À retirer au sous-dépôt') ? 'Livraison prévue' : 'Enlèvement sur place (au sous-dépôt)'}</p>
+            <b>{doc.secondaryPartyName || doc.partyName || '—'}</b>
+            <p>{doc.secondaryPartyDetails || '—'}</p>
+            <p>{doc.deliveryDate ? `Date prévue : ${formatDate(doc.deliveryDate)}` : 'Date / Heure prévue : non renseignée'}</p>
+          </section>
+        </div>
+
+        <section className="order-receipt-products">
+          <h2>LIGNES DE COMMANDE</h2>
+          <table><thead><tr><th>N°</th><th>DÉSIGNATION / FORMAT</th><th>CONDITIONNEMENT / COMPOSITION</th><th>QTÉ</th><th>PRIX UNITAIRE</th><th>REMISE</th><th>MONTANT TOTAL</th></tr></thead>
+            <tbody>{doc.lines.filter((line) => !line.label.startsWith('Emballage :')).map((line, index) => <tr key={`${line.label}-${index}`}>
+              <td>{index + 1}</td><td>{line.label}</td><td>{line.sublabel || '—'}</td><td>{line.quantity}</td><td>{line.unitPrice == null ? '—' : formatFcfa(line.unitPrice)}</td><td>{line.discount == null || line.discount === 0 ? '—' : formatFcfa(line.discount)}</td><td>{line.total == null ? '—' : formatFcfa(line.total)}</td>
+            </tr>)}</tbody>
+          </table>
+        </section>
+
+        {doc.packagingLines?.length ? <section className="order-receipt-packaging"><h2>SUIVI DES CASIERS & EMBALLAGES (CONSIGNES)</h2>
+          <table><thead><tr><th>Type d'emballage</th><th>Prévu</th><th>Remis</th><th>Rendus</th><th>Solde à restituer</th><th>Consigne (unité / total)</th></tr></thead>
+            <tbody>{doc.packagingLines.map((line, index) => <tr key={`${line.label}-${index}`}>
+              <td>{line.label}<small>{line.statusLabel}{line.detail ? ` · ${line.detail}` : ''}</small></td>
+              <td>{line.expectedQuantity}</td>
+              <td>{line.issuedQuantity ?? '—'}</td>
+              <td>{line.issuedQuantity == null ? '—' : line.returnedQuantity ?? 0}</td>
+              <td>{line.issuedQuantity == null ? '—' : Math.max(0, line.issuedQuantity - (line.returnedQuantity ?? 0))}</td>
+              <td>{line.unitDepositXof == null ? 'Non consigné' : `${formatFcfa(line.unitDepositXof)} / ${formatFcfa(line.amount ?? 0)}`}</td>
+            </tr>)}</tbody>
+          </table></section> : null}
+
+        <section className="order-receipt-finance"><h2>DÉCOMPTE FINANCIER (FCFA)</h2>
+          <div className="order-receipt-summary">{doc.summaryRows.map((row, index) => <div key={`${row.label}-${index}`} className={`${row.bold ? 'is-total' : ''} ${row.tone === 'danger' ? 'is-due' : ''}`}><span>{row.label}</span><b>{row.value}</b></div>)}</div>
+        </section>
+        <section className="order-receipt-payment"><b>Mode de règlement prévu :</b> {orderPayment || 'Non renseigné'}<br />Montant déjà encaissé : {valueFor('Acomptes / paiements enregistrés')} · Statut : {notes.find((line) => line.startsWith('Statut du paiement :'))?.replace('Statut du paiement :', '').trim() || '—'}
+          {doc.payments?.length ? <div className="mt-2 border-t border-slate-200 pt-1">{doc.payments.map((payment, index) => <div key={`${payment.label}-${index}`} className="flex justify-between gap-3"><span>{payment.label}</span><b>{formatFcfa(payment.amount)}</b></div>)}</div> : <div className="mt-1 text-slate-500">Aucun encaissement associé enregistré à l’émission.</div>}
+        </section>
+        {operationalNotes.length > 0 && <p className="order-receipt-notes">{operationalNotes.join(' · ')}</p>}
+        <section className="order-receipt-signatures"><div><b>Signature & cachet du sous-dépôt</b></div><div><b>Signature du client (bon pour accord & réception)</b></div></section>
+        <footer>Merci pour votre confiance ! Veuillez vérifier vos quantités et emballages avant de quitter le dépôt.</footer>
+      </article>
+    );
+  }
 
   return (
     <article className="document-sheet space-y-5 bg-white px-7 py-7 text-black sm:px-10 sm:py-9">

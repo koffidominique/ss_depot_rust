@@ -5,8 +5,8 @@ use depotpro_core::infrastructure::db::{
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::path::PathBuf;
 
-const EXPECTED_SCHEMA_V22_JSON: &str =
-    include_str!("../../../migrations/sqlite/expected_schema_v22.json");
+const EXPECTED_SCHEMA_V23_JSON: &str =
+    include_str!("../../../migrations/sqlite/expected_schema_v23.json");
 
 fn temp_db_path(tag: &str) -> PathBuf {
     std::env::temp_dir().join(format!("depotpro_lot4_{tag}_{}.db", uuid::Uuid::new_v4()))
@@ -41,12 +41,12 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
     let db_path = temp_db_path("fresh_parity");
     let db = DepotDb::connect(&db_path).await.expect("connect fresh db");
 
-    // 1. Vérifier les versions 1..22 appliquées dans l'ordre
+    // 1. Vérifier les versions 1..23 appliquées dans l'ordre
     let snapshot = DepotDb::extract_schema_snapshot(&db.pool)
         .await
         .expect("extract schema");
     let expected: SchemaSnapshot =
-        serde_json::from_str(EXPECTED_SCHEMA_V22_JSON).expect("parse expected_schema_v22.json");
+        serde_json::from_str(EXPECTED_SCHEMA_V23_JSON).expect("parse expected_schema_v23.json");
     assert_eq!(
         normalize_snapshot(snapshot),
         normalize_snapshot(expected),
@@ -118,7 +118,7 @@ async fn lot4_fresh_db_neutral_defaults_and_schema_parity_with_node() {
     // 5. Rejeu idempotent
     let replay = DepotDb::apply_migrations(&db.pool).await.unwrap();
     assert!(replay.applied_versions.is_empty());
-    assert_eq!(replay.latest_version, 22);
+    assert_eq!(replay.latest_version, 23);
 
     let _ = std::fs::remove_file(&db_path);
     let _ = std::fs::remove_file(format!("{}-wal", db_path.display()));
