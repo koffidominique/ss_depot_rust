@@ -15,6 +15,7 @@ mod primitives;
 mod renderer;
 mod receipt_renderer;
 mod summary_section;
+mod supplier_doc_renderer;
 
 pub use renderer::render_document_pdf;
 
@@ -22,6 +23,7 @@ pub(crate) const VALID_DOC_TYPES: &[&str] = &[
     "FACTURE",
     "REÇU DE VENTE",
     "REÇU DE COMMANDE",
+    "REÇU DE PAIEMENT",
     "AVOIR CLIENT",
     "BON DE COMMANDE",
     "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION",

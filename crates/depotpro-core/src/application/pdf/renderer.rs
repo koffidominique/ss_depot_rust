@@ -17,6 +17,9 @@ pub fn render_document_pdf(company: &AppSettingsDto, doc: &DocumentPdfInput) -> 
     if doc.doc_type == "BON DE COMMANDE CLIENT – ACCUSÉ DE RÉCEPTION" {
         return super::receipt_renderer::render_order_receipt_pdf(company, doc);
     }
+    if doc.doc_type == "BON DE COMMANDE" || doc.doc_type == "BON DE RÉCEPTION" {
+        return super::supplier_doc_renderer::render_supplier_document_pdf(company, doc);
+    }
     let mut pages: Vec<Vec<String>> = Vec::new();
     let mut y: f64 = PAGE_H - MARGIN;
 
