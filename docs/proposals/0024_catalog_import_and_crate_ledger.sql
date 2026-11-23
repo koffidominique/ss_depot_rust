@@ -41,8 +41,10 @@ ALTER TABLE crate_types ADD COLUMN value_status TEXT NOT NULL DEFAULT 'unknown'
 ALTER TABLE packaging_assets ADD COLUMN crate_type_id INTEGER NULL REFERENCES crate_types(id);
 ALTER TABLE packaging_assets ADD COLUMN capacity_status TEXT NOT NULL DEFAULT 'legacy_unverified'
     CHECK (capacity_status IN ('unknown', 'to_verify', 'verified', 'owner_configured', 'legacy_unverified'));
-ALTER TABLE packaging_assets ADD COLUMN value_status TEXT NOT NULL DEFAULT 'unknown'
+ALTER TABLE packaging_assets ADD COLUMN value_status TEXT NOT NULL DEFAULT 'legacy_unverified'
     CHECK (value_status IN ('unknown', 'to_verify', 'verified', 'owner_configured', 'legacy_unverified'));
+UPDATE crate_types SET capacity_status = 'legacy_unverified', value_status = 'legacy_unverified';
+UPDATE packaging_assets SET capacity_status = 'legacy_unverified', value_status = 'legacy_unverified';
 CREATE INDEX IF NOT EXISTS idx_packaging_assets_crate_type
     ON packaging_assets(crate_type_id);
 
@@ -69,6 +71,18 @@ CREATE INDEX IF NOT EXISTS idx_catalog_import_runs_catalog
     ON catalog_import_runs(catalog_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_catalog_import_runs_status
     ON catalog_import_runs(status, id DESC);
+
+-- Commit retries are keyed separately from the preview request.
+CREATE TABLE IF NOT EXISTS catalog_import_commit_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    import_run_id INTEGER NOT NULL REFERENCES catalog_import_runs(id),
+    request_key TEXT NOT NULL UNIQUE,
+    payload_sha256 TEXT NOT NULL CHECK (length(payload_sha256) = 64),
+    result_json TEXT NOT NULL CHECK (json_valid(result_json)),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_catalog_import_commit_run
+    ON catalog_import_commit_requests(import_run_id);
 
 -- Polymorphic source-to-internal mapping. The service validates internal_table/id
 -- before writing; no false FK is declared across multiple entity tables.
