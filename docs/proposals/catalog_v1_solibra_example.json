@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_id": "solibra_ci",
+  "catalog_name": "SOLIBRA — exemple normalisé",
+  "producer": {
+    "external_id": "solibra",
+    "code": "BRW-SOLIBRA",
+    "name": "SOLIBRA",
+    "country_code": "CI",
+    "website": "https://www.solibra.ci/"
+  },
+  "currency": "XOF",
+  "categories": [
+    {
+      "external_id": "beer",
+      "code": "BEER",
+      "name": "Bière",
+      "parent_external_id": null,
+      "alcoholic": true,
+      "verification_status": "verified"
+    }
+  ],
+  "brands": [
+    {
+      "external_id": "bock",
+      "code": "BOCK",
+      "name": "Bock",
+      "producer_external_id": "solibra",
+      "verification_status": "verified"
+    }
+  ],
+  "container_types": [
+    {
+      "external_id": "glass",
+      "name": "Bouteille en verre",
+      "material": "glass",
+      "volume_ml": null,
+      "returnable": null,
+      "tracking_scope": "descriptive_only"
+    },
+    {
+      "external_id": "can",
+      "name": "Canette",
+      "material": "aluminium",
+      "volume_ml": null,
+      "returnable": false,
+      "tracking_scope": "descriptive_only"
+    }
+  ],
+  "commercial_packaging_types": [
+    {
+      "external_id": "crate",
+      "name": "Casier",
+      "unit": "crate",
+      "reusable": null,
+      "physical_asset_kind": null,
+      "verification_status": "to_verify"
+    },
+    {
+      "external_id": "carton",
+      "name": "Carton",
+      "unit": "carton",
+      "reusable": false,
+      "physical_asset_kind": null,
+      "verification_status": "verified"
+    }
+  ],
+  "products": [
+    {
+      "external_id": "bock",
+      "code": null,
+      "name": "Bock",
+      "brand_external_id": "bock",
+      "category_external_id": "beer",
+      "catalog_status": "documented",
+      "variants": [
+        {
+          "external_id": "bock_33_glass_crate24",
+          "sku": "bock_33_glass_crate24",
+          "display_name": "Bock 33 cl bouteille",
+          "volume_ml": 330,
+          "container_external_id": "glass",
+          "commercial_packages": [
+            {
+              "package_type_external_id": "crate",
+              "units_per_package": 24,
+              "package_unit": "crate",
+              "quantity_status": "confirmed_storefront"
+            }
+          ],
+          "crate_asset": {
+            "external_id": null,
+            "plastic_crate_confirmed": false,
+            "capacity": null,
+            "capacity_status": "unknown",
+            "value_xof": null,
+            "value_status": "unknown",
+            "compatibility_code": null
+          },
+          "sale_units": ["package", "individual_unit"],
+          "source_status": "confirmed_storefront",
+          "verification_status": "to_verify"
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "external_id": "solibra_catalog_source",
+      "url": null,
+      "source_type": "catalog",
+      "accessed_on": "2026-11-20",
+      "note": "Exemple de normalisation; la quantité commerciale 24 ne prouve pas la capacité ni la valeur du casier plastique."
+    }
+  ]
+}
