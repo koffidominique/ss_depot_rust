@@ -334,7 +334,7 @@ Audit obligatoire : acteur ID/nom/rôle, timestamp UTC, entity/id, action, old/n
 - Ancien deposit_issue convertissable avant cutover, nouveau non; retours/historique/rollback conservés.
 - Parité Web/Tauri; concurrence et rollback.
 
-**Tests réellement exécutés : aucun** (pas de checkout local, cargo/npm/SQLite runner non exécutés). docs/PRODUCTION_READINESS_REPORT.md daté 2026-11-19 rapporte tests workspace, typecheck, lint, build et benchmark sur son environnement; ce n’est pas une validation de ce patch. CI actuelle contient typecheck, lint, build, Playwright et migration/benchmark; vérifier job Rust au moment du patch.
+**Tests réellement exécutés : aucun** (pas de checkout local, cargo/npm/SQLite runner non exécutés). docs/PRODUCTION_READINESS_REPORT.md daté 2026-11-19 rapporte tests workspace, typecheck, lint, build et benchmark sur son environnement; ce n’est pas une validation de ce patch. CI actuelle contient 11 jobs : typecheck, lint, Vite build, Playwright, migration/benchmark, tests Rust core, tests Axum, clippy, rustfmt, build Tauri Windows et macOS.
 
 ## 11. Ordre de réalisation
 
